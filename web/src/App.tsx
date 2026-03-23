@@ -13,6 +13,7 @@ import { Databases } from './pages/Databases';
 import { Servers } from './pages/Servers';
 import { Settings } from './pages/Settings';
 import { DeployWizard } from './pages/DeployWizard';
+import { Domains } from './pages/Domains';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -31,14 +32,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
-}
-
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-center h-64">
-      <p className="text-text-muted text-lg">{title} — Coming soon</p>
-    </div>
-  );
 }
 
 export default function App() {
@@ -67,7 +60,7 @@ export default function App() {
           <Route path="apps" element={<Apps />} />
           <Route path="apps/new" element={<DeployWizard />} />
           <Route path="apps/:id" element={<AppDetail />} />
-          <Route path="domains" element={<Placeholder title="Domains" />} />
+          <Route path="domains" element={<Domains />} />
           <Route path="databases" element={<Databases />} />
           <Route path="servers" element={<Servers />} />
           <Route path="marketplace" element={<Marketplace />} />
