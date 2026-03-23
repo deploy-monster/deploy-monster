@@ -221,6 +221,16 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/error-pages", protected(http.HandlerFunc(epH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/error-pages", protected(http.HandlerFunc(epH.Update)))
 
+	// ── Sticky Sessions ───────────────────────────────
+	stickyH := handlers.NewStickySessionHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/sticky-sessions", protected(http.HandlerFunc(stickyH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/sticky-sessions", protected(http.HandlerFunc(stickyH.Update)))
+
+	// ── Autoscale ─────────────────────────────────────
+	asH := handlers.NewAutoscaleHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Update)))
+
 	// ── Basic Auth ────────────────────────────────────
 	baH := handlers.NewBasicAuthHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Get)))
@@ -318,9 +328,12 @@ func (r *Router) registerRoutes() {
 	wildcardH := handlers.NewWildcardSSLHandler(r.store)
 	r.mux.Handle("POST /api/v1/certificates/wildcard", protected(http.HandlerFunc(wildcardH.Request)))
 
-	// ── Image Tags ────────────────────────────────────
+	// ── Image Tags & Cleanup ──────────────────────────
 	imgTagH := handlers.NewImageTagHandler()
 	r.mux.HandleFunc("GET /api/v1/images/tags", imgTagH.List)
+	imgCleanH := handlers.NewImageCleanupHandler(r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/images/dangling", protected(http.HandlerFunc(imgCleanH.DanglingImages)))
+	r.mux.Handle("DELETE /api/v1/images/prune", protected(http.HandlerFunc(imgCleanH.Prune)))
 
 	// ── Volumes ───────────────────────────────────────
 	volH := handlers.NewVolumeHandler(r.core.Services.Container, r.core.Events)
@@ -458,6 +471,12 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.StreamOutput)))
 	r.mux.Handle("POST /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.SendCommand)))
 
+	// ── Deploy Approval Workflow ──────────────────────
+	daH := handlers.NewDeployApprovalHandler(r.store, r.core.Events)
+	r.mux.Handle("GET /api/v1/deploy/approvals", protected(http.HandlerFunc(daH.ListPending)))
+	r.mux.Handle("POST /api/v1/deploy/approvals/{id}/approve", protected(http.HandlerFunc(daH.Approve)))
+	r.mux.Handle("POST /api/v1/deploy/approvals/{id}/reject", protected(http.HandlerFunc(daH.Reject)))
+
 	// ── Search ────────────────────────────────────────
 	searchH := handlers.NewSearchHandler(r.store)
 	r.mux.Handle("GET /api/v1/search", protected(http.HandlerFunc(searchH.Search)))
@@ -501,6 +520,12 @@ func (r *Router) registerRoutes() {
 	licH := handlers.NewLicenseHandler()
 	r.mux.Handle("GET /api/v1/admin/license", protected(http.HandlerFunc(licH.Get)))
 	r.mux.Handle("POST /api/v1/admin/license", protected(http.HandlerFunc(licH.Activate)))
+
+	// ── Admin API Keys ────────────────────────────────
+	adminKeyH := handlers.NewAdminAPIKeyHandler(r.store)
+	r.mux.Handle("GET /api/v1/admin/api-keys", protected(http.HandlerFunc(adminKeyH.List)))
+	r.mux.Handle("POST /api/v1/admin/api-keys", protected(http.HandlerFunc(adminKeyH.Generate)))
+	r.mux.Handle("DELETE /api/v1/admin/api-keys/{prefix}", protected(http.HandlerFunc(adminKeyH.Revoke)))
 
 	// ── Admin (super admin only) ──────────────────────
 	adminH := handlers.NewAdminHandler(r.core)
