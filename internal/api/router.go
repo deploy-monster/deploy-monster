@@ -102,6 +102,23 @@ func (r *Router) registerRoutes() {
 	renameH := handlers.NewRenameHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/rename", protected(http.HandlerFunc(renameH.Rename)))
 
+	// ── GPU Config ────────────────────────────────────
+	gpuH := handlers.NewGPUHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Update)))
+
+	// ── Save as Template ──────────────────────────────
+	saveTmplH := handlers.NewSaveTemplateHandler(r.store)
+	r.mux.Handle("POST /api/v1/apps/{id}/save-template", protected(http.HandlerFunc(saveTmplH.Save)))
+
+	// ── Commit Rollback ───────────────────────────────
+	crH := handlers.NewCommitRollbackHandler(r.store, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/rollback-to-commit", protected(http.HandlerFunc(crH.RollbackToCommit)))
+
+	// ── Webhook Replay ────────────────────────────────
+	whReplayH := handlers.NewWebhookReplayHandler(r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/{logId}/replay", protected(http.HandlerFunc(whReplayH.Replay)))
+
 	// ── App Clone & Bulk Ops ──────────────────────────
 	cloneH := handlers.NewCloneHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/clone", protected(http.HandlerFunc(cloneH.Clone)))
@@ -408,6 +425,10 @@ func (r *Router) registerRoutes() {
 	trlH := handlers.NewTenantRateLimitHandler(r.store)
 	r.mux.Handle("GET /api/v1/admin/tenants/{id}/ratelimit", protected(http.HandlerFunc(trlH.Get)))
 	r.mux.Handle("PUT /api/v1/admin/tenants/{id}/ratelimit", protected(http.HandlerFunc(trlH.Update)))
+
+	// ── Platform Stats (super admin) ──────────────────
+	platH := handlers.NewPlatformStatsHandler(r.core)
+	r.mux.Handle("GET /api/v1/admin/stats", protected(http.HandlerFunc(platH.Overview)))
 
 	// ── Admin (super admin only) ──────────────────────
 	adminH := handlers.NewAdminHandler(r.core)
