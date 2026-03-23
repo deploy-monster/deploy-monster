@@ -138,6 +138,20 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/resources", protected(http.HandlerFunc(resH.GetLimits)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/resources", protected(http.HandlerFunc(resH.SetLimits)))
 
+	// ── Dependencies ─────────────────────────────────
+	depGraphH := handlers.NewDependencyHandler(r.store, r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/apps/{id}/dependencies", protected(http.HandlerFunc(depGraphH.Graph)))
+
+	// ── Metrics History ───────────────────────────────
+	metricsH := handlers.NewMetricsHistoryHandler(r.store, r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/apps/{id}/metrics", protected(http.HandlerFunc(metricsH.AppMetrics)))
+	r.mux.Handle("GET /api/v1/servers/{id}/metrics", protected(http.HandlerFunc(metricsH.ServerMetrics)))
+
+	// ── Environments ──────────────────────────────────
+	envPresetsH := handlers.NewEnvironmentHandler(r.store)
+	r.mux.HandleFunc("GET /api/v1/environments/presets", envPresetsH.ListPresets)
+	r.mux.Handle("POST /api/v1/projects/{id}/environment", protected(http.HandlerFunc(envPresetsH.ApplyPreset)))
+
 	// ── Networks ──────────────────────────────────────
 	netH := handlers.NewNetworkHandler(r.core.Services.Container, r.core.Events)
 	r.mux.Handle("GET /api/v1/networks", protected(http.HandlerFunc(netH.List)))
