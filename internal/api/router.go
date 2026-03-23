@@ -133,6 +133,19 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/access", protected(http.HandlerFunc(ipH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/access", protected(http.HandlerFunc(ipH.Update)))
 
+	// ── Log Retention ─────────────────────────────────
+	lrH := handlers.NewLogRetentionHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/log-retention", protected(http.HandlerFunc(lrH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/log-retention", protected(http.HandlerFunc(lrH.Update)))
+
+	// ── Webhook Secret Rotation ───────────────────────
+	whRotH := handlers.NewWebhookRotateHandler(r.store, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/rotate", protected(http.HandlerFunc(whRotH.Rotate)))
+
+	// ── Deploy Preview ────────────────────────────────
+	dpH := handlers.NewDeployPreviewHandler(r.store)
+	r.mux.Handle("POST /api/v1/apps/{id}/deploy/preview", protected(http.HandlerFunc(dpH.Preview)))
+
 	// ── Webhook Logs ──────────────────────────────────
 	whLogH := handlers.NewWebhookLogHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/webhooks/logs", protected(http.HandlerFunc(whLogH.List)))
@@ -205,6 +218,10 @@ func (r *Router) registerRoutes() {
 	certH := handlers.NewCertificateHandler(r.store)
 	r.mux.Handle("GET /api/v1/certificates", protected(http.HandlerFunc(certH.List)))
 	r.mux.Handle("POST /api/v1/certificates", protected(http.HandlerFunc(certH.Upload)))
+
+	// ── Image Tags ────────────────────────────────────
+	imgTagH := handlers.NewImageTagHandler()
+	r.mux.HandleFunc("GET /api/v1/images/tags", imgTagH.List)
 
 	// ── Volumes ───────────────────────────────────────
 	volH := handlers.NewVolumeHandler(r.core.Services.Container, r.core.Events)
@@ -361,6 +378,12 @@ func (r *Router) registerRoutes() {
 	eventStreamer := ws.NewEventStreamer(r.core.Events, r.core.Logger)
 	r.mux.Handle("GET /api/v1/apps/{id}/logs/stream", protected(http.HandlerFunc(logStreamer.StreamLogs)))
 	r.mux.Handle("GET /api/v1/events/stream", protected(http.HandlerFunc(eventStreamer.StreamEvents)))
+
+	// ── Announcements ─────────────────────────────────
+	announcH := handlers.NewAnnouncementHandler()
+	r.mux.HandleFunc("GET /api/v1/announcements", announcH.List) // public
+	r.mux.Handle("POST /api/v1/admin/announcements", protected(http.HandlerFunc(announcH.Create)))
+	r.mux.Handle("DELETE /api/v1/admin/announcements/{id}", protected(http.HandlerFunc(announcH.Dismiss)))
 
 	// ── Admin (super admin only) ──────────────────────
 	adminH := handlers.NewAdminHandler(r.core)
