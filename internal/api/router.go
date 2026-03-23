@@ -93,6 +93,20 @@ func (r *Router) registerRoutes() {
 	bulkH := handlers.NewBulkHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/bulk", protected(http.HandlerFunc(bulkH.Execute)))
 
+	// ── App Restart Policy ────────────────────────────
+	rpH := handlers.NewRestartPolicyHandler(r.store, r.core.Services.Container)
+	r.mux.Handle("PUT /api/v1/apps/{id}/restart-policy", protected(http.HandlerFunc(rpH.Update)))
+
+	// ── App Labels ────────────────────────────────────
+	labelsH := handlers.NewLabelsHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/labels", protected(http.HandlerFunc(labelsH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/labels", protected(http.HandlerFunc(labelsH.Update)))
+
+	// ── App Ports ─────────────────────────────────────
+	portH := handlers.NewPortHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/ports", protected(http.HandlerFunc(portH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/ports", protected(http.HandlerFunc(portH.Update)))
+
 	// ── Webhook Logs ──────────────────────────────────
 	whLogH := handlers.NewWebhookLogHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/webhooks/logs", protected(http.HandlerFunc(whLogH.List)))
@@ -234,6 +248,19 @@ func (r *Router) registerRoutes() {
 	termH := ws.NewTerminal(r.core.Services.Container, r.core.Logger)
 	r.mux.Handle("GET /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.StreamOutput)))
 	r.mux.Handle("POST /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.SendCommand)))
+
+	// ── Search ────────────────────────────────────────
+	searchH := handlers.NewSearchHandler(r.store)
+	r.mux.Handle("GET /api/v1/search", protected(http.HandlerFunc(searchH.Search)))
+
+	// ── Activity Feed ─────────────────────────────────
+	activityH := handlers.NewActivityHandler(r.store)
+	r.mux.Handle("GET /api/v1/activity", protected(http.HandlerFunc(activityH.Feed)))
+
+	// ── SSH Keys ──────────────────────────────────────
+	sshH := handlers.NewSSHKeyHandler(r.store)
+	r.mux.Handle("GET /api/v1/ssh-keys", protected(http.HandlerFunc(sshH.List)))
+	r.mux.Handle("POST /api/v1/ssh-keys/generate", protected(http.HandlerFunc(sshH.Generate)))
 
 	// ── MCP Protocol ──────────────────────────────────
 	mcpH := handlers.NewMCPHandler(r.store, r.core.Services.Container, r.core.Events)
