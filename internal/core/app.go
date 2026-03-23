@@ -31,15 +31,16 @@ type BuildInfo struct {
 // Core is the central application orchestrator.
 // It holds the configuration, module registry, event bus, and shared resources.
 type Core struct {
-	Config   *Config
-	Build    BuildInfo
-	Registry *Registry
-	Events   *EventBus
-	DB       *Database
-	Store    Store
-	Services *Services
-	Logger   *slog.Logger
-	Router   *http.ServeMux
+	Config    *Config
+	Build     BuildInfo
+	Registry  *Registry
+	Events    *EventBus
+	Scheduler *Scheduler
+	DB        *Database
+	Store     Store
+	Services  *Services
+	Logger    *slog.Logger
+	Router    *http.ServeMux
 }
 
 // NewApp creates a new Core application instance.
@@ -47,13 +48,14 @@ func NewApp(cfg *Config, build BuildInfo) (*Core, error) {
 	logger := slog.Default()
 
 	c := &Core{
-		Config:   cfg,
-		Build:    build,
-		Registry: NewRegistry(),
-		Events:   NewEventBus(logger),
-		Services: NewServices(),
-		Logger:   logger,
-		Router:   http.NewServeMux(),
+		Config:    cfg,
+		Build:     build,
+		Registry:  NewRegistry(),
+		Events:    NewEventBus(logger),
+		Scheduler: NewScheduler(logger),
+		Services:  NewServices(),
+		Logger:    logger,
+		Router:    http.NewServeMux(),
 	}
 
 	registerAllModules(c)
@@ -83,18 +85,29 @@ func (c *Core) Run(ctx context.Context) error {
 		return fmt.Errorf("module start: %w", err)
 	}
 
+	// 4. Start core scheduler
+	c.Scheduler.Start()
+
+	// Emit system started event
+	c.Events.PublishAsync(ctx, NewEvent(EventSystemStarted, "core", map[string]string{
+		"version": c.Build.Version,
+	}))
+
 	c.Logger.Info("DeployMonster is ready",
 		"api", fmt.Sprintf("https://localhost:%d", c.Config.Server.Port),
 	)
 
-	// 4. Wait for shutdown signal
+	// 5. Wait for shutdown signal
 	<-ctx.Done()
+
+	c.Events.PublishAsync(context.Background(), NewEvent(EventSystemStopping, "core", nil))
 	c.Logger.Info("shutting down...")
 
-	// 5. Graceful shutdown with timeout
+	// 6. Graceful shutdown with timeout
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	c.Scheduler.Stop()
 	return c.Registry.StopAll(shutdownCtx)
 }
 

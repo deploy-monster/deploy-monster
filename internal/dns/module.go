@@ -16,9 +16,10 @@ func init() {
 // When domains are added/removed, it creates/deletes DNS records
 // via the configured provider (Cloudflare, Route53, etc.).
 type Module struct {
-	core   *core.Core
-	store  core.Store
-	logger *slog.Logger
+	core      *core.Core
+	store     core.Store
+	syncQueue *SyncQueue
+	logger    *slog.Logger
 }
 
 func New() *Module { return &Module{} }
@@ -46,11 +47,18 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 }
 
 func (m *Module) Start(_ context.Context) error {
+	// Start DNS sync queue
+	m.syncQueue = NewSyncQueue(m.core.Services, m.store, m.core.Events, m.logger)
+	m.syncQueue.Start()
+
 	// Subscribe to domain events for auto-sync
 	m.core.Events.SubscribeAsync(core.EventDomainAdded, func(ctx context.Context, event core.Event) error {
 		if data, ok := event.Data.(core.DomainEventData); ok {
 			m.logger.Info("domain added, syncing DNS", "fqdn", data.FQDN)
-			// DNS sync logic will query the configured provider
+			providers := m.core.Services.DNSProviders()
+			if len(providers) > 0 {
+				SyncDomainRecords(m.syncQueue, data.FQDN, "", providers[0])
+			}
 		}
 		return nil
 	})
@@ -64,5 +72,10 @@ func (m *Module) Start(_ context.Context) error {
 	return nil
 }
 
-func (m *Module) Stop(_ context.Context) error { return nil }
+func (m *Module) Stop(_ context.Context) error {
+	if m.syncQueue != nil {
+		m.syncQueue.Stop()
+	}
+	return nil
+}
 func (m *Module) Health() core.HealthStatus    { return core.HealthOK }

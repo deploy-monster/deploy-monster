@@ -7,6 +7,7 @@ import (
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/deploy"
 )
 
 // AppHandler handles application CRUD and control endpoints.
@@ -110,6 +111,11 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.CreateApp(r.Context(), app); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create application")
 		return
+	}
+
+	// Auto-generate subdomain if configured
+	if h.core.Config.DNS.AutoSubdomain != "" {
+		go deploy.AutoDomain(r.Context(), h.store, h.core.Events, app, h.core.Config.DNS.AutoSubdomain)
 	}
 
 	h.core.Events.Publish(r.Context(), core.Event{

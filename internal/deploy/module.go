@@ -63,7 +63,17 @@ func (m *Module) Start(ctx context.Context) error {
 		if err := m.docker.EnsureNetwork(ctx, "monster-network"); err != nil {
 			m.logger.Warn("failed to create monster-network", "error", err)
 		}
+
+		// Start auto-restart monitor
+		autoRestart := NewAutoRestarter(m.docker, m.store, m.core.Events, m.logger)
+		autoRestart.Start()
+
+		// Start image update checker
+		imageChecker := NewImageUpdateChecker(m.store, m.core.Events, m.logger)
+		imageChecker.Start()
 	}
+
+	m.logger.Info("deploy module started")
 	return nil
 }
 

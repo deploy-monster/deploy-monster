@@ -15,11 +15,12 @@ func init() {
 // Module implements the backup engine.
 // Supports volume snapshots, database dumps, and configurable storage targets.
 type Module struct {
-	core     *core.Core
-	store    core.Store
-	storages map[string]core.BackupStorage
-	mu       sync.RWMutex
-	logger   *slog.Logger
+	core      *core.Core
+	store     core.Store
+	storages  map[string]core.BackupStorage
+	scheduler *Scheduler
+	mu        sync.RWMutex
+	logger    *slog.Logger
 }
 
 func New() *Module {
@@ -51,11 +52,24 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 }
 
 func (m *Module) Start(_ context.Context) error {
-	m.logger.Info("backup engine started", "storages", m.StorageNames())
+	// Start backup scheduler
+	schedule := m.core.Config.Backup.Schedule
+	if schedule == "" {
+		schedule = "02:00"
+	}
+	m.scheduler = NewScheduler(m.store, m.storages, m.core.Events, schedule, m.logger)
+	m.scheduler.Start()
+
+	m.logger.Info("backup engine started", "storages", m.StorageNames(), "schedule", schedule)
 	return nil
 }
 
-func (m *Module) Stop(_ context.Context) error { return nil }
+func (m *Module) Stop(_ context.Context) error {
+	if m.scheduler != nil {
+		m.scheduler.Stop()
+	}
+	return nil
+}
 func (m *Module) Health() core.HealthStatus    { return core.HealthOK }
 
 // RegisterStorage adds a backup storage target.

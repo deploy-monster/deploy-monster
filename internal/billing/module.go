@@ -16,6 +16,7 @@ func init() {
 type Module struct {
 	core   *core.Core
 	store  core.Store
+	meter  *Meter
 	logger *slog.Logger
 }
 
@@ -40,9 +41,18 @@ func (m *Module) Start(_ context.Context) error {
 		m.logger.Info("billing disabled")
 		return nil
 	}
+	// Start usage metering
+	m.meter = NewMeter(m.store, m.core.Services.Container, m.logger)
+	m.meter.Start()
+
 	m.logger.Info("billing engine started")
 	return nil
 }
 
-func (m *Module) Stop(_ context.Context) error { return nil }
+func (m *Module) Stop(_ context.Context) error {
+	if m.meter != nil {
+		m.meter.Stop()
+	}
+	return nil
+}
 func (m *Module) Health() core.HealthStatus    { return core.HealthOK }

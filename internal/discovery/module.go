@@ -75,6 +75,10 @@ func (m *Module) Start(_ context.Context) error {
 	if m.core.Services.Container != nil {
 		m.watcher = NewWatcher(m.core.Services.Container, m.routeTable, m.core.Events, m.logger)
 		go m.watcher.Start(context.Background())
+
+		// Start backend health checker
+		healthChecker := NewHealthChecker(m.logger)
+		healthChecker.Start()
 	}
 
 	m.logger.Info("service discovery started")

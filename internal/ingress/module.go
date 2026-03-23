@@ -23,6 +23,8 @@ type Module struct {
 	core       *core.Core
 	router     *RouteTable
 	proxy      *ReverseProxy
+	certStore  *CertStore
+	acme       *ACMEManager
 	httpServer *http.Server
 	tlsServer  *http.Server
 	logger     *slog.Logger
@@ -45,6 +47,10 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 
 	m.router = NewRouteTable()
 	m.proxy = NewReverseProxy(m.router, m.logger)
+
+	// Initialize ACME manager and cert store
+	m.certStore = NewCertStore()
+	m.acme = NewACMEManager(m.certStore, c.Config.ACME.Email, c.Config.ACME.Staging, m.logger)
 
 	return nil
 }
@@ -98,6 +104,9 @@ func (m *Module) Start(_ context.Context) error {
 				m.logger.Error("ingress HTTPS error", "error", err)
 			}
 		}()
+
+		// Start ACME certificate renewal loop
+		go m.acme.RenewalLoop(context.Background())
 	}
 
 	return nil
@@ -152,13 +161,8 @@ func (m *Module) httpHandler() http.Handler {
 // tlsConfig creates the TLS configuration with dynamic certificate loading.
 func (m *Module) tlsConfig() *tls.Config {
 	return &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			// Dynamic cert loading — will be populated by ACME module
-			// For now, return nil to use default (self-signed if configured)
-			m.logger.Debug("TLS handshake", "sni", hello.ServerName)
-			return nil, nil
-		},
-		NextProtos: []string{"h2", "http/1.1"},
+		MinVersion:     tls.VersionTLS12,
+		GetCertificate: m.acme.GetCertificate,
+		NextProtos:     []string{"h2", "http/1.1"},
 	}
 }
