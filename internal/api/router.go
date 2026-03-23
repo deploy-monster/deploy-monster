@@ -77,6 +77,11 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/stop", protected(http.HandlerFunc(appH.Stop)))
 	r.mux.Handle("POST /api/v1/apps/{id}/start", protected(http.HandlerFunc(appH.Start)))
 
+	// ── Rollback & Versions ───────────────────────────
+	rollbackH := handlers.NewRollbackHandler(r.store, r.core.Services.Container, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/rollback", protected(http.HandlerFunc(rollbackH.Rollback)))
+	r.mux.Handle("GET /api/v1/apps/{id}/versions", protected(http.HandlerFunc(rollbackH.ListVersions)))
+
 	// ── Deployments ────────────────────────────────────
 	depH := handlers.NewDeploymentHandler(r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/deployments", protected(http.HandlerFunc(depH.ListByApp)))
@@ -151,10 +156,22 @@ func (r *Router) registerRoutes() {
 	// ── Marketplace (public list, auth for deploy) ────
 	mpMod := r.core.Registry.Get("marketplace")
 	if mpMod != nil {
-		mpH := handlers.NewMarketplaceHandler(mpMod.(*marketplace.Module).Registry())
+		reg := mpMod.(*marketplace.Module).Registry()
+		mpH := handlers.NewMarketplaceHandler(reg)
 		r.mux.HandleFunc("GET /api/v1/marketplace", mpH.List)
 		r.mux.HandleFunc("GET /api/v1/marketplace/{slug}", mpH.Get)
+		mpDeployH := handlers.NewMarketplaceDeployHandler(reg, r.core.Services.Container, r.store, r.core.Events)
+		r.mux.Handle("POST /api/v1/marketplace/deploy", protected(http.HandlerFunc(mpDeployH.Deploy)))
 	}
+
+	// ── Notifications ─────────────────────────────────
+	notifH := handlers.NewNotificationHandler(r.core.Services.Notifications)
+	r.mux.Handle("POST /api/v1/notifications/test", protected(http.HandlerFunc(notifH.Test)))
+
+	// ── Terminal ──────────────────────────────────────
+	termH := ws.NewTerminal(r.core.Services.Container, r.core.Logger)
+	r.mux.Handle("GET /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.StreamOutput)))
+	r.mux.Handle("POST /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.SendCommand)))
 
 	// ── Streaming (SSE) ────────────────────────────────
 	logStreamer := ws.NewLogStreamer(r.core.Services.Container, r.core.Logger)
