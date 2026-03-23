@@ -177,15 +177,33 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/log-retention", protected(http.HandlerFunc(lrH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/log-retention", protected(http.HandlerFunc(lrH.Update)))
 
+	// ── App Middleware Config ─────────────────────────
+	amwH := handlers.NewAppMiddlewareHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/middleware", protected(http.HandlerFunc(amwH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/middleware", protected(http.HandlerFunc(amwH.Update)))
+
+	// ── Restart History ───────────────────────────────
+	rstHistH := handlers.NewRestartHistoryHandler(r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/apps/{id}/restarts", protected(http.HandlerFunc(rstHistH.List)))
+
 	// ── Webhook Secret Rotation ───────────────────────
 	whRotH := handlers.NewWebhookRotateHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/rotate", protected(http.HandlerFunc(whRotH.Rotate)))
 
-	// ── Deploy Preview & Diff ─────────────────────────
+	// ── Deploy Preview, Diff & Schedule ───────────────
 	dpH := handlers.NewDeployPreviewHandler(r.store)
 	r.mux.Handle("POST /api/v1/apps/{id}/deploy/preview", protected(http.HandlerFunc(dpH.Preview)))
 	diffH := handlers.NewDeployDiffHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/deployments/diff", protected(http.HandlerFunc(diffH.Diff)))
+	schedH := handlers.NewDeployScheduleHandler(r.store, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/deploy/schedule", protected(http.HandlerFunc(schedH.Schedule)))
+	r.mux.Handle("GET /api/v1/apps/{id}/deploy/scheduled", protected(http.HandlerFunc(schedH.ListScheduled)))
+	r.mux.Handle("DELETE /api/v1/apps/{id}/deploy/scheduled/{scheduleId}", protected(http.HandlerFunc(schedH.CancelScheduled)))
+
+	// ── Build Logs ────────────────────────────────────
+	bldLogH := handlers.NewBuildLogHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/builds/latest/log", protected(http.HandlerFunc(bldLogH.Get)))
+	r.mux.Handle("GET /api/v1/apps/{id}/builds/latest/log/download", protected(http.HandlerFunc(bldLogH.Download)))
 
 	// ── Maintenance Mode ──────────────────────────────
 	maintH := handlers.NewMaintenanceHandler(r.store, r.core.Events)
@@ -361,6 +379,8 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/servers/providers/{provider}/regions", protected(http.HandlerFunc(serverH.ListRegions)))
 	r.mux.Handle("GET /api/v1/servers/providers/{provider}/sizes", protected(http.HandlerFunc(serverH.ListSizes)))
 	r.mux.Handle("POST /api/v1/servers/provision", protected(http.HandlerFunc(serverH.Provision)))
+	sshTestH := handlers.NewSSHTestHandler()
+	r.mux.Handle("POST /api/v1/servers/test-ssh", protected(http.HandlerFunc(sshTestH.Test)))
 
 	// ── Server Management ─────────────────────────────
 	srvMgmtH := handlers.NewServerManageHandler(r.core.Services, r.store, r.core.Events)
