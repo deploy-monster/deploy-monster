@@ -14,6 +14,7 @@ import { Servers } from './pages/Servers';
 import { Settings } from './pages/Settings';
 import { DeployWizard } from './pages/DeployWizard';
 import { Domains } from './pages/Domains';
+import { Onboarding } from './pages/Onboarding';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -48,6 +49,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/onboarding" element={<Onboarding />} />
 
         <Route
           element={

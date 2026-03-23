@@ -57,6 +57,12 @@ func (r *Router) registerRoutes() {
 	r.mux.HandleFunc("POST /api/v1/auth/register", authH.Register)
 	r.mux.HandleFunc("POST /api/v1/auth/refresh", authH.Refresh)
 
+	// ── Session / Profile ─────────────────────────────
+	sessionH := handlers.NewSessionHandler(r.store)
+	r.mux.Handle("GET /api/v1/auth/me", protected(http.HandlerFunc(sessionH.GetCurrentUser)))
+	r.mux.Handle("PATCH /api/v1/auth/me", protected(http.HandlerFunc(sessionH.UpdateProfile)))
+	r.mux.Handle("POST /api/v1/auth/change-password", protected(http.HandlerFunc(sessionH.ChangePassword)))
+
 	// ── Webhooks (signature-verified, not JWT) ─────────
 	webhookRecv := webhooks.NewReceiver(r.store, r.core.Events, r.core.Logger)
 	r.mux.HandleFunc("POST /hooks/v1/{webhookID}", webhookRecv.HandleWebhook)
