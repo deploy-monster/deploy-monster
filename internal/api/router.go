@@ -107,6 +107,11 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Update)))
 
+	// ── App Pin ───────────────────────────────────────
+	pinH := handlers.NewPinHandler(r.store)
+	r.mux.Handle("POST /api/v1/apps/{id}/pin", protected(http.HandlerFunc(pinH.Pin)))
+	r.mux.Handle("DELETE /api/v1/apps/{id}/pin", protected(http.HandlerFunc(pinH.Unpin)))
+
 	// ── Save as Template ──────────────────────────────
 	saveTmplH := handlers.NewSaveTemplateHandler(r.store)
 	r.mux.Handle("POST /api/v1/apps/{id}/save-template", protected(http.HandlerFunc(saveTmplH.Save)))
