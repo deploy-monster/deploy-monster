@@ -198,6 +198,20 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.Create)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/redirects/{ruleId}", protected(http.HandlerFunc(redirH.Delete)))
 
+	// ── Error Pages ───────────────────────────────────
+	epH := handlers.NewErrorPageHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/error-pages", protected(http.HandlerFunc(epH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/error-pages", protected(http.HandlerFunc(epH.Update)))
+
+	// ── Basic Auth ────────────────────────────────────
+	baH := handlers.NewBasicAuthHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Update)))
+
+	// ── Container Processes ───────────────────────────
+	topH := handlers.NewContainerTopHandler(r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/apps/{id}/processes", protected(http.HandlerFunc(topH.Top)))
+
 	// ── Webhook Logs ──────────────────────────────────
 	whLogH := handlers.NewWebhookLogHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/webhooks/logs", protected(http.HandlerFunc(whLogH.List)))
@@ -256,6 +270,17 @@ func (r *Router) registerRoutes() {
 	netH := handlers.NewNetworkHandler(r.core.Services.Container, r.core.Events)
 	r.mux.Handle("GET /api/v1/networks", protected(http.HandlerFunc(netH.List)))
 	r.mux.Handle("POST /api/v1/networks/connect", protected(http.HandlerFunc(netH.Connect)))
+
+	// ── Env Import/Export ─────────────────────────────
+	envImH := handlers.NewEnvImportHandler(r.store)
+	r.mux.Handle("POST /api/v1/apps/{id}/env/import", protected(http.HandlerFunc(envImH.Import)))
+	r.mux.Handle("GET /api/v1/apps/{id}/env/export", protected(http.HandlerFunc(envImH.Export)))
+
+	// ── DNS Records ───────────────────────────────────
+	dnsRecH := handlers.NewDNSRecordHandler(r.core.Services)
+	r.mux.Handle("GET /api/v1/dns/records", protected(http.HandlerFunc(dnsRecH.List)))
+	r.mux.Handle("POST /api/v1/dns/records", protected(http.HandlerFunc(dnsRecH.Create)))
+	r.mux.Handle("DELETE /api/v1/dns/records/{id}", protected(http.HandlerFunc(dnsRecH.Delete)))
 
 	// ── Logs ──────────────────────────────────────────
 	logH := handlers.NewLogHandler(r.core.Services.Container, r.store)
