@@ -1,0 +1,20 @@
+services:
+  deploymonster:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    ports:
+      - "8443:8443"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - dm-data:/var/lib/deploymonster
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - MONSTER_HOST=0.0.0.0
+      - MONSTER_PORT=8443
+      - MONSTER_LOG_LEVEL=debug
+    restart: unless-stopped
+
+volumes:
+  dm-data:

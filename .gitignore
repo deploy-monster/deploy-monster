@@ -1,0 +1,44 @@
+# Build output
+bin/
+dist/
+
+# Web UI build
+web/dist/
+web/node_modules/
+
+# Database files
+*.db
+*.db-wal
+*.db-shm
+*.bolt
+
+# Test coverage
+coverage.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+monster.yaml
+
+# Go
+vendor/
+
+# Binary
+deploymonster
+deploymonster.exe
+
+# GoReleaser
+dist/
