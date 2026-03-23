@@ -80,6 +80,16 @@ func (r *Router) registerRoutes() {
 	deployTriggerH := handlers.NewDeployTriggerHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/deploy", protected(http.HandlerFunc(deployTriggerH.TriggerDeploy)))
 
+	// ── App Clone & Bulk Ops ──────────────────────────
+	cloneH := handlers.NewCloneHandler(r.store, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/clone", protected(http.HandlerFunc(cloneH.Clone)))
+	bulkH := handlers.NewBulkHandler(r.store, r.core.Services.Container, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/bulk", protected(http.HandlerFunc(bulkH.Execute)))
+
+	// ── Webhook Logs ──────────────────────────────────
+	whLogH := handlers.NewWebhookLogHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/webhooks/logs", protected(http.HandlerFunc(whLogH.List)))
+
 	// ── Rollback & Versions ───────────────────────────
 	rollbackH := handlers.NewRollbackHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/rollback", protected(http.HandlerFunc(rollbackH.Rollback)))
@@ -101,6 +111,11 @@ func (r *Router) registerRoutes() {
 	resH := handlers.NewResourceHandler(r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/resources", protected(http.HandlerFunc(resH.GetLimits)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/resources", protected(http.HandlerFunc(resH.SetLimits)))
+
+	// ── Networks ──────────────────────────────────────
+	netH := handlers.NewNetworkHandler(r.core.Services.Container, r.core.Events)
+	r.mux.Handle("GET /api/v1/networks", protected(http.HandlerFunc(netH.List)))
+	r.mux.Handle("POST /api/v1/networks/connect", protected(http.HandlerFunc(netH.Connect)))
 
 	// ── Logs ──────────────────────────────────────────
 	logH := handlers.NewLogHandler(r.core.Services.Container, r.store)
