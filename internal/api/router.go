@@ -236,6 +236,20 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Update)))
 
+	// ── Response Headers ──────────────────────────────
+	rhH := handlers.NewResponseHeadersHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/response-headers", protected(http.HandlerFunc(rhH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/response-headers", protected(http.HandlerFunc(rhH.Update)))
+
+	// ── Container History ─────────────────────────────
+	chH := handlers.NewContainerHistoryHandler(r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/apps/{id}/containers/history", protected(http.HandlerFunc(chH.History)))
+
+	// ── Deploy Notifications ──────────────────────────
+	dnH := handlers.NewDeployNotifyHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/deploy-notifications", protected(http.HandlerFunc(dnH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/deploy-notifications", protected(http.HandlerFunc(dnH.Update)))
+
 	// ── Basic Auth ────────────────────────────────────
 	baH := handlers.NewBasicAuthHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Get)))
@@ -314,6 +328,15 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/dns/records", protected(http.HandlerFunc(dnsRecH.List)))
 	r.mux.Handle("POST /api/v1/dns/records", protected(http.HandlerFunc(dnsRecH.Create)))
 	r.mux.Handle("DELETE /api/v1/dns/records/{id}", protected(http.HandlerFunc(dnsRecH.Delete)))
+
+	// ── SSL Status ────────────────────────────────────
+	sslStatH := handlers.NewSSLStatusHandler()
+	r.mux.Handle("GET /api/v1/domains/ssl-check", protected(http.HandlerFunc(sslStatH.Check)))
+
+	// ── Agents ────────────────────────────────────────
+	agentH := handlers.NewAgentStatusHandler()
+	r.mux.Handle("GET /api/v1/agents", protected(http.HandlerFunc(agentH.List)))
+	r.mux.Handle("GET /api/v1/agents/{id}", protected(http.HandlerFunc(agentH.GetAgent)))
 
 	// ── Logs ──────────────────────────────────────────
 	logH := handlers.NewLogHandler(r.core.Services.Container, r.store)
