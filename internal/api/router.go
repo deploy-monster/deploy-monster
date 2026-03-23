@@ -8,6 +8,7 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/api/ws"
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/enterprise/integrations"
 	"github.com/deploy-monster/deploy-monster/internal/marketplace"
 	"github.com/deploy-monster/deploy-monster/internal/webhooks"
 )
@@ -82,6 +83,11 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/projects/{id}", protected(http.HandlerFunc(projH.Get)))
 	r.mux.Handle("DELETE /api/v1/projects/{id}", protected(http.HandlerFunc(projH.Delete)))
 
+	// ── Env Vars ──────────────────────────────────────
+	envH := handlers.NewEnvVarHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/env", protected(http.HandlerFunc(envH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/env", protected(http.HandlerFunc(envH.Update)))
+
 	// ── Domains ────────────────────────────────────────
 	domH := handlers.NewDomainHandler(r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/domains", protected(http.HandlerFunc(domH.List)))
@@ -106,6 +112,10 @@ func (r *Router) registerRoutes() {
 	eventStreamer := ws.NewEventStreamer(r.core.Events, r.core.Logger)
 	r.mux.Handle("GET /api/v1/apps/{id}/logs/stream", protected(http.HandlerFunc(logStreamer.StreamLogs)))
 	r.mux.Handle("GET /api/v1/events/stream", protected(http.HandlerFunc(eventStreamer.StreamEvents)))
+
+	// ── Prometheus metrics (no auth — internal) ───────
+	promExporter := integrations.NewPrometheusExporter(r.core.Registry, r.core.Events, r.core.Services)
+	r.mux.HandleFunc("GET /metrics", promExporter.Handler())
 
 	// ── SPA fallback — embedded React UI ──────────────
 	r.mux.Handle("/", newSPAHandler())

@@ -98,6 +98,19 @@ func (s *SQLiteDB) ListAppsByProject(ctx context.Context, projectID string) ([]c
 	return apps, rows.Err()
 }
 
+// UpdateApp updates all mutable application fields.
+func (s *SQLiteDB) UpdateApp(ctx context.Context, a *core.Application) error {
+	return s.Tx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx,
+			`UPDATE applications SET name=?, source_url=?, branch=?, dockerfile=?,
+			 env_vars_enc=?, labels_json=?, replicas=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+			a.Name, a.SourceURL, a.Branch, a.Dockerfile,
+			a.EnvVarsEnc, a.LabelsJSON, a.Replicas, a.Status, a.ID,
+		)
+		return err
+	})
+}
+
 // UpdateAppStatus updates an application's status.
 func (s *SQLiteDB) UpdateAppStatus(ctx context.Context, id, status string) error {
 	_, err := s.db.ExecContext(ctx,

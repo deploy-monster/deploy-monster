@@ -53,6 +53,7 @@ type UserStore interface {
 type AppStore interface {
 	CreateApp(ctx context.Context, app *Application) error
 	GetApp(ctx context.Context, id string) (*Application, error)
+	UpdateApp(ctx context.Context, app *Application) error
 	ListAppsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]Application, int, error)
 	ListAppsByProject(ctx context.Context, projectID string) ([]Application, error)
 	UpdateAppStatus(ctx context.Context, id, status string) error

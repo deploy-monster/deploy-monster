@@ -1,0 +1,155 @@
+package deploy
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
+)
+
+// RollbackEngine manages deployment version history and rollback operations.
+type RollbackEngine struct {
+	store   core.Store
+	runtime core.ContainerRuntime
+	events  *core.EventBus
+}
+
+// NewRollbackEngine creates a rollback engine.
+func NewRollbackEngine(store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *RollbackEngine {
+	return &RollbackEngine{store: store, runtime: runtime, events: events}
+}
+
+// Rollback redeploys a specific previous version of an application.
+// It creates a new deployment record pointing to the old image (for audit trail).
+func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersion int) (*core.Deployment, error) {
+	// Get the target deployment to find its image
+	deployments, err := r.store.ListDeploymentsByApp(ctx, appID, 50)
+	if err != nil {
+		return nil, fmt.Errorf("list deployments: %w", err)
+	}
+
+	var targetDeploy *core.Deployment
+	for i := range deployments {
+		if deployments[i].Version == targetVersion {
+			targetDeploy = &deployments[i]
+			break
+		}
+	}
+
+	if targetDeploy == nil {
+		return nil, fmt.Errorf("deployment version %d not found", targetVersion)
+	}
+
+	if targetDeploy.Image == "" {
+		return nil, fmt.Errorf("version %d has no image to rollback to", targetVersion)
+	}
+
+	// Get app
+	app, err := r.store.GetApp(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("get app: %w", err)
+	}
+
+	// Get current running container
+	currentDeploy, _ := r.store.GetLatestDeployment(ctx, appID)
+	oldContainerID := ""
+	if currentDeploy != nil {
+		oldContainerID = currentDeploy.ContainerID
+	}
+
+	// Create new deployment version pointing to old image
+	newVersion, _ := r.store.GetNextDeployVersion(ctx, appID)
+	now := time.Now()
+	deployment := &core.Deployment{
+		AppID:         appID,
+		Version:       newVersion,
+		Image:         targetDeploy.Image,
+		Status:        "deploying",
+		CommitSHA:     targetDeploy.CommitSHA,
+		CommitMessage: fmt.Sprintf("Rollback to v%d", targetVersion),
+		TriggeredBy:   "rollback",
+		Strategy:      "recreate",
+		StartedAt:     &now,
+	}
+	r.store.CreateDeployment(ctx, deployment)
+	r.store.UpdateAppStatus(ctx, appID, "deploying")
+
+	// Stop old container
+	if oldContainerID != "" && r.runtime != nil {
+		r.runtime.Stop(ctx, oldContainerID, 30)
+		r.runtime.Remove(ctx, oldContainerID, true)
+	}
+
+	// Start new container with old image
+	if r.runtime != nil {
+		containerName := fmt.Sprintf("monster-%s-%d", app.Name, newVersion)
+		containerID, err := r.runtime.CreateAndStart(ctx, core.ContainerOpts{
+			Name:  containerName,
+			Image: targetDeploy.Image,
+			Labels: map[string]string{
+				"monster.enable":         "true",
+				"monster.app.id":         appID,
+				"monster.app.name":       app.Name,
+				"monster.tenant":         app.TenantID,
+				"monster.deploy.version": fmt.Sprintf("%d", newVersion),
+				"monster.rollback.from":  fmt.Sprintf("%d", targetVersion),
+			},
+			Network:       "monster-network",
+			RestartPolicy: "unless-stopped",
+		})
+		if err != nil {
+			r.store.UpdateAppStatus(ctx, appID, "failed")
+			return nil, fmt.Errorf("rollback deploy: %w", err)
+		}
+		deployment.ContainerID = containerID
+	}
+
+	deployment.Status = "running"
+	finished := time.Now()
+	deployment.FinishedAt = &finished
+	r.store.UpdateAppStatus(ctx, appID, "running")
+
+	r.events.Publish(ctx, core.NewEvent(core.EventRollbackDone, "deploy",
+		core.DeployEventData{
+			AppID:        appID,
+			DeploymentID: deployment.ID,
+			Version:      newVersion,
+			Image:        targetDeploy.Image,
+			Strategy:     "rollback",
+		},
+	))
+
+	return deployment, nil
+}
+
+// ListVersions returns the last N deployment versions for an app.
+func (r *RollbackEngine) ListVersions(ctx context.Context, appID string, limit int) ([]VersionInfo, error) {
+	deployments, err := r.store.ListDeploymentsByApp(ctx, appID, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	versions := make([]VersionInfo, len(deployments))
+	for i, d := range deployments {
+		versions[i] = VersionInfo{
+			Version:   d.Version,
+			Image:     d.Image,
+			Status:    d.Status,
+			CommitSHA: d.CommitSHA,
+			CreatedAt: d.CreatedAt,
+			IsCurrent: i == 0,
+		}
+	}
+	return versions, nil
+}
+
+// VersionInfo is a simplified view of a deployment for the rollback UI.
+type VersionInfo struct {
+	Version   int       `json:"version"`
+	Image     string    `json:"image"`
+	Status    string    `json:"status"`
+	CommitSHA string    `json:"commit_sha,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	IsCurrent bool      `json:"is_current"`
+}
