@@ -126,6 +126,16 @@ func (r *Router) registerRoutes() {
 	whLogH := handlers.NewWebhookLogHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/webhooks/logs", protected(http.HandlerFunc(whLogH.List)))
 
+	// ── Cron Jobs ─────────────────────────────────────
+	cronH := handlers.NewCronJobHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/cron", protected(http.HandlerFunc(cronH.List)))
+	r.mux.Handle("POST /api/v1/apps/{id}/cron", protected(http.HandlerFunc(cronH.Create)))
+	r.mux.Handle("DELETE /api/v1/apps/{id}/cron/{jobId}", protected(http.HandlerFunc(cronH.Delete)))
+
+	// ── Log Download ──────────────────────────────────
+	logDlH := handlers.NewLogDownloadHandler(r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/apps/{id}/logs/download", protected(http.HandlerFunc(logDlH.Download)))
+
 	// ── Rollback & Versions ───────────────────────────
 	rollbackH := handlers.NewRollbackHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/rollback", protected(http.HandlerFunc(rollbackH.Rollback)))
@@ -234,6 +244,11 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/servers/providers/{provider}/sizes", protected(http.HandlerFunc(serverH.ListSizes)))
 	r.mux.Handle("POST /api/v1/servers/provision", protected(http.HandlerFunc(serverH.Provision)))
 
+	// ── Server Management ─────────────────────────────
+	srvMgmtH := handlers.NewServerManageHandler(r.core.Services, r.store, r.core.Events)
+	r.mux.Handle("POST /api/v1/servers/{id}/decommission", protected(http.HandlerFunc(srvMgmtH.Decommission)))
+	r.mux.Handle("POST /api/v1/servers/{id}/reboot", protected(http.HandlerFunc(srvMgmtH.Reboot)))
+
 	// ── Storage Usage ─────────────────────────────────
 	storageH := handlers.NewStorageHandler(r.store, r.core.Services.Container)
 	r.mux.Handle("GET /api/v1/storage/usage", protected(http.HandlerFunc(storageH.Usage)))
@@ -277,6 +292,12 @@ func (r *Router) registerRoutes() {
 		mpDeployH := handlers.NewMarketplaceDeployHandler(reg, r.core.Services.Container, r.store, r.core.Events)
 		r.mux.Handle("POST /api/v1/marketplace/deploy", protected(http.HandlerFunc(mpDeployH.Deploy)))
 	}
+
+	// ── Outbound Event Webhooks ───────────────────────
+	evtWhH := handlers.NewEventWebhookHandler(r.store, r.core.Events)
+	r.mux.Handle("GET /api/v1/webhooks/outbound", protected(http.HandlerFunc(evtWhH.List)))
+	r.mux.Handle("POST /api/v1/webhooks/outbound", protected(http.HandlerFunc(evtWhH.Create)))
+	r.mux.Handle("DELETE /api/v1/webhooks/outbound/{id}", protected(http.HandlerFunc(evtWhH.Delete)))
 
 	// ── Notifications ─────────────────────────────────
 	notifH := handlers.NewNotificationHandler(r.core.Services.Notifications)
