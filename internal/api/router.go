@@ -115,6 +115,24 @@ func (r *Router) registerRoutes() {
 	crH := handlers.NewCommitRollbackHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/rollback-to-commit", protected(http.HandlerFunc(crH.RollbackToCommit)))
 
+	// ── Canary Deployments ────────────────────────────
+	canaryH := handlers.NewCanaryHandler(r.store, r.core.Events)
+	r.mux.Handle("GET /api/v1/apps/{id}/canary", protected(http.HandlerFunc(canaryH.Get)))
+	r.mux.Handle("POST /api/v1/apps/{id}/canary", protected(http.HandlerFunc(canaryH.Start)))
+	r.mux.Handle("POST /api/v1/apps/{id}/canary/promote", protected(http.HandlerFunc(canaryH.Promote)))
+	r.mux.Handle("DELETE /api/v1/apps/{id}/canary", protected(http.HandlerFunc(canaryH.Cancel)))
+
+	// ── Snapshots ─────────────────────────────────────
+	snapH := handlers.NewSnapshotHandler(r.store, r.core.Services.Container, r.core.Events)
+	r.mux.Handle("GET /api/v1/apps/{id}/snapshots", protected(http.HandlerFunc(snapH.List)))
+	r.mux.Handle("POST /api/v1/apps/{id}/snapshots", protected(http.HandlerFunc(snapH.Create)))
+
+	// ── Service Links (Mesh) ──────────────────────────
+	meshH := handlers.NewServiceMeshHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/links", protected(http.HandlerFunc(meshH.List)))
+	r.mux.Handle("POST /api/v1/apps/{id}/links", protected(http.HandlerFunc(meshH.Create)))
+	r.mux.Handle("DELETE /api/v1/apps/{id}/links/{targetId}", protected(http.HandlerFunc(meshH.Delete)))
+
 	// ── Webhook Replay ────────────────────────────────
 	whReplayH := handlers.NewWebhookReplayHandler(r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/{logId}/replay", protected(http.HandlerFunc(whReplayH.Replay)))
@@ -252,6 +270,10 @@ func (r *Router) registerRoutes() {
 	certH := handlers.NewCertificateHandler(r.store)
 	r.mux.Handle("GET /api/v1/certificates", protected(http.HandlerFunc(certH.List)))
 	r.mux.Handle("POST /api/v1/certificates", protected(http.HandlerFunc(certH.Upload)))
+
+	// ── Wildcard SSL ──────────────────────────────────
+	wildcardH := handlers.NewWildcardSSLHandler(r.store)
+	r.mux.Handle("POST /api/v1/certificates/wildcard", protected(http.HandlerFunc(wildcardH.Request)))
 
 	// ── Image Tags ────────────────────────────────────
 	imgTagH := handlers.NewImageTagHandler()
@@ -429,6 +451,11 @@ func (r *Router) registerRoutes() {
 	// ── Platform Stats (super admin) ──────────────────
 	platH := handlers.NewPlatformStatsHandler(r.core)
 	r.mux.Handle("GET /api/v1/admin/stats", protected(http.HandlerFunc(platH.Overview)))
+
+	// ── License ──────────────────────────────────────
+	licH := handlers.NewLicenseHandler()
+	r.mux.Handle("GET /api/v1/admin/license", protected(http.HandlerFunc(licH.Get)))
+	r.mux.Handle("POST /api/v1/admin/license", protected(http.HandlerFunc(licH.Activate)))
 
 	// ── Admin (super admin only) ──────────────────────
 	adminH := handlers.NewAdminHandler(r.core)
