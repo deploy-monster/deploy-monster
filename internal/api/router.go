@@ -157,6 +157,10 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/deployments", protected(http.HandlerFunc(depH.ListByApp)))
 	r.mux.Handle("GET /api/v1/apps/{id}/deployments/latest", protected(http.HandlerFunc(depH.GetLatest)))
 
+	// ── File Browser ──────────────────────────────────
+	fbH := handlers.NewFileBrowserHandler(r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/apps/{id}/files", protected(http.HandlerFunc(fbH.List)))
+
 	// ── Stats & Scaling ───────────────────────────────
 	statsH := handlers.NewStatsHandler(r.core.Services.Container, r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/stats", protected(http.HandlerFunc(statsH.AppStats)))
@@ -264,6 +268,16 @@ func (r *Router) registerRoutes() {
 	srvMgmtH := handlers.NewServerManageHandler(r.core.Services, r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/servers/{id}/decommission", protected(http.HandlerFunc(srvMgmtH.Decommission)))
 	r.mux.Handle("POST /api/v1/servers/{id}/reboot", protected(http.HandlerFunc(srvMgmtH.Reboot)))
+
+	// ── Build Cache ──────────────────────────────────
+	bcH := handlers.NewBuildCacheHandler(r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/build/cache", protected(http.HandlerFunc(bcH.Stats)))
+	r.mux.Handle("DELETE /api/v1/build/cache", protected(http.HandlerFunc(bcH.Clear)))
+
+	// ── Tenant Settings ──────────────────────────────
+	tsH := handlers.NewTenantSettingsHandler(r.store)
+	r.mux.Handle("GET /api/v1/tenant/settings", protected(http.HandlerFunc(tsH.Get)))
+	r.mux.Handle("PATCH /api/v1/tenant/settings", protected(http.HandlerFunc(tsH.Update)))
 
 	// ── Storage Usage ─────────────────────────────────
 	storageH := handlers.NewStorageHandler(r.store, r.core.Services.Container)
