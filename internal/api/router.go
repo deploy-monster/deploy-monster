@@ -72,10 +72,13 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps", protected(http.HandlerFunc(appH.List)))
 	r.mux.Handle("POST /api/v1/apps", protected(http.HandlerFunc(appH.Create)))
 	r.mux.Handle("GET /api/v1/apps/{id}", protected(http.HandlerFunc(appH.Get)))
+	r.mux.Handle("PATCH /api/v1/apps/{id}", protected(http.HandlerFunc(appH.Update)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}", protected(http.HandlerFunc(appH.Delete)))
 	r.mux.Handle("POST /api/v1/apps/{id}/restart", protected(http.HandlerFunc(appH.Restart)))
 	r.mux.Handle("POST /api/v1/apps/{id}/stop", protected(http.HandlerFunc(appH.Stop)))
 	r.mux.Handle("POST /api/v1/apps/{id}/start", protected(http.HandlerFunc(appH.Start)))
+	deployTriggerH := handlers.NewDeployTriggerHandler(r.store, r.core.Services.Container, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/deploy", protected(http.HandlerFunc(deployTriggerH.TriggerDeploy)))
 
 	// ── Rollback & Versions ───────────────────────────
 	rollbackH := handlers.NewRollbackHandler(r.store, r.core.Services.Container, r.core.Events)
@@ -148,6 +151,24 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/git/{provider}/repos", protected(http.HandlerFunc(gitH.ListRepos)))
 	r.mux.Handle("GET /api/v1/git/{provider}/repos/{repo}/branches", protected(http.HandlerFunc(gitH.ListBranches)))
 
+	// ── Compose Stacks ────────────────────────────────
+	composeH := handlers.NewComposeHandler(r.store, r.core.Services.Container, r.core.Events)
+	r.mux.Handle("POST /api/v1/stacks", protected(http.HandlerFunc(composeH.Deploy)))
+	r.mux.Handle("POST /api/v1/stacks/validate", protected(http.HandlerFunc(composeH.Validate)))
+
+	// ── Secrets ───────────────────────────────────────
+	var vault interface{ Encrypt(string) (string, error); Decrypt(string) (string, error) }
+	secretsMod := r.core.Registry.Get("secrets")
+	if secretsMod != nil {
+		type vaultProvider interface{ Vault() interface{ Encrypt(string) (string, error); Decrypt(string) (string, error) } }
+		if vp, ok := secretsMod.(vaultProvider); ok {
+			vault = vp.Vault()
+		}
+	}
+	secretH := handlers.NewSecretHandler(r.store, vault, r.core.Events)
+	r.mux.Handle("GET /api/v1/secrets", protected(http.HandlerFunc(secretH.List)))
+	r.mux.Handle("POST /api/v1/secrets", protected(http.HandlerFunc(secretH.Create)))
+
 	// ── Billing ───────────────────────────────────────
 	billingH := handlers.NewBillingHandler(r.store)
 	r.mux.HandleFunc("GET /api/v1/billing/plans", billingH.ListPlans)
@@ -172,6 +193,11 @@ func (r *Router) registerRoutes() {
 	termH := ws.NewTerminal(r.core.Services.Container, r.core.Logger)
 	r.mux.Handle("GET /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.StreamOutput)))
 	r.mux.Handle("POST /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.SendCommand)))
+
+	// ── MCP Protocol ──────────────────────────────────
+	mcpH := handlers.NewMCPHandler(r.store, r.core.Services.Container, r.core.Events)
+	r.mux.HandleFunc("GET /mcp/v1/tools", mcpH.ListTools)
+	r.mux.HandleFunc("POST /mcp/v1/tools/{name}", mcpH.CallTool)
 
 	// ── Streaming (SSE) ────────────────────────────────
 	logStreamer := ws.NewLogStreamer(r.core.Services.Container, r.core.Logger)
