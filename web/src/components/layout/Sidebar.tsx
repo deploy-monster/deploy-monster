@@ -10,6 +10,7 @@ import {
   Moon,
   Sun,
   Monitor,
+  Store,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { useThemeStore } from '../../stores/theme';
@@ -17,6 +18,7 @@ import { useThemeStore } from '../../stores/theme';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/apps', icon: Rocket, label: 'Applications' },
+  { to: '/marketplace', icon: Store, label: 'Marketplace' },
   { to: '/domains', icon: Globe, label: 'Domains' },
   { to: '/databases', icon: Database, label: 'Databases' },
   { to: '/servers', icon: Server, label: 'Servers' },

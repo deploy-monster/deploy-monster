@@ -4,8 +4,11 @@ import { useAuthStore } from './stores/auth';
 import { useThemeStore } from './stores/theme';
 import { AppLayout } from './components/layout/AppLayout';
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 import { Apps } from './pages/Apps';
+import { AppDetail } from './pages/AppDetail';
+import { Marketplace } from './pages/Marketplace';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -47,6 +50,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
         <Route
           element={
@@ -57,10 +61,11 @@ export default function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="apps" element={<Apps />} />
-          <Route path="apps/:id" element={<Placeholder title="App Detail" />} />
+          <Route path="apps/:id" element={<AppDetail />} />
           <Route path="domains" element={<Placeholder title="Domains" />} />
           <Route path="databases" element={<Placeholder title="Databases" />} />
           <Route path="servers" element={<Placeholder title="Servers" />} />
+          <Route path="marketplace" element={<Marketplace />} />
           <Route path="settings" element={<Placeholder title="Settings" />} />
         </Route>
 
