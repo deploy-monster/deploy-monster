@@ -97,6 +97,11 @@ func (r *Router) registerRoutes() {
 	scaleH := handlers.NewScaleHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/scale", protected(http.HandlerFunc(scaleH.Scale)))
 
+	// ── Resource Limits ───────────────────────────────
+	resH := handlers.NewResourceHandler(r.store, r.core.Events)
+	r.mux.Handle("GET /api/v1/apps/{id}/resources", protected(http.HandlerFunc(resH.GetLimits)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/resources", protected(http.HandlerFunc(resH.SetLimits)))
+
 	// ── Logs ──────────────────────────────────────────
 	logH := handlers.NewLogHandler(r.core.Services.Container, r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/logs", protected(http.HandlerFunc(logH.GetLogs)))
