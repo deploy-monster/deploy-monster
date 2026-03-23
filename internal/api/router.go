@@ -142,9 +142,22 @@ func (r *Router) registerRoutes() {
 	whRotH := handlers.NewWebhookRotateHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/rotate", protected(http.HandlerFunc(whRotH.Rotate)))
 
-	// ── Deploy Preview ────────────────────────────────
+	// ── Deploy Preview & Diff ─────────────────────────
 	dpH := handlers.NewDeployPreviewHandler(r.store)
 	r.mux.Handle("POST /api/v1/apps/{id}/deploy/preview", protected(http.HandlerFunc(dpH.Preview)))
+	diffH := handlers.NewDeployDiffHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/deployments/diff", protected(http.HandlerFunc(diffH.Diff)))
+
+	// ── Maintenance Mode ──────────────────────────────
+	maintH := handlers.NewMaintenanceHandler(r.store, r.core.Events)
+	r.mux.Handle("GET /api/v1/apps/{id}/maintenance", protected(http.HandlerFunc(maintH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/maintenance", protected(http.HandlerFunc(maintH.Update)))
+
+	// ── Redirects ─────────────────────────────────────
+	redirH := handlers.NewRedirectHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.List)))
+	r.mux.Handle("POST /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.Create)))
+	r.mux.Handle("DELETE /api/v1/apps/{id}/redirects/{ruleId}", protected(http.HandlerFunc(redirH.Delete)))
 
 	// ── Webhook Logs ──────────────────────────────────
 	whLogH := handlers.NewWebhookLogHandler(r.store)
@@ -328,6 +341,8 @@ func (r *Router) registerRoutes() {
 	billingH := handlers.NewBillingHandler(r.store)
 	r.mux.HandleFunc("GET /api/v1/billing/plans", billingH.ListPlans)
 	r.mux.Handle("GET /api/v1/billing/usage", protected(http.HandlerFunc(billingH.GetUsage)))
+	usageHistH := handlers.NewUsageHistoryHandler(r.store)
+	r.mux.Handle("GET /api/v1/billing/usage/history", protected(http.HandlerFunc(usageHistH.Hourly)))
 
 	// ── Marketplace (public list, auth for deploy) ────
 	mpMod := r.core.Registry.Get("marketplace")
@@ -384,6 +399,11 @@ func (r *Router) registerRoutes() {
 	r.mux.HandleFunc("GET /api/v1/announcements", announcH.List) // public
 	r.mux.Handle("POST /api/v1/admin/announcements", protected(http.HandlerFunc(announcH.Create)))
 	r.mux.Handle("DELETE /api/v1/admin/announcements/{id}", protected(http.HandlerFunc(announcH.Dismiss)))
+
+	// ── Tenant Rate Limits (super admin) ──────────────
+	trlH := handlers.NewTenantRateLimitHandler(r.store)
+	r.mux.Handle("GET /api/v1/admin/tenants/{id}/ratelimit", protected(http.HandlerFunc(trlH.Get)))
+	r.mux.Handle("PUT /api/v1/admin/tenants/{id}/ratelimit", protected(http.HandlerFunc(trlH.Update)))
 
 	// ── Admin (super admin only) ──────────────────────
 	adminH := handlers.NewAdminHandler(r.core)
