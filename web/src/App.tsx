@@ -12,6 +12,7 @@ import { Marketplace } from './pages/Marketplace';
 import { Databases } from './pages/Databases';
 import { Servers } from './pages/Servers';
 import { Settings } from './pages/Settings';
+import { DeployWizard } from './pages/DeployWizard';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -64,6 +65,7 @@ export default function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="apps" element={<Apps />} />
+          <Route path="apps/new" element={<DeployWizard />} />
           <Route path="apps/:id" element={<AppDetail />} />
           <Route path="domains" element={<Placeholder title="Domains" />} />
           <Route path="databases" element={<Databases />} />

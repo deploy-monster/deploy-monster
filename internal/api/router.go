@@ -94,9 +94,15 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/domains", protected(http.HandlerFunc(domH.Create)))
 	r.mux.Handle("DELETE /api/v1/domains/{id}", protected(http.HandlerFunc(domH.Delete)))
 
+	// ── Container Exec ────────────────────────────────
+	execH := handlers.NewExecHandler(r.core.Services.Container)
+	r.mux.Handle("POST /api/v1/apps/{id}/exec", protected(http.HandlerFunc(execH.Exec)))
+
 	// ── Team ───────────────────────────────────────────
 	teamH := handlers.NewTeamHandler(r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/team/roles", protected(http.HandlerFunc(teamH.ListRoles)))
+	inviteH := handlers.NewInviteHandler(r.store, r.core.Events)
+	r.mux.Handle("POST /api/v1/team/invites", protected(http.HandlerFunc(inviteH.Create)))
 	r.mux.Handle("GET /api/v1/team/audit-log", protected(http.HandlerFunc(teamH.GetAuditLog)))
 
 	// ── Marketplace (public list, auth for deploy) ────
