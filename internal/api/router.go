@@ -67,10 +67,17 @@ func (r *Router) registerRoutes() {
 	webhookRecv := webhooks.NewReceiver(r.store, r.core.Events, r.core.Logger)
 	r.mux.HandleFunc("POST /hooks/v1/{webhookID}", webhookRecv.HandleWebhook)
 
+	// ── Dashboard ─────────────────────────────────────
+	dashH := handlers.NewDashboardHandler(r.store, r.core.Services.Container, r.core.Events)
+	r.mux.Handle("GET /api/v1/dashboard/stats", protected(http.HandlerFunc(dashH.Stats)))
+
 	// ── Apps ────────────────────────────────────────────
 	appH := handlers.NewAppHandler(r.store, r.core)
 	r.mux.Handle("GET /api/v1/apps", protected(http.HandlerFunc(appH.List)))
 	r.mux.Handle("POST /api/v1/apps", protected(http.HandlerFunc(appH.Create)))
+	ixH := handlers.NewImportExportHandler(r.store)
+	r.mux.Handle("POST /api/v1/apps/import", protected(http.HandlerFunc(ixH.Import)))
+	r.mux.Handle("GET /api/v1/apps/{id}/export", protected(http.HandlerFunc(ixH.Export)))
 	r.mux.Handle("GET /api/v1/apps/{id}", protected(http.HandlerFunc(appH.Get)))
 	r.mux.Handle("PATCH /api/v1/apps/{id}", protected(http.HandlerFunc(appH.Update)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}", protected(http.HandlerFunc(appH.Delete)))
@@ -120,6 +127,11 @@ func (r *Router) registerRoutes() {
 	// ── Logs ──────────────────────────────────────────
 	logH := handlers.NewLogHandler(r.core.Services.Container, r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/logs", protected(http.HandlerFunc(logH.GetLogs)))
+
+	// ── Certificates ─────────────────────────────────
+	certH := handlers.NewCertificateHandler(r.store)
+	r.mux.Handle("GET /api/v1/certificates", protected(http.HandlerFunc(certH.List)))
+	r.mux.Handle("POST /api/v1/certificates", protected(http.HandlerFunc(certH.Upload)))
 
 	// ── Volumes ───────────────────────────────────────
 	volH := handlers.NewVolumeHandler(r.core.Services.Container, r.core.Events)
