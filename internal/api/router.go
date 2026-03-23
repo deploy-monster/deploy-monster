@@ -98,6 +98,10 @@ func (r *Router) registerRoutes() {
 	mxExportH := handlers.NewMetricsExportHandler()
 	r.mux.Handle("GET /api/v1/apps/{id}/metrics/export", protected(http.HandlerFunc(mxExportH.Export)))
 
+	// ── App Rename ────────────────────────────────────
+	renameH := handlers.NewRenameHandler(r.store, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/rename", protected(http.HandlerFunc(renameH.Rename)))
+
 	// ── App Clone & Bulk Ops ──────────────────────────
 	cloneH := handlers.NewCloneHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/clone", protected(http.HandlerFunc(cloneH.Clone)))
