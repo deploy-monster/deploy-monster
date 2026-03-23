@@ -97,6 +97,15 @@ func (r *Router) registerRoutes() {
 	scaleH := handlers.NewScaleHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/scale", protected(http.HandlerFunc(scaleH.Scale)))
 
+	// ── Logs ──────────────────────────────────────────
+	logH := handlers.NewLogHandler(r.core.Services.Container, r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/logs", protected(http.HandlerFunc(logH.GetLogs)))
+
+	// ── Volumes ───────────────────────────────────────
+	volH := handlers.NewVolumeHandler(r.core.Services.Container, r.core.Events)
+	r.mux.Handle("GET /api/v1/volumes", protected(http.HandlerFunc(volH.List)))
+	r.mux.Handle("POST /api/v1/volumes", protected(http.HandlerFunc(volH.Create)))
+
 	// ── Projects ───────────────────────────────────────
 	projH := handlers.NewProjectHandler(r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/projects", protected(http.HandlerFunc(projH.List)))
@@ -204,6 +213,17 @@ func (r *Router) registerRoutes() {
 	eventStreamer := ws.NewEventStreamer(r.core.Events, r.core.Logger)
 	r.mux.Handle("GET /api/v1/apps/{id}/logs/stream", protected(http.HandlerFunc(logStreamer.StreamLogs)))
 	r.mux.Handle("GET /api/v1/events/stream", protected(http.HandlerFunc(eventStreamer.StreamEvents)))
+
+	// ── Admin (super admin only) ──────────────────────
+	adminH := handlers.NewAdminHandler(r.core)
+	r.mux.Handle("GET /api/v1/admin/system", protected(http.HandlerFunc(adminH.SystemInfo)))
+	r.mux.Handle("PATCH /api/v1/admin/settings", protected(http.HandlerFunc(adminH.UpdateSettings)))
+	r.mux.Handle("GET /api/v1/admin/tenants", protected(http.HandlerFunc(adminH.ListTenants)))
+
+	// ── Branding (public GET, admin PATCH) ────────────
+	brandingH := handlers.NewBrandingHandler()
+	r.mux.HandleFunc("GET /api/v1/branding", brandingH.Get)
+	r.mux.Handle("PATCH /api/v1/admin/branding", protected(http.HandlerFunc(brandingH.Update)))
 
 	// ── Prometheus metrics (no auth — internal) ───────
 	promExporter := integrations.NewPrometheusExporter(r.core.Registry, r.core.Events, r.core.Services)
