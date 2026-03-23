@@ -112,6 +112,16 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/healthcheck", protected(http.HandlerFunc(hcH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/healthcheck", protected(http.HandlerFunc(hcH.Update)))
 
+	// ── Custom Commands ──────────────────────────────
+	cmdH := handlers.NewCommandHandler(r.core.Services.Container, r.store, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/commands", protected(http.HandlerFunc(cmdH.Run)))
+	r.mux.Handle("GET /api/v1/apps/{id}/commands", protected(http.HandlerFunc(cmdH.History)))
+
+	// ── IP Access Control ─────────────────────────────
+	ipH := handlers.NewIPWhitelistHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/access", protected(http.HandlerFunc(ipH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/access", protected(http.HandlerFunc(ipH.Update)))
+
 	// ── Webhook Logs ──────────────────────────────────
 	whLogH := handlers.NewWebhookLogHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/webhooks/logs", protected(http.HandlerFunc(whLogH.List)))
@@ -223,6 +233,10 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/servers/providers/{provider}/regions", protected(http.HandlerFunc(serverH.ListRegions)))
 	r.mux.Handle("GET /api/v1/servers/providers/{provider}/sizes", protected(http.HandlerFunc(serverH.ListSizes)))
 	r.mux.Handle("POST /api/v1/servers/provision", protected(http.HandlerFunc(serverH.Provision)))
+
+	// ── Storage Usage ─────────────────────────────────
+	storageH := handlers.NewStorageHandler(r.store, r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/storage/usage", protected(http.HandlerFunc(storageH.Usage)))
 
 	// ── Git Sources ───────────────────────────────────
 	gitH := handlers.NewGitSourceHandler(r.core.Services)
