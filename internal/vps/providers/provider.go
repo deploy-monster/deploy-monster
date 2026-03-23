@@ -10,5 +10,6 @@ var Registry = map[string]Factory{
 	"hetzner":      NewHetzner,
 	"digitalocean": NewDigitalOcean,
 	"vultr":        NewVultr,
+	"linode":       NewLinode,
 	"custom":       NewCustom,
 }

@@ -7,7 +7,8 @@ type Factory func(token string) core.GitProvider
 
 // Registry holds all available Git provider factories.
 var Registry = map[string]Factory{
-	"github": NewGitHub,
-	"gitlab": NewGitLab,
-	"gitea":  NewGitea,
+	"github":    NewGitHub,
+	"gitlab":    NewGitLab,
+	"gitea":     NewGitea,
+	"bitbucket": NewBitbucket,
 }

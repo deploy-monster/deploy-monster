@@ -82,6 +82,13 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/deployments", protected(http.HandlerFunc(depH.ListByApp)))
 	r.mux.Handle("GET /api/v1/apps/{id}/deployments/latest", protected(http.HandlerFunc(depH.GetLatest)))
 
+	// ── Stats & Scaling ───────────────────────────────
+	statsH := handlers.NewStatsHandler(r.core.Services.Container, r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/stats", protected(http.HandlerFunc(statsH.AppStats)))
+	r.mux.Handle("GET /api/v1/servers/stats", protected(http.HandlerFunc(statsH.ServerStats)))
+	scaleH := handlers.NewScaleHandler(r.store, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/scale", protected(http.HandlerFunc(scaleH.Scale)))
+
 	// ── Projects ───────────────────────────────────────
 	projH := handlers.NewProjectHandler(r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/projects", protected(http.HandlerFunc(projH.List)))
