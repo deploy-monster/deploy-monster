@@ -157,6 +157,14 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/labels", protected(http.HandlerFunc(labelsH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/labels", protected(http.HandlerFunc(labelsH.Update)))
 
+	// ── Disk Usage ────────────────────────────────────
+	diskH := handlers.NewDiskUsageHandler(r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/apps/{id}/disk", protected(http.HandlerFunc(diskH.AppDisk)))
+
+	// ── Webhook Test ──────────────────────────────────
+	whTestH := handlers.NewWebhookTestDeliveryHandler(r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/test", protected(http.HandlerFunc(whTestH.TestDeliver)))
+
 	// ── App Ports ─────────────────────────────────────
 	portH := handlers.NewPortHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/ports", protected(http.HandlerFunc(portH.Get)))
@@ -406,6 +414,9 @@ func (r *Router) registerRoutes() {
 	dbH := handlers.NewDatabaseHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.HandleFunc("GET /api/v1/databases/engines", dbH.ListEngines)
 	r.mux.Handle("POST /api/v1/databases", protected(http.HandlerFunc(dbH.Create)))
+	dbPoolH := handlers.NewDBPoolHandler(r.store)
+	r.mux.Handle("GET /api/v1/databases/{id}/pool", protected(http.HandlerFunc(dbPoolH.Get)))
+	r.mux.Handle("PUT /api/v1/databases/{id}/pool", protected(http.HandlerFunc(dbPoolH.Update)))
 
 	// ── Backups ───────────────────────────────────────
 	backupStorage := r.core.Services.BackupStorage("local")
@@ -490,6 +501,16 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/webhooks/outbound", protected(http.HandlerFunc(evtWhH.Create)))
 	r.mux.Handle("DELETE /api/v1/webhooks/outbound/{id}", protected(http.HandlerFunc(evtWhH.Delete)))
 
+	// ── Deploy Freeze ─────────────────────────────────
+	freezeH := handlers.NewDeployFreezeHandler(r.store, r.core.Events)
+	r.mux.Handle("GET /api/v1/deploy/freeze", protected(http.HandlerFunc(freezeH.Get)))
+	r.mux.Handle("POST /api/v1/deploy/freeze", protected(http.HandlerFunc(freezeH.Create)))
+	r.mux.Handle("DELETE /api/v1/deploy/freeze/{id}", protected(http.HandlerFunc(freezeH.Delete)))
+
+	// ── Env Compare ───────────────────────────────────
+	ecH := handlers.NewEnvCompareHandler(r.store)
+	r.mux.Handle("POST /api/v1/apps/env/compare", protected(http.HandlerFunc(ecH.Compare)))
+
 	// ── Notifications ─────────────────────────────────
 	notifH := handlers.NewNotificationHandler(r.core.Services.Notifications)
 	r.mux.Handle("POST /api/v1/notifications/test", protected(http.HandlerFunc(notifH.Test)))
@@ -534,6 +555,9 @@ func (r *Router) registerRoutes() {
 	r.mux.HandleFunc("GET /api/v1/announcements", announcH.List) // public
 	r.mux.Handle("POST /api/v1/admin/announcements", protected(http.HandlerFunc(announcH.Create)))
 	r.mux.Handle("DELETE /api/v1/admin/announcements/{id}", protected(http.HandlerFunc(announcH.Dismiss)))
+
+	// ── Admin Disk Usage ──────────────────────────────
+	r.mux.Handle("GET /api/v1/admin/disk", protected(http.HandlerFunc(diskH.SystemDisk)))
 
 	// ── Tenant Rate Limits (super admin) ──────────────
 	trlH := handlers.NewTenantRateLimitHandler(r.store)
