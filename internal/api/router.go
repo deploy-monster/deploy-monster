@@ -106,8 +106,8 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/logs/stream", protected(http.HandlerFunc(logStreamer.StreamLogs)))
 	r.mux.Handle("GET /api/v1/events/stream", protected(http.HandlerFunc(eventStreamer.StreamEvents)))
 
-	// ── SPA fallback ───────────────────────────────────
-	r.mux.HandleFunc("/", r.handleSPA)
+	// ── SPA fallback — embedded React UI ──────────────
+	r.mux.Handle("/", newSPAHandler())
 }
 
 func (r *Router) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -131,7 +131,3 @@ func (r *Router) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (r *Router) handleSPA(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(`<!DOCTYPE html><html><head><title>DeployMonster</title></head><body><h1>DeployMonster</h1><p>UI will be embedded here.</p></body></html>`))
-}

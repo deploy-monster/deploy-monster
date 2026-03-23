@@ -2,7 +2,9 @@
 set -euo pipefail
 
 # Build script for DeployMonster
-# Builds React UI (if web/ exists and has package.json) then Go binary
+# 1. Build React UI
+# 2. Copy dist to internal/api/static/ for embed.FS
+# 3. Build Go binary with ldflags
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -14,21 +16,32 @@ OUTPUT="${OUTPUT:-$ROOT_DIR/bin/deploymonster}"
 
 echo "==> Building DeployMonster $VERSION ($COMMIT)"
 
-# Build React UI if package.json exists
+# Step 1: Build React UI
 if [ -f "$ROOT_DIR/web/package.json" ]; then
     echo "==> Building React UI..."
     cd "$ROOT_DIR/web"
-    npm ci --silent
+    npm ci --silent 2>/dev/null || npm install --silent
     npm run build
     cd "$ROOT_DIR"
-    echo "==> React UI built successfully"
+    echo "==> React UI built"
 else
-    echo "==> Skipping React UI build (no web/package.json)"
-    mkdir -p "$ROOT_DIR/web/dist"
-    echo "<html><body><h1>DeployMonster</h1><p>UI not built yet.</p></body></html>" > "$ROOT_DIR/web/dist/index.html"
+    echo "==> Skipping React UI (no web/package.json)"
 fi
 
-# Build Go binary
+# Step 2: Copy UI to embed directory
+EMBED_DIR="$ROOT_DIR/internal/api/static"
+rm -rf "$EMBED_DIR"
+mkdir -p "$EMBED_DIR"
+
+if [ -d "$ROOT_DIR/web/dist" ]; then
+    cp -r "$ROOT_DIR/web/dist/"* "$EMBED_DIR/"
+    echo "==> UI embedded ($(du -sh "$EMBED_DIR" | cut -f1))"
+else
+    echo "<html><body><h1>DeployMonster</h1></body></html>" > "$EMBED_DIR/index.html"
+    echo "==> Placeholder UI embedded"
+fi
+
+# Step 3: Build Go binary
 echo "==> Building Go binary..."
 mkdir -p "$(dirname "$OUTPUT")"
 CGO_ENABLED=0 go build \
@@ -36,4 +49,4 @@ CGO_ENABLED=0 go build \
     -o "$OUTPUT" \
     "$ROOT_DIR/cmd/deploymonster"
 
-echo "==> Built: $OUTPUT ($(du -h "$OUTPUT" | cut -f1))"
+echo "==> Done: $OUTPUT ($(du -h "$OUTPUT" | cut -f1))"

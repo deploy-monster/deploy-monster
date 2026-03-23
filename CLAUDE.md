@@ -1,51 +1,57 @@
 # DeployMonster - Development Guidelines
 
 ## Project Overview
-DeployMonster is a self-hosted PaaS (Platform as a Service) written in Go 1.23+. Single binary, modular monolith, event-driven architecture with embedded React UI.
+DeployMonster is a self-hosted PaaS (Platform as a Service) — single binary, modular monolith, event-driven architecture with embedded React UI. Replaces Coolify/Dokploy/CapRover with enterprise-grade features.
 
 ## Architecture
-- **Backend**: Go 1.23+ modular monolith
-- **Frontend**: React 19 + Vite + Tailwind v4 + shadcn/ui (embedded via `embed.FS`)
-- **Database**: SQLite (`modernc.org/sqlite` pure Go) + BBolt (KV store)
-- **Module System**: Every feature is a module implementing `core.Module` interface
-- **Event System**: In-process pub/sub event bus
-- **API**: REST + WebSocket, JWT + API Key auth
+- **Backend**: Go 1.26+ modular monolith, 20 modules auto-registered via `init()`
+- **Frontend**: React 19 + Vite 8 + Tailwind CSS 4 + Zustand 5 (embedded via `embed.FS`)
+- **Database**: SQLite (`modernc.org/sqlite` pure Go) + BBolt KV — PostgreSQL-ready via `core.Store` interface
+- **Module System**: Every feature implements `core.Module` interface (ID, Init, Start, Stop, Health, Routes, Events)
+- **Event System**: In-process pub/sub with sync/async handlers, prefix matching, typed payloads
+- **Master/Agent**: Same binary runs as master (full platform) or agent (worker node)
 
-## Key Conventions
-- Go module path: `github.com/deploy-monster/deploy-monster`
-- All business logic lives in `internal/` packages
-- Each module has its own package under `internal/`
-- Module registration happens in `internal/core/app.go`
-- Database migrations are embedded SQL files in `internal/db/migrations/`
-- Config loaded from `monster.yaml` with env var overrides
+## Key Interfaces (in `core/`)
+- `Store` — DB-agnostic repository. SQLite default, PostgreSQL planned. Never use `*db.SQLiteDB` directly
+- `ContainerRuntime` — Docker operations. Local or remote via agent
+- `NodeExecutor` — Master/agent transparent execution
+- `VPSProvisioner` — Hetzner, DigitalOcean, Vultr, custom SSH
+- `BackupStorage` — Local, S3/MinIO/R2
+- `DNSProvider` — Cloudflare, extensible
+- `GitProvider` — GitHub, GitLab, Gitea
+- `SecretResolver` — AES-256-GCM vault with `${SECRET:name}` syntax
+- `NotificationSender` — Slack, Discord, Telegram, webhook
+- `OutboundWebhookSender` — HMAC-signed HTTP deliveries
+
+## Module Registration
+Modules use `init()` + `core.RegisterModule()` pattern. Main.go imports them with `_`. Dependency order is resolved automatically via topological sort.
 
 ## Commands
 - `make build` — Build Go binary with embedded UI
 - `make dev` — Run in development mode
 - `make test` — Run all tests
 - `make lint` — Run golangci-lint
-- `make clean` — Clean build artifacts
+- `scripts/build.sh` — Full pipeline: React build → embed copy → Go build with ldflags
 
-## Code Style
-- Follow standard Go conventions (gofmt, effective Go)
+## CLI
+```
+deploymonster              Start server (default)
+deploymonster serve        Start server explicitly
+deploymonster serve --agent  Start as agent/worker node
+deploymonster version      Show version info
+deploymonster config       Validate and display config
+```
+
+## Code Conventions
 - Use `log/slog` for structured logging
-- Use `context.Context` for cancellation/timeouts
-- Error wrapping with `fmt.Errorf("context: %w", err)`
-- No global state — pass dependencies via constructors
-- Interfaces defined where consumed, not where implemented
-- Table-driven tests preferred
-
-## Module Pattern
-Every module must:
-1. Implement `core.Module` interface (ID, Name, Version, Dependencies, Init, Start, Stop, Health, Routes, Events)
-2. Have a `New()` constructor function
-3. Register itself in `internal/core/app.go`
-4. Use dependency injection via `core.Core` reference
+- Use `context.Context` everywhere
+- Error wrapping: `fmt.Errorf("context: %w", err)`
+- No global state — dependency injection via `core.Core`
+- Interfaces defined where consumed
+- Table-driven tests
+- All data access via `core.Store` interface, never concrete DB types
 
 ## Project Documentation
 - `·project/SPECIFICATION.md` — Full product specification
 - `·project/IMPLEMENTATION.md` — Implementation patterns and code examples
 - `·project/TASKS.md` — Ordered task checklist (223 tasks, 15 phases)
-
-## Current Phase
-Phase 1 — Foundation (v0.1.0): Core engine, DB, auth, API, Docker integration, React UI shell
