@@ -87,6 +87,17 @@ func (r *Router) registerRoutes() {
 	deployTriggerH := handlers.NewDeployTriggerHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/deploy", protected(http.HandlerFunc(deployTriggerH.TriggerDeploy)))
 
+	// ── App Suspend/Resume & Transfer ────────────────
+	suspH := handlers.NewSuspendHandler(r.store, r.core.Services.Container, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/suspend", protected(http.HandlerFunc(suspH.Suspend)))
+	r.mux.Handle("POST /api/v1/apps/{id}/resume", protected(http.HandlerFunc(suspH.Resume)))
+	txfrH := handlers.NewTransferHandler(r.store, r.core.Events)
+	r.mux.Handle("POST /api/v1/apps/{id}/transfer", protected(http.HandlerFunc(txfrH.TransferApp)))
+
+	// ── Metrics Export ────────────────────────────────
+	mxExportH := handlers.NewMetricsExportHandler()
+	r.mux.Handle("GET /api/v1/apps/{id}/metrics/export", protected(http.HandlerFunc(mxExportH.Export)))
+
 	// ── App Clone & Bulk Ops ──────────────────────────
 	cloneH := handlers.NewCloneHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/clone", protected(http.HandlerFunc(cloneH.Clone)))
@@ -180,6 +191,11 @@ func (r *Router) registerRoutes() {
 	// ── Logs ──────────────────────────────────────────
 	logH := handlers.NewLogHandler(r.core.Services.Container, r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/logs", protected(http.HandlerFunc(logH.GetLogs)))
+
+	// ── Domain Verification ──────────────────────────
+	dvH := handlers.NewDomainVerifyHandler(r.store)
+	r.mux.Handle("POST /api/v1/domains/{id}/verify", protected(http.HandlerFunc(dvH.Verify)))
+	r.mux.Handle("POST /api/v1/domains/verify-batch", protected(http.HandlerFunc(dvH.BatchVerify)))
 
 	// ── Certificates ─────────────────────────────────
 	certH := handlers.NewCertificateHandler(r.store)
@@ -337,6 +353,10 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/admin/system", protected(http.HandlerFunc(adminH.SystemInfo)))
 	r.mux.Handle("PATCH /api/v1/admin/settings", protected(http.HandlerFunc(adminH.UpdateSettings)))
 	r.mux.Handle("GET /api/v1/admin/tenants", protected(http.HandlerFunc(adminH.ListTenants)))
+
+	// ── Self-Update ──────────────────────────────────
+	updateH := handlers.NewSelfUpdateHandler(r.core.Build.Version)
+	r.mux.Handle("GET /api/v1/admin/updates", protected(http.HandlerFunc(updateH.CheckUpdate)))
 
 	// ── Branding (public GET, admin PATCH) ────────────
 	brandingH := handlers.NewBrandingHandler()
