@@ -694,11 +694,11 @@
 
 ### 15.4 Documentation
 
-- [ ] **T-15.4.1** — Write `README.md` with quick start, features, screenshots
-- [ ] **T-15.4.2** — Write `docs/getting-started.md` — install → first deploy in 5 minutes
-- [ ] **T-15.4.3** — Write `docs/architecture.md` — high-level architecture overview
-- [ ] **T-15.4.4** — Write `docs/api-reference.md` — auto-generated from endpoint map
-- [ ] **T-15.4.5** — Write `docs/deployment-guide.md` — production deployment best practices
+- [x] **T-15.4.1** — Write `README.md` with quick start, features, screenshots
+- [x] **T-15.4.2** — Write `docs/getting-started.md` — install → first deploy in 5 minutes
+- [x] **T-15.4.3** — Write `docs/architecture.md` — high-level architecture overview
+- [x] **T-15.4.4** — Write `docs/api-reference.md` — auto-generated from endpoint map
+- [x] **T-15.4.5** — Write `docs/deployment-guide.md` — production deployment best practices
 
 ### 15.5 Quality & Performance
 
