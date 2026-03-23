@@ -1,0 +1,70 @@
+# DeployMonster Configuration
+# Copy this file to monster.yaml and customize.
+# All settings can also be set via MONSTER_* environment variables.
+
+server:
+  host: 0.0.0.0
+  port: 8443
+  domain: ""                    # Your platform domain (e.g., deploy.example.com)
+  # secret_key: ""              # Auto-generated on first run. Set via MONSTER_SECRET env var.
+
+database:
+  driver: sqlite                # sqlite (default) or postgres (enterprise)
+  path: deploymonster.db        # SQLite file path
+  # url: ""                     # PostgreSQL connection string (when driver=postgres)
+
+ingress:
+  http_port: 80
+  https_port: 443
+  enable_https: true
+
+acme:
+  email: ""                     # Let's Encrypt registration email
+  staging: false                # Use staging server for testing
+  provider: http-01             # http-01 or dns-01
+
+dns:
+  provider: manual              # manual, cloudflare
+  cloudflare_token: ""          # Cloudflare API token
+  auto_subdomain: ""            # Auto-subdomain suffix (e.g., deploy.monster)
+
+docker:
+  host: unix:///var/run/docker.sock
+  # api_version: ""             # Docker API version (auto-negotiated)
+
+backup:
+  schedule: "02:00"             # Daily backup time (HH:MM)
+  retention_days: 30
+  storage_path: /var/lib/deploymonster/backups
+  encryption: true
+
+notifications:
+  # email_smtp: ""
+  # slack_webhook: ""
+  # discord_webhook: ""
+  # telegram_token: ""
+
+swarm:
+  enabled: false
+  # manager_ip: ""
+  # join_token: ""
+
+registration:
+  mode: open                    # open, invite_only, approval, disabled
+
+secrets:
+  # encryption_key: ""          # Defaults to server.secret_key
+
+billing:
+  enabled: false
+  # stripe_secret_key: ""
+  # stripe_webhook_key: ""
+
+limits:
+  max_apps_per_tenant: 100
+  max_build_minutes: 30
+  max_concurrent_builds: 5
+
+enterprise:
+  enabled: false
+  # license_key: ""

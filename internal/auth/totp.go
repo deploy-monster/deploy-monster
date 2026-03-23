@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha1"
 	"encoding/base32"
 	"encoding/binary"
@@ -77,17 +78,18 @@ func generateCode(key []byte, counter int64) string {
 
 func generateTOTPSecret(length int) string {
 	b := make([]byte, length)
-	for i := range b {
-		b[i] = byte('A' + i%26)
-	}
-	// Use crypto random in production
+	rand.Read(b)
 	return string(b)
 }
 
 func randomHex(n int) string {
 	b := make([]byte, n)
-	for i := range b {
-		b[i] = "0123456789abcdef"[i%16]
+	rand.Read(b)
+	const hex = "0123456789abcdef"
+	out := make([]byte, n*2)
+	for i, v := range b {
+		out[i*2] = hex[v>>4]
+		out[i*2+1] = hex[v&0x0f]
 	}
-	return string(b)
+	return string(out[:n])
 }
