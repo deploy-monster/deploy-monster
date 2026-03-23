@@ -118,6 +118,36 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/team/invites", protected(http.HandlerFunc(inviteH.Create)))
 	r.mux.Handle("GET /api/v1/team/audit-log", protected(http.HandlerFunc(teamH.GetAuditLog)))
 
+	// ── Databases ─────────────────────────────────────
+	dbH := handlers.NewDatabaseHandler(r.store, r.core.Services.Container, r.core.Events)
+	r.mux.HandleFunc("GET /api/v1/databases/engines", dbH.ListEngines)
+	r.mux.Handle("POST /api/v1/databases", protected(http.HandlerFunc(dbH.Create)))
+
+	// ── Backups ───────────────────────────────────────
+	backupStorage := r.core.Services.BackupStorage("local")
+	backupH := handlers.NewBackupHandler(r.store, backupStorage, r.core.Events)
+	r.mux.Handle("GET /api/v1/backups", protected(http.HandlerFunc(backupH.List)))
+	r.mux.Handle("POST /api/v1/backups", protected(http.HandlerFunc(backupH.Create)))
+	r.mux.Handle("GET /api/v1/backups/{key}/download", protected(http.HandlerFunc(backupH.Download)))
+
+	// ── Servers / VPS ─────────────────────────────────
+	serverH := handlers.NewServerHandler(r.store, r.core.Services, r.core.Events)
+	r.mux.Handle("GET /api/v1/servers/providers", protected(http.HandlerFunc(serverH.ListProviders)))
+	r.mux.Handle("GET /api/v1/servers/providers/{provider}/regions", protected(http.HandlerFunc(serverH.ListRegions)))
+	r.mux.Handle("GET /api/v1/servers/providers/{provider}/sizes", protected(http.HandlerFunc(serverH.ListSizes)))
+	r.mux.Handle("POST /api/v1/servers/provision", protected(http.HandlerFunc(serverH.Provision)))
+
+	// ── Git Sources ───────────────────────────────────
+	gitH := handlers.NewGitSourceHandler(r.core.Services)
+	r.mux.Handle("GET /api/v1/git/providers", protected(http.HandlerFunc(gitH.ListProviders)))
+	r.mux.Handle("GET /api/v1/git/{provider}/repos", protected(http.HandlerFunc(gitH.ListRepos)))
+	r.mux.Handle("GET /api/v1/git/{provider}/repos/{repo}/branches", protected(http.HandlerFunc(gitH.ListBranches)))
+
+	// ── Billing ───────────────────────────────────────
+	billingH := handlers.NewBillingHandler(r.store)
+	r.mux.HandleFunc("GET /api/v1/billing/plans", billingH.ListPlans)
+	r.mux.Handle("GET /api/v1/billing/usage", protected(http.HandlerFunc(billingH.GetUsage)))
+
 	// ── Marketplace (public list, auth for deploy) ────
 	mpMod := r.core.Registry.Get("marketplace")
 	if mpMod != nil {
