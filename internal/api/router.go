@@ -107,6 +107,11 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/ports", protected(http.HandlerFunc(portH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/ports", protected(http.HandlerFunc(portH.Update)))
 
+	// ── Health Check Config ───────────────────────────
+	hcH := handlers.NewHealthCheckHandler(r.store)
+	r.mux.Handle("GET /api/v1/apps/{id}/healthcheck", protected(http.HandlerFunc(hcH.Get)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/healthcheck", protected(http.HandlerFunc(hcH.Update)))
+
 	// ── Webhook Logs ──────────────────────────────────
 	whLogH := handlers.NewWebhookLogHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/webhooks/logs", protected(http.HandlerFunc(whLogH.List)))
@@ -163,6 +168,11 @@ func (r *Router) registerRoutes() {
 	envH := handlers.NewEnvVarHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/env", protected(http.HandlerFunc(envH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/env", protected(http.HandlerFunc(envH.Update)))
+
+	// ── Docker Registries ─────────────────────────────
+	regH := handlers.NewRegistryHandler(r.store)
+	r.mux.Handle("GET /api/v1/registries", protected(http.HandlerFunc(regH.List)))
+	r.mux.Handle("POST /api/v1/registries", protected(http.HandlerFunc(regH.Add)))
 
 	// ── Domains ────────────────────────────────────────
 	domH := handlers.NewDomainHandler(r.store, r.core.Events)
