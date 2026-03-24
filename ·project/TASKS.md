@@ -703,7 +703,7 @@
 ### 15.5 Quality & Performance
 
 - [x] **T-15.5.1** — Run `golangci-lint` — fix all warnings
-- [ ] **T-15.5.2** — Achieve >70% test coverage on critical paths (auth, deploy, ingress, billing)
+- [x] **T-15.5.2** — Achieve >70% test coverage on critical paths (auth, deploy, ingress, billing)
 - [x] **T-15.5.3** — Load test: 100 concurrent requests, p95 < 100ms
 - [x] **T-15.5.4** — Load test: proxy 1000 req/s with < 5ms overhead
 - [x] **T-15.5.5** — Binary size check: < 50 MB

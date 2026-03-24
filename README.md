@@ -26,7 +26,7 @@ Open `https://localhost:8443` — credentials are printed on first run.
 
 | Problem | DeployMonster Solution |
 |---------|----------------------|
-| Coolify needs 5 Docker containers | **Single 21MB binary** |
+| Coolify needs 5 Docker containers | **Single 22MB binary** |
 | Dokploy has no billing/teams | **Built-in billing, RBAC, teams** |
 | CapRover has outdated UI | **Modern React 19 + Tailwind** |
 | Vercel/Netlify lock you in | **Self-hosted, zero vendor lock-in** |
@@ -40,10 +40,10 @@ Open `https://localhost:8443` — credentials are printed on first run.
 - **14 Language Support** — Auto-detects Node.js, Next.js, Go, Python, Rust, PHP, Java, .NET, Ruby, and more
 - **Docker Image** — Deploy any image from any registry
 - **Docker Compose** — Upload YAML, get a running multi-service stack
-- **Marketplace** — One-click deploy 20+ apps (WordPress, Ghost, n8n, Ollama, Grafana, etc.)
+- **Marketplace** — One-click deploy 25+ apps (WordPress, Ghost, n8n, Ollama, Grafana, etc.)
 
 ### Platform
-- **127 REST API Endpoints** — Complete platform API
+- **223 REST API Endpoints** — Complete platform API
 - **Custom Reverse Proxy** — No Traefik/Nginx. Auto-SSL via Let's Encrypt
 - **5 Load Balancer Strategies** — Round-robin, least-conn, IP-hash, random, weighted
 - **Secret Vault** — AES-256-GCM encryption with `${SECRET:name}` resolution
@@ -74,10 +74,10 @@ Open `https://localhost:8443` — credentials are printed on first run.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                   DeployMonster Binary (21MB)                  │
+│                   DeployMonster Binary (22MB)                  │
 ├────────┬────────┬────────┬────────┬──────────┬──────────────┤
 │ Web UI │  API   │  SSE   │Webhooks│ Ingress  │  MCP Server  │
-│(React) │127 eps │Stream  │In+Out  │:80/:443  │  9 AI Tools  │
+│(React) │223 eps │Stream  │In+Out  │:80/:443  │  9 AI Tools  │
 ├────────┴────────┴────────┴────────┴──────────┴──────────────┤
 │                    20 Auto-Registered Modules                 │
 │ auth│deploy│build│ingress│discovery│dns│secrets│billing│mcp  │
@@ -124,7 +124,7 @@ make dev
 # Frontend
 cd web && npm install && npm run dev
 
-# Tests (18 suites, 100+ tests)
+# Tests (20 suites, 89 test files, 70%+ coverage on critical paths)
 make test
 
 # Full build (React UI → embed → Go binary)
