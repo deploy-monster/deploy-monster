@@ -54,8 +54,6 @@ changelog:
 
 dockers:
   - image_templates:
-      - "deploymonster/deploymonster:{{ .Version }}"
-      - "deploymonster/deploymonster:latest"
       - "ghcr.io/ersinkoc/deploymonster:{{ .Version }}"
       - "ghcr.io/ersinkoc/deploymonster:latest"
     dockerfile: Dockerfile

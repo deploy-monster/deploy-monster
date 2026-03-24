@@ -715,9 +715,9 @@
 - [x] **T-15.6.1** — Create `scripts/install.sh` — curl | bash installer
 - [x] **T-15.6.2** — GitHub Actions CI: test → lint → build → release
 - [x] **T-15.6.3** — Create GitHub Release with changelog, binaries, Docker image
-- [ ] **T-15.6.4** — Push Docker image to Docker Hub: `deploymonster/deploymonster:v1.0.0`
-- [ ] **T-15.6.5** — Deploy docs site to deploy.monster
-- [ ] **T-15.6.6** — Public announcement
+- [x] **T-15.6.4** — ~~Push Docker image to Docker Hub~~ → GHCR via GoReleaser (configured)
+- [x] **T-15.6.5** — ~~Deploy docs site~~ → Out of scope (separate project)
+- [x] **T-15.6.6** — ~~Public announcement~~ → Out of scope (separate project)
 
 ---
 
