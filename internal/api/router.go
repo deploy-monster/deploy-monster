@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/api/handlers"
 	"github.com/deploy-monster/deploy-monster/internal/api/middleware"
@@ -39,7 +40,8 @@ func (r *Router) Handler() http.Handler {
 		r.mux,
 		middleware.RequestID,
 		middleware.APIVersion(r.core.Build.Version),
-		middleware.BodyLimit(10<<20), // 10MB max request body
+		middleware.BodyLimit(10<<20),         // 10MB max request body
+		middleware.Timeout(30*time.Second),   // 30s request timeout
 		middleware.Recovery(r.core.Logger),
 		middleware.RequestLogger(r.core.Logger),
 		middleware.CORS("*"),
@@ -53,6 +55,8 @@ func (r *Router) registerRoutes() {
 	// ── Health ──────────────────────────────────────────
 	r.mux.HandleFunc("GET /health", r.handleHealth)
 	r.mux.HandleFunc("GET /api/v1/health", r.handleHealth)
+	detailedH := handlers.NewDetailedHealthHandler(r.core)
+	r.mux.HandleFunc("GET /health/detailed", detailedH.DetailedHealth)
 
 	// ── OpenAPI Spec ──────────────────────────────────
 	openAPIH := handlers.NewOpenAPIHandler(r.core.Build.Version)
