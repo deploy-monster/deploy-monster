@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { Rocket, MoreVertical, Play, Square, RotateCcw, Trash2 } from 'lucide-react';
+import { useApi } from '../hooks';
 import { appsAPI, type App } from '../api/apps';
 
 function StatusBadge({ status }: { status: string }) {
@@ -21,25 +22,10 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function Apps() {
-  const [apps, setApps] = useState<App[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page] = useState(1);
+  const { data: appsResponse, refetch } = useApi<{ data: App[]; total: number }>('/apps?page=1&per_page=20', { refreshInterval: 10000 });
+  const apps = appsResponse?.data || [];
+  const total = appsResponse?.total || 0;
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
-
-  const loadApps = () => {
-    appsAPI.list(page, 20).then((res) => {
-      setApps(res.data || []);
-      setTotal(res.total);
-    }).catch(() => {});
-  };
-
-  useEffect(() => { loadApps(); }, [page]);
-
-  // Auto-refresh every 10 seconds
-  useEffect(() => {
-    const interval = setInterval(loadApps, 10000);
-    return () => clearInterval(interval);
-  }, [page]);
 
   const handleAction = async (appId: string, action: 'start' | 'stop' | 'restart' | 'delete') => {
     setMenuOpen(null);
@@ -50,7 +36,7 @@ export function Apps() {
       } else {
         await appsAPI[action](appId);
       }
-      loadApps();
+      refetch();
     } catch {}
   };
 
