@@ -1,4 +1,4 @@
-.PHONY: build dev test lint clean docker fmt vet tidy
+.PHONY: build dev test lint clean docker docker-compose fmt vet tidy bench coverage release install help
 
 # Variables
 BINARY_NAME := deploymonster
@@ -15,26 +15,54 @@ GOTEST := $(GOCMD) test
 GOVET := $(GOCMD) vet
 GOFMT := gofmt
 
-## build: Build the binary
+# Platforms
+PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+
+## build: Build the binary for current platform
 build:
 	@echo "Building $(BINARY_NAME) $(VERSION)..."
 	@mkdir -p $(GOBIN)
 	$(GOBUILD) $(LDFLAGS) -o $(GOBIN)/$(BINARY_NAME) ./cmd/deploymonster
 
-## dev: Run in development mode with live reload
+## build-all: Build for all platforms (linux, darwin, windows)
+build-all:
+	@echo "Building for all platforms..."
+	@mkdir -p $(GOBIN)
+	@for platform in $(PLATFORMS); do \
+		os=$$(echo $$platform | cut -d/ -f1); \
+		arch=$$(echo $$platform | cut -d/ -f2); \
+		ext=""; \
+		if [ "$$os" = "windows" ]; then ext=".exe"; fi; \
+		echo "  → $$os/$$arch"; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GOBUILD) $(LDFLAGS) \
+			-o $(GOBIN)/$(BINARY_NAME)-$$os-$$arch$$ext ./cmd/deploymonster; \
+	done
+	@echo "Done. Binaries in $(GOBIN)/"
+
+## dev: Run in development mode
 dev:
 	@echo "Starting development server..."
 	$(GOCMD) run $(LDFLAGS) ./cmd/deploymonster
 
-## test: Run all tests
+## test: Run all tests with race detection and coverage
 test:
 	@echo "Running tests..."
-	$(GOTEST) -v -race -coverprofile=coverage.out ./...
+	$(GOTEST) -race -coverprofile=coverage.out ./...
 
 ## test-short: Run short tests only
 test-short:
 	@echo "Running short tests..."
-	$(GOTEST) -v -short ./...
+	$(GOTEST) -short ./...
+
+## test-cover: Run tests and show per-package coverage
+test-cover:
+	@echo "Running tests with coverage..."
+	$(GOTEST) -cover ./... | sort -t':' -k2 -n
+
+## bench: Run all benchmarks
+bench:
+	@echo "Running benchmarks..."
+	$(GOTEST) -bench=. -benchmem ./...
 
 ## lint: Run golangci-lint
 lint:
@@ -63,14 +91,52 @@ clean:
 
 ## docker: Build Docker image
 docker:
-	docker build -t deploymonster:$(VERSION) -f deployments/Dockerfile .
+	@echo "Building Docker image..."
+	docker build -t deploymonster:$(VERSION) -t deploymonster:latest \
+		--build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) .
+
+## docker-compose: Start with docker-compose
+docker-compose:
+	docker compose up -d
 
 ## coverage: Generate HTML coverage report
 coverage: test
 	@echo "Generating coverage report..."
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@echo "Open coverage.html in your browser"
+
+## release: Create a release with goreleaser
+release:
+	@echo "Creating release..."
+	goreleaser release --clean
+
+## release-snapshot: Test release without publishing
+release-snapshot:
+	@echo "Creating snapshot release..."
+	goreleaser release --snapshot --clean
+
+## install: Install binary to GOPATH/bin
+install:
+	@echo "Installing $(BINARY_NAME)..."
+	$(GOCMD) install $(LDFLAGS) ./cmd/deploymonster
+
+## check: Run all checks (vet, test, build)
+check: vet test build
+	@echo "All checks passed!"
+
+## stats: Show project statistics
+stats:
+	@echo "=== DeployMonster Stats ==="
+	@echo "Version:    $(VERSION)"
+	@echo "Go files:   $$(find internal cmd -name '*.go' | wc -l)"
+	@echo "Go LOC:     $$(find internal cmd -name '*.go' | xargs wc -l 2>/dev/null | tail -1 | awk '{print $$1}')"
+	@echo "Test files: $$(find internal -name '*_test.go' | wc -l)"
+	@echo "Endpoints:  $$(grep -c 'r.mux.Handle' internal/api/router.go)"
+	@echo "Modules:    $$(grep -r 'core.RegisterModule' internal/ --include='*.go' -l | wc -l)"
+	@echo "Binary:     $$(ls -lh $(GOBIN)/$(BINARY_NAME)* 2>/dev/null | awk '{print $$5}' | head -1)"
 
 ## help: Show this help
 help:
-	@echo "Available targets:"
+	@echo "DeployMonster — Available targets:"
+	@echo ""
 	@grep -E '^##' $(MAKEFILE_LIST) | sed 's/## /  /'

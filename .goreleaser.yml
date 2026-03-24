@@ -1,0 +1,81 @@
+version: 2
+
+project_name: deploymonster
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+    - go test ./... -count=1
+
+builds:
+  - id: deploymonster
+    main: ./cmd/deploymonster
+    binary: deploymonster
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - monster.example.yaml
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+
+dockers:
+  - image_templates:
+      - "deploymonster/deploymonster:{{ .Version }}"
+      - "deploymonster/deploymonster:latest"
+      - "ghcr.io/ersinkoc/deploymonster:{{ .Version }}"
+      - "ghcr.io/ersinkoc/deploymonster:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--build-arg=VERSION={{.Version}}"
+      - "--build-arg=COMMIT={{.ShortCommit}}"
+
+release:
+  github:
+    owner: ersinkoc
+    name: DeployMonster_GO
+  draft: false
+  prerelease: auto
+  name_template: "DeployMonster v{{.Version}}"
+  header: |
+    ## DeployMonster v{{.Version}}
+
+    Self-hosted PaaS — single binary, zero configuration, production-ready.
+  footer: |
+    **Full Changelog**: https://github.com/ersinkoc/DeployMonster_GO/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ---
+    Built by [ECOSTACK TECHNOLOGY OÜ](https://ecostack.dev)
