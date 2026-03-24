@@ -18,6 +18,9 @@ import { Onboarding } from './pages/Onboarding';
 import { Team } from './pages/Team';
 import { Billing } from './pages/Billing';
 import { GitSources } from './pages/GitSources';
+import { Backups } from './pages/Backups';
+import { Secrets } from './pages/Secrets';
+import { Admin } from './pages/Admin';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -72,6 +75,9 @@ export default function App() {
           <Route path="team" element={<Team />} />
           <Route path="billing" element={<Billing />} />
           <Route path="git" element={<GitSources />} />
+          <Route path="backups" element={<Backups />} />
+          <Route path="secrets" element={<Secrets />} />
+          <Route path="admin" element={<Admin />} />
           <Route path="settings" element={<Settings />} />
         </Route>
 

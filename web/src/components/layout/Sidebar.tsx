@@ -14,6 +14,9 @@ import {
   Users,
   CreditCard,
   GitBranch,
+  Archive,
+  Lock,
+  Shield,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { useThemeStore } from '../../stores/theme';
@@ -26,8 +29,11 @@ const navItems = [
   { to: '/databases', icon: Database, label: 'Databases' },
   { to: '/servers', icon: Server, label: 'Servers' },
   { to: '/git', icon: GitBranch, label: 'Git Sources' },
+  { to: '/backups', icon: Archive, label: 'Backups' },
+  { to: '/secrets', icon: Lock, label: 'Secrets' },
   { to: '/team', icon: Users, label: 'Team' },
   { to: '/billing', icon: CreditCard, label: 'Billing' },
+  { to: '/admin', icon: Shield, label: 'Admin' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
