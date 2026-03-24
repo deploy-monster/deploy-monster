@@ -3,8 +3,12 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { useAuthStore } from './stores/auth';
 import { useThemeStore } from './stores/theme';
 import { AppLayout } from './components/layout/AppLayout';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { ToastContainer } from './components/Toast';
+import { FullPageLoader } from './components/Spinner';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { NotFound } from './pages/NotFound';
 import { Dashboard } from './pages/Dashboard';
 import { Apps } from './pages/Apps';
 import { AppDetail } from './pages/AppDetail';
@@ -27,11 +31,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isLoading = useAuthStore((s) => s.isLoading);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-surface">
-        <div className="w-8 h-8 border-2 border-monster-green border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <FullPageLoader />;
   }
 
   if (!isAuthenticated) {
@@ -51,6 +51,7 @@ export default function App() {
   }, []);
 
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -81,8 +82,10 @@ export default function App() {
           <Route path="settings" element={<Settings />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
+      <ToastContainer />
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
