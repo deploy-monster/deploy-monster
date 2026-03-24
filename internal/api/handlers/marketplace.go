@@ -17,6 +17,11 @@ func NewMarketplaceHandler(registry *marketplace.TemplateRegistry) *MarketplaceH
 
 // List handles GET /api/v1/marketplace
 func (h *MarketplaceHandler) List(w http.ResponseWriter, r *http.Request) {
+	if h.registry == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0, "categories": []string{}})
+		return
+	}
+
 	category := r.URL.Query().Get("category")
 	query := r.URL.Query().Get("q")
 

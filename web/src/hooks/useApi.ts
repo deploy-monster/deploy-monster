@@ -20,13 +20,13 @@ export function useApi<T>(path: string, options: UseApiOptions = {}) {
     error: null,
     loading: immediate,
   });
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   const fetch = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const response = await api.get<{ data: T }>(path);
-      setState({ data: response.data, error: null, loading: false });
+      const response = await api.get<T>(path);
+      setState({ data: response, error: null, loading: false });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Request failed';
       setState(prev => ({ ...prev, error: message, loading: false }));
@@ -61,9 +61,9 @@ export function useMutation<TInput = unknown, TOutput = unknown>(
   const mutate = useCallback(async (body?: TInput) => {
     setState({ data: null, error: null, loading: true });
     try {
-      const response = await api[method]<{ data: TOutput }>(path, body);
-      setState({ data: response.data, error: null, loading: false });
-      return response.data;
+      const response = await api[method]<TOutput>(path, body);
+      setState({ data: response, error: null, loading: false });
+      return response;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Request failed';
       setState(prev => ({ ...prev, error: message, loading: false }));

@@ -33,7 +33,7 @@ func New() *Module {
 func (m *Module) ID() string                    { return "api" }
 func (m *Module) Name() string                  { return "REST API" }
 func (m *Module) Version() string               { return "1.0.0" }
-func (m *Module) Dependencies() []string        { return []string{"core.db", "core.auth"} }
+func (m *Module) Dependencies() []string        { return []string{"core.db", "core.auth", "marketplace"} }
 func (m *Module) Routes() []core.Route          { return nil }
 func (m *Module) Events() []core.EventHandler   { return nil }
 

@@ -6,4 +6,4 @@ export { SearchDialog } from './SearchDialog';
 export { Spinner } from './Spinner';
 export { StatusDot } from './StatusDot';
 export { Table } from './Table';
-export { Toast } from './Toast';
+export { toast, ToastContainer, useToast } from './Toast';

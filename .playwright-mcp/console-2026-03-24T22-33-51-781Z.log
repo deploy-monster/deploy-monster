@@ -1,0 +1,1 @@
+[    9997ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8443/api/v1/activity?limit=5:0

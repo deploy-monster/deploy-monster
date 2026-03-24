@@ -499,6 +499,9 @@ func (r *Router) registerRoutes() {
 	mpMod := r.core.Registry.Get("marketplace")
 	if mpMod != nil {
 		reg := mpMod.(*marketplace.Module).Registry()
+		if reg == nil {
+			reg = marketplace.NewTemplateRegistry()
+		}
 		mpH := handlers.NewMarketplaceHandler(reg)
 		r.mux.HandleFunc("GET /api/v1/marketplace", mpH.List)
 		r.mux.HandleFunc("GET /api/v1/marketplace/{slug}", mpH.Get)
