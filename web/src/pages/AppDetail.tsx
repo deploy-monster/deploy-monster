@@ -34,7 +34,7 @@ export function AppDetail() {
   const { id } = useParams();
   const [app, setApp] = useState<App | null>(null);
   const [deployments, setDeployments] = useState<Deployment[]>([]);
-  const [tab, setTab] = useState<'overview' | 'deployments' | 'logs' | 'settings'>('overview');
+  const [tab, setTab] = useState<'overview' | 'deployments' | 'env' | 'logs' | 'metrics' | 'settings'>('overview');
   const [logs, setLogs] = useState<string[]>([]);
 
   useEffect(() => {
@@ -66,7 +66,9 @@ export function AppDetail() {
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'deployments', label: 'Deployments' },
+    { key: 'env', label: 'Environment' },
     { key: 'logs', label: 'Logs' },
+    { key: 'metrics', label: 'Metrics' },
     { key: 'settings', label: 'Settings' },
   ] as const;
 
@@ -158,6 +160,54 @@ export function AppDetail() {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {tab === 'env' && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-medium text-text-primary">Environment Variables</h3>
+            <div className="flex gap-2">
+              <button className="text-sm text-monster-green hover:underline">Import .env</button>
+              <button className="text-sm text-text-secondary hover:underline">Export</button>
+            </div>
+          </div>
+          <p className="text-sm text-text-muted">Use the API to manage environment variables:</p>
+          <code className="block mt-2 bg-surface-tertiary px-3 py-2 rounded text-xs font-mono">
+            GET /api/v1/apps/{app.id}/env
+          </code>
+          <p className="text-xs text-text-muted mt-2">Secret values are masked. Use ${'{'}SECRET:name{'}'} syntax for encrypted references.</p>
+        </div>
+      )}
+
+      {tab === 'metrics' && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-medium text-text-primary">Metrics</h3>
+            <select className="text-sm border border-border rounded-lg px-2 py-1 bg-surface text-text-primary">
+              <option>Last 1 hour</option>
+              <option>Last 24 hours</option>
+              <option>Last 7 days</option>
+              <option>Last 30 days</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-surface-secondary rounded-lg p-4 text-center">
+              <p className="text-2xl font-semibold text-text-primary">0%</p>
+              <p className="text-sm text-text-secondary">CPU Usage</p>
+            </div>
+            <div className="bg-surface-secondary rounded-lg p-4 text-center">
+              <p className="text-2xl font-semibold text-text-primary">0 MB</p>
+              <p className="text-sm text-text-secondary">Memory</p>
+            </div>
+            <div className="bg-surface-secondary rounded-lg p-4 text-center">
+              <p className="text-2xl font-semibold text-text-primary">0</p>
+              <p className="text-sm text-text-secondary">Requests/min</p>
+            </div>
+          </div>
+          <p className="text-xs text-text-muted mt-4">
+            Detailed metrics available via API: GET /api/v1/apps/{app.id}/metrics?period=24h
+          </p>
         </div>
       )}
 
