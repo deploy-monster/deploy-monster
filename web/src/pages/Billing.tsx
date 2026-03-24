@@ -1,5 +1,11 @@
-import { TrendingUp, Zap } from 'lucide-react';
-import { useApi } from '../hooks';
+import { Zap, CheckCircle, TrendingUp, Crown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useApi } from '@/hooks';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Plan {
   id: string;
@@ -13,71 +19,205 @@ interface Plan {
   features: string[];
 }
 
-export function Billing() {
-  const { data: plans } = useApi<Plan[]>('/billing/plans');
-  const { data: usage } = useApi<any>('/billing/usage');
+interface UsageData {
+  apps_used: number;
+  apps_limit: number;
+  containers_used: number;
+  containers_limit: number;
+  ram_used_mb: number;
+  ram_limit_mb: number;
+  plan: { id: string; name: string };
+  quota: { apps_ok: boolean; containers_ok: boolean; ram_ok: boolean };
+}
 
-  const formatPrice = (cents: number) => {
-    if (cents === 0) return 'Free';
-    return `$${(cents / 100).toFixed(0)}/mo`;
-  };
+function formatPrice(cents: number) {
+  if (cents === 0) return 'Free';
+  return `$${(cents / 100).toFixed(0)}`;
+}
+
+function formatLimit(val: number) {
+  return val < 0 ? 'Unlimited' : String(val);
+}
+
+function UsageBar({ used, limit, label }: { used: number; limit: number; label: string }) {
+  const isUnlimited = limit < 0;
+  const pct = isUnlimited ? 0 : Math.min((used / limit) * 100, 100);
+  const isWarning = !isUnlimited && pct >= 80;
+  const isDanger = !isUnlimited && pct >= 95;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium">
+          {used} / {isUnlimited ? '\u221E' : limit}
+        </span>
+      </div>
+      <div className="h-2 rounded-full bg-muted overflow-hidden">
+        <div
+          className={cn(
+            'h-full rounded-full transition-all',
+            isDanger ? 'bg-destructive' : isWarning ? 'bg-amber-500' : 'bg-primary',
+          )}
+          style={{ width: isUnlimited ? '0%' : `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function Billing() {
+  const { data: plans, loading: plansLoading } = useApi<Plan[]>('/billing/plans');
+  const { data: usage, loading: usageLoading } = useApi<UsageData>('/billing/usage');
+
+  const currentPlanId = usage?.plan?.id || 'free';
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-text-primary">Billing & Plans</h1>
-        <p className="text-sm text-text-secondary mt-1">Manage your subscription and view usage</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Billing & Plans</h1>
+        <p className="text-sm text-muted-foreground mt-1">Manage your subscription and view usage</p>
       </div>
 
       {/* Current Usage */}
-      {usage && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h2 className="font-medium text-text-primary mb-4 flex items-center gap-2"><TrendingUp size={18} /> Current Usage</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-surface-secondary rounded-lg p-4">
-              <p className="text-sm text-text-secondary">Applications</p>
-              <p className="text-2xl font-semibold text-text-primary">{usage.apps_used || 0} <span className="text-sm text-text-muted">/ {usage.apps_limit || '∞'}</span></p>
-            </div>
-            <div className="bg-surface-secondary rounded-lg p-4">
-              <p className="text-sm text-text-secondary">Plan</p>
-              <p className="text-2xl font-semibold text-monster-green">{usage.plan?.name || 'Free'}</p>
-            </div>
-            <div className="bg-surface-secondary rounded-lg p-4">
-              <p className="text-sm text-text-secondary">Status</p>
-              <p className="text-2xl font-semibold text-status-running">{usage.quota?.apps_ok ? 'OK' : 'At Limit'}</p>
-            </div>
-          </div>
-        </div>
+      {usageLoading && (
+        <Card>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+          </CardContent>
+        </Card>
       )}
 
-      {/* Plans */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {(plans || []).map((plan) => (
-          <div key={plan.id} className={`bg-surface border rounded-xl p-6 ${
-            plan.id === (usage?.plan?.id || 'free')
-              ? 'border-monster-green ring-2 ring-monster-green/20'
-              : 'border-border'
-          }`}>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-text-primary">{plan.name}</h3>
-              {plan.id === (usage?.plan?.id || 'free') && (
-                <span className="text-xs bg-monster-green/10 text-monster-green px-2 py-0.5 rounded-full">Current</span>
-              )}
+      {usage && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp size={18} className="text-primary" />
+                <CardTitle>Current Usage</CardTitle>
+              </div>
+              <Badge className="bg-primary/10 text-primary border-primary/20">
+                <Crown size={12} /> {usage.plan?.name || 'Free'}
+              </Badge>
             </div>
-            <p className="text-3xl font-bold text-text-primary mb-1">{formatPrice(plan.price_cents)}</p>
-            <p className="text-sm text-text-secondary mb-4">{plan.description}</p>
-            <ul className="space-y-2 text-sm text-text-secondary">
-              <li className="flex items-center gap-2"><Zap size={14} className="text-monster-green" /> {plan.max_apps < 0 ? 'Unlimited' : plan.max_apps} apps</li>
-              <li className="flex items-center gap-2"><Zap size={14} className="text-monster-green" /> {plan.max_containers < 0 ? 'Unlimited' : plan.max_containers} containers</li>
-              <li className="flex items-center gap-2"><Zap size={14} className="text-monster-green" /> {plan.max_ram_mb < 0 ? 'Unlimited' : (plan.max_ram_mb / 1024).toFixed(0) + 'GB'} RAM</li>
-            </ul>
-            {plan.id !== (usage?.plan?.id || 'free') && (
-              <button className="w-full mt-4 py-2 border border-monster-green text-monster-green text-sm font-medium rounded-lg hover:bg-monster-green/5 transition-colors">
-                {plan.price_cents === 0 ? 'Downgrade' : 'Upgrade'}
-              </button>
-            )}
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <UsageBar
+              used={usage.apps_used || 0}
+              limit={usage.apps_limit || -1}
+              label="Applications"
+            />
+            <UsageBar
+              used={usage.containers_used || 0}
+              limit={usage.containers_limit || -1}
+              label="Containers"
+            />
+            <UsageBar
+              used={usage.ram_used_mb || 0}
+              limit={usage.ram_limit_mb || -1}
+              label="RAM (MB)"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Plans Comparison */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Available Plans</h2>
+        {plansLoading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i}>
+                <CardContent className="space-y-3">
+                  <Skeleton className="h-6 w-20" />
+                  <Skeleton className="h-10 w-24" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        ))}
+        )}
+
+        {(plans || []).length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {(plans || []).map((plan) => {
+              const isCurrent = plan.id === currentPlanId;
+
+              return (
+                <Card
+                  key={plan.id}
+                  className={cn(
+                    'relative',
+                    isCurrent && 'border-primary ring-2 ring-primary/20',
+                  )}
+                >
+                  {isCurrent && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge>Current Plan</Badge>
+                    </div>
+                  )}
+                  <CardHeader className="text-center">
+                    <CardTitle>{plan.name}</CardTitle>
+                    <CardDescription>{plan.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-center space-y-4">
+                    <div>
+                      <span className="text-4xl font-bold">{formatPrice(plan.price_cents)}</span>
+                      {plan.price_cents > 0 && (
+                        <span className="text-muted-foreground text-sm">/mo</span>
+                      )}
+                    </div>
+                    <Separator />
+                    <ul className="space-y-2.5 text-sm text-left">
+                      <li className="flex items-center gap-2">
+                        <Zap size={14} className="text-primary shrink-0" />
+                        <span>{formatLimit(plan.max_apps)} apps</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Zap size={14} className="text-primary shrink-0" />
+                        <span>{formatLimit(plan.max_containers)} containers</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Zap size={14} className="text-primary shrink-0" />
+                        <span>
+                          {plan.max_ram_mb < 0
+                            ? 'Unlimited'
+                            : `${(plan.max_ram_mb / 1024).toFixed(0)} GB`}{' '}
+                          RAM
+                        </span>
+                      </li>
+                      {(plan.features || []).map((feat, i) => (
+                        <li key={i} className="flex items-center gap-2">
+                          <CheckCircle size={14} className="text-emerald-500 shrink-0" />
+                          <span>{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                  <CardFooter className="justify-center">
+                    {isCurrent ? (
+                      <Button variant="outline" disabled className="w-full">
+                        Current Plan
+                      </Button>
+                    ) : (
+                      <Button
+                        variant={plan.price_cents === 0 ? 'outline' : 'default'}
+                        className="w-full"
+                      >
+                        {plan.price_cents === 0 ? 'Downgrade' : 'Upgrade'}
+                      </Button>
+                    )}
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

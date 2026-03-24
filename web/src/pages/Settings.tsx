@@ -1,30 +1,40 @@
 import { useState } from 'react';
-import { useAuthStore } from '../stores/auth';
-import { useThemeStore } from '../stores/theme';
-import { Moon, Sun, Monitor, Shield, Bell, Globe, Key, Lock, Save, Copy, Check } from 'lucide-react';
-import { api } from '../api/client';
-import { toast } from '../components/Toast';
-
+import {
+  User, Lock, Moon, Sun, Monitor, Key, Copy, Check, Bell, Globe, Save,
+} from 'lucide-react';
+import { useAuthStore } from '@/stores/auth';
+import { useThemeStore } from '@/stores/theme';
+import { api } from '@/api/client';
+import { toast } from '@/components/Toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 export function Settings() {
   const user = useAuthStore((s) => s.user);
   const { theme, setTheme } = useThemeStore();
-
+  // Profile
   const [editName, setEditName] = useState(user?.name || '');
   const [saving, setSaving] = useState(false);
-
+  // Security
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
-
+  const [twoFA, setTwoFA] = useState(false);
+  // API Key
   const [generatedKey, setGeneratedKey] = useState('');
   const [copied, setCopied] = useState(false);
-
-  const themes = [
-    { id: 'light' as const, label: 'Light', icon: Sun },
-    { id: 'dark' as const, label: 'Dark', icon: Moon },
-    { id: 'system' as const, label: 'System', icon: Monitor },
-  ];
-
+  // Notifications
+  const [notifications, setNotifications] = useState({
+    email: true,
+    slack: false,
+    discord: false,
+    deploy: true,
+  });
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
@@ -36,7 +46,6 @@ export function Settings() {
       setSaving(false);
     }
   };
-
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword) return;
     setChangingPassword(true);
@@ -54,143 +63,252 @@ export function Settings() {
       setChangingPassword(false);
     }
   };
-
   const handleGenerateKey = async () => {
     try {
       const result = await api.post<{ key: string }>('/admin/api-keys');
       setGeneratedKey(result.key);
-      toast.success('API key generated — save it now!');
+      toast.success('API key generated -- save it now!');
     } catch {
       toast.error('Failed to generate API key');
     }
   };
-
   const handleCopy = () => {
     navigator.clipboard.writeText(generatedKey);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
+  const themes = [
+    { id: 'light' as const, label: 'Light', icon: Sun },
+    { id: 'dark' as const, label: 'Dark', icon: Moon },
+    { id: 'system' as const, label: 'System', icon: Monitor },
+  ];
   return (
     <div className="space-y-6 max-w-3xl">
-      <h1 className="text-2xl font-semibold text-text-primary">Settings</h1>
-
-      {/* Profile */}
-      <section className="bg-surface border border-border rounded-xl p-6">
-        <h2 className="font-medium text-text-primary mb-4 flex items-center gap-2"><Shield size={18} /> Profile</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">Name</label>
-            <div className="flex gap-2">
-              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
-                className="flex-1 px-3 py-2 rounded-lg border border-border bg-surface text-text-primary focus:ring-2 focus:ring-monster-green/50" />
-              <button onClick={handleSaveProfile} disabled={saving}
-                className="flex items-center gap-1 px-3 py-2 bg-monster-green text-white text-sm rounded-lg hover:bg-monster-green-dark disabled:opacity-50">
-                <Save size={14} /> {saving ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </div>
-          <div className="flex items-center justify-between py-2">
-            <span className="text-sm text-text-secondary">Email</span>
-            <span className="text-sm text-text-primary">{user?.email}</span>
-          </div>
-          <div className="flex items-center justify-between py-2">
-            <span className="text-sm text-text-secondary">Role</span>
-            <span className="text-sm text-text-primary capitalize">{user?.role?.replace('role_', '')}</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Change Password */}
-      <section className="bg-surface border border-border rounded-xl p-6">
-        <h2 className="font-medium text-text-primary mb-4 flex items-center gap-2"><Lock size={18} /> Change Password</h2>
-        <div className="space-y-3 max-w-sm">
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">Current Password</label>
-            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-surface text-text-primary focus:ring-2 focus:ring-monster-green/50" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">New Password</label>
-            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-surface text-text-primary focus:ring-2 focus:ring-monster-green/50" />
-          </div>
-          <button onClick={handleChangePassword} disabled={changingPassword || !currentPassword || !newPassword}
-            className="px-4 py-2 bg-monster-green text-white text-sm rounded-lg hover:bg-monster-green-dark disabled:opacity-50">
-            {changingPassword ? 'Changing...' : 'Change Password'}
-          </button>
-        </div>
-      </section>
-
-      {/* Theme */}
-      <section className="bg-surface border border-border rounded-xl p-6">
-        <h2 className="font-medium text-text-primary mb-4 flex items-center gap-2"><Sun size={18} /> Appearance</h2>
-        <div className="flex gap-3">
-          {themes.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => setTheme(id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm transition-colors ${
-                theme === id
-                  ? 'border-monster-green bg-monster-green/10 text-monster-green'
-                  : 'border-border text-text-secondary hover:bg-surface-secondary'
-              }`}>
-              <Icon size={16} /> {label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Notifications */}
-      <section className="bg-surface border border-border rounded-xl p-6">
-        <h2 className="font-medium text-text-primary mb-4 flex items-center gap-2"><Bell size={18} /> Notifications</h2>
-        <div className="space-y-3">
-          {['Email notifications', 'Slack alerts', 'Discord alerts', 'Deploy notifications'].map((item) => (
-            <label key={item} className="flex items-center justify-between py-2 cursor-pointer">
-              <span className="text-sm text-text-secondary">{item}</span>
-              <input type="checkbox" defaultChecked className="w-4 h-4 accent-monster-green" />
-            </label>
-          ))}
-        </div>
-      </section>
-
-      {/* API Keys */}
-      <section className="bg-surface border border-border rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-medium text-text-primary flex items-center gap-2"><Key size={18} /> API Keys</h2>
-          <button onClick={handleGenerateKey} className="text-sm text-monster-green hover:underline">Generate New Key</button>
-        </div>
-        {generatedKey ? (
-          <div className="bg-surface-secondary rounded-lg p-3">
-            <p className="text-xs text-text-muted mb-2">Save this key — it will not be shown again:</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-sm font-mono text-text-primary bg-surface-tertiary px-3 py-2 rounded overflow-x-auto">{generatedKey}</code>
-              <button onClick={handleCopy} className="p-2 hover:bg-surface-tertiary rounded">
-                {copied ? <Check size={16} className="text-monster-green" /> : <Copy size={16} className="text-text-muted" />}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-text-muted">Generate an API key for programmatic access.</p>
-        )}
-      </section>
-
-      {/* Domain Settings */}
-      <section className="bg-surface border border-border rounded-xl p-6">
-        <h2 className="font-medium text-text-primary mb-4 flex items-center gap-2"><Globe size={18} /> Domain Settings</h2>
-        <div className="space-y-3 text-sm">
-          <div className="flex items-center justify-between py-2">
-            <span className="text-text-secondary">Auto-subdomain suffix</span>
-            <span className="text-text-primary font-mono">.deploy.monster</span>
-          </div>
-          <div className="flex items-center justify-between py-2">
-            <span className="text-text-secondary">SSL provider</span>
-            <span className="text-text-primary">Let's Encrypt (auto)</span>
-          </div>
-          <div className="flex items-center justify-between py-2">
-            <span className="text-text-secondary">Registration mode</span>
-            <span className="text-text-primary">Open</span>
-          </div>
-        </div>
-      </section>
+      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+      <Tabs defaultValue="profile">
+        <TabsList>
+          <TabsTrigger value="profile">
+            <User size={14} /> Profile
+          </TabsTrigger>
+          <TabsTrigger value="security">
+            <Lock size={14} /> Security
+          </TabsTrigger>
+        </TabsList>
+        {/* Profile Tab */}
+        <TabsContent value="profile" className="space-y-6">
+          {/* Profile Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User size={18} /> Profile
+              </CardTitle>
+              <CardDescription>Update your personal information.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="profile-name">Name</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="profile-name"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="max-w-sm"
+                  />
+                  <Button onClick={handleSaveProfile} disabled={saving}>
+                    <Save size={14} /> {saving ? 'Saving...' : 'Save'}
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between py-2 max-w-sm">
+                <span className="text-sm text-muted-foreground">Email</span>
+                <span className="text-sm font-medium">{user?.email}</span>
+              </div>
+              <div className="flex items-center justify-between py-2 max-w-sm">
+                <span className="text-sm text-muted-foreground">Role</span>
+                <Badge variant="outline">{user?.role?.replace('role_', '')}</Badge>
+              </div>
+            </CardContent>
+          </Card>
+          {/* Appearance */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sun size={18} /> Appearance
+              </CardTitle>
+              <CardDescription>Choose your preferred theme.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-3">
+                {themes.map(({ id, label, icon: Icon }) => (
+                  <Button
+                    key={id}
+                    variant={theme === id ? 'default' : 'outline'}
+                    onClick={() => setTheme(id)}
+                    className="gap-2"
+                  >
+                    <Icon size={16} /> {label}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          {/* Notifications */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell size={18} /> Notifications
+              </CardTitle>
+              <CardDescription>Configure your notification preferences.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {([
+                { key: 'email' as const, label: 'Email notifications' },
+                { key: 'slack' as const, label: 'Slack alerts' },
+                { key: 'discord' as const, label: 'Discord alerts' },
+                { key: 'deploy' as const, label: 'Deploy notifications' },
+              ]).map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between max-w-sm">
+                  <Label>{label}</Label>
+                  <Switch
+                    checked={notifications[key]}
+                    onCheckedChange={(v) =>
+                      setNotifications((prev) => ({ ...prev, [key]: v }))
+                    }
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          {/* Domain Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe size={18} /> Domain Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm max-w-sm">
+              <div className="flex items-center justify-between py-1.5">
+                <span className="text-muted-foreground">Auto-subdomain suffix</span>
+                <code className="font-mono text-foreground">.deploy.monster</code>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between py-1.5">
+                <span className="text-muted-foreground">SSL provider</span>
+                <span>Let's Encrypt (auto)</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between py-1.5">
+                <span className="text-muted-foreground">Registration mode</span>
+                <span>Open</span>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        {/* Security Tab */}
+        <TabsContent value="security" className="space-y-6">
+          {/* Change Password */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock size={18} /> Change Password
+              </CardTitle>
+              <CardDescription>Update your account password.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 max-w-sm">
+              <div className="space-y-2">
+                <Label htmlFor="current-pwd">Current Password</Label>
+                <Input
+                  id="current-pwd"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-pwd">New Password</Label>
+                <Input
+                  id="new-pwd"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </div>
+              <Button
+                onClick={handleChangePassword}
+                disabled={changingPassword || !currentPassword || !newPassword}
+              >
+                {changingPassword ? 'Changing...' : 'Change Password'}
+              </Button>
+            </CardContent>
+          </Card>
+          {/* Two-Factor Authentication */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock size={18} /> Two-Factor Authentication
+              </CardTitle>
+              <CardDescription>
+                Add an extra layer of security to your account.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between max-w-sm">
+                <div>
+                  <p className="text-sm font-medium">Enable 2FA</p>
+                  <p className="text-sm text-muted-foreground">
+                    Use an authenticator app for login verification
+                  </p>
+                </div>
+                <Switch
+                  checked={twoFA}
+                  onCheckedChange={setTwoFA}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          {/* API Keys */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Key size={18} /> API Keys
+                  </CardTitle>
+                  <CardDescription>Generate keys for programmatic access.</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleGenerateKey}>
+                  Generate New Key
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {generatedKey ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Save this key -- it will not be shown again:
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm">
+                      {generatedKey}
+                    </code>
+                    <Button variant="ghost" size="icon" onClick={handleCopy}>
+                      {copied ? (
+                        <Check size={16} className="text-emerald-500" />
+                      ) : (
+                        <Copy size={16} />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Generate an API key for programmatic access.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

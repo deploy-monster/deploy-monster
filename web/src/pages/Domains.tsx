@@ -1,7 +1,21 @@
 import { useState } from 'react';
-import { Globe, Plus, Shield, ShieldCheck, ShieldAlert, Trash2 } from 'lucide-react';
-import { api } from '../api/client';
-import { useApi } from '../hooks';
+import {
+  Globe, Plus, ShieldCheck, ShieldAlert, Trash2, CheckCircle, ExternalLink, Copy, Check,
+} from 'lucide-react';
+import { api } from '@/api/client';
+import { useApi } from '@/hooks';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
+} from '@/components/ui/table';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Domain {
   id: string;
@@ -14,25 +28,24 @@ interface Domain {
   created_at: string;
 }
 
-function SSLBadge({ verified }: { verified: boolean }) {
-  if (verified) {
-    return <span className="flex items-center gap-1 text-xs text-status-running"><ShieldCheck size={14} /> Active</span>;
-  }
-  return <span className="flex items-center gap-1 text-xs text-status-deploying"><ShieldAlert size={14} /> Pending</span>;
-}
-
 export function Domains() {
-  const { data: domains, refetch } = useApi<Domain[]>('/domains');
-  const [showAdd, setShowAdd] = useState(false);
+  const { data: domains, loading, refetch } = useApi<Domain[]>('/domains');
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [newFQDN, setNewFQDN] = useState('');
   const [newAppID, setNewAppID] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleAdd = async () => {
     if (!newFQDN) return;
     await api.post('/domains', { fqdn: newFQDN, app_id: newAppID });
     setNewFQDN('');
     setNewAppID('');
-    setShowAdd(false);
+    setDialogOpen(false);
+    refetch();
+  };
+
+  const handleVerify = async (id: string) => {
+    await api.post(`/domains/${id}/verify`, {});
     refetch();
   };
 
@@ -42,97 +55,188 @@ export function Domains() {
     refetch();
   };
 
+  const handleCopyFQDN = (id: string, fqdn: string) => {
+    navigator.clipboard.writeText(fqdn);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const list = domains || [];
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-text-primary">Domains</h1>
-          <p className="text-sm text-text-secondary mt-1">{(domains || []).length} domain{(domains || []).length !== 1 ? 's' : ''} configured</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Domains</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {list.length} domain{list.length !== 1 ? 's' : ''} configured
+          </p>
         </div>
-        <button onClick={() => setShowAdd(!showAdd)}
-          className="flex items-center gap-2 px-4 py-2 bg-monster-green hover:bg-monster-green-dark text-white text-sm font-medium rounded-lg transition-colors">
-          <Plus size={16} /> Add Domain
-        </button>
+        <Button onClick={() => setDialogOpen(true)}>
+          <Plus /> Add Domain
+        </Button>
       </div>
 
-      {showAdd && (
-        <div className="bg-surface border border-border rounded-xl p-6 space-y-4">
-          <h2 className="font-medium text-text-primary">Add Custom Domain</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Domain (FQDN)</label>
-              <input type="text" value={newFQDN} onChange={(e) => setNewFQDN(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-surface text-text-primary focus:ring-2 focus:ring-monster-green/50"
-                placeholder="app.example.com" />
+      {/* Add Domain Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent onClose={() => setDialogOpen(false)}>
+          <DialogHeader>
+            <DialogTitle>Add Custom Domain</DialogTitle>
+            <DialogDescription>
+              Point your domain to your server by adding an A record before verifying.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="fqdn">Domain (FQDN)</Label>
+              <Input
+                id="fqdn"
+                value={newFQDN}
+                onChange={(e) => setNewFQDN(e.target.value)}
+                placeholder="app.example.com"
+              />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Application ID</label>
-              <input type="text" value={newAppID} onChange={(e) => setNewAppID(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-surface text-text-primary focus:ring-2 focus:ring-monster-green/50"
-                placeholder="app_xxxxxxxx" />
+            <div className="space-y-2">
+              <Label htmlFor="app-id">Application ID</Label>
+              <Input
+                id="app-id"
+                value={newAppID}
+                onChange={(e) => setNewAppID(e.target.value)}
+                placeholder="app_xxxxxxxx"
+              />
             </div>
+            <Card className="bg-muted/50 py-4">
+              <CardContent className="text-sm space-y-2">
+                <p className="font-medium">DNS Configuration</p>
+                <p className="text-muted-foreground">Point your domain to your server by adding an A record:</p>
+                <code className="block bg-background px-3 py-2 rounded-md font-mono text-xs border">
+                  {newFQDN || 'app.example.com'}  A  &rarr; your-server-ip
+                </code>
+              </CardContent>
+            </Card>
           </div>
-          <div className="bg-surface-secondary rounded-lg p-4 text-sm text-text-secondary">
-            <p className="font-medium text-text-primary mb-2">DNS Configuration</p>
-            <p>Point your domain to your server by adding an A record:</p>
-            <code className="block mt-2 bg-surface-tertiary px-3 py-2 rounded font-mono text-xs">
-              {newFQDN || 'app.example.com'}  A  → your-server-ip
-            </code>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={handleAdd} className="px-4 py-2 bg-monster-green text-white text-sm rounded-lg">Add Domain</button>
-            <button onClick={() => setShowAdd(false)} className="px-4 py-2 border border-border text-text-secondary text-sm rounded-lg">Cancel</button>
-          </div>
-        </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleAdd} disabled={!newFQDN}>Add Domain</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Loading */}
+      {loading && (
+        <Card>
+          <CardContent className="space-y-3 py-2">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </CardContent>
+        </Card>
       )}
 
-      {(!domains || domains.length === 0) ? (
-        <div className="bg-surface border border-border rounded-xl px-5 py-16 text-center">
-          <Globe className="mx-auto mb-4 text-text-muted" size={48} />
-          <h2 className="text-lg font-medium text-text-primary mb-2">No domains configured</h2>
-          <p className="text-text-secondary">Add a custom domain to route traffic to your applications.</p>
-        </div>
-      ) : (
-        <div className="bg-surface border border-border rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-surface-secondary text-left">
-                <th className="px-5 py-3 text-xs font-medium text-text-secondary uppercase">Domain</th>
-                <th className="px-5 py-3 text-xs font-medium text-text-secondary uppercase">Type</th>
-                <th className="px-5 py-3 text-xs font-medium text-text-secondary uppercase">SSL</th>
-                <th className="px-5 py-3 text-xs font-medium text-text-secondary uppercase">DNS</th>
-                <th className="px-5 py-3 text-xs font-medium text-text-secondary uppercase">Added</th>
-                <th className="px-5 py-3 text-xs font-medium text-text-secondary uppercase w-10"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {(domains || []).map((d) => (
-                <tr key={d.id} className="hover:bg-surface-secondary transition-colors">
-                  <td className="px-5 py-3">
+      {/* Empty State */}
+      {!loading && list.length === 0 && (
+        <Card className="py-16">
+          <CardContent className="flex flex-col items-center text-center">
+            <Globe className="mb-4 text-muted-foreground" size={48} />
+            <h2 className="text-lg font-medium mb-2">No domains configured</h2>
+            <p className="text-muted-foreground max-w-sm">
+              Add a custom domain to route traffic to your applications.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Domain Table */}
+      {!loading && list.length > 0 && (
+        <Card className="py-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Domain</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>SSL Status</TableHead>
+                <TableHead>DNS</TableHead>
+                <TableHead>Added</TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {list.map((d) => (
+                <TableRow key={d.id}>
+                  <TableCell>
                     <div className="flex items-center gap-2">
-                      <Shield size={16} className="text-monster-green" />
-                      <span className="font-medium text-text-primary">{d.fqdn}</span>
+                      <Globe size={16} className="text-primary shrink-0" />
+                      <span className="font-medium">{d.fqdn}</span>
+                      <button
+                        onClick={() => handleCopyFQDN(d.id, d.fqdn)}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {copiedId === d.id ? <Check size={14} /> : <Copy size={14} />}
+                      </button>
                     </div>
-                  </td>
-                  <td className="px-5 py-3 text-sm text-text-secondary">{d.type}</td>
-                  <td className="px-5 py-3"><SSLBadge verified={d.verified} /></td>
-                  <td className="px-5 py-3 text-sm text-text-secondary">
-                    {d.dns_synced ?
-                      <span className="text-status-running">Synced</span> :
-                      <span className="text-text-muted">{d.dns_provider}</span>
-                    }
-                  </td>
-                  <td className="px-5 py-3 text-sm text-text-muted">{new Date(d.created_at).toLocaleDateString()}</td>
-                  <td className="px-5 py-3">
-                    <button onClick={() => handleDelete(d.id)} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-text-muted hover:text-red-600">
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{d.type}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {d.verified ? (
+                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400">
+                        <ShieldCheck size={12} /> Active
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-amber-600 dark:text-amber-400">
+                        <ShieldAlert size={12} /> Pending
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {d.dns_synced ? (
+                      <span className="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle size={14} /> Synced
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">{d.dns_provider || 'Manual'}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(d.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {!d.verified && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleVerify(d.id)}
+                          title="Verify domain"
+                        >
+                          <CheckCircle size={16} />
+                        </Button>
+                      )}
+                      {d.app_id && (
+                        <a href={`/apps/${d.app_id}`}>
+                          <Button variant="ghost" size="icon" title="Open application">
+                            <ExternalLink size={16} />
+                          </Button>
+                        </a>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(d.id)}
+                        className="text-muted-foreground hover:text-destructive"
+                        title="Delete domain"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );

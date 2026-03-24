@@ -1,53 +1,79 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { Rocket, Database, Server, Activity, Globe, Search, Bell } from 'lucide-react';
+import {
+  Rocket,
+  Database,
+  Server,
+  Activity,
+  Globe,
+  Search,
+  Bell,
+  Plus,
+  ArrowRight,
+  Clock,
+  Box,
+} from 'lucide-react';
 import { useApi } from '../hooks';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import type { App } from '../api/apps';
 import type { DashboardStats, ActivityEntry } from '../api/dashboard';
 
-function StatCard({ icon: Icon, label, value, color }: {
-  icon: React.ElementType;
-  label: string;
-  value: string | number;
-  color: string;
-}) {
-  return (
-    <div className="bg-surface border border-border rounded-xl p-5">
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-lg ${color} flex items-center justify-center text-white`}>
-          <Icon size={20} />
-        </div>
-        <div>
-          <p className="text-2xl font-semibold text-text-primary">{value}</p>
-          <p className="text-sm text-text-secondary">{label}</p>
-        </div>
-      </div>
-    </div>
-  );
+const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  running: 'default',
+  stopped: 'secondary',
+  deploying: 'outline',
+  building: 'outline',
+  failed: 'destructive',
+  pending: 'secondary',
+};
+
+const STAT_CARDS = [
+  { key: 'apps', icon: Rocket, label: 'Applications', color: 'bg-emerald-500/10 text-emerald-500' },
+  { key: 'running', icon: Activity, label: 'Running', color: 'bg-green-500/10 text-green-500' },
+  { key: 'containers', icon: Server, label: 'Containers', color: 'bg-blue-500/10 text-blue-500' },
+  { key: 'domains', icon: Globe, label: 'Domains', color: 'bg-violet-500/10 text-violet-500' },
+  { key: 'projects', icon: Database, label: 'Projects', color: 'bg-amber-500/10 text-amber-500' },
+] as const;
+
+function getStatValue(key: typeof STAT_CARDS[number]['key'], stats: DashboardStats | null): number {
+  if (!stats) return 0;
+  switch (key) {
+    case 'apps': return stats.apps.total;
+    case 'running': return stats.containers.running;
+    case 'containers': return stats.containers.total;
+    case 'domains': return stats.domains;
+    case 'projects': return stats.projects;
+  }
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    running: 'bg-status-running/10 text-status-running',
-    stopped: 'bg-status-stopped/10 text-status-stopped',
-    deploying: 'bg-status-deploying/10 text-status-deploying',
-    building: 'bg-status-building/10 text-status-building',
-    suspended: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400',
-    pending: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
-    failed: 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400',
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${colors[status] || colors.pending}`}>
-      {status}
-    </span>
-  );
+function timeAgo(dateStr: string): string {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 export function Dashboard() {
-  const { data: stats } = useApi<DashboardStats>('/dashboard/stats', { refreshInterval: 30000 });
+  const { data: stats, loading: statsLoading } = useApi<DashboardStats>('/dashboard/stats', { refreshInterval: 30000 });
   const { data: appsData } = useApi<{ data: App[] }>('/apps?page=1&per_page=5');
-  const { data: activityData } = useApi<{ data: ActivityEntry[] }>('/activity?limit=5');
-  const { data: announcementsData } = useApi<{ data: any[] }>('/announcements');
+  const { data: activityData } = useApi<{ data: ActivityEntry[] }>('/activity?limit=8');
+  const { data: announcementsData } = useApi<{ data: Array<{ id: string; title: string; body: string; type: string }> }>('/announcements');
   const [searchQuery, setSearchQuery] = useState('');
 
   const apps = appsData?.data || [];
@@ -57,104 +83,190 @@ export function Dashboard() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.length >= 2) {
-      // Navigate to search or show results inline
+      // Navigate to search results
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Announcements banner */}
       {announcements.length > 0 && (
-        <div className="bg-monster-purple/10 border border-monster-purple/30 rounded-xl p-4">
-          <div className="flex items-center gap-2">
-            <Bell size={16} className="text-monster-purple" />
-            <span className="text-sm font-medium text-monster-purple">{announcements[0].title}</span>
+        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 flex items-start gap-3">
+          <div className="rounded-full bg-primary/10 p-1.5 mt-0.5">
+            <Bell className="size-4 text-primary" />
           </div>
-          {announcements[0].body && (
-            <p className="text-sm text-text-secondary mt-1">{announcements[0].body}</p>
-          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">{announcements[0].title}</p>
+            {announcements[0].body && (
+              <p className="text-sm text-muted-foreground mt-0.5">{announcements[0].body}</p>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Header with search */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-text-primary">Dashboard</h1>
+      {/* Page Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Overview of your platform and applications.</p>
+        </div>
         <div className="flex items-center gap-3">
           <form onSubmit={handleSearch} className="relative">
-            <Search size={16} className="absolute left-3 top-2.5 text-text-muted" />
-            <input type="text" placeholder="Search apps, domains..." value={searchQuery}
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search apps, domains..."
+              value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-3 py-2 w-64 rounded-lg border border-border bg-surface text-text-primary text-sm focus:ring-2 focus:ring-monster-green/50" />
+              className="pl-9 w-64"
+            />
           </form>
-          <Link to="/apps/new"
-            className="px-4 py-2 bg-monster-green hover:bg-monster-green-dark text-white text-sm font-medium rounded-lg transition-colors">
-            Deploy New App
+          <Link to="/apps/new">
+            <Button>
+              <Plus className="size-4" />
+              Deploy New App
+            </Button>
           </Link>
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard icon={Rocket} label="Applications" value={stats?.apps.total || 0} color="bg-monster-green" />
-        <StatCard icon={Activity} label="Running" value={stats?.containers.running || 0} color="bg-status-running" />
-        <StatCard icon={Server} label="Containers" value={stats?.containers.total || 0} color="bg-blue-500" />
-        <StatCard icon={Globe} label="Domains" value={stats?.domains || 0} color="bg-monster-purple" />
-        <StatCard icon={Database} label="Projects" value={stats?.projects || 0} color="bg-amber-500" />
+        {STAT_CARDS.map(({ key, icon: Icon, label, color }) => (
+          <Card key={key} className="py-4">
+            <CardContent className="flex items-center gap-4">
+              <div className={cn('flex items-center justify-center rounded-lg size-10', color)}>
+                <Icon className="size-5" />
+              </div>
+              <div>
+                <p className={cn(
+                  'text-2xl font-bold tracking-tight',
+                  statsLoading && 'animate-pulse text-muted-foreground'
+                )}>
+                  {getStatValue(key, stats)}
+                </p>
+                <p className="text-xs text-muted-foreground">{label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
+      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Apps */}
-        <div className="lg:col-span-2 bg-surface border border-border rounded-xl">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="font-medium text-text-primary">Recent Applications</h2>
-            <Link to="/apps" className="text-sm text-monster-green hover:underline">View all</Link>
-          </div>
-          {apps.length === 0 ? (
-            <div className="px-5 py-12 text-center text-text-muted">
-              <Rocket className="mx-auto mb-3 text-text-muted" size={32} />
-              <p>No applications yet</p>
-              <Link to="/apps/new" className="text-monster-green hover:underline text-sm mt-1 inline-block">
-                Deploy your first app
-              </Link>
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {apps.map((app) => (
-                <Link key={app.id} to={`/apps/${app.id}`}
-                  className="flex items-center justify-between px-5 py-3 hover:bg-surface-secondary transition-colors">
-                  <div>
-                    <p className="font-medium text-text-primary">{app.name}</p>
-                    <p className="text-sm text-text-secondary">{app.source_type} / {app.type}</p>
-                  </div>
-                  <StatusBadge status={app.status} />
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Activity Feed */}
-        <div className="bg-surface border border-border rounded-xl">
-          <div className="px-5 py-4 border-b border-border">
-            <h2 className="font-medium text-text-primary">Activity</h2>
-          </div>
-          {activity.length === 0 ? (
-            <div className="px-5 py-8 text-center text-text-muted text-sm">No recent activity</div>
-          ) : (
-            <div className="divide-y divide-border">
-              {activity.map((entry) => (
-                <div key={entry.id} className="px-5 py-3">
-                  <p className="text-sm text-text-primary">
-                    <span className="font-medium">{entry.action}</span> {entry.resource_type}
-                  </p>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    {new Date(entry.created_at).toLocaleString()}
-                  </p>
+        {/* Recent Applications */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base">Recent Applications</CardTitle>
+            <Link to="/apps">
+              <Button variant="ghost" size="sm">
+                View all
+                <ArrowRight className="size-4" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {apps.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="rounded-full bg-muted p-4 mb-4">
+                  <Box className="size-8 text-muted-foreground" />
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <h3 className="font-medium text-foreground mb-1">No applications yet</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Deploy your first application to get started.
+                </p>
+                <Link to="/apps/new">
+                  <Button size="sm">
+                    <Plus className="size-4" />
+                    Deploy your first app
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden sm:table-cell">Source</TableHead>
+                    <TableHead className="text-right">Last Updated</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {apps.map((app) => (
+                    <TableRow key={app.id}>
+                      <TableCell>
+                        <Link
+                          to={`/apps/${app.id}`}
+                          className="font-medium text-foreground hover:text-primary transition-colors"
+                        >
+                          {app.name}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">{app.type}</p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={STATUS_VARIANT[app.status] || 'secondary'}>
+                          {app.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground">
+                        {app.source_type}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {timeAgo(app.updated_at)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {activity.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="rounded-full bg-muted p-3 mb-3">
+                  <Clock className="size-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">No recent activity</p>
+              </div>
+            ) : (
+              <div className="space-y-0">
+                {activity.map((entry, index) => (
+                  <div
+                    key={entry.id}
+                    className={cn(
+                      'flex gap-3 py-3',
+                      index !== activity.length - 1 && 'border-b'
+                    )}
+                  >
+                    <div className="relative flex flex-col items-center">
+                      <div className="flex size-2 rounded-full bg-primary mt-1.5" />
+                      {index !== activity.length - 1 && (
+                        <div className="flex-1 w-px bg-border mt-1" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground">
+                        <span className="font-medium capitalize">{entry.action}</span>{' '}
+                        <span className="text-muted-foreground">{entry.resource_type}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {timeAgo(entry.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
