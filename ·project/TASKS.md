@@ -278,7 +278,7 @@
 - [x] **T-1.8.3** — Unit tests for `internal/db/` — migration runner, SQLite CRUD operations, BBolt set/get with TTL
 - [x] **T-1.8.4** — Integration test: full app bootstrap → login → list containers → stop/start
 - [x] **T-1.8.5** — Build test: `make build` produces single binary, `make docker` produces image
-- [ ] **T-1.8.6** — Manual smoke test: run binary, open UI, login as admin, see container list
+- [x] **T-1.8.6** — Manual smoke test: run binary, open UI, login as admin, see container list
 
 ---
 
@@ -388,7 +388,7 @@
 - [x] **T-2.8.1** — Unit tests: route matching (exact, wildcard, path prefix), label parsing
 - [x] **T-2.8.2** — Unit tests: LB strategies (round-robin distribution, IP hash consistency)
 - [x] **T-2.8.3** — Integration test: deploy labeled container → auto-route → HTTP request returns response
-- [ ] **T-2.8.4** — Integration test: add domain → SSL cert issued → HTTPS works
+- [x] **T-2.8.4** — Integration test: add domain → SSL cert issued → HTTPS works
 
 ---
 
@@ -714,7 +714,7 @@
 
 - [x] **T-15.6.1** — Create `scripts/install.sh` — curl | bash installer
 - [x] **T-15.6.2** — GitHub Actions CI: test → lint → build → release
-- [ ] **T-15.6.3** — Create GitHub Release with changelog, binaries, Docker image
+- [x] **T-15.6.3** — Create GitHub Release with changelog, binaries, Docker image
 - [ ] **T-15.6.4** — Push Docker image to Docker Hub: `deploymonster/deploymonster:v1.0.0`
 - [ ] **T-15.6.5** — Deploy docs site to deploy.monster
 - [ ] **T-15.6.6** — Public announcement
