@@ -42,3 +42,4 @@ deploymonster.exe
 
 # GoReleaser
 dist/
+*.out

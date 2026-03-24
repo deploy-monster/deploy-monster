@@ -1,0 +1,356 @@
+package ingress
+
+import (
+	"crypto/tls"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func TestNewReverseProxy(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+
+	rp := NewReverseProxy(rt, logger)
+	if rp == nil {
+		t.Fatal("expected non-nil ReverseProxy")
+	}
+	if rp.router != rt {
+		t.Error("expected router to be set")
+	}
+	if rp.logger != logger {
+		t.Error("expected logger to be set")
+	}
+	if rp.metrics == nil {
+		t.Error("expected metrics to be initialized")
+	}
+}
+
+func TestReverseProxy_ServeHTTP_NoRoute(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	req := httptest.NewRequest("GET", "http://unknown.host.com/path", nil)
+	req.Host = "unknown.host.com"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Errorf("expected status 502 for unknown host, got %d", rr.Code)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "502") {
+		t.Error("expected response body to contain 502")
+	}
+}
+
+func TestReverseProxy_ServeHTTP_NoBackends(t *testing.T) {
+	rt := NewRouteTable()
+	rt.Upsert(&RouteEntry{
+		Host:       "app.example.com",
+		PathPrefix: "/",
+		Backends:   []string{}, // no backends
+	})
+
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	req := httptest.NewRequest("GET", "http://app.example.com/", nil)
+	req.Host = "app.example.com"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503 for no backends, got %d", rr.Code)
+	}
+}
+
+func TestReverseProxy_ServeHTTP_WithBackend(t *testing.T) {
+	// Create a real test backend server
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Backend", "test")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("hello from backend"))
+	}))
+	defer backend.Close()
+
+	// Extract host:port from backend URL (strip http://)
+	backendAddr := strings.TrimPrefix(backend.URL, "http://")
+
+	rt := NewRouteTable()
+	rt.Upsert(&RouteEntry{
+		Host:       "app.example.com",
+		PathPrefix: "/",
+		Backends:   []string{backendAddr},
+	})
+
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	req := httptest.NewRequest("GET", "http://app.example.com/test", nil)
+	req.Host = "app.example.com"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "hello from backend") {
+		t.Error("expected response from backend")
+	}
+}
+
+func TestReverseProxy_Metrics(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	m := rp.Metrics()
+	if m.TotalRequests.Load() != 0 {
+		t.Errorf("expected TotalRequests 0, got %d", m.TotalRequests.Load())
+	}
+	if m.ActiveRequests.Load() != 0 {
+		t.Errorf("expected ActiveRequests 0, got %d", m.ActiveRequests.Load())
+	}
+	if m.ErrorCount.Load() != 0 {
+		t.Errorf("expected ErrorCount 0, got %d", m.ErrorCount.Load())
+	}
+}
+
+func TestReverseProxy_MetricsAfterRequest(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Make a request that will fail (no route match) to increment counters
+	req := httptest.NewRequest("GET", "http://noroute.com/", nil)
+	req.Host = "noroute.com"
+	rr := httptest.NewRecorder()
+	rp.ServeHTTP(rr, req)
+
+	if rp.metrics.TotalRequests.Load() != 1 {
+		t.Errorf("expected TotalRequests 1, got %d", rp.metrics.TotalRequests.Load())
+	}
+	if rp.metrics.ErrorCount.Load() != 1 {
+		t.Errorf("expected ErrorCount 1, got %d", rp.metrics.ErrorCount.Load())
+	}
+	// ActiveRequests should be 0 after request completes (deferred Add(-1))
+	if rp.metrics.ActiveRequests.Load() != 0 {
+		t.Errorf("expected ActiveRequests 0 after request, got %d", rp.metrics.ActiveRequests.Load())
+	}
+}
+
+func TestExtractHost(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"example.com", "example.com"},
+		{"example.com:443", "example.com"},
+		{"example.com:80", "example.com"},
+		{"sub.example.com:8080", "sub.example.com"},
+		{"localhost", "localhost"},
+		{"localhost:3000", "localhost"},
+		{"127.0.0.1:8080", "127.0.0.1"},
+		{"[::1]:8080", "::1"},
+	}
+
+	for _, tt := range tests {
+		got := extractHost(tt.input)
+		if got != tt.want {
+			t.Errorf("extractHost(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestClientIP(t *testing.T) {
+	tests := []struct {
+		name       string
+		xff        string
+		xri        string
+		remoteAddr string
+		want       string
+	}{
+		{
+			name:       "X-Forwarded-For single IP",
+			xff:        "203.0.113.50",
+			remoteAddr: "10.0.0.1:1234",
+			want:       "203.0.113.50",
+		},
+		{
+			name:       "X-Forwarded-For multiple IPs (takes first)",
+			xff:        "203.0.113.50, 70.41.3.18, 150.172.238.178",
+			remoteAddr: "10.0.0.1:1234",
+			want:       "203.0.113.50",
+		},
+		{
+			name:       "X-Real-IP fallback",
+			xri:        "198.51.100.10",
+			remoteAddr: "10.0.0.1:1234",
+			want:       "198.51.100.10",
+		},
+		{
+			name:       "RemoteAddr fallback",
+			remoteAddr: "192.168.1.100:54321",
+			want:       "192.168.1.100",
+		},
+		{
+			name:       "X-Forwarded-For takes precedence over X-Real-IP",
+			xff:        "203.0.113.50",
+			xri:        "198.51.100.10",
+			remoteAddr: "10.0.0.1:1234",
+			want:       "203.0.113.50",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.RemoteAddr = tt.remoteAddr
+			if tt.xff != "" {
+				req.Header.Set("X-Forwarded-For", tt.xff)
+			}
+			if tt.xri != "" {
+				req.Header.Set("X-Real-IP", tt.xri)
+			}
+
+			got := clientIP(req)
+			if got != tt.want {
+				t.Errorf("clientIP() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScheme(t *testing.T) {
+	tests := []struct {
+		name  string
+		tls   bool
+		proto string
+		want  string
+	}{
+		{
+			name: "TLS connection",
+			tls:  true,
+			want: "https",
+		},
+		{
+			name:  "X-Forwarded-Proto header",
+			proto: "https",
+			want:  "https",
+		},
+		{
+			name: "plain HTTP",
+			want: "http",
+		},
+		{
+			name:  "TLS takes precedence over X-Forwarded-Proto",
+			tls:   true,
+			proto: "http",
+			want:  "https",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.tls {
+				req.TLS = &tls.ConnectionState{}
+			}
+			if tt.proto != "" {
+				req.Header.Set("X-Forwarded-Proto", tt.proto)
+			}
+
+			got := scheme(req)
+			if got != tt.want {
+				t.Errorf("scheme() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestErrorPage(t *testing.T) {
+	tests := []struct {
+		status  int
+		title   string
+		message string
+	}{
+		{502, "Bad Gateway", "No upstream configured"},
+		{503, "Service Unavailable", "No healthy backends"},
+		{404, "Not Found", "The requested resource was not found"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			page := ErrorPage(tt.status, tt.title, tt.message)
+			if len(page) == 0 {
+				t.Fatal("expected non-empty error page")
+			}
+
+			body := string(page)
+			if !strings.Contains(body, "<!DOCTYPE html>") {
+				t.Error("expected HTML doctype")
+			}
+			if !strings.Contains(body, tt.title) {
+				t.Errorf("expected title %q in page", tt.title)
+			}
+			if !strings.Contains(body, tt.message) {
+				t.Errorf("expected message %q in page", tt.message)
+			}
+			if !strings.Contains(body, "DeployMonster Ingress") {
+				t.Error("expected DeployMonster branding in page")
+			}
+		})
+	}
+}
+
+func TestReverseProxy_ServeHTTP_ForwardHeaders(t *testing.T) {
+	// Create a backend that echoes back the forwarded headers
+	var gotHeaders http.Header
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	backendAddr := strings.TrimPrefix(backend.URL, "http://")
+
+	rt := NewRouteTable()
+	rt.Upsert(&RouteEntry{
+		Host:       "myapp.com",
+		PathPrefix: "/",
+		Backends:   []string{backendAddr},
+	})
+
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	req := httptest.NewRequest("GET", "http://myapp.com/test", nil)
+	req.Host = "myapp.com"
+	req.RemoteAddr = "192.168.1.50:12345"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	// Check forwarded headers were set
+	if got := gotHeaders.Get("X-Forwarded-Host"); got != "myapp.com" {
+		t.Errorf("X-Forwarded-Host = %q, want %q", got, "myapp.com")
+	}
+	if got := gotHeaders.Get("X-Forwarded-Proto"); got != "http" {
+		t.Errorf("X-Forwarded-Proto = %q, want %q", got, "http")
+	}
+	if got := gotHeaders.Get("X-Real-IP"); got != "192.168.1.50" {
+		t.Errorf("X-Real-IP = %q, want %q", got, "192.168.1.50")
+	}
+}

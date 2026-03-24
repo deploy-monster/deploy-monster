@@ -53,3 +53,16 @@ func TestValidatePasswordStrength(t *testing.T) {
 		})
 	}
 }
+
+func TestValidatePasswordStrength_DefaultMinLength(t *testing.T) {
+	// When minLength is 0, should default to 8
+	err := ValidatePasswordStrength("Short1A", 0)
+	if err == nil {
+		t.Error("expected error for 7-char password when minLength defaults to 8")
+	}
+
+	err = ValidatePasswordStrength("LongEnuf1", 0)
+	if err != nil {
+		t.Errorf("unexpected error for 9-char password with default minLength: %v", err)
+	}
+}
