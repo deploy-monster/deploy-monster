@@ -595,6 +595,10 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/admin/api-keys", protected(http.HandlerFunc(adminKeyH.Generate)))
 	r.mux.Handle("DELETE /api/v1/admin/api-keys/{prefix}", protected(http.HandlerFunc(adminKeyH.Revoke)))
 
+	// ── DB Migrations ─────────────────────────────────
+	migH := handlers.NewMigrationHandler(r.core)
+	r.mux.Handle("GET /api/v1/admin/db/migrations", protected(http.HandlerFunc(migH.Status)))
+
 	// ── Admin (super admin only) ──────────────────────
 	adminH := handlers.NewAdminHandler(r.core)
 	r.mux.Handle("GET /api/v1/admin/system", protected(http.HandlerFunc(adminH.SystemInfo)))

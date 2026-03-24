@@ -35,6 +35,12 @@ export function Apps() {
 
   useEffect(() => { loadApps(); }, [page]);
 
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(loadApps, 10000);
+    return () => clearInterval(interval);
+  }, [page]);
+
   const handleAction = async (appId: string, action: 'start' | 'stop' | 'restart' | 'delete') => {
     setMenuOpen(null);
     try {
