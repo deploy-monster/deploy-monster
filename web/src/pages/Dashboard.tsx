@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { Rocket, Database, Server, Activity, Globe, Search, Bell } from 'lucide-react';
-import { appsAPI, type App } from '../api/apps';
-import { dashboardAPI, type DashboardStats, type ActivityEntry } from '../api/dashboard';
+import { useApi } from '../hooks';
+import type { App } from '../api/apps';
+import type { DashboardStats, ActivityEntry } from '../api/dashboard';
 
 function StatCard({ icon: Icon, label, value, color }: {
   icon: React.ElementType;
@@ -43,18 +44,15 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [apps, setApps] = useState<App[]>([]);
-  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const { data: stats } = useApi<DashboardStats>('/dashboard/stats', { refreshInterval: 30000 });
+  const { data: appsData } = useApi<{ data: App[] }>('/apps?page=1&per_page=5');
+  const { data: activityData } = useApi<{ data: ActivityEntry[] }>('/activity?limit=5');
+  const { data: announcementsData } = useApi<{ data: any[] }>('/announcements');
   const [searchQuery, setSearchQuery] = useState('');
-  const [announcements, setAnnouncements] = useState<any[]>([]);
 
-  useEffect(() => {
-    dashboardAPI.stats().then(setStats).catch(() => {});
-    appsAPI.list(1, 5).then((r) => setApps(r.data || [])).catch(() => {});
-    dashboardAPI.activity(5).then((r) => setActivity(r.data || [])).catch(() => {});
-    dashboardAPI.announcements().then((r) => setAnnouncements(r.data || [])).catch(() => {});
-  }, []);
+  const apps = appsData?.data || [];
+  const activity = activityData?.data || [];
+  const announcements = announcementsData?.data || [];
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
