@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Users, UserPlus, Shield, Clock } from 'lucide-react';
 import { api } from '../api/client';
+import { useApi } from '../hooks';
 
 interface Role {
   id: string;
@@ -20,16 +21,11 @@ interface AuditEntry {
 
 export function Team() {
   const [tab, setTab] = useState<'members' | 'roles' | 'audit'>('members');
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const { data: roles } = useApi<Role[]>('/team/roles');
+  const { data: auditLog } = useApi<AuditEntry[]>('/team/audit-log');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('role_developer');
   const [showInvite, setShowInvite] = useState(false);
-
-  useEffect(() => {
-    api.get<{ data: Role[] }>('/team/roles').then((r) => setRoles(r.data || [])).catch(() => {});
-    api.get<{ data: AuditEntry[] }>('/team/audit-log').then((r) => setAuditLog(r.data || [])).catch(() => {});
-  }, []);
 
   const handleInvite = async () => {
     if (!inviteEmail) return;
@@ -109,7 +105,7 @@ export function Team() {
               <th className="px-5 py-3 text-xs font-medium text-text-secondary uppercase">Type</th>
             </tr></thead>
             <tbody className="divide-y divide-border">
-              {roles.map((role) => (
+              {(roles || []).map((role) => (
                 <tr key={role.id} className="hover:bg-surface-secondary">
                   <td className="px-5 py-3 font-medium text-text-primary">{role.name}</td>
                   <td className="px-5 py-3 text-sm text-text-secondary">{role.description}</td>
@@ -127,7 +123,7 @@ export function Team() {
 
       {tab === 'audit' && (
         <div className="bg-surface border border-border rounded-xl overflow-hidden">
-          {auditLog.length === 0 ? (
+          {(!auditLog || auditLog.length === 0) ? (
             <div className="px-5 py-12 text-center text-text-muted">No audit log entries yet</div>
           ) : (
             <table className="w-full">
@@ -138,7 +134,7 @@ export function Team() {
                 <th className="px-5 py-3 text-xs font-medium text-text-secondary uppercase">Time</th>
               </tr></thead>
               <tbody className="divide-y divide-border">
-                {auditLog.map((entry) => (
+                {(auditLog || []).map((entry) => (
                   <tr key={entry.id}>
                     <td className="px-5 py-3 text-sm font-medium text-text-primary">{entry.action}</td>
                     <td className="px-5 py-3 text-sm text-text-secondary">{entry.resource_type}/{entry.resource_id}</td>

@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
 import { TrendingUp, Zap } from 'lucide-react';
-import { api } from '../api/client';
+import { useApi } from '../hooks';
 
 interface Plan {
   id: string;
@@ -15,13 +14,8 @@ interface Plan {
 }
 
 export function Billing() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [usage, setUsage] = useState<any>(null);
-
-  useEffect(() => {
-    api.get<{ data: Plan[] }>('/billing/plans').then((r) => setPlans(r.data || [])).catch(() => {});
-    api.get('/billing/usage').then(setUsage).catch(() => {});
-  }, []);
+  const { data: plans } = useApi<Plan[]>('/billing/plans');
+  const { data: usage } = useApi<any>('/billing/usage');
 
   const formatPrice = (cents: number) => {
     if (cents === 0) return 'Free';
@@ -58,7 +52,7 @@ export function Billing() {
 
       {/* Plans */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {plans.map((plan) => (
+        {(plans || []).map((plan) => (
           <div key={plan.id} className={`bg-surface border rounded-xl p-6 ${
             plan.id === (usage?.plan?.id || 'free')
               ? 'border-monster-green ring-2 ring-monster-green/20'

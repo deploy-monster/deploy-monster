@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Search, Package, Rocket, X } from 'lucide-react';
 import { api } from '../api/client';
+import { useApi } from '../hooks';
 
 interface Template {
   slug: string;
@@ -15,10 +16,13 @@ interface Template {
   min_resources: { memory_mb: number };
 }
 
+interface MarketplaceResponse {
+  data: Template[];
+  categories: string[];
+}
+
 export function Marketplace() {
   const navigate = useNavigate();
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [deploying, setDeploying] = useState<Template | null>(null);
@@ -27,18 +31,13 @@ export function Marketplace() {
   const [deployLoading, setDeployLoading] = useState(false);
   const [deployError, setDeployError] = useState('');
 
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (search) params.set('q', search);
-    if (category) params.set('category', category);
+  const params = new URLSearchParams();
+  if (search) params.set('q', search);
+  if (category) params.set('category', category);
 
-    api.get<{ data: Template[]; categories: string[] }>(`/marketplace?${params}`)
-      .then((r) => {
-        setTemplates(r.data || []);
-        setCategories(r.categories || []);
-      })
-      .catch(() => {});
-  }, [search, category]);
+  const { data: marketplaceData } = useApi<MarketplaceResponse>(`/marketplace?${params}`);
+  const templates = marketplaceData?.data || [];
+  const categories = marketplaceData?.categories || [];
 
   const handleDeploy = async () => {
     if (!deploying || !deployName) return;

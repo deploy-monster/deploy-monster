@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { GitBranch, Plus, ExternalLink } from 'lucide-react';
-import { api } from '../api/client';
+import { useApi } from '../hooks';
 
 interface GitProvider {
   id: string;
@@ -8,12 +8,8 @@ interface GitProvider {
 }
 
 export function GitSources() {
-  const [providers, setProviders] = useState<GitProvider[]>([]);
+  const { data: providers } = useApi<GitProvider[]>('/git/providers');
   const [showConnect, setShowConnect] = useState(false);
-
-  useEffect(() => {
-    api.get<{ data: GitProvider[] }>('/git/providers').then((r) => setProviders(r.data || [])).catch(() => {});
-  }, []);
 
   const providerIcons: Record<string, string> = {
     github: 'GH',
@@ -63,7 +59,7 @@ export function GitSources() {
         <div className="px-5 py-4 border-b border-border">
           <h2 className="font-medium text-text-primary">Available Providers</h2>
         </div>
-        {providers.length === 0 ? (
+        {(!providers || providers.length === 0) ? (
           <div className="px-5 py-12 text-center">
             <GitBranch className="mx-auto mb-4 text-text-muted" size={48} />
             <p className="text-text-secondary">No Git providers connected yet</p>
@@ -71,7 +67,7 @@ export function GitSources() {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {providers.map((p) => (
+            {(providers || []).map((p) => (
               <div key={p.id} className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-surface-tertiary flex items-center justify-center font-bold text-text-primary">

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router';
 import { ArrowLeft, Play, Square, RotateCcw, GitBranch, Clock } from 'lucide-react';
 import { appsAPI, type App } from '../api/apps';
-import { api } from '../api/client';
+import { useApi } from '../hooks';
 
 interface Deployment {
   id: string;
@@ -32,22 +32,16 @@ function StatusBadge({ status }: { status: string }) {
 
 export function AppDetail() {
   const { id } = useParams();
-  const [app, setApp] = useState<App | null>(null);
-  const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const { data: app, refetch: refetchApp } = useApi<App>(`/apps/${id}`);
+  const { data: deploymentsData } = useApi<Deployment[]>(`/apps/${id}/deployments`);
+  const deployments = deploymentsData || [];
   const [tab, setTab] = useState<'overview' | 'deployments' | 'env' | 'logs' | 'metrics' | 'settings'>('overview');
   const [logs, setLogs] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!id) return;
-    appsAPI.get(id).then(setApp).catch(() => {});
-    api.get<{ data: Deployment[] }>(`/apps/${id}/deployments`).then((r) => setDeployments(r.data || [])).catch(() => {});
-  }, [id]);
 
   const handleAction = async (action: 'start' | 'stop' | 'restart') => {
     if (!id) return;
     await appsAPI[action](id);
-    const updated = await appsAPI.get(id);
-    setApp(updated);
+    refetchApp();
   };
 
   useEffect(() => {

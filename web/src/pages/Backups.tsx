@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Archive, Plus, Download, Clock } from 'lucide-react';
 import { api } from '../api/client';
+import { useApi } from '../hooks';
 
 interface BackupEntry {
   key: string;
@@ -9,15 +9,11 @@ interface BackupEntry {
 }
 
 export function Backups() {
-  const [backups, setBackups] = useState<BackupEntry[]>([]);
-
-  useEffect(() => {
-    api.get<{ data: BackupEntry[] }>('/backups').then((r) => setBackups(r.data || [])).catch(() => {});
-  }, []);
+  const { data: backups, refetch } = useApi<BackupEntry[]>('/backups');
 
   const handleCreate = async () => {
     await api.post('/backups', { source_type: 'full', source_id: 'all' });
-    api.get<{ data: BackupEntry[] }>('/backups').then((r) => setBackups(r.data || []));
+    refetch();
   };
 
   const formatSize = (bytes: number) => {
@@ -39,7 +35,7 @@ export function Backups() {
         </button>
       </div>
 
-      {backups.length === 0 ? (
+      {(!backups || backups.length === 0) ? (
         <div className="bg-surface border border-border rounded-xl px-5 py-16 text-center">
           <Archive className="mx-auto mb-4 text-text-muted" size={48} />
           <h2 className="text-lg font-medium text-text-primary mb-2">No backups yet</h2>

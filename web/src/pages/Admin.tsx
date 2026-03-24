@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Shield, Server, Activity, RefreshCw } from 'lucide-react';
-import { api } from '../api/client';
+import { useApi } from '../hooks';
 
 interface SystemInfo {
   version: string;
@@ -15,16 +15,8 @@ interface SystemInfo {
 }
 
 export function Admin() {
-  const [system, setSystem] = useState<SystemInfo | null>(null);
+  const { data: system, refetch: refresh } = useApi<SystemInfo>('/admin/system');
   const [tab, setTab] = useState<'system' | 'modules' | 'events'>('system');
-
-  useEffect(() => {
-    api.get<SystemInfo>('/admin/system').then(setSystem).catch(() => {});
-  }, []);
-
-  const refresh = () => {
-    api.get<SystemInfo>('/admin/system').then(setSystem);
-  };
 
   return (
     <div className="space-y-6">

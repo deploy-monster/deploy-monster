@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Globe, Plus, Shield, ShieldCheck, ShieldAlert, Trash2 } from 'lucide-react';
 import { api } from '../api/client';
+import { useApi } from '../hooks';
 
 interface Domain {
   id: string;
@@ -21,16 +22,10 @@ function SSLBadge({ verified }: { verified: boolean }) {
 }
 
 export function Domains() {
-  const [domains, setDomains] = useState<Domain[]>([]);
+  const { data: domains, refetch } = useApi<Domain[]>('/domains');
   const [showAdd, setShowAdd] = useState(false);
   const [newFQDN, setNewFQDN] = useState('');
   const [newAppID, setNewAppID] = useState('');
-
-  const loadDomains = () => {
-    api.get<{ data: Domain[] }>('/domains').then((r) => setDomains(r.data || [])).catch(() => {});
-  };
-
-  useEffect(() => { loadDomains(); }, []);
 
   const handleAdd = async () => {
     if (!newFQDN) return;
@@ -38,13 +33,13 @@ export function Domains() {
     setNewFQDN('');
     setNewAppID('');
     setShowAdd(false);
-    loadDomains();
+    refetch();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this domain?')) return;
     await api.delete(`/domains/${id}`);
-    loadDomains();
+    refetch();
   };
 
   return (
@@ -52,7 +47,7 @@ export function Domains() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-text-primary">Domains</h1>
-          <p className="text-sm text-text-secondary mt-1">{domains.length} domain{domains.length !== 1 ? 's' : ''} configured</p>
+          <p className="text-sm text-text-secondary mt-1">{(domains || []).length} domain{(domains || []).length !== 1 ? 's' : ''} configured</p>
         </div>
         <button onClick={() => setShowAdd(!showAdd)}
           className="flex items-center gap-2 px-4 py-2 bg-monster-green hover:bg-monster-green-dark text-white text-sm font-medium rounded-lg transition-colors">
@@ -91,7 +86,7 @@ export function Domains() {
         </div>
       )}
 
-      {domains.length === 0 ? (
+      {(!domains || domains.length === 0) ? (
         <div className="bg-surface border border-border rounded-xl px-5 py-16 text-center">
           <Globe className="mx-auto mb-4 text-text-muted" size={48} />
           <h2 className="text-lg font-medium text-text-primary mb-2">No domains configured</h2>
@@ -111,7 +106,7 @@ export function Domains() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {domains.map((d) => (
+              {(domains || []).map((d) => (
                 <tr key={d.id} className="hover:bg-surface-secondary transition-colors">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
