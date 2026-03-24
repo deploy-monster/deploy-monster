@@ -1,7 +1,7 @@
 # DeployMonster — Project Status Report
 
-> **Date**: 2026-03-23
-> **Version**: v0.1.0-dev
+> **Date**: 2026-03-24
+> **Version**: v0.1.0
 > **Repository**: github.com/ersinkoc/DeployMonster_GO
 
 ---
