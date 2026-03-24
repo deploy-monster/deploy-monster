@@ -1,0 +1,1075 @@
+openapi: 3.0.3
+info:
+  title: DeployMonster API
+  version: 1.0.0
+  description: |
+    Self-hosted PaaS API for managing applications, deployments, domains,
+    secrets, teams, and infrastructure. Single binary, modular monolith
+    with event-driven architecture.
+  contact:
+    name: DeployMonster
+    url: https://deploymonster.io
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://{host}
+    description: Production server
+    variables:
+      host:
+        default: app.deploymonster.io
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Auth
+    description: Authentication and session management
+  - name: Apps
+    description: Application lifecycle management
+  - name: Deployments
+    description: Deployment history and triggers
+  - name: Domains
+    description: Custom domain configuration
+  - name: Compose
+    description: Docker Compose stack management
+  - name: Secrets
+    description: Encrypted secret vault
+  - name: Billing
+    description: Plans and usage tracking
+  - name: Team
+    description: Team roles, invites, and audit log
+  - name: Health
+    description: System health checks
+
+paths:
+  # ── Health ────────────────────────────────────────────
+  /health:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded]
+                  version:
+                    type: string
+                  modules:
+                    type: object
+                    additionalProperties:
+                      type: string
+
+  # ── Auth ──────────────────────────────────────────────
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      tags: [Auth]
+      summary: Authenticate with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/register:
+    post:
+      operationId: register
+      tags: [Auth]
+      summary: Register a new account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "409":
+          description: Email already registered
+
+  /api/v1/auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [Auth]
+      summary: Refresh an expired access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [Auth]
+      summary: Get current authenticated user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+    patch:
+      operationId: updateProfile
+      tags: [Auth]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+
+  # ── Apps ──────────────────────────────────────────────
+  /api/v1/apps:
+    get:
+      operationId: listApps
+      tags: [Apps]
+      summary: List all applications
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Application list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/App"
+                  total:
+                    type: integer
+    post:
+      operationId: createApp
+      tags: [Apps]
+      summary: Create a new application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                git_url:
+                  type: string
+                branch:
+                  type: string
+                  default: main
+                build_pack:
+                  type: string
+                  enum: [dockerfile, buildpacks, static, nixpacks]
+                env_vars:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "201":
+          description: Application created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/App"
+
+  /api/v1/apps/{id}:
+    get:
+      operationId: getApp
+      tags: [Apps]
+      summary: Get application details
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Application details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/App"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateApp
+      tags: [Apps]
+      summary: Update application configuration
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                git_url:
+                  type: string
+                branch:
+                  type: string
+                build_pack:
+                  type: string
+                env_vars:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "200":
+          description: Application updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/App"
+    delete:
+      operationId: deleteApp
+      tags: [Apps]
+      summary: Delete an application
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "204":
+          description: Application deleted
+
+  /api/v1/apps/{id}/start:
+    post:
+      operationId: startApp
+      tags: [Apps]
+      summary: Start an application
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Application started
+
+  /api/v1/apps/{id}/stop:
+    post:
+      operationId: stopApp
+      tags: [Apps]
+      summary: Stop an application
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Application stopped
+
+  /api/v1/apps/{id}/restart:
+    post:
+      operationId: restartApp
+      tags: [Apps]
+      summary: Restart an application
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Application restarted
+
+  /api/v1/apps/{id}/deploy:
+    post:
+      operationId: triggerDeploy
+      tags: [Deployments]
+      summary: Trigger a new deployment
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commit:
+                  type: string
+                  description: Specific commit SHA to deploy
+                force:
+                  type: boolean
+                  default: false
+      responses:
+        "202":
+          description: Deployment triggered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Deployment"
+
+  /api/v1/apps/{id}/env:
+    get:
+      operationId: getEnvVars
+      tags: [Apps]
+      summary: Get application environment variables
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Environment variables
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    additionalProperties:
+                      type: string
+    put:
+      operationId: updateEnvVars
+      tags: [Apps]
+      summary: Replace all environment variables
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: string
+      responses:
+        "200":
+          description: Environment variables updated
+
+  /api/v1/apps/{id}/logs:
+    get:
+      operationId: getAppLogs
+      tags: [Apps]
+      summary: Get application logs
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - name: lines
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Application logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+
+  # ── Deployments ───────────────────────────────────────
+  /api/v1/apps/{id}/deployments:
+    get:
+      operationId: listDeployments
+      tags: [Deployments]
+      summary: List deployments for an application
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Deployment list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Deployment"
+
+  /api/v1/apps/{id}/rollback:
+    post:
+      operationId: rollbackApp
+      tags: [Deployments]
+      summary: Rollback to a previous deployment version
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version:
+                  type: string
+      responses:
+        "200":
+          description: Rollback initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Deployment"
+
+  # ── Domains ───────────────────────────────────────────
+  /api/v1/domains:
+    get:
+      operationId: listDomains
+      tags: [Domains]
+      summary: List all custom domains
+      responses:
+        "200":
+          description: Domain list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Domain"
+    post:
+      operationId: createDomain
+      tags: [Domains]
+      summary: Add a custom domain to an application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [app_id, domain]
+              properties:
+                app_id:
+                  type: string
+                  format: uuid
+                domain:
+                  type: string
+                  example: app.example.com
+                auto_ssl:
+                  type: boolean
+                  default: true
+      responses:
+        "201":
+          description: Domain added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Domain"
+
+  /api/v1/domains/{id}:
+    delete:
+      operationId: deleteDomain
+      tags: [Domains]
+      summary: Remove a custom domain
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "204":
+          description: Domain removed
+
+  /api/v1/domains/{id}/verify:
+    post:
+      operationId: verifyDomain
+      tags: [Domains]
+      summary: Verify DNS configuration for a domain
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                  errors:
+                    type: array
+                    items:
+                      type: string
+
+  # ── Compose Stacks ────────────────────────────────────
+  /api/v1/stacks:
+    post:
+      operationId: deployStack
+      tags: [Compose]
+      summary: Deploy a Docker Compose stack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, compose]
+              properties:
+                name:
+                  type: string
+                compose:
+                  type: string
+                  description: Raw docker-compose.yml content
+                env_vars:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "202":
+          description: Stack deployment started
+
+  /api/v1/stacks/validate:
+    post:
+      operationId: validateStack
+      tags: [Compose]
+      summary: Validate a Docker Compose file without deploying
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [compose]
+              properties:
+                compose:
+                  type: string
+      responses:
+        "200":
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  errors:
+                    type: array
+                    items:
+                      type: string
+
+  # ── Secrets ───────────────────────────────────────────
+  /api/v1/secrets:
+    get:
+      operationId: listSecrets
+      tags: [Secrets]
+      summary: List all secrets (values masked)
+      responses:
+        "200":
+          description: Secret list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+                        updated_at:
+                          type: string
+                          format: date-time
+    post:
+      operationId: createSecret
+      tags: [Secrets]
+      summary: Create or update a secret
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, value]
+              properties:
+                name:
+                  type: string
+                  pattern: "^[A-Z_][A-Z0-9_]*$"
+                value:
+                  type: string
+      responses:
+        "201":
+          description: Secret created
+
+  # ── Billing ───────────────────────────────────────────
+  /api/v1/billing/plans:
+    get:
+      operationId: listPlans
+      tags: [Billing]
+      summary: List available billing plans
+      security: []
+      responses:
+        "200":
+          description: Plan list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        price_monthly:
+                          type: number
+                        limits:
+                          type: object
+                          properties:
+                            apps:
+                              type: integer
+                            domains:
+                              type: integer
+                            team_members:
+                              type: integer
+
+  /api/v1/billing/usage:
+    get:
+      operationId: getUsage
+      tags: [Billing]
+      summary: Get current billing period usage
+      responses:
+        "200":
+          description: Usage data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      apps:
+                        type: integer
+                      domains:
+                        type: integer
+                      deployments_this_month:
+                        type: integer
+                      storage_bytes:
+                        type: integer
+                      bandwidth_bytes:
+                        type: integer
+
+  # ── Team ──────────────────────────────────────────────
+  /api/v1/team/roles:
+    get:
+      operationId: listRoles
+      tags: [Team]
+      summary: List available team roles
+      responses:
+        "200":
+          description: Role list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        permissions:
+                          type: array
+                          items:
+                            type: string
+
+  /api/v1/team/invites:
+    post:
+      operationId: createInvite
+      tags: [Team]
+      summary: Invite a new team member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+      responses:
+        "201":
+          description: Invite sent
+
+  /api/v1/team/audit-log:
+    get:
+      operationId: getAuditLog
+      tags: [Team]
+      summary: Get team audit log
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        user_id:
+                          type: string
+                        action:
+                          type: string
+                        resource:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+                        details:
+                          type: object
+
+  # ── Dashboard ─────────────────────────────────────────
+  /api/v1/dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [Apps]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total_apps:
+                        type: integer
+                      running_apps:
+                        type: integer
+                      total_deployments:
+                        type: integer
+                      total_domains:
+                        type: integer
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from /api/v1/auth/login
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key generated from admin panel
+
+  parameters:
+    ResourceID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Resource identifier
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    PerPage:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Items per page
+
+  responses:
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: invalid or expired token
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: not found
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, developer, viewer]
+        tenant_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        plan:
+          type: string
+        owner_id:
+          type: string
+          format: uuid
+        settings:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+
+    App:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum: [running, stopped, deploying, failed, suspended]
+        git_url:
+          type: string
+        branch:
+          type: string
+        build_pack:
+          type: string
+          enum: [dockerfile, buildpacks, static, nixpacks]
+        image:
+          type: string
+        replicas:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Domain:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        domain:
+          type: string
+          example: app.example.com
+        ssl_enabled:
+          type: boolean
+        ssl_expires_at:
+          type: string
+          format: date-time
+        verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    Deployment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, building, deploying, running, failed, rolled_back]
+        commit_sha:
+          type: string
+        commit_message:
+          type: string
+        version:
+          type: string
+        triggered_by:
+          type: string
+          format: uuid
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        duration_ms:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          description: Access token TTL in seconds
