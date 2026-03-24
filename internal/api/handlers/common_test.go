@@ -40,7 +40,12 @@ type mockStore struct {
 	domainsByApp  map[string][]core.Domain // keyed by appID
 
 	// Projects
-	projects map[string][]core.Project // keyed by tenantID
+	projects    map[string][]core.Project // keyed by tenantID
+	projectsByID map[string]*core.Project // keyed by project ID
+
+	// Deployments
+	latestDeployments map[string]*core.Deployment // keyed by appID
+	nextDeployVersion map[string]int              // keyed by appID
 
 	// Roles
 	roles map[string][]core.Role // keyed by tenantID
@@ -71,6 +76,10 @@ type mockStore struct {
 	errListProjectsByTenant   error
 	errListRoles              error
 	errListAuditLogs          error
+	errUpdateApp              error
+	errGetProject             error
+	errGetLatestDeployment    error
+	errGetNextDeployVersion   error
 
 	// Capture calls for assertions.
 	lastLoginUserID string
@@ -81,6 +90,7 @@ type mockStore struct {
 	updatedStatus   map[string]string
 	updatedUser     *core.User
 	updatedPassword string
+	updatedApp      *core.Application
 }
 
 func newMockStore() *mockStore {
@@ -93,8 +103,11 @@ func newMockStore() *mockStore {
 		domains:        make(map[string]*core.Domain),
 		domainsByFQDN:  make(map[string]*core.Domain),
 		domainsByApp:   make(map[string][]core.Domain),
-		projects:       make(map[string][]core.Project),
-		roles:          make(map[string][]core.Role),
+		projects:          make(map[string][]core.Project),
+		projectsByID:      make(map[string]*core.Project),
+		latestDeployments: make(map[string]*core.Deployment),
+		nextDeployVersion: make(map[string]int),
+		roles:             make(map[string][]core.Role),
 		auditLogs:      make(map[string][]core.AuditEntry),
 		auditLogsTotal: make(map[string]int),
 		updatedStatus:  make(map[string]string),
@@ -115,6 +128,13 @@ func (m *mockStore) addProject(tenantID string, p core.Project) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.projects[tenantID] = append(m.projects[tenantID], p)
+}
+
+// addProjectByID seeds a project into the mock store keyed by ID.
+func (m *mockStore) addProjectByID(p *core.Project) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.projectsByID[p.ID] = p
 }
 
 // addRole seeds a role for a tenant into the mock store.
@@ -275,8 +295,15 @@ func (m *mockStore) GetApp(_ context.Context, id string) (*core.Application, err
 	return a, nil
 }
 
-func (m *mockStore) UpdateApp(_ context.Context, _ *core.Application) error {
-	panic("mockStore.UpdateApp not implemented")
+func (m *mockStore) UpdateApp(_ context.Context, app *core.Application) error {
+	if m.errUpdateApp != nil {
+		return m.errUpdateApp
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.apps[app.ID] = app
+	m.updatedApp = app
+	return nil
 }
 
 func (m *mockStore) ListAppsByTenant(_ context.Context, _ string, limit, offset int) ([]core.Application, int, error) {
@@ -361,8 +388,17 @@ func (m *mockStore) CreateProject(_ context.Context, _ *core.Project) error {
 	panic("mockStore.CreateProject not implemented")
 }
 
-func (m *mockStore) GetProject(_ context.Context, _ string) (*core.Project, error) {
-	panic("mockStore.GetProject not implemented")
+func (m *mockStore) GetProject(_ context.Context, id string) (*core.Project, error) {
+	if m.errGetProject != nil {
+		return nil, m.errGetProject
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.projectsByID[id]
+	if !ok {
+		return nil, core.ErrNotFound
+	}
+	return p, nil
 }
 
 func (m *mockStore) ListProjectsByTenant(_ context.Context, tenantID string) ([]core.Project, error) {
@@ -392,16 +428,34 @@ func (m *mockStore) CreateDeployment(_ context.Context, _ *core.Deployment) erro
 	panic("mockStore.CreateDeployment not implemented")
 }
 
-func (m *mockStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) {
-	panic("mockStore.GetLatestDeployment not implemented")
+func (m *mockStore) GetLatestDeployment(_ context.Context, appID string) (*core.Deployment, error) {
+	if m.errGetLatestDeployment != nil {
+		return nil, m.errGetLatestDeployment
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	d, ok := m.latestDeployments[appID]
+	if !ok {
+		return nil, core.ErrNotFound
+	}
+	return d, nil
 }
 
 func (m *mockStore) ListDeploymentsByApp(_ context.Context, _ string, _ int) ([]core.Deployment, error) {
 	panic("mockStore.ListDeploymentsByApp not implemented")
 }
 
-func (m *mockStore) GetNextDeployVersion(_ context.Context, _ string) (int, error) {
-	panic("mockStore.GetNextDeployVersion not implemented")
+func (m *mockStore) GetNextDeployVersion(_ context.Context, appID string) (int, error) {
+	if m.errGetNextDeployVersion != nil {
+		return 0, m.errGetNextDeployVersion
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	v, ok := m.nextDeployVersion[appID]
+	if !ok {
+		return 1, nil
+	}
+	return v, nil
 }
 
 // ─── DomainStore implementation ──────────────────────────────────────────────
