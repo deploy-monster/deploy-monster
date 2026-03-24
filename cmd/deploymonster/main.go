@@ -81,7 +81,16 @@ func runServe() {
 		os.Exit(1)
 	}
 
+	// Validate configuration
+	if err := core.ValidateConfig(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "config validation error: %v\n", err)
+		os.Exit(1)
+	}
+
 	bi := core.BuildInfo{Version: version, Commit: commit, Date: date}
+
+	// Print startup banner
+	core.PrintBanner(bi, cfg)
 
 	if *agentMode {
 		fmt.Printf("DeployMonster Agent %s (%s)\n", version, commit)

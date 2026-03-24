@@ -53,6 +53,10 @@ func (r *Router) registerRoutes() {
 	r.mux.HandleFunc("GET /health", r.handleHealth)
 	r.mux.HandleFunc("GET /api/v1/health", r.handleHealth)
 
+	// ── OpenAPI Spec ──────────────────────────────────
+	openAPIH := handlers.NewOpenAPIHandler(r.core.Build.Version)
+	r.mux.HandleFunc("GET /api/v1/openapi.json", openAPIH.Spec)
+
 	// ── Auth (public) ──────────────────────────────────
 	authH := handlers.NewAuthHandler(r.authMod, r.store)
 	r.mux.HandleFunc("POST /api/v1/auth/login", authH.Login)
@@ -574,6 +578,11 @@ func (r *Router) registerRoutes() {
 	licH := handlers.NewLicenseHandler()
 	r.mux.Handle("GET /api/v1/admin/license", protected(http.HandlerFunc(licH.Get)))
 	r.mux.Handle("POST /api/v1/admin/license", protected(http.HandlerFunc(licH.Activate)))
+
+	// ── DB Backup (admin) ─────────────────────────────
+	dbBackupH := handlers.NewDBBackupHandler(r.core)
+	r.mux.Handle("GET /api/v1/admin/db/backup", protected(http.HandlerFunc(dbBackupH.Backup)))
+	r.mux.Handle("GET /api/v1/admin/db/status", protected(http.HandlerFunc(dbBackupH.Status)))
 
 	// ── Admin API Keys ────────────────────────────────
 	adminKeyH := handlers.NewAdminAPIKeyHandler(r.store)
