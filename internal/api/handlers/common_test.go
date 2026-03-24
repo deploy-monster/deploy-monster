@@ -86,6 +86,7 @@ type mockStore struct {
 	errListDeploymentsByApp   error
 	errCreateProject          error
 	errDeleteProject          error
+	errCreateDeployment       error
 
 	// Capture calls for assertions.
 	lastLoginUserID string
@@ -451,8 +452,17 @@ func (m *mockStore) CreateTenantWithDefaults(_ context.Context, _, _ string) (st
 
 // ─── DeploymentStore implementation ──────────────────────────────────────────
 
-func (m *mockStore) CreateDeployment(_ context.Context, _ *core.Deployment) error {
-	panic("mockStore.CreateDeployment not implemented")
+func (m *mockStore) CreateDeployment(_ context.Context, d *core.Deployment) error {
+	if m.errCreateDeployment != nil {
+		return m.errCreateDeployment
+	}
+	if d.ID == "" {
+		d.ID = core.GenerateID()
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.deploymentsByApp[d.AppID] = append(m.deploymentsByApp[d.AppID], *d)
+	return nil
 }
 
 func (m *mockStore) GetLatestDeployment(_ context.Context, appID string) (*core.Deployment, error) {
