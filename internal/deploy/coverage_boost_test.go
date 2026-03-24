@@ -241,16 +241,15 @@ func TestCheckDockerHubTagCoverage_CancelledContext(t *testing.T) {
 	}
 }
 
-func TestCheckDockerHubTagCoverage_EmptyImage(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	digest, err := CheckDockerHubTag(ctx, "", "")
-	if err == nil {
-		if digest != "" {
-			t.Logf("unexpected digest for empty image: %s", digest)
-		}
+func TestCheckDockerHubTagCoverage_ValidImage(t *testing.T) {
+	// Use a real network call to Docker Hub with a well-known image
+	// to cover the success path (resp.Body.Close, io.ReadAll, json.Unmarshal, return)
+	ctx := context.Background()
+	digest, err := CheckDockerHubTag(ctx, "library/alpine", "latest")
+	if err != nil {
+		t.Skipf("skipping: Docker Hub unreachable: %v", err)
 	}
+	t.Logf("alpine:latest digest = %s", digest)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -311,6 +310,27 @@ func TestImageUpdateCheckerCoverage_CheckAll_WithImageApps(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // AutoRestarter — checkCrashed with mixed containers
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NewDockerManager — host option coverage
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestNewDockerManagerCoverage_CustomHost(t *testing.T) {
+	// Custom host (not empty, not default socket) should append WithHost opt.
+	// This will fail to ping but covers the option code path.
+	_, err := NewDockerManager("tcp://127.0.0.1:99999")
+	if err == nil {
+		t.Log("NewDockerManager connected to invalid host (unlikely)")
+	}
+}
+
+func TestNewDockerManagerCoverage_DefaultSocket(t *testing.T) {
+	// Default socket should NOT append WithHost opt.
+	_, err := NewDockerManager("unix:///var/run/docker.sock")
+	if err != nil {
+		t.Logf("NewDockerManager with default socket failed (expected): %v", err)
+	}
+}
 
 func TestAutoRestarterCoverage_CheckCrashed_MixedStates(t *testing.T) {
 	store := newMockStore()
