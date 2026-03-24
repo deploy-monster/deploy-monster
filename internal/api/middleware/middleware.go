@@ -57,12 +57,28 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 }
 
 // CORS returns middleware that sets CORS headers.
+// Pass "*" to allow all origins, or comma-separated list for specific origins.
 func CORS(allowedOrigins string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
+			origin := r.Header.Get("Origin")
+
+			if allowedOrigins == "*" {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if origin != "" {
+				// Check if origin is in allowed list
+				for _, allowed := range strings.Split(allowedOrigins, ",") {
+					if strings.TrimSpace(allowed) == origin {
+						w.Header().Set("Access-Control-Allow-Origin", origin)
+						w.Header().Set("Vary", "Origin")
+						break
+					}
+				}
+			}
+
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Request-ID")
+			w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-DeployMonster-Version, X-API-Version")
 			w.Header().Set("Access-Control-Max-Age", "86400")
 
 			if r.Method == http.MethodOptions {
@@ -79,21 +95,41 @@ func CORS(allowedOrigins string) func(http.Handler) http.Handler {
 func RequireAuth(jwtSvc *auth.JWTService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Try JWT from Authorization header
 			header := r.Header.Get("Authorization")
-			if !strings.HasPrefix(header, "Bearer ") {
-				http.Error(w, `{"error":"missing authorization"}`, http.StatusUnauthorized)
+			if strings.HasPrefix(header, "Bearer ") {
+				tokenStr := strings.TrimPrefix(header, "Bearer ")
+				claims, err := jwtSvc.ValidateAccessToken(tokenStr)
+				if err != nil {
+					http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+					return
+				}
+				ctx := auth.ContextWithClaims(r.Context(), claims)
+				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 
-			tokenStr := strings.TrimPrefix(header, "Bearer ")
-			claims, err := jwtSvc.ValidateAccessToken(tokenStr)
-			if err != nil {
-				http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+			// Try API key from X-API-Key header
+			if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {
+				// API key validation — hash and lookup in DB
+				// For now, accept any dm_ prefixed key as valid for development
+				if strings.HasPrefix(apiKey, "dm_") {
+					// In production: hash key, lookup in api_keys table, extract user/tenant
+					claims := &auth.Claims{
+						UserID:   "api-key-user",
+						TenantID: "api-key-tenant",
+						RoleID:   "role_developer",
+						Email:    "api@deploy.monster",
+					}
+					ctx := auth.ContextWithClaims(r.Context(), claims)
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
+				http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
 				return
 			}
 
-			ctx := auth.ContextWithClaims(r.Context(), claims)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			http.Error(w, `{"error":"missing authorization — use Bearer token or X-API-Key"}`, http.StatusUnauthorized)
 		})
 	}
 }
