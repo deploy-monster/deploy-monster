@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -46,6 +48,7 @@ type mockStore struct {
 	// Deployments
 	latestDeployments map[string]*core.Deployment // keyed by appID
 	nextDeployVersion map[string]int              // keyed by appID
+	deploymentsByApp  map[string][]core.Deployment // keyed by appID
 
 	// Roles
 	roles map[string][]core.Role // keyed by tenantID
@@ -80,11 +83,16 @@ type mockStore struct {
 	errGetProject             error
 	errGetLatestDeployment    error
 	errGetNextDeployVersion   error
+	errListDeploymentsByApp   error
+	errCreateProject          error
+	errDeleteProject          error
 
 	// Capture calls for assertions.
 	lastLoginUserID string
 	deletedAppID    string
 	deletedDomainID string
+	deletedProjectID string
+	createdProject  *core.Project
 	createdApp      *core.Application
 	createdDomain   *core.Domain
 	updatedStatus   map[string]string
@@ -107,6 +115,7 @@ func newMockStore() *mockStore {
 		projectsByID:      make(map[string]*core.Project),
 		latestDeployments: make(map[string]*core.Deployment),
 		nextDeployVersion: make(map[string]int),
+		deploymentsByApp:  make(map[string][]core.Deployment),
 		roles:             make(map[string][]core.Role),
 		auditLogs:      make(map[string][]core.AuditEntry),
 		auditLogsTotal: make(map[string]int),
@@ -384,8 +393,19 @@ func (m *mockStore) DeleteTenant(_ context.Context, _ string) error {
 
 // ─── ProjectStore implementation ─────────────────────────────────────────────
 
-func (m *mockStore) CreateProject(_ context.Context, _ *core.Project) error {
-	panic("mockStore.CreateProject not implemented")
+func (m *mockStore) CreateProject(_ context.Context, p *core.Project) error {
+	if m.errCreateProject != nil {
+		return m.errCreateProject
+	}
+	if p.ID == "" {
+		p.ID = core.GenerateID()
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.projectsByID[p.ID] = p
+	m.projects[p.TenantID] = append(m.projects[p.TenantID], *p)
+	m.createdProject = p
+	return nil
 }
 
 func (m *mockStore) GetProject(_ context.Context, id string) (*core.Project, error) {
@@ -410,8 +430,15 @@ func (m *mockStore) ListProjectsByTenant(_ context.Context, tenantID string) ([]
 	return m.projects[tenantID], nil
 }
 
-func (m *mockStore) DeleteProject(_ context.Context, _ string) error {
-	panic("mockStore.DeleteProject not implemented")
+func (m *mockStore) DeleteProject(_ context.Context, id string) error {
+	if m.errDeleteProject != nil {
+		return m.errDeleteProject
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.deletedProjectID = id
+	delete(m.projectsByID, id)
+	return nil
 }
 
 func (m *mockStore) CreateTenantWithDefaults(_ context.Context, _, _ string) (string, error) {
@@ -441,8 +468,13 @@ func (m *mockStore) GetLatestDeployment(_ context.Context, appID string) (*core.
 	return d, nil
 }
 
-func (m *mockStore) ListDeploymentsByApp(_ context.Context, _ string, _ int) ([]core.Deployment, error) {
-	panic("mockStore.ListDeploymentsByApp not implemented")
+func (m *mockStore) ListDeploymentsByApp(_ context.Context, appID string, _ int) ([]core.Deployment, error) {
+	if m.errListDeploymentsByApp != nil {
+		return nil, m.errListDeploymentsByApp
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.deploymentsByApp[appID], nil
 }
 
 func (m *mockStore) GetNextDeployVersion(_ context.Context, appID string) (int, error) {
@@ -652,4 +684,70 @@ func withClaims(r *http.Request, userID, tenantID, roleID, email string) *http.R
 	}
 	ctx := auth.ContextWithClaims(r.Context(), claims)
 	return r.WithContext(ctx)
+}
+
+// addDeployment seeds a deployment into the mock store for an app.
+func (m *mockStore) addDeployment(appID string, d core.Deployment) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.deploymentsByApp[appID] = append(m.deploymentsByApp[appID], d)
+}
+
+// ─── Mock Container Runtime ─────────────────────────────────────────────────
+
+// mockContainerRuntime implements core.ContainerRuntime for testing.
+type mockContainerRuntime struct {
+	containers []core.ContainerInfo
+	pingErr    error
+	listErr    error
+	logsData   string
+	logsErr    error
+}
+
+func (m *mockContainerRuntime) Ping() error { return m.pingErr }
+
+func (m *mockContainerRuntime) CreateAndStart(_ context.Context, _ core.ContainerOpts) (string, error) {
+	return "container-123", nil
+}
+
+func (m *mockContainerRuntime) Stop(_ context.Context, _ string, _ int) error {
+	return nil
+}
+
+func (m *mockContainerRuntime) Remove(_ context.Context, _ string, _ bool) error {
+	return nil
+}
+
+func (m *mockContainerRuntime) Restart(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockContainerRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
+	if m.logsErr != nil {
+		return nil, m.logsErr
+	}
+	return io.NopCloser(strings.NewReader(m.logsData)), nil
+}
+
+func (m *mockContainerRuntime) ListByLabels(_ context.Context, _ map[string]string) ([]core.ContainerInfo, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+	return m.containers, nil
+}
+
+// ─── Mock Notification Sender ────────────────────────────────────────────────
+
+// mockNotificationSender implements core.NotificationSender for testing.
+type mockNotificationSender struct {
+	lastNotification *core.Notification
+	sendErr          error
+}
+
+func (m *mockNotificationSender) Send(_ context.Context, n core.Notification) error {
+	if m.sendErr != nil {
+		return m.sendErr
+	}
+	m.lastNotification = &n
+	return nil
 }

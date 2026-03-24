@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build artifacts
+bin/
+dist/
+coverage.out
+coverage.html
+*.out
+
+# Node
+web/node_modules
+
+# Docs
+docs/
+·project/
+
+# Tests (not needed in image)
+**/*_test.go
+**/testdata
+
+# Config
+.goreleaser.yml
+.golangci.yml
+.editorconfig
+CLAUDE.md
+CONTRIBUTING.md
+SECURITY.md
+CHANGELOG.md
+Makefile
