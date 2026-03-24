@@ -34,6 +34,14 @@ type mockStore struct {
 	// Tenants
 	tenants map[string]*core.Tenant
 
+	// Domains
+	domains       map[string]*core.Domain // keyed by ID
+	domainsByFQDN map[string]*core.Domain // keyed by FQDN
+	domainsByApp  map[string][]core.Domain // keyed by appID
+
+	// Projects
+	projects map[string][]core.Project // keyed by tenantID
+
 	// Error overrides — if non-nil the corresponding method returns this error.
 	errGetUserByEmail         error
 	errGetUser                error
@@ -48,11 +56,19 @@ type mockStore struct {
 	errListAppsByTenant       error
 	errUpdateUser             error
 	errUpdatePassword         error
+	errCreateDomain           error
+	errGetDomainByFQDN        error
+	errListDomainsByApp       error
+	errListAllDomains         error
+	errDeleteDomain           error
+	errListProjectsByTenant   error
 
 	// Capture calls for assertions.
 	lastLoginUserID string
 	deletedAppID    string
+	deletedDomainID string
 	createdApp      *core.Application
+	createdDomain   *core.Domain
 	updatedStatus   map[string]string
 	updatedUser     *core.User
 	updatedPassword string
@@ -60,13 +76,33 @@ type mockStore struct {
 
 func newMockStore() *mockStore {
 	return &mockStore{
-		users:        make(map[string]*core.User),
-		usersByEmail: make(map[string]*core.User),
-		memberships:  make(map[string]*core.TeamMember),
-		apps:         make(map[string]*core.Application),
-		tenants:      make(map[string]*core.Tenant),
+		users:         make(map[string]*core.User),
+		usersByEmail:  make(map[string]*core.User),
+		memberships:   make(map[string]*core.TeamMember),
+		apps:          make(map[string]*core.Application),
+		tenants:       make(map[string]*core.Tenant),
+		domains:       make(map[string]*core.Domain),
+		domainsByFQDN: make(map[string]*core.Domain),
+		domainsByApp:  make(map[string][]core.Domain),
+		projects:      make(map[string][]core.Project),
 		updatedStatus: make(map[string]string),
 	}
+}
+
+// addDomain seeds a domain into the mock store.
+func (m *mockStore) addDomain(d *core.Domain) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.domains[d.ID] = d
+	m.domainsByFQDN[d.FQDN] = d
+	m.domainsByApp[d.AppID] = append(m.domainsByApp[d.AppID], *d)
+}
+
+// addProject seeds a project for a tenant into the mock store.
+func (m *mockStore) addProject(tenantID string, p core.Project) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.projects[tenantID] = append(m.projects[tenantID], p)
 }
 
 // addUser is a test helper that seeds a user into the mock store.
@@ -296,8 +332,13 @@ func (m *mockStore) GetProject(_ context.Context, _ string) (*core.Project, erro
 	panic("mockStore.GetProject not implemented")
 }
 
-func (m *mockStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Project, error) {
-	panic("mockStore.ListProjectsByTenant not implemented")
+func (m *mockStore) ListProjectsByTenant(_ context.Context, tenantID string) ([]core.Project, error) {
+	if m.errListProjectsByTenant != nil {
+		return nil, m.errListProjectsByTenant
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.projects[tenantID], nil
 }
 
 func (m *mockStore) DeleteProject(_ context.Context, _ string) error {
@@ -332,24 +373,71 @@ func (m *mockStore) GetNextDeployVersion(_ context.Context, _ string) (int, erro
 
 // ─── DomainStore implementation ──────────────────────────────────────────────
 
-func (m *mockStore) CreateDomain(_ context.Context, _ *core.Domain) error {
-	panic("mockStore.CreateDomain not implemented")
+func (m *mockStore) CreateDomain(_ context.Context, domain *core.Domain) error {
+	if m.errCreateDomain != nil {
+		return m.errCreateDomain
+	}
+	if domain.ID == "" {
+		domain.ID = core.GenerateID()
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.domains[domain.ID] = domain
+	m.domainsByFQDN[domain.FQDN] = domain
+	m.domainsByApp[domain.AppID] = append(m.domainsByApp[domain.AppID], *domain)
+	m.createdDomain = domain
+	return nil
 }
 
-func (m *mockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
-	panic("mockStore.GetDomainByFQDN not implemented")
+func (m *mockStore) GetDomainByFQDN(_ context.Context, fqdn string) (*core.Domain, error) {
+	if m.errGetDomainByFQDN != nil {
+		return nil, m.errGetDomainByFQDN
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	d, ok := m.domainsByFQDN[fqdn]
+	if !ok {
+		return nil, core.ErrNotFound
+	}
+	return d, nil
 }
 
-func (m *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
-	panic("mockStore.ListDomainsByApp not implemented")
+func (m *mockStore) ListDomainsByApp(_ context.Context, appID string) ([]core.Domain, error) {
+	if m.errListDomainsByApp != nil {
+		return nil, m.errListDomainsByApp
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.domainsByApp[appID], nil
 }
 
-func (m *mockStore) DeleteDomain(_ context.Context, _ string) error {
-	panic("mockStore.DeleteDomain not implemented")
+func (m *mockStore) DeleteDomain(_ context.Context, id string) error {
+	if m.errDeleteDomain != nil {
+		return m.errDeleteDomain
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	d, ok := m.domains[id]
+	if !ok {
+		return core.ErrNotFound
+	}
+	delete(m.domains, id)
+	delete(m.domainsByFQDN, d.FQDN)
+	m.deletedDomainID = id
+	return nil
 }
 
 func (m *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
-	panic("mockStore.ListAllDomains not implemented")
+	if m.errListAllDomains != nil {
+		return nil, m.errListAllDomains
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []core.Domain
+	for _, d := range m.domains {
+		result = append(result, *d)
+	}
+	return result, nil
 }
 
 // ─── RoleStore implementation ────────────────────────────────────────────────
