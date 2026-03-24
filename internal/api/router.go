@@ -39,6 +39,7 @@ func (r *Router) Handler() http.Handler {
 		r.mux,
 		middleware.RequestID,
 		middleware.APIVersion(r.core.Build.Version),
+		middleware.BodyLimit(10<<20), // 10MB max request body
 		middleware.Recovery(r.core.Logger),
 		middleware.RequestLogger(r.core.Logger),
 		middleware.CORS("*"),
