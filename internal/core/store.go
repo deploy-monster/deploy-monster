@@ -24,6 +24,8 @@ type Store interface {
 	ProjectStore
 	RoleStore
 	AuditStore
+	SecretStore
+	InviteStore
 	Close() error
 	Ping(ctx context.Context) error
 }
@@ -97,6 +99,20 @@ type RoleStore interface {
 type AuditStore interface {
 	CreateAuditLog(ctx context.Context, entry *AuditEntry) error
 	ListAuditLogs(ctx context.Context, tenantID string, limit, offset int) ([]AuditEntry, int, error)
+}
+
+// SecretStore manages encrypted secret metadata and versions.
+type SecretStore interface {
+	CreateSecret(ctx context.Context, secret *Secret) error
+	CreateSecretVersion(ctx context.Context, version *SecretVersion) error
+	ListSecretsByTenant(ctx context.Context, tenantID string) ([]Secret, error)
+}
+
+// InviteStore manages team invitations.
+type InviteStore interface {
+	CreateInvite(ctx context.Context, invite *Invitation) error
+	ListInvitesByTenant(ctx context.Context, tenantID string) ([]Invitation, error)
+	ListAllTenants(ctx context.Context, limit, offset int) ([]Tenant, int, error)
 }
 
 // =====================================================
@@ -229,4 +245,43 @@ type AuditEntry struct {
 	IPAddress    string    `json:"ip_address"`
 	UserAgent    string    `json:"user_agent"`
 	CreatedAt    time.Time `json:"created_at"`
+}
+
+// Secret represents an encrypted secret (metadata only, no values).
+type Secret struct {
+	ID             string    `json:"id"`
+	TenantID       string    `json:"tenant_id,omitempty"`
+	ProjectID      string    `json:"project_id,omitempty"`
+	AppID          string    `json:"app_id,omitempty"`
+	Name           string    `json:"name"`
+	Type           string    `json:"type"`
+	Description    string    `json:"description"`
+	Scope          string    `json:"scope"`
+	CurrentVersion int       `json:"current_version"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// SecretVersion represents a versioned encrypted secret value.
+type SecretVersion struct {
+	ID        string    `json:"id"`
+	SecretID  string    `json:"secret_id"`
+	Version   int       `json:"version"`
+	ValueEnc  string    `json:"-"`
+	CreatedBy string    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Invitation represents a team invitation.
+type Invitation struct {
+	ID         string     `json:"id"`
+	TenantID   string     `json:"tenant_id"`
+	Email      string     `json:"email"`
+	RoleID     string     `json:"role_id"`
+	InvitedBy  string     `json:"invited_by"`
+	TokenHash  string     `json:"-"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	AcceptedAt *time.Time `json:"accepted_at,omitempty"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"created_at"`
 }

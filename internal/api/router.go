@@ -128,7 +128,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/save-template", protected(http.HandlerFunc(saveTmplH.Save)))
 
 	// ── Commit Rollback ───────────────────────────────
-	crH := handlers.NewCommitRollbackHandler(r.store, r.core.Events)
+	crH := handlers.NewCommitRollbackHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/rollback-to-commit", protected(http.HandlerFunc(crH.RollbackToCommit)))
 
 	// ── Canary Deployments ────────────────────────────
@@ -418,6 +418,7 @@ func (r *Router) registerRoutes() {
 	teamH := handlers.NewTeamHandler(r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/team/roles", protected(http.HandlerFunc(teamH.ListRoles)))
 	inviteH := handlers.NewInviteHandler(r.store, r.core.Events)
+	r.mux.Handle("GET /api/v1/team/invites", protected(http.HandlerFunc(inviteH.List)))
 	r.mux.Handle("POST /api/v1/team/invites", protected(http.HandlerFunc(inviteH.Create)))
 	r.mux.Handle("GET /api/v1/team/audit-log", protected(http.HandlerFunc(teamH.GetAuditLog)))
 
@@ -603,7 +604,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/admin/db/migrations", protected(http.HandlerFunc(migH.Status)))
 
 	// ── Admin (super admin only) ──────────────────────
-	adminH := handlers.NewAdminHandler(r.core)
+	adminH := handlers.NewAdminHandler(r.core, r.store)
 	r.mux.Handle("GET /api/v1/admin/system", protected(http.HandlerFunc(adminH.SystemInfo)))
 	r.mux.Handle("PATCH /api/v1/admin/settings", protected(http.HandlerFunc(adminH.UpdateSettings)))
 	r.mux.Handle("GET /api/v1/admin/tenants", protected(http.HandlerFunc(adminH.ListTenants)))

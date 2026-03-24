@@ -32,7 +32,7 @@ func testCoreWithBuild() *core.Core {
 
 func TestSystemInfo_ReturnsInfo(t *testing.T) {
 	c := testCoreWithBuild()
-	handler := NewAdminHandler(c)
+	handler := NewAdminHandler(c, newMockStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/system", nil)
 	rr := httptest.NewRecorder()
@@ -96,7 +96,7 @@ func TestSystemInfo_ReturnsInfo(t *testing.T) {
 
 func TestListTenants_ReturnsEmptyList(t *testing.T) {
 	c := testCoreWithBuild()
-	handler := NewAdminHandler(c)
+	handler := NewAdminHandler(c, newMockStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants", nil)
 	rr := httptest.NewRecorder()
@@ -130,7 +130,7 @@ func TestListTenants_ReturnsEmptyList(t *testing.T) {
 
 func TestUpdateSettings_Success(t *testing.T) {
 	c := testCoreWithBuild()
-	handler := NewAdminHandler(c)
+	handler := NewAdminHandler(c, newMockStore())
 
 	body := []byte(`{"auto_ssl": true, "backup_frequency": "daily"}`)
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/settings", bytes.NewReader(body))
@@ -162,7 +162,7 @@ func TestUpdateSettings_Success(t *testing.T) {
 
 func TestUpdateSettings_InvalidJSON(t *testing.T) {
 	c := testCoreWithBuild()
-	handler := NewAdminHandler(c)
+	handler := NewAdminHandler(c, newMockStore())
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/settings", bytes.NewReader([]byte("bad json")))
 	rr := httptest.NewRecorder()

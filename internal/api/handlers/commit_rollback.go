@@ -5,16 +5,22 @@ import (
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/deploy"
 )
 
 // CommitRollbackHandler handles rollback to a specific git commit.
 type CommitRollbackHandler struct {
 	store  core.Store
 	events *core.EventBus
+	engine *deploy.RollbackEngine
 }
 
-func NewCommitRollbackHandler(store core.Store, events *core.EventBus) *CommitRollbackHandler {
-	return &CommitRollbackHandler{store: store, events: events}
+func NewCommitRollbackHandler(store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *CommitRollbackHandler {
+	return &CommitRollbackHandler{
+		store:  store,
+		events: events,
+		engine: deploy.NewRollbackEngine(store, runtime, events),
+	}
 }
 
 type commitRollbackRequest struct {
@@ -63,12 +69,19 @@ func (h *CommitRollbackHandler) RollbackToCommit(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Trigger the actual rollback via the deploy engine
+	dep, err := h.engine.Rollback(r.Context(), appID, target.Version)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "rollback failed: "+err.Error())
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"app_id":    appID,
-		"commit":    target.CommitSHA,
-		"version":   target.Version,
-		"image":     target.Image,
-		"message":   "use POST /api/v1/apps/{id}/rollback with this version number",
+		"app_id":           appID,
+		"commit":           target.CommitSHA,
+		"version":          target.Version,
+		"image":            target.Image,
+		"deployment":       dep,
 		"rollback_version": target.Version,
 	})
 }

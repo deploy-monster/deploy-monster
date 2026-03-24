@@ -48,14 +48,21 @@ func (h *InviteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Generate invite token
 	token := core.GenerateSecret(32)
 	tokenHash := hashToken(token)
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 
-	// Store invite (would use a dedicated store method in production)
-	_ = &core.AuditEntry{
-		TenantID:     claims.TenantID,
-		UserID:       claims.UserID,
-		Action:       "invite.created",
-		ResourceType: "invitation",
-		ResourceID:   req.Email,
+	// Store invite in database
+	invite := &core.Invitation{
+		TenantID:  claims.TenantID,
+		Email:     req.Email,
+		RoleID:    req.RoleID,
+		InvitedBy: claims.UserID,
+		TokenHash: tokenHash,
+		ExpiresAt: expiresAt,
+		Status:    "pending",
+	}
+	if err := h.store.CreateInvite(r.Context(), invite); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create invitation")
+		return
 	}
 
 	h.events.PublishAsync(r.Context(), core.NewTenantEvent(
@@ -67,11 +74,32 @@ func (h *InviteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	))
 
 	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":         invite.ID,
 		"email":      req.Email,
 		"role_id":    req.RoleID,
 		"token":      token, // Only returned once
 		"token_hash": tokenHash,
-		"expires_at": time.Now().Add(7 * 24 * time.Hour),
+		"expires_at": expiresAt,
+	})
+}
+
+// List handles GET /api/v1/team/invites
+func (h *InviteHandler) List(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	invites, err := h.store.ListInvitesByTenant(r.Context(), claims.TenantID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list invitations")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"data":  invites,
+		"total": len(invites),
 	})
 }
 

@@ -119,6 +119,34 @@ func (s *auditMockStore) ListRoles(_ context.Context, _ string) ([]core.Role, er
 	return nil, nil
 }
 
+func (s *auditMockStore) CreateSecret(_ context.Context, secret *core.Secret) error {
+	if secret.ID == "" {
+		secret.ID = core.GenerateID()
+	}
+	return nil
+}
+func (s *auditMockStore) CreateSecretVersion(_ context.Context, version *core.SecretVersion) error {
+	if version.ID == "" {
+		version.ID = core.GenerateID()
+	}
+	return nil
+}
+func (s *auditMockStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) {
+	return nil, nil
+}
+func (s *auditMockStore) CreateInvite(_ context.Context, invite *core.Invitation) error {
+	if invite.ID == "" {
+		invite.ID = core.GenerateID()
+	}
+	return nil
+}
+func (s *auditMockStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Invitation, error) {
+	return nil, nil
+}
+func (s *auditMockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
+	return nil, 0, nil
+}
+
 func (s *auditMockStore) Close() error                 { return nil }
 func (s *auditMockStore) Ping(_ context.Context) error { return nil }
 

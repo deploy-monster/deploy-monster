@@ -4,17 +4,19 @@ import (
 	"encoding/json"
 	"net/http"
 	"runtime"
+	"strconv"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // AdminHandler serves system administration endpoints.
 type AdminHandler struct {
-	core *core.Core
+	core  *core.Core
+	store core.Store
 }
 
-func NewAdminHandler(c *core.Core) *AdminHandler {
-	return &AdminHandler{core: c}
+func NewAdminHandler(c *core.Core, store core.Store) *AdminHandler {
+	return &AdminHandler{core: c, store: store}
 }
 
 // SystemInfo handles GET /api/v1/admin/system
@@ -72,10 +74,28 @@ func (h *AdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 
 // ListTenants handles GET /api/v1/admin/tenants
 // Super admin only — lists all tenants on the platform.
-func (h *AdminHandler) ListTenants(w http.ResponseWriter, _ *http.Request) {
-	// In production, would query all tenants with pagination
+func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 100 {
+		perPage = 20
+	}
+	offset := (page - 1) * perPage
+
+	tenants, total, err := h.store.ListAllTenants(r.Context(), perPage, offset)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list tenants")
+		return
+	}
+	if tenants == nil {
+		tenants = []core.Tenant{}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"data":  []any{},
-		"total": 0,
+		"data":  tenants,
+		"total": total,
 	})
 }

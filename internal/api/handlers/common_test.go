@@ -57,6 +57,13 @@ type mockStore struct {
 	auditLogs      map[string][]core.AuditEntry // keyed by tenantID
 	auditLogsTotal map[string]int               // keyed by tenantID
 
+	// Secrets
+	secrets map[string][]core.Secret // keyed by tenantID
+
+	// Invitations
+	invitations    map[string][]core.Invitation // keyed by tenantID
+	allTenantsList []core.Tenant
+
 	// Error overrides — if non-nil the corresponding method returns this error.
 	errGetUserByEmail         error
 	errGetUser                error
@@ -87,6 +94,12 @@ type mockStore struct {
 	errCreateProject          error
 	errDeleteProject          error
 	errCreateDeployment       error
+	errCreateSecret           error
+	errCreateSecretVersion    error
+	errListSecretsByTenant    error
+	errCreateInvite           error
+	errListInvitesByTenant    error
+	errListAllTenants         error
 
 	// Capture calls for assertions.
 	lastLoginUserID string
@@ -120,6 +133,8 @@ func newMockStore() *mockStore {
 		roles:             make(map[string][]core.Role),
 		auditLogs:      make(map[string][]core.AuditEntry),
 		auditLogsTotal: make(map[string]int),
+		secrets:        make(map[string][]core.Secret),
+		invitations:    make(map[string][]core.Invitation),
 		updatedStatus:  make(map[string]string),
 	}
 }
@@ -602,6 +617,81 @@ func (m *mockStore) ListAuditLogs(_ context.Context, tenantID string, _, _ int) 
 		total = len(entries)
 	}
 	return entries, total, nil
+}
+
+// ─── SecretStore implementation ───────────────────────────────────────────────
+
+func (m *mockStore) CreateSecret(_ context.Context, secret *core.Secret) error {
+	if m.errCreateSecret != nil {
+		return m.errCreateSecret
+	}
+	if secret.ID == "" {
+		secret.ID = core.GenerateID()
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.secrets[secret.TenantID] = append(m.secrets[secret.TenantID], *secret)
+	return nil
+}
+
+func (m *mockStore) CreateSecretVersion(_ context.Context, version *core.SecretVersion) error {
+	if m.errCreateSecretVersion != nil {
+		return m.errCreateSecretVersion
+	}
+	if version.ID == "" {
+		version.ID = core.GenerateID()
+	}
+	return nil
+}
+
+func (m *mockStore) ListSecretsByTenant(_ context.Context, tenantID string) ([]core.Secret, error) {
+	if m.errListSecretsByTenant != nil {
+		return nil, m.errListSecretsByTenant
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.secrets[tenantID], nil
+}
+
+// ─── InviteStore implementation ──────────────────────────────────────────────
+
+func (m *mockStore) CreateInvite(_ context.Context, invite *core.Invitation) error {
+	if m.errCreateInvite != nil {
+		return m.errCreateInvite
+	}
+	if invite.ID == "" {
+		invite.ID = core.GenerateID()
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.invitations[invite.TenantID] = append(m.invitations[invite.TenantID], *invite)
+	return nil
+}
+
+func (m *mockStore) ListInvitesByTenant(_ context.Context, tenantID string) ([]core.Invitation, error) {
+	if m.errListInvitesByTenant != nil {
+		return nil, m.errListInvitesByTenant
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.invitations[tenantID], nil
+}
+
+func (m *mockStore) ListAllTenants(_ context.Context, limit, offset int) ([]core.Tenant, int, error) {
+	if m.errListAllTenants != nil {
+		return nil, 0, m.errListAllTenants
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	total := len(m.allTenantsList)
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	if offset > total {
+		return nil, total, nil
+	}
+	return m.allTenantsList[offset:end], total, nil
 }
 
 // ─── Store top-level methods ─────────────────────────────────────────────────

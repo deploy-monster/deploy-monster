@@ -262,6 +262,37 @@ func (s *mockStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core
 	return nil, 0, nil
 }
 
+// SecretStore methods
+func (s *mockStore) CreateSecret(_ context.Context, secret *core.Secret) error {
+	if secret.ID == "" {
+		secret.ID = core.GenerateID()
+	}
+	return nil
+}
+func (s *mockStore) CreateSecretVersion(_ context.Context, version *core.SecretVersion) error {
+	if version.ID == "" {
+		version.ID = core.GenerateID()
+	}
+	return nil
+}
+func (s *mockStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) {
+	return nil, nil
+}
+
+// InviteStore methods
+func (s *mockStore) CreateInvite(_ context.Context, invite *core.Invitation) error {
+	if invite.ID == "" {
+		invite.ID = core.GenerateID()
+	}
+	return nil
+}
+func (s *mockStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Invitation, error) {
+	return nil, nil
+}
+func (s *mockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
+	return nil, 0, nil
+}
+
 // Store methods
 func (s *mockStore) Close() error                    { return nil }
 func (s *mockStore) Ping(_ context.Context) error    { return nil }

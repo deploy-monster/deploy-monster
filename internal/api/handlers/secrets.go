@@ -63,6 +63,34 @@ func (h *SecretHandler) Create(w http.ResponseWriter, r *http.Request) {
 		encrypted = enc
 	}
 
+	// Store secret metadata in database
+	secret := &core.Secret{
+		TenantID:       claims.TenantID,
+		ProjectID:      req.ProjectID,
+		AppID:          req.AppID,
+		Name:           req.Name,
+		Type:           "env_var",
+		Description:    req.Description,
+		Scope:          scope,
+		CurrentVersion: 1,
+	}
+	if err := h.store.CreateSecret(r.Context(), secret); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to store secret")
+		return
+	}
+
+	// Store encrypted version
+	version := &core.SecretVersion{
+		SecretID:  secret.ID,
+		Version:   1,
+		ValueEnc:  encrypted,
+		CreatedBy: claims.UserID,
+	}
+	if err := h.store.CreateSecretVersion(r.Context(), version); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to store secret version")
+		return
+	}
+
 	h.events.Publish(r.Context(), core.NewTenantEvent(
 		core.EventSecretCreated, "api", claims.TenantID, claims.UserID,
 		map[string]string{"name": req.Name, "scope": scope},
@@ -86,9 +114,29 @@ func (h *SecretHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In production, would query secrets table filtered by tenant
+	secrets, err := h.store.ListSecretsByTenant(r.Context(), claims.TenantID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list secrets")
+		return
+	}
+
+	// Return metadata only — never expose encrypted values
+	data := make([]map[string]any, 0, len(secrets))
+	for _, s := range secrets {
+		data = append(data, map[string]any{
+			"id":          s.ID,
+			"name":        s.Name,
+			"scope":       s.Scope,
+			"description": s.Description,
+			"reference":   "${SECRET:" + s.Name + "}",
+			"version":     s.CurrentVersion,
+			"created_at":  s.CreatedAt,
+			"updated_at":  s.UpdatedAt,
+		})
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"data":  []any{},
-		"total": 0,
+		"data":  data,
+		"total": len(data),
 	})
 }

@@ -574,6 +574,7 @@ func TestIPWhitelistHandler_Update_InvalidBody(t *testing.T) {
 
 func TestCommitRollbackHandler_RollbackToCommit_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", Name: "testapp", TenantID: "t1", Status: "running"})
 	store.addDeployment("app-1", core.Deployment{
 		AppID: "app-1", Version: 1, CommitSHA: "abc1234567890", Image: "myapp:v1",
 	})
@@ -581,7 +582,7 @@ func TestCommitRollbackHandler_RollbackToCommit_Success(t *testing.T) {
 		AppID: "app-1", Version: 2, CommitSHA: "def4567890abc", Image: "myapp:v2",
 	})
 	events := core.NewEventBus(nil)
-	h := NewCommitRollbackHandler(store, events)
+	h := NewCommitRollbackHandler(store, &mockContainerRuntime{}, events)
 
 	body := `{"commit_sha":"abc1234567890"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader(body))
@@ -601,11 +602,12 @@ func TestCommitRollbackHandler_RollbackToCommit_Success(t *testing.T) {
 
 func TestCommitRollbackHandler_RollbackToCommit_PartialMatch(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", Name: "testapp", TenantID: "t1", Status: "running"})
 	store.addDeployment("app-1", core.Deployment{
 		AppID: "app-1", Version: 3, CommitSHA: "abcdef1234567890", Image: "myapp:v3",
 	})
 	events := core.NewEventBus(nil)
-	h := NewCommitRollbackHandler(store, events)
+	h := NewCommitRollbackHandler(store, &mockContainerRuntime{}, events)
 
 	body := `{"commit_sha":"abcdef1"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader(body))
@@ -621,7 +623,7 @@ func TestCommitRollbackHandler_RollbackToCommit_PartialMatch(t *testing.T) {
 func TestCommitRollbackHandler_RollbackToCommit_NotFound(t *testing.T) {
 	store := newMockStore()
 	events := core.NewEventBus(nil)
-	h := NewCommitRollbackHandler(store, events)
+	h := NewCommitRollbackHandler(store, &mockContainerRuntime{}, events)
 
 	body := `{"commit_sha":"nonexistent"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader(body))
@@ -637,7 +639,7 @@ func TestCommitRollbackHandler_RollbackToCommit_NotFound(t *testing.T) {
 func TestCommitRollbackHandler_RollbackToCommit_EmptyCommit(t *testing.T) {
 	store := newMockStore()
 	events := core.NewEventBus(nil)
-	h := NewCommitRollbackHandler(store, events)
+	h := NewCommitRollbackHandler(store, &mockContainerRuntime{}, events)
 
 	body := `{"commit_sha":""}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader(body))
@@ -653,7 +655,7 @@ func TestCommitRollbackHandler_RollbackToCommit_EmptyCommit(t *testing.T) {
 func TestCommitRollbackHandler_RollbackToCommit_InvalidBody(t *testing.T) {
 	store := newMockStore()
 	events := core.NewEventBus(nil)
-	h := NewCommitRollbackHandler(store, events)
+	h := NewCommitRollbackHandler(store, &mockContainerRuntime{}, events)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader("{bad"))
 	req.SetPathValue("id", "app-1")
@@ -669,7 +671,7 @@ func TestCommitRollbackHandler_RollbackToCommit_StoreError(t *testing.T) {
 	store := newMockStore()
 	store.errListDeploymentsByApp = core.ErrNotFound
 	events := core.NewEventBus(nil)
-	h := NewCommitRollbackHandler(store, events)
+	h := NewCommitRollbackHandler(store, &mockContainerRuntime{}, events)
 
 	body := `{"commit_sha":"abc1234"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader(body))
