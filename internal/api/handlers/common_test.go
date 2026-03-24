@@ -42,6 +42,13 @@ type mockStore struct {
 	// Projects
 	projects map[string][]core.Project // keyed by tenantID
 
+	// Roles
+	roles map[string][]core.Role // keyed by tenantID
+
+	// Audit logs
+	auditLogs      map[string][]core.AuditEntry // keyed by tenantID
+	auditLogsTotal map[string]int               // keyed by tenantID
+
 	// Error overrides — if non-nil the corresponding method returns this error.
 	errGetUserByEmail         error
 	errGetUser                error
@@ -62,6 +69,8 @@ type mockStore struct {
 	errListAllDomains         error
 	errDeleteDomain           error
 	errListProjectsByTenant   error
+	errListRoles              error
+	errListAuditLogs          error
 
 	// Capture calls for assertions.
 	lastLoginUserID string
@@ -76,16 +85,19 @@ type mockStore struct {
 
 func newMockStore() *mockStore {
 	return &mockStore{
-		users:         make(map[string]*core.User),
-		usersByEmail:  make(map[string]*core.User),
-		memberships:   make(map[string]*core.TeamMember),
-		apps:          make(map[string]*core.Application),
-		tenants:       make(map[string]*core.Tenant),
-		domains:       make(map[string]*core.Domain),
-		domainsByFQDN: make(map[string]*core.Domain),
-		domainsByApp:  make(map[string][]core.Domain),
-		projects:      make(map[string][]core.Project),
-		updatedStatus: make(map[string]string),
+		users:          make(map[string]*core.User),
+		usersByEmail:   make(map[string]*core.User),
+		memberships:    make(map[string]*core.TeamMember),
+		apps:           make(map[string]*core.Application),
+		tenants:        make(map[string]*core.Tenant),
+		domains:        make(map[string]*core.Domain),
+		domainsByFQDN:  make(map[string]*core.Domain),
+		domainsByApp:   make(map[string][]core.Domain),
+		projects:       make(map[string][]core.Project),
+		roles:          make(map[string][]core.Role),
+		auditLogs:      make(map[string][]core.AuditEntry),
+		auditLogsTotal: make(map[string]int),
+		updatedStatus:  make(map[string]string),
 	}
 }
 
@@ -103,6 +115,27 @@ func (m *mockStore) addProject(tenantID string, p core.Project) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.projects[tenantID] = append(m.projects[tenantID], p)
+}
+
+// addRole seeds a role for a tenant into the mock store.
+func (m *mockStore) addRole(tenantID string, r core.Role) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.roles[tenantID] = append(m.roles[tenantID], r)
+}
+
+// addAuditLog seeds an audit log entry for a tenant into the mock store.
+func (m *mockStore) addAuditLog(tenantID string, entry core.AuditEntry) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.auditLogs[tenantID] = append(m.auditLogs[tenantID], entry)
+}
+
+// addTenant seeds a tenant into the mock store.
+func (m *mockStore) addTenant(t *core.Tenant) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.tenants[t.ID] = t
 }
 
 // addUser is a test helper that seeds a user into the mock store.
@@ -446,8 +479,13 @@ func (m *mockStore) GetRole(_ context.Context, _ string) (*core.Role, error) {
 	panic("mockStore.GetRole not implemented")
 }
 
-func (m *mockStore) ListRoles(_ context.Context, _ string) ([]core.Role, error) {
-	panic("mockStore.ListRoles not implemented")
+func (m *mockStore) ListRoles(_ context.Context, tenantID string) ([]core.Role, error) {
+	if m.errListRoles != nil {
+		return nil, m.errListRoles
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.roles[tenantID], nil
 }
 
 // ─── AuditStore implementation ───────────────────────────────────────────────
@@ -456,8 +494,18 @@ func (m *mockStore) CreateAuditLog(_ context.Context, _ *core.AuditEntry) error 
 	return nil // silently accept audit logs in tests
 }
 
-func (m *mockStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core.AuditEntry, int, error) {
-	return nil, 0, nil
+func (m *mockStore) ListAuditLogs(_ context.Context, tenantID string, _, _ int) ([]core.AuditEntry, int, error) {
+	if m.errListAuditLogs != nil {
+		return nil, 0, m.errListAuditLogs
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entries := m.auditLogs[tenantID]
+	total := m.auditLogsTotal[tenantID]
+	if total == 0 {
+		total = len(entries)
+	}
+	return entries, total, nil
 }
 
 // ─── Store top-level methods ─────────────────────────────────────────────────
