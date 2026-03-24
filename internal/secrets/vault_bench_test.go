@@ -21,3 +21,9 @@ func BenchmarkDecrypt(b *testing.B) {
 		vault.Decrypt(encrypted)
 	}
 }
+
+func BenchmarkKeyDerivation(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		NewVault("benchmark-passphrase-for-key-derivation")
+	}
+}

@@ -116,6 +116,10 @@ func Parse(data []byte) (*ComposeFile, error) {
 
 	// Resolve environment variables for each service
 	for name, svc := range cf.Services {
+		if svc == nil {
+			cf.Services[name] = &ServiceConfig{}
+			svc = cf.Services[name]
+		}
 		svc.ResolvedEnv = resolveEnv(svc.Environment)
 		_ = name
 	}

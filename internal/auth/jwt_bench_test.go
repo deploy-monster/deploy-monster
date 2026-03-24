@@ -19,7 +19,7 @@ func BenchmarkValidateAccessToken(b *testing.B) {
 	}
 }
 
-func BenchmarkHashPassword(b *testing.B) {
+func BenchmarkHashPassword_Short(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		HashPassword("TestPassword123!")
 	}

@@ -1,0 +1,63 @@
+package webhooks
+
+import (
+	"fmt"
+	"net/http"
+	"testing"
+)
+
+// FuzzVerifyGitHubSignature generates a valid HMAC for random body+secret pairs,
+// then confirms that VerifyGitHubSignature accepts the computed signature.
+func FuzzVerifyGitHubSignature(f *testing.F) {
+	f.Add([]byte(`{"ref":"refs/heads/main"}`), "my-secret")
+	f.Add([]byte(`{}`), "")
+	f.Add([]byte{0, 1, 2, 255}, "s3cr3t!")
+	f.Add([]byte(`{"commits":[],"head_commit":null}`), "long-webhook-secret-value-here-1234567890")
+
+	f.Fuzz(func(t *testing.T, body []byte, secret string) {
+		// Compute the correct HMAC
+		mac := computeHMACSHA256(body, secret)
+		sig := fmt.Sprintf("sha256=%s", mac)
+
+		if !VerifyGitHubSignature(body, secret, sig) {
+			t.Error("VerifyGitHubSignature should accept a correctly computed signature")
+		}
+
+		// Signature without prefix must be rejected
+		if VerifyGitHubSignature(body, secret, mac) {
+			t.Error("VerifyGitHubSignature should reject signature without sha256= prefix")
+		}
+	})
+}
+
+// FuzzParsePayload sends random JSON blobs through parsePayload for every
+// supported provider and asserts it never panics.
+func FuzzParsePayload(f *testing.F) {
+	f.Add([]byte(`{"ref":"refs/heads/main","head_commit":{"id":"abc","message":"test","author":{"name":"dev"}},"repository":{"clone_url":"https://github.com/test/repo.git","full_name":"test/repo"}}`))
+	f.Add([]byte(`{}`))
+	f.Add([]byte(`{"provider":"generic","event_type":"push","branch":"main"}`))
+	f.Add([]byte(`not json at all`))
+	f.Add([]byte{})
+
+	providers := []string{"github", "gitlab", "gitea", "gogs", "generic"}
+
+	f.Fuzz(func(t *testing.T, body []byte) {
+		for _, provider := range providers {
+			// Build a minimal request with appropriate headers
+			req, _ := http.NewRequest("POST", "/hooks/v1/test", nil)
+			switch provider {
+			case "github":
+				req.Header.Set("X-GitHub-Event", "push")
+			case "gitlab":
+				req.Header.Set("X-Gitlab-Event", "Push Hook")
+			case "gitea":
+				req.Header.Set("X-Gitea-Event", "push")
+			case "gogs":
+				req.Header.Set("X-Gogs-Event", "push")
+			}
+
+			// Must not panic — errors are fine
+			_, _ = parsePayload(provider, body, req)
+		}
+	})
+}
