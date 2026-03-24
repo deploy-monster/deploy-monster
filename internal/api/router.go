@@ -37,6 +37,8 @@ func NewRouter(c *core.Core, authMod *auth.Module, store core.Store) *Router {
 func (r *Router) Handler() http.Handler {
 	return middleware.Chain(
 		r.mux,
+		middleware.RequestID,
+		middleware.APIVersion(r.core.Build.Version),
 		middleware.Recovery(r.core.Logger),
 		middleware.RequestLogger(r.core.Logger),
 		middleware.CORS("*"),
