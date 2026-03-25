@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/swarm"
 
 	// All modules auto-register via init()
 	_ "github.com/deploy-monster/deploy-monster/internal/api"
@@ -67,6 +69,8 @@ func main() {
 func runServe() {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	agentMode := fs.Bool("agent", false, "run in agent mode (worker node)")
+	masterURL := fs.String("master", os.Getenv("MONSTER_MASTER_URL"), "master server URL (agent mode)")
+	agentToken := fs.String("token", os.Getenv("MONSTER_JOIN_TOKEN"), "join token for agent authentication")
 	configPath := fs.String("config", "", "path to monster.yaml config file")
 	fs.Parse(os.Args[1:])
 
@@ -93,9 +97,8 @@ func runServe() {
 	core.PrintBanner(bi, cfg)
 
 	if *agentMode {
-		fmt.Printf("DeployMonster Agent %s (%s)\n", version, commit)
-		fmt.Println("Agent mode not yet implemented — run in master mode for now.")
-		os.Exit(0)
+		runAgent(ctx, bi, *masterURL, *agentToken)
+		return
 	}
 
 	app, err := core.NewApp(cfg, bi)
@@ -106,6 +109,43 @@ func runServe() {
 
 	if err := app.Run(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "fatal: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runAgent(ctx context.Context, bi core.BuildInfo, masterURL, token string) {
+	if masterURL == "" {
+		fmt.Fprintln(os.Stderr, "agent mode requires --master URL (or MONSTER_MASTER_URL env var)")
+		os.Exit(1)
+	}
+	if token == "" {
+		fmt.Fprintln(os.Stderr, "agent mode requires --token (or MONSTER_JOIN_TOKEN env var)")
+		os.Exit(1)
+	}
+
+	fmt.Printf("DeployMonster Agent %s (%s)\n", bi.Version, bi.Commit)
+	fmt.Printf("  master: %s\n", masterURL)
+
+	logger := slog.Default().With("mode", "agent")
+
+	// Generate a server ID from the hostname
+	serverID := os.Getenv("MONSTER_SERVER_ID")
+	if serverID == "" {
+		hostname, _ := os.Hostname()
+		serverID = hostname
+	}
+	if serverID == "" {
+		serverID = core.GenerateID()
+	}
+
+	// Create agent client (runtime will be nil until we wire Docker SDK)
+	client := swarm.NewAgentClient(masterURL, serverID, token, bi.Version, nil, logger)
+
+	fmt.Printf("  server_id: %s\n", serverID)
+	fmt.Println("  connecting to master...")
+
+	if err := client.ConnectWithRetry(ctx); err != nil && ctx.Err() == nil {
+		fmt.Fprintf(os.Stderr, "agent error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -185,13 +225,15 @@ Commands:
 
 Flags (serve):
   --agent     Run in agent mode (worker node)
+  --master    Master server URL (agent mode, or MONSTER_MASTER_URL)
+  --token     Join token for agent auth (agent mode, or MONSTER_JOIN_TOKEN)
   --config    Path to monster.yaml config file
 
 Examples:
-  deploymonster                      Start server with defaults
-  deploymonster serve --agent        Start as agent/worker node
-  deploymonster version              Show version
-  deploymonster config               Check configuration
+  deploymonster                                          Start server with defaults
+  deploymonster serve --agent --master=host:8443 --token=xxx  Start as agent
+  deploymonster version                                  Show version
+  deploymonster config                                   Check configuration
 
 Documentation: https://deploy.monster/docs
 `, version)

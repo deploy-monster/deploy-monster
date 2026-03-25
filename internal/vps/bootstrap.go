@@ -1,7 +1,9 @@
 package vps
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -80,6 +82,66 @@ systemctl start deploymonster-agent
 echo "==> DeployMonster agent started"
 echo "==> Bootstrap complete"
 `, serverID, masterURL, masterURL, joinToken, serverID)
+}
+
+// Bootstrap connects to a remote server via SSH and installs the DeployMonster
+// agent. It checks for Docker, downloads the binary, creates a systemd service,
+// and starts the agent pointing at the master.
+func Bootstrap(ctx context.Context, pool *SSHPool, host string, port int, user string, key []byte, masterURL, token string, logger *slog.Logger) error {
+	run := func(cmd string) (string, error) {
+		return pool.Execute(ctx, host, port, user, key, cmd)
+	}
+
+	logger.Info("bootstrapping remote server", "host", host)
+
+	// 1. Check if Docker is installed, install if not
+	if _, err := run("command -v docker"); err != nil {
+		logger.Info("installing Docker", "host", host)
+		if _, err := run("curl -fsSL https://get.docker.com | sh && systemctl enable docker && systemctl start docker"); err != nil {
+			return fmt.Errorf("install docker on %s: %w", host, err)
+		}
+	}
+
+	// 2. Download DeployMonster binary
+	logger.Info("downloading DeployMonster binary", "host", host)
+	downloadCmd := fmt.Sprintf(
+		`ARCH=$(dpkg --print-architecture 2>/dev/null || echo amd64) && `+
+			`curl -fsSL "https://github.com/deploy-monster/deploy-monster/releases/latest/download/deploymonster-linux-${ARCH}" `+
+			`-o /usr/local/bin/deploymonster && chmod +x /usr/local/bin/deploymonster`,
+	)
+	if _, err := run(downloadCmd); err != nil {
+		return fmt.Errorf("download binary on %s: %w", host, err)
+	}
+
+	// 3. Create systemd service file
+	logger.Info("creating systemd service", "host", host)
+	serviceFile := fmt.Sprintf(`[Unit]
+Description=DeployMonster Agent
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/deploymonster serve --agent --master=%s --token=%s
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target`, masterURL, token)
+
+	writeCmd := fmt.Sprintf("cat > /etc/systemd/system/deploymonster-agent.service << 'SERVICEFILE'\n%s\nSERVICEFILE", serviceFile)
+	if _, err := run(writeCmd); err != nil {
+		return fmt.Errorf("create service file on %s: %w", host, err)
+	}
+
+	// 4. Start the agent
+	logger.Info("starting DeployMonster agent", "host", host)
+	if _, err := run("systemctl daemon-reload && systemctl enable deploymonster-agent && systemctl start deploymonster-agent"); err != nil {
+		return fmt.Errorf("start agent on %s: %w", host, err)
+	}
+
+	logger.Info("bootstrap complete", "host", host)
+	return nil
 }
 
 // CloudInitConfig generates a cloud-init YAML for VPS providers.
