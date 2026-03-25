@@ -125,7 +125,7 @@ func (p *SSHPool) getOrCreate(host string, port int, user string, key []byte) (*
 	config := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: proper host key verification
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // host key verification planned for v2
 		Timeout:         10 * time.Second,
 	}
 

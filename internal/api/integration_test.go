@@ -169,7 +169,10 @@ func TestFullAppStartup_Auth(t *testing.T) {
 
 	// Test failed login
 	body = `{"email":"admin@deploy.monster","password":"wrong"}`
-	resp2, _ := http.Post(server.URL+"/api/v1/auth/login", "application/json", strings.NewReader(body))
+	resp2, err2 := http.Post(server.URL+"/api/v1/auth/login", "application/json", strings.NewReader(body))
+	if err2 != nil {
+		t.Fatalf("bad login request failed: %v", err2)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != 401 {
 		t.Errorf("bad login status = %d, want 401", resp2.StatusCode)
