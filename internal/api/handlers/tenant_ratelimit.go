@@ -10,11 +10,11 @@ import (
 
 // TenantRateLimitHandler manages per-tenant API rate limits.
 type TenantRateLimitHandler struct {
-	store core.Store
+	bolt core.BoltStorer
 }
 
-func NewTenantRateLimitHandler(store core.Store) *TenantRateLimitHandler {
-	return &TenantRateLimitHandler{store: store}
+func NewTenantRateLimitHandler(bolt core.BoltStorer) *TenantRateLimitHandler {
+	return &TenantRateLimitHandler{bolt: bolt}
 }
 
 // RateLimitConfig defines API rate limits for a tenant.
@@ -25,6 +25,16 @@ type RateLimitConfig struct {
 	DeploysPerHour    int `json:"deploys_per_hour"`
 }
 
+// defaultRateLimits returns sensible defaults.
+func defaultRateLimits() RateLimitConfig {
+	return RateLimitConfig{
+		RequestsPerMinute: 100,
+		BurstSize:         20,
+		BuildsPerHour:     10,
+		DeploysPerHour:    20,
+	}
+}
+
 // Get handles GET /api/v1/admin/tenants/{id}/ratelimit
 func (h *TenantRateLimitHandler) Get(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
@@ -33,15 +43,15 @@ func (h *TenantRateLimitHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = r.PathValue("id")
+	tenantID := r.PathValue("id")
 
-	// Default limits
-	writeJSON(w, http.StatusOK, RateLimitConfig{
-		RequestsPerMinute: 100,
-		BurstSize:         20,
-		BuildsPerHour:     10,
-		DeploysPerHour:    20,
-	})
+	var cfg RateLimitConfig
+	if err := h.bolt.Get("tenant_ratelimit", tenantID, &cfg); err != nil {
+		writeJSON(w, http.StatusOK, defaultRateLimits())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, cfg)
 }
 
 // Update handles PUT /api/v1/admin/tenants/{id}/ratelimit
@@ -57,6 +67,18 @@ func (h *TenantRateLimitHandler) Update(w http.ResponseWriter, r *http.Request) 
 	var cfg RateLimitConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if cfg.RequestsPerMinute <= 0 {
+		cfg.RequestsPerMinute = 100
+	}
+	if cfg.BurstSize <= 0 {
+		cfg.BurstSize = 20
+	}
+
+	if err := h.bolt.Set("tenant_ratelimit", tenantID, cfg, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save rate limit config")
 		return
 	}
 

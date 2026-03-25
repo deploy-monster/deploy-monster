@@ -10,19 +10,29 @@ import (
 
 // MCPHandler serves MCP protocol over HTTP.
 type MCPHandler struct {
+	core    *core.Core
 	handler *mcp.Handler
 }
 
-func NewMCPHandler(store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *MCPHandler {
+func NewMCPHandler(c *core.Core, store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *MCPHandler {
 	return &MCPHandler{
-		handler: mcp.NewHandler(store, runtime, events, nil),
+		core:    c,
+		handler: mcp.NewHandler(store, runtime, events, c.Logger),
 	}
 }
 
 // ListTools handles GET /mcp/v1/tools
 func (h *MCPHandler) ListTools(w http.ResponseWriter, _ *http.Request) {
+	tools := h.handler.ListTools()
+
+	// Enrich with module registry info
+	modules := h.core.Registry.All()
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"tools": h.handler.ListTools(),
+		"tools":       tools,
+		"version":     h.core.Build.Version,
+		"modules":     modules,
+		"module_count": len(modules),
 	})
 }
 

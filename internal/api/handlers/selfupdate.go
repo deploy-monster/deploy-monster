@@ -6,36 +6,44 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // SelfUpdateHandler checks for platform updates.
 type SelfUpdateHandler struct {
-	currentVersion string
+	core *core.Core
 }
 
-func NewSelfUpdateHandler(version string) *SelfUpdateHandler {
-	return &SelfUpdateHandler{currentVersion: version}
+func NewSelfUpdateHandler(c *core.Core) *SelfUpdateHandler {
+	return &SelfUpdateHandler{core: c}
 }
 
 // CheckUpdate handles GET /api/v1/admin/updates
 func (h *SelfUpdateHandler) CheckUpdate(w http.ResponseWriter, _ *http.Request) {
+	currentVersion := h.core.Build.Version
+
 	latest, releaseURL, err := checkLatestRelease()
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"current_version": h.currentVersion,
+			"current_version": currentVersion,
+			"commit":          h.core.Build.Commit,
+			"build_date":      h.core.Build.Date,
 			"update_check":    "failed",
 			"error":           err.Error(),
 		})
 		return
 	}
 
-	hasUpdate := latest != h.currentVersion && latest != ""
+	hasUpdate := latest != currentVersion && latest != ""
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"current_version": h.currentVersion,
-		"latest_version":  latest,
+		"current_version":  currentVersion,
+		"latest_version":   latest,
 		"update_available": hasUpdate,
-		"release_url":     releaseURL,
+		"release_url":      releaseURL,
+		"commit":           h.core.Build.Commit,
+		"build_date":       h.core.Build.Date,
 	})
 }
 

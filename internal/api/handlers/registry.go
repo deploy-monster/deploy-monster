@@ -10,11 +10,11 @@ import (
 
 // RegistryHandler manages Docker registry connections.
 type RegistryHandler struct {
-	store core.Store
+	bolt core.BoltStorer
 }
 
-func NewRegistryHandler(store core.Store) *RegistryHandler {
-	return &RegistryHandler{store: store}
+func NewRegistryHandler(bolt core.BoltStorer) *RegistryHandler {
+	return &RegistryHandler{bolt: bolt}
 }
 
 // RegistryConfig represents a Docker registry connection.
@@ -27,16 +27,30 @@ type RegistryConfig struct {
 	IsPublic bool   `json:"is_public"`
 }
 
+// registryList holds all configured registries.
+type registryList struct {
+	Registries []RegistryConfig `json:"registries"`
+}
+
+// builtinRegistries are always available.
+var builtinRegistries = []RegistryConfig{
+	{ID: "dockerhub", Name: "Docker Hub", URL: "docker.io", IsPublic: true},
+	{ID: "ghcr", Name: "GitHub Container Registry", URL: "ghcr.io", IsPublic: true},
+	{ID: "gcr", Name: "Google Container Registry", URL: "gcr.io", IsPublic: true},
+}
+
 // List handles GET /api/v1/registries
 func (h *RegistryHandler) List(w http.ResponseWriter, _ *http.Request) {
-	// Built-in registries always available
-	registries := []map[string]any{
-		{"id": "dockerhub", "name": "Docker Hub", "url": "docker.io", "is_public": true},
-		{"id": "ghcr", "name": "GitHub Container Registry", "url": "ghcr.io", "is_public": true},
-		{"id": "gcr", "name": "Google Container Registry", "url": "gcr.io", "is_public": true},
+	all := make([]RegistryConfig, len(builtinRegistries))
+	copy(all, builtinRegistries)
+
+	// Load custom registries from BBolt
+	var list registryList
+	if err := h.bolt.Get("registries", "all", &list); err == nil {
+		all = append(all, list.Registries...)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": registries, "total": len(registries)})
+	writeJSON(w, http.StatusOK, map[string]any{"data": all, "total": len(all)})
 }
 
 type addRegistryRequest struct {
@@ -65,9 +79,36 @@ func (h *RegistryHandler) Add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newReg := RegistryConfig{
+		ID:       core.GenerateID(),
+		Name:     req.Name,
+		URL:      req.URL,
+		Username: req.Username,
+		IsPublic: false,
+	}
+
+	// Load existing custom registries
+	var list registryList
+	_ = h.bolt.Get("registries", "all", &list)
+
+	list.Registries = append(list.Registries, newReg)
+
+	if err := h.bolt.Set("registries", "all", list, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save registry")
+		return
+	}
+
+	// Store credentials separately (password never in the list response)
+	if req.Password != "" {
+		_ = h.bolt.Set("registry_creds", newReg.ID, map[string]string{
+			"username": req.Username,
+			"password": req.Password,
+		}, 0)
+	}
+
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"id":   core.GenerateID(),
-		"name": req.Name,
-		"url":  req.URL,
+		"id":   newReg.ID,
+		"name": newReg.Name,
+		"url":  newReg.URL,
 	})
 }

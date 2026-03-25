@@ -70,8 +70,7 @@ func TestDiskUsageHandler_SystemDisk(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestErrorPageHandler_Get(t *testing.T) {
-	store := newMockStore()
-	h := NewErrorPageHandler(store)
+	h := NewErrorPageHandler(newMockBoltStore())
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/error-pages", nil)
 	req.SetPathValue("id", "app-1")
@@ -84,8 +83,7 @@ func TestErrorPageHandler_Get(t *testing.T) {
 }
 
 func TestErrorPageHandler_Update(t *testing.T) {
-	store := newMockStore()
-	h := NewErrorPageHandler(store)
+	h := NewErrorPageHandler(newMockBoltStore())
 
 	body := `{"page_502":"<h1>Down</h1>","page_503":"<h1>Unavailable</h1>"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/error-pages", strings.NewReader(body))
@@ -104,8 +102,7 @@ func TestErrorPageHandler_Update(t *testing.T) {
 }
 
 func TestErrorPageHandler_Update_InvalidBody(t *testing.T) {
-	store := newMockStore()
-	h := NewErrorPageHandler(store)
+	h := NewErrorPageHandler(newMockBoltStore())
 
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/error-pages", strings.NewReader("not json"))
 	req.SetPathValue("id", "app-1")
@@ -1046,7 +1043,7 @@ func TestDNSRecordHandler_Delete_NoProvider(t *testing.T) {
 
 func TestDomainVerifyHandler_Verify_EmptyFQDN(t *testing.T) {
 	store := newMockStore()
-	h := NewDomainVerifyHandler(store)
+	h := NewDomainVerifyHandler(store, newMockBoltStore())
 
 	body := `{"fqdn":""}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/dom-1/verify", strings.NewReader(body))
@@ -1061,7 +1058,7 @@ func TestDomainVerifyHandler_Verify_EmptyFQDN(t *testing.T) {
 
 func TestDomainVerifyHandler_Verify_WithFQDN(t *testing.T) {
 	store := newMockStore()
-	h := NewDomainVerifyHandler(store)
+	h := NewDomainVerifyHandler(store, newMockBoltStore())
 
 	body := `{"fqdn":"localhost"}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/dom-1/verify", strings.NewReader(body))
@@ -1076,7 +1073,7 @@ func TestDomainVerifyHandler_Verify_WithFQDN(t *testing.T) {
 
 func TestDomainVerifyHandler_BatchVerify(t *testing.T) {
 	store := newMockStore()
-	h := NewDomainVerifyHandler(store)
+	h := NewDomainVerifyHandler(store, newMockBoltStore())
 
 	body := `{"fqdns":["localhost"]}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/verify-batch", strings.NewReader(body))
@@ -1090,7 +1087,7 @@ func TestDomainVerifyHandler_BatchVerify(t *testing.T) {
 
 func TestDomainVerifyHandler_BatchVerify_InvalidBody(t *testing.T) {
 	store := newMockStore()
-	h := NewDomainVerifyHandler(store)
+	h := NewDomainVerifyHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest("POST", "/api/v1/domains/verify-batch", strings.NewReader("bad"))
 	rr := httptest.NewRecorder()

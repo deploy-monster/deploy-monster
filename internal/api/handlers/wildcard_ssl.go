@@ -9,15 +9,16 @@ import (
 
 // WildcardSSLHandler manages wildcard SSL certificates via DNS-01 challenge.
 type WildcardSSLHandler struct {
-	store core.Store
+	bolt core.BoltStorer
 }
 
-func NewWildcardSSLHandler(store core.Store) *WildcardSSLHandler {
-	return &WildcardSSLHandler{store: store}
+func NewWildcardSSLHandler(bolt core.BoltStorer) *WildcardSSLHandler {
+	return &WildcardSSLHandler{bolt: bolt}
 }
 
 // WildcardCertConfig defines a wildcard SSL request.
 type WildcardCertConfig struct {
+	ID          string `json:"id"`
 	Domain      string `json:"domain"`       // e.g., example.com
 	Wildcard    string `json:"wildcard"`      // *.example.com
 	DNSProvider string `json:"dns_provider"` // cloudflare, route53
@@ -40,10 +41,23 @@ func (h *WildcardSSLHandler) Request(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, WildcardCertConfig{
+	certID := core.GenerateID()
+	cfg := WildcardCertConfig{
+		ID:          certID,
 		Domain:      req.Domain,
 		Wildcard:    "*." + req.Domain,
 		DNSProvider: req.DNSProvider,
 		Status:      "pending",
-	})
+	}
+
+	// Store the wildcard cert request
+	if err := h.bolt.Set("wildcard_ssl", certID, cfg, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save wildcard certificate request")
+		return
+	}
+
+	// Also index by domain for lookups
+	_ = h.bolt.Set("wildcard_ssl_domain", req.Domain, cfg, 0)
+
+	writeJSON(w, http.StatusAccepted, cfg)
 }

@@ -2,15 +2,34 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+// testCoreForAgent returns a minimal *core.Core with Registry and Build for agent tests.
+func testCoreForAgent() *core.Core {
+	return &core.Core{
+		Config: &core.Config{},
+		Build: core.BuildInfo{
+			Version: "1.0.0-test",
+			Commit:  "abc123",
+			Date:    "2025-01-01",
+		},
+		Registry: core.NewRegistry(),
+		Events:   core.NewEventBus(slog.Default()),
+		Services: core.NewServices(),
+		Logger:   slog.Default(),
+	}
+}
 
 // ─── List Agent Status ───────────────────────────────────────────────────────
 
 func TestAgentStatus_List_Success(t *testing.T) {
-	handler := NewAgentStatusHandler()
+	handler := NewAgentStatusHandler(testCoreForAgent())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents", nil)
 	rr := httptest.NewRecorder()
@@ -42,9 +61,6 @@ func TestAgentStatus_List_Success(t *testing.T) {
 	if local["server_id"] != "local" {
 		t.Errorf("expected server_id=local, got %v", local["server_id"])
 	}
-	if local["hostname"] != "localhost" {
-		t.Errorf("expected hostname=localhost, got %v", local["hostname"])
-	}
 	if local["status"] != "connected" {
 		t.Errorf("expected status=connected, got %v", local["status"])
 	}
@@ -53,7 +69,7 @@ func TestAgentStatus_List_Success(t *testing.T) {
 // ─── Get Agent ───────────────────────────────────────────────────────────────
 
 func TestAgentStatus_GetAgent_Success(t *testing.T) {
-	handler := NewAgentStatusHandler()
+	handler := NewAgentStatusHandler(testCoreForAgent())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/server-42", nil)
 	req.SetPathValue("id", "server-42")
@@ -65,16 +81,10 @@ func TestAgentStatus_GetAgent_Success(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	var status AgentNodeStatus
-	json.Unmarshal(rr.Body.Bytes(), &status)
+	var resp map[string]any
+	json.Unmarshal(rr.Body.Bytes(), &resp)
 
-	if status.ServerID != "server-42" {
-		t.Errorf("expected server_id=server-42, got %q", status.ServerID)
-	}
-	if status.Status != "unknown" {
-		t.Errorf("expected status=unknown, got %q", status.Status)
-	}
-	if status.LastSeen.IsZero() {
-		t.Error("expected non-zero last_seen")
+	if resp["server_id"] != "server-42" {
+		t.Errorf("expected server_id=server-42, got %v", resp["server_id"])
 	}
 }

@@ -12,7 +12,7 @@ import (
 
 func TestDBPool_Get_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewDBPoolHandler(store)
+	handler := NewDBPoolHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/databases/db1/pool", nil)
 	req.SetPathValue("id", "db1")
@@ -43,7 +43,7 @@ func TestDBPool_Get_Success(t *testing.T) {
 
 func TestDBPool_Update_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewDBPoolHandler(store)
+	handler := NewDBPoolHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(PoolConfig{
 		MaxConnections: 50,
@@ -85,7 +85,7 @@ func TestDBPool_Update_Success(t *testing.T) {
 
 func TestDBPool_Update_InvalidJSON(t *testing.T) {
 	store := newMockStore()
-	handler := NewDBPoolHandler(store)
+	handler := NewDBPoolHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/databases/db1/pool", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "db1")

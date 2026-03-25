@@ -153,7 +153,7 @@ func TestServerMetrics_CustomPeriod(t *testing.T) {
 // ─── Metrics Export ──────────────────────────────────────────────────────────
 
 func TestMetricsExport_JSONFormat(t *testing.T) {
-	handler := NewMetricsExportHandler()
+	handler := NewMetricsExportHandler(newMockBoltStore(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/metrics/export?format=json", nil)
 	req.SetPathValue("id", "app12345")
@@ -187,7 +187,7 @@ func TestMetricsExport_JSONFormat(t *testing.T) {
 }
 
 func TestMetricsExport_CSVFormat(t *testing.T) {
-	handler := NewMetricsExportHandler()
+	handler := NewMetricsExportHandler(newMockBoltStore(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/metrics/export?format=csv", nil)
 	req.SetPathValue("id", "app12345")
@@ -222,7 +222,7 @@ func TestMetricsExport_CSVFormat(t *testing.T) {
 }
 
 func TestMetricsExport_DefaultFormat(t *testing.T) {
-	handler := NewMetricsExportHandler()
+	handler := NewMetricsExportHandler(newMockBoltStore(), nil)
 
 	// No format param — defaults to JSON
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/metrics/export", nil)

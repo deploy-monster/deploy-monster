@@ -9,11 +9,11 @@ import (
 
 // StickySessionHandler configures session affinity for load-balanced apps.
 type StickySessionHandler struct {
-	store core.Store
+	bolt core.BoltStorer
 }
 
-func NewStickySessionHandler(store core.Store) *StickySessionHandler {
-	return &StickySessionHandler{store: store}
+func NewStickySessionHandler(bolt core.BoltStorer) *StickySessionHandler {
+	return &StickySessionHandler{bolt: bolt}
 }
 
 // StickySessionConfig holds cookie-based session affinity settings.
@@ -26,25 +26,45 @@ type StickySessionConfig struct {
 	SameSite string `json:"same_site"` // lax, strict, none
 }
 
-// Get handles GET /api/v1/apps/{id}/sticky-sessions
-func (h *StickySessionHandler) Get(w http.ResponseWriter, r *http.Request) {
-	_ = r.PathValue("id")
-	writeJSON(w, http.StatusOK, StickySessionConfig{
+// defaultStickyConfig returns secure defaults.
+func defaultStickyConfig() StickySessionConfig {
+	return StickySessionConfig{
 		Enabled: false, Cookie: "MONSTER_AFFINITY", MaxAge: 3600,
 		Secure: true, HTTPOnly: true, SameSite: "lax",
-	})
+	}
+}
+
+// Get handles GET /api/v1/apps/{id}/sticky-sessions
+func (h *StickySessionHandler) Get(w http.ResponseWriter, r *http.Request) {
+	appID := r.PathValue("id")
+
+	var cfg StickySessionConfig
+	if err := h.bolt.Get("sticky_sessions", appID, &cfg); err != nil {
+		writeJSON(w, http.StatusOK, defaultStickyConfig())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, cfg)
 }
 
 // Update handles PUT /api/v1/apps/{id}/sticky-sessions
 func (h *StickySessionHandler) Update(w http.ResponseWriter, r *http.Request) {
 	appID := r.PathValue("id")
+
 	var cfg StickySessionConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+
 	if cfg.Cookie == "" {
 		cfg.Cookie = "MONSTER_AFFINITY"
 	}
+
+	if err := h.bolt.Set("sticky_sessions", appID, cfg, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save sticky session config")
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{"app_id": appID, "config": cfg, "status": "updated"})
 }

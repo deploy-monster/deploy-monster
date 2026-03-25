@@ -12,32 +12,46 @@ import (
 // DomainVerifyHandler manages DNS verification for domains.
 type DomainVerifyHandler struct {
 	store core.Store
+	bolt  core.BoltStorer
 }
 
-func NewDomainVerifyHandler(store core.Store) *DomainVerifyHandler {
-	return &DomainVerifyHandler{store: store}
+func NewDomainVerifyHandler(store core.Store, bolt core.BoltStorer) *DomainVerifyHandler {
+	return &DomainVerifyHandler{store: store, bolt: bolt}
 }
 
 // VerifyResult holds the DNS verification result for a domain.
 type VerifyResult struct {
-	FQDN       string   `json:"fqdn"`
-	Verified   bool     `json:"verified"`
-	Records    []string `json:"records,omitempty"`
-	Error      string   `json:"error,omitempty"`
-	CheckedAt  string   `json:"checked_at"`
+	FQDN      string   `json:"fqdn"`
+	Verified  bool     `json:"verified"`
+	Records   []string `json:"records,omitempty"`
+	Error     string   `json:"error,omitempty"`
+	CheckedAt string   `json:"checked_at"`
+}
+
+// domainVerifyRecord persisted in BBolt for audit/history.
+type domainVerifyRecord struct {
+	DomainID  string `json:"domain_id"`
+	FQDN      string `json:"fqdn"`
+	Verified  bool   `json:"verified"`
+	CheckedAt string `json:"checked_at"`
 }
 
 // Verify handles POST /api/v1/domains/{id}/verify
 func (h *DomainVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	domainID := r.PathValue("id")
 
-	// Would look up domain by ID from store
-	_ = domainID
-
 	var req struct {
 		FQDN string `json:"fqdn"`
 	}
 	json.NewDecoder(r.Body).Decode(&req)
+
+	// If FQDN not provided in body, try to look it up from stored records
+	if req.FQDN == "" {
+		var record domainVerifyRecord
+		if err := h.bolt.Get("domain_verify", domainID, &record); err == nil && record.FQDN != "" {
+			req.FQDN = record.FQDN
+		}
+	}
 
 	if req.FQDN == "" {
 		writeError(w, http.StatusBadRequest, "fqdn required")
@@ -45,6 +59,16 @@ func (h *DomainVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := verifyDNS(req.FQDN)
+
+	// Persist the verification result
+	record := domainVerifyRecord{
+		DomainID:  domainID,
+		FQDN:      req.FQDN,
+		Verified:  result.Verified,
+		CheckedAt: result.CheckedAt,
+	}
+	_ = h.bolt.Set("domain_verify", domainID, record, 0)
+
 	writeJSON(w, http.StatusOK, result)
 }
 

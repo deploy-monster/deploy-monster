@@ -106,7 +106,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/transfer", protected(http.HandlerFunc(txfrH.TransferApp)))
 
 	// ── Metrics Export ────────────────────────────────
-	mxExportH := handlers.NewMetricsExportHandler()
+	mxExportH := handlers.NewMetricsExportHandler(r.core.DB.Bolt, r.core.Services.Container)
 	r.mux.Handle("GET /api/v1/apps/{id}/metrics/export", protected(http.HandlerFunc(mxExportH.Export)))
 
 	// ── App Rename ────────────────────────────────────
@@ -114,7 +114,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/rename", protected(http.HandlerFunc(renameH.Rename)))
 
 	// ── GPU Config ────────────────────────────────────
-	gpuH := handlers.NewGPUHandler(r.store)
+	gpuH := handlers.NewGPUHandler(r.store, r.core.Services.Container, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Update)))
 
@@ -144,7 +144,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/snapshots", protected(http.HandlerFunc(snapH.Create)))
 
 	// ── Service Links (Mesh) ──────────────────────────
-	meshH := handlers.NewServiceMeshHandler(r.store)
+	meshH := handlers.NewServiceMeshHandler(r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/links", protected(http.HandlerFunc(meshH.List)))
 	r.mux.Handle("POST /api/v1/apps/{id}/links", protected(http.HandlerFunc(meshH.Create)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/links/{targetId}", protected(http.HandlerFunc(meshH.Delete)))
@@ -173,7 +173,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/disk", protected(http.HandlerFunc(diskH.AppDisk)))
 
 	// ── Webhook Test ──────────────────────────────────
-	whTestH := handlers.NewWebhookTestDeliveryHandler(r.core.Events)
+	whTestH := handlers.NewWebhookTestDeliveryHandler(r.core.Events, r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/test", protected(http.HandlerFunc(whTestH.TestDeliver)))
 
 	// ── App Ports ─────────────────────────────────────
@@ -235,18 +235,18 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/maintenance", protected(http.HandlerFunc(maintH.Update)))
 
 	// ── Redirects ─────────────────────────────────────
-	redirH := handlers.NewRedirectHandler(r.store)
+	redirH := handlers.NewRedirectHandler(r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.List)))
 	r.mux.Handle("POST /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.Create)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/redirects/{ruleId}", protected(http.HandlerFunc(redirH.Delete)))
 
 	// ── Error Pages ───────────────────────────────────
-	epH := handlers.NewErrorPageHandler(r.store)
+	epH := handlers.NewErrorPageHandler(r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/error-pages", protected(http.HandlerFunc(epH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/error-pages", protected(http.HandlerFunc(epH.Update)))
 
 	// ── Sticky Sessions ───────────────────────────────
-	stickyH := handlers.NewStickySessionHandler(r.store)
+	stickyH := handlers.NewStickySessionHandler(r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/sticky-sessions", protected(http.HandlerFunc(stickyH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/sticky-sessions", protected(http.HandlerFunc(stickyH.Update)))
 
@@ -256,7 +256,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Update)))
 
 	// ── Response Headers ──────────────────────────────
-	rhH := handlers.NewResponseHeadersHandler(r.store)
+	rhH := handlers.NewResponseHeadersHandler(r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/response-headers", protected(http.HandlerFunc(rhH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/response-headers", protected(http.HandlerFunc(rhH.Update)))
 
@@ -353,7 +353,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/domains/ssl-check", protected(http.HandlerFunc(sslStatH.Check)))
 
 	// ── Agents ────────────────────────────────────────
-	agentH := handlers.NewAgentStatusHandler()
+	agentH := handlers.NewAgentStatusHandler(r.core)
 	r.mux.Handle("GET /api/v1/agents", protected(http.HandlerFunc(agentH.List)))
 	r.mux.Handle("GET /api/v1/agents/{id}", protected(http.HandlerFunc(agentH.GetAgent)))
 
@@ -362,7 +362,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/logs", protected(http.HandlerFunc(logH.GetLogs)))
 
 	// ── Domain Verification ──────────────────────────
-	dvH := handlers.NewDomainVerifyHandler(r.store)
+	dvH := handlers.NewDomainVerifyHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/domains/{id}/verify", protected(http.HandlerFunc(dvH.Verify)))
 	r.mux.Handle("POST /api/v1/domains/verify-batch", protected(http.HandlerFunc(dvH.BatchVerify)))
 
@@ -372,7 +372,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/certificates", protected(http.HandlerFunc(certH.Upload)))
 
 	// ── Wildcard SSL ──────────────────────────────────
-	wildcardH := handlers.NewWildcardSSLHandler(r.store)
+	wildcardH := handlers.NewWildcardSSLHandler(r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/certificates/wildcard", protected(http.HandlerFunc(wildcardH.Request)))
 
 	// ── Image Tags & Cleanup ──────────────────────────
@@ -400,7 +400,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/env", protected(http.HandlerFunc(envH.Update)))
 
 	// ── Docker Registries ─────────────────────────────
-	regH := handlers.NewRegistryHandler(r.store)
+	regH := handlers.NewRegistryHandler(r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/registries", protected(http.HandlerFunc(regH.List)))
 	r.mux.Handle("POST /api/v1/registries", protected(http.HandlerFunc(regH.Add)))
 
@@ -426,7 +426,7 @@ func (r *Router) registerRoutes() {
 	dbH := handlers.NewDatabaseHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.HandleFunc("GET /api/v1/databases/engines", dbH.ListEngines)
 	r.mux.Handle("POST /api/v1/databases", protected(http.HandlerFunc(dbH.Create)))
-	dbPoolH := handlers.NewDBPoolHandler(r.store)
+	dbPoolH := handlers.NewDBPoolHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/databases/{id}/pool", protected(http.HandlerFunc(dbPoolH.Get)))
 	r.mux.Handle("PUT /api/v1/databases/{id}/pool", protected(http.HandlerFunc(dbPoolH.Update)))
 
@@ -452,7 +452,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/servers/{id}/reboot", protected(http.HandlerFunc(srvMgmtH.Reboot)))
 
 	// ── Build Cache ──────────────────────────────────
-	bcH := handlers.NewBuildCacheHandler(r.core.Services.Container)
+	bcH := handlers.NewBuildCacheHandler(r.core.Services.Container, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/build/cache", protected(http.HandlerFunc(bcH.Stats)))
 	r.mux.Handle("DELETE /api/v1/build/cache", protected(http.HandlerFunc(bcH.Clear)))
 
@@ -493,7 +493,7 @@ func (r *Router) registerRoutes() {
 	billingH := handlers.NewBillingHandler(r.store)
 	r.mux.HandleFunc("GET /api/v1/billing/plans", billingH.ListPlans)
 	r.mux.Handle("GET /api/v1/billing/usage", protected(http.HandlerFunc(billingH.GetUsage)))
-	usageHistH := handlers.NewUsageHistoryHandler(r.store)
+	usageHistH := handlers.NewUsageHistoryHandler(r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/billing/usage/history", protected(http.HandlerFunc(usageHistH.Hourly)))
 
 	// ── Marketplace (public list, auth for deploy) ────
@@ -555,7 +555,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/ssh-keys/generate", protected(http.HandlerFunc(sshH.Generate)))
 
 	// ── MCP Protocol ──────────────────────────────────
-	mcpH := handlers.NewMCPHandler(r.store, r.core.Services.Container, r.core.Events)
+	mcpH := handlers.NewMCPHandler(r.core, r.store, r.core.Services.Container, r.core.Events)
 	r.mux.HandleFunc("GET /mcp/v1/tools", mcpH.ListTools)
 	r.mux.HandleFunc("POST /mcp/v1/tools/{name}", mcpH.CallTool)
 
@@ -575,7 +575,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/admin/disk", protected(http.HandlerFunc(diskH.SystemDisk)))
 
 	// ── Tenant Rate Limits (super admin) ──────────────
-	trlH := handlers.NewTenantRateLimitHandler(r.store)
+	trlH := handlers.NewTenantRateLimitHandler(r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/admin/tenants/{id}/ratelimit", protected(http.HandlerFunc(trlH.Get)))
 	r.mux.Handle("PUT /api/v1/admin/tenants/{id}/ratelimit", protected(http.HandlerFunc(trlH.Update)))
 
@@ -584,7 +584,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/admin/stats", protected(http.HandlerFunc(platH.Overview)))
 
 	// ── License ──────────────────────────────────────
-	licH := handlers.NewLicenseHandler()
+	licH := handlers.NewLicenseHandler(r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/admin/license", protected(http.HandlerFunc(licH.Get)))
 	r.mux.Handle("POST /api/v1/admin/license", protected(http.HandlerFunc(licH.Activate)))
 
@@ -610,7 +610,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/admin/tenants", protected(http.HandlerFunc(adminH.ListTenants)))
 
 	// ── Self-Update ──────────────────────────────────
-	updateH := handlers.NewSelfUpdateHandler(r.core.Build.Version)
+	updateH := handlers.NewSelfUpdateHandler(r.core)
 	r.mux.Handle("GET /api/v1/admin/updates", protected(http.HandlerFunc(updateH.CheckUpdate)))
 
 	// ── Branding (public GET, admin PATCH) ────────────
