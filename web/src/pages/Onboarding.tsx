@@ -1,13 +1,34 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Rocket, Server, Globe, GitBranch, Check } from 'lucide-react';
+import { Rocket, Server, Globe, GitBranch, Check, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const steps = [
-  { icon: Rocket, title: 'Welcome', desc: 'Let\'s set up your platform' },
+  { icon: Rocket, title: 'Welcome', desc: "Let's set up your platform" },
   { icon: Server, title: 'Server', desc: 'Configure your server' },
   { icon: Globe, title: 'Domain', desc: 'Set your platform domain' },
   { icon: GitBranch, title: 'Git', desc: 'Connect a Git provider' },
-  { icon: Check, title: 'Done', desc: 'You\'re all set!' },
+  { icon: Check, title: 'Done', desc: "You're all set!" },
+];
+
+const serverInfo = [
+  { label: 'Hostname', value: 'localhost', className: 'text-foreground font-mono' },
+  { label: 'Docker', value: 'Connected', className: 'text-emerald-500' },
+  { label: 'SSL', value: "Auto (Let's Encrypt)", className: 'text-foreground' },
+  { label: 'Ports', value: '80, 443, 8443', className: 'text-foreground' },
+];
+
+const gitProviders = ['GitHub', 'GitLab', 'Gitea'] as const;
+
+const quickActions = [
+  'Deploy an app from the Marketplace',
+  'Connect your Git repository',
+  'Deploy a Docker image',
+  'Invite your team members',
 ];
 
 export function Onboarding() {
@@ -19,106 +40,151 @@ export function Onboarding() {
   });
 
   const next = () => {
-    if (step < steps.length - 1) setStep(step + 1);
-    else {
+    if (step < steps.length - 1) {
+      setStep(step + 1);
+    } else {
       localStorage.setItem('onboarding_complete', 'true');
       navigate('/');
     }
   };
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-lg space-y-8">
         {/* Progress dots */}
         <div className="flex justify-center gap-2">
           {steps.map((_, i) => (
-            <div key={i} className={`w-2.5 h-2.5 rounded-full transition-colors ${
-              i <= step ? 'bg-monster-green' : 'bg-border'
-            }`} />
+            <div
+              key={i}
+              className={cn(
+                'h-2.5 w-2.5 rounded-full transition-colors',
+                i <= step ? 'bg-primary' : 'bg-muted'
+              )}
+            />
           ))}
         </div>
 
         {/* Step content */}
-        <div className="bg-surface border border-border rounded-2xl p-8 text-center">
-          {step === 0 && (
-            <div className="space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-monster-green mx-auto flex items-center justify-center text-white">
-                <Rocket size={32} />
+        <Card>
+          <CardContent className="text-center">
+            {step === 0 && (
+              <div className="space-y-4">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+                  <Rocket size={32} />
+                </div>
+                <CardTitle className="text-2xl">Welcome to DeployMonster</CardTitle>
+                <CardDescription className="text-base">
+                  Your self-hosted PaaS is ready. Let's configure a few things to get you started.
+                </CardDescription>
               </div>
-              <h1 className="text-2xl font-semibold text-text-primary">Welcome to DeployMonster</h1>
-              <p className="text-text-secondary">Your self-hosted PaaS is ready. Let's configure a few things to get you started.</p>
-            </div>
-          )}
+            )}
 
-          {step === 1 && (
-            <div className="space-y-4 text-left">
-              <h2 className="text-xl font-semibold text-text-primary text-center">Server Configuration</h2>
-              <p className="text-sm text-text-secondary text-center">Your server is already running. Here's what we detected:</p>
-              <div className="bg-surface-secondary rounded-xl p-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-text-secondary">Hostname</span><span className="text-text-primary font-mono">localhost</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">Docker</span><span className="text-status-running">Connected</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">SSL</span><span className="text-text-primary">Auto (Let's Encrypt)</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">Ports</span><span className="text-text-primary">80, 443, 8443</span></div>
+            {step === 1 && (
+              <div className="space-y-4">
+                <CardTitle className="text-xl">Server Configuration</CardTitle>
+                <CardDescription>
+                  Your server is already running. Here's what we detected:
+                </CardDescription>
+                <Card className="border-muted bg-muted/30 py-4 shadow-none">
+                  <CardContent className="space-y-2 text-sm">
+                    {serverInfo.map(({ label, value, className }) => (
+                      <div key={label} className="flex justify-between">
+                        <span className="text-muted-foreground">{label}</span>
+                        <span className={className}>{value}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
               </div>
-            </div>
-          )}
+            )}
 
-          {step === 2 && (
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-text-primary">Platform Domain</h2>
-              <p className="text-sm text-text-secondary">Set your platform's domain for accessing the dashboard and auto-subdomains.</p>
-              <input type="text" value={config.domain} onChange={(e) => setConfig({ ...config, domain: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-text-primary text-center focus:ring-2 focus:ring-monster-green/50"
-                placeholder="deploy.example.com" />
-              <p className="text-xs text-text-muted">Apps will get subdomains like app-name.deploy.example.com</p>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-text-primary">Connect Git Provider</h2>
-              <p className="text-sm text-text-secondary">Connect a Git provider to enable auto-deploy from push.</p>
-              <div className="grid grid-cols-3 gap-3">
-                {['GitHub', 'GitLab', 'Gitea'].map((p) => (
-                  <button key={p} onClick={() => setConfig({ ...config, gitProvider: p.toLowerCase() })}
-                    className={`p-4 rounded-xl border text-sm font-medium transition-colors ${
-                      config.gitProvider === p.toLowerCase()
-                        ? 'border-monster-green bg-monster-green/5 text-monster-green'
-                        : 'border-border text-text-secondary hover:border-monster-green/30'
-                    }`}>
-                    {p}
-                  </button>
-                ))}
+            {step === 2 && (
+              <div className="space-y-4">
+                <CardTitle className="text-xl">Platform Domain</CardTitle>
+                <CardDescription>
+                  Set your platform's domain for accessing the dashboard and auto-subdomains.
+                </CardDescription>
+                <div className="space-y-2">
+                  <Label htmlFor="domain" className="sr-only">
+                    Platform Domain
+                  </Label>
+                  <Input
+                    id="domain"
+                    type="text"
+                    value={config.domain}
+                    onChange={(e) => setConfig({ ...config, domain: e.target.value })}
+                    placeholder="deploy.example.com"
+                    className="text-center"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Apps will get subdomains like app-name.deploy.example.com
+                  </p>
+                </div>
               </div>
-              <button className="text-sm text-text-muted hover:text-text-secondary">Skip for now</button>
-            </div>
-          )}
+            )}
 
-          {step === 4 && (
-            <div className="space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-monster-green mx-auto flex items-center justify-center text-white">
-                <Check size={32} />
+            {step === 3 && (
+              <div className="space-y-4">
+                <CardTitle className="text-xl">Connect Git Provider</CardTitle>
+                <CardDescription>
+                  Connect a Git provider to enable auto-deploy from push.
+                </CardDescription>
+                <div className="grid grid-cols-3 gap-3">
+                  {gitProviders.map((provider) => (
+                    <Button
+                      key={provider}
+                      variant="outline"
+                      className={cn(
+                        'h-auto py-4 text-sm font-medium',
+                        config.gitProvider === provider.toLowerCase() &&
+                          'ring-2 ring-primary border-primary bg-primary/5 text-primary'
+                      )}
+                      onClick={() => setConfig({ ...config, gitProvider: provider.toLowerCase() })}
+                    >
+                      {provider}
+                    </Button>
+                  ))}
+                </div>
+                <button
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={next}
+                >
+                  Skip for now
+                </button>
               </div>
-              <h2 className="text-xl font-semibold text-text-primary">You're All Set!</h2>
-              <p className="text-text-secondary">Your DeployMonster platform is configured and ready to deploy.</p>
-              <div className="bg-surface-secondary rounded-xl p-4 text-sm text-left space-y-2">
-                <p className="font-medium text-text-primary">Quick actions:</p>
-                <ul className="space-y-1 text-text-secondary">
-                  <li>Deploy an app from the Marketplace</li>
-                  <li>Connect your Git repository</li>
-                  <li>Deploy a Docker image</li>
-                  <li>Invite your team members</li>
-                </ul>
-              </div>
-            </div>
-          )}
+            )}
 
-          {/* Next button */}
-          <button onClick={next}
-            className="mt-6 w-full py-3 bg-monster-green hover:bg-monster-green-dark text-white font-medium rounded-xl transition-colors">
-            {step === steps.length - 1 ? 'Go to Dashboard' : 'Continue'}
-          </button>
-        </div>
+            {step === 4 && (
+              <div className="space-y-4">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+                  <Check size={32} />
+                </div>
+                <CardTitle className="text-xl">You're All Set!</CardTitle>
+                <CardDescription className="text-base">
+                  Your DeployMonster platform is configured and ready to deploy.
+                </CardDescription>
+                <Card className="border-muted bg-muted/30 py-4 shadow-none text-left">
+                  <CardContent className="space-y-2 text-sm">
+                    <p className="font-medium text-foreground">Quick actions:</p>
+                    <ul className="space-y-1 text-muted-foreground">
+                      {quickActions.map((action) => (
+                        <li key={action} className="flex items-center gap-2">
+                          <ChevronRight size={14} className="text-primary shrink-0" />
+                          {action}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Next / Finish button */}
+            <Button onClick={next} className="mt-6 w-full" size="lg">
+              {step === steps.length - 1 ? 'Go to Dashboard' : 'Continue'}
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

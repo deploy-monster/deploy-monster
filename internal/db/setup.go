@@ -173,7 +173,7 @@ func (s *SQLiteDB) DeleteProject(ctx context.Context, id string) error {
 // CreateAuditLog inserts an audit log entry.
 func (s *SQLiteDB) CreateAuditLog(ctx context.Context, entry *core.AuditEntry) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO audit_logs (tenant_id, user_id, action, resource_type, resource_id, details_json, ip_address, user_agent)
+		`INSERT INTO audit_log (tenant_id, user_id, action, resource_type, resource_id, details_json, ip_address, user_agent)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		entry.TenantID, entry.UserID, entry.Action, entry.ResourceType,
 		entry.ResourceID, entry.DetailsJSON, entry.IPAddress, entry.UserAgent,
@@ -185,7 +185,7 @@ func (s *SQLiteDB) CreateAuditLog(ctx context.Context, entry *core.AuditEntry) e
 func (s *SQLiteDB) ListAuditLogs(ctx context.Context, tenantID string, limit, offset int) ([]core.AuditEntry, int, error) {
 	var total int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM audit_logs WHERE tenant_id = ?`, tenantID,
+		`SELECT COUNT(*) FROM audit_log WHERE tenant_id = ?`, tenantID,
 	).Scan(&total)
 	if err != nil {
 		return nil, 0, err
@@ -194,7 +194,7 @@ func (s *SQLiteDB) ListAuditLogs(ctx context.Context, tenantID string, limit, of
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, tenant_id, user_id, action, resource_type, resource_id, details_json,
 		        ip_address, user_agent, created_at
-		 FROM audit_logs WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+		 FROM audit_log WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
 		tenantID, limit, offset,
 	)
 	if err != nil {
