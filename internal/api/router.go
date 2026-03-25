@@ -411,7 +411,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("DELETE /api/v1/domains/{id}", protected(http.HandlerFunc(domH.Delete)))
 
 	// ── Container Exec ────────────────────────────────
-	execH := handlers.NewExecHandler(r.core.Services.Container)
+	execH := handlers.NewExecHandler(r.core.Services.Container, r.store, r.core.Logger)
 	r.mux.Handle("POST /api/v1/apps/{id}/exec", protected(http.HandlerFunc(execH.Exec)))
 
 	// ── Team ───────────────────────────────────────────
@@ -531,7 +531,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/notifications/test", protected(http.HandlerFunc(notifH.Test)))
 
 	// ── Terminal ──────────────────────────────────────
-	termH := ws.NewTerminal(r.core.Services.Container, r.core.Logger)
+	termH := ws.NewTerminal(r.core.Services.Container, r.store, r.core.Logger)
 	r.mux.Handle("GET /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.StreamOutput)))
 	r.mux.Handle("POST /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.SendCommand)))
 

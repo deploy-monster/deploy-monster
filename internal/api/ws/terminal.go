@@ -16,10 +16,11 @@ import (
 // Uses a bidirectional SSE+POST pattern since we avoid external WebSocket deps.
 //
 // Client flow:
-//  1. GET /api/v1/apps/{id}/terminal — SSE stream for stdout
-//  2. POST /api/v1/apps/{id}/terminal — send stdin commands
+//  1. GET /api/v1/apps/{id}/terminal — SSE stream for stdout/logs
+//  2. POST /api/v1/apps/{id}/terminal — send stdin commands, get output back
 type Terminal struct {
 	runtime core.ContainerRuntime
+	store   core.Store
 	logger  *slog.Logger
 	mu      sync.RWMutex
 	sessions map[string]*termSession
@@ -32,9 +33,10 @@ type termSession struct {
 }
 
 // NewTerminal creates a container terminal handler.
-func NewTerminal(runtime core.ContainerRuntime, logger *slog.Logger) *Terminal {
+func NewTerminal(runtime core.ContainerRuntime, store core.Store, logger *slog.Logger) *Terminal {
 	return &Terminal{
 		runtime:  runtime,
+		store:    store,
 		logger:   logger,
 		sessions: make(map[string]*termSession),
 	}
@@ -61,6 +63,7 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 
 	flusher, ok := w.(http.Flusher)
@@ -80,9 +83,18 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 	}
 	defer logReader.Close()
 
-	// Send session ID
+	// Send session ID so the client can correlate POST commands
 	sessionID := core.GenerateID()
 	w.Write([]byte("event: session\ndata: " + sessionID + "\n\n"))
+	flusher.Flush()
+
+	// Send connection confirmation with container info
+	connData, _ := json.Marshal(map[string]string{
+		"container_id": containers[0].ID[:12],
+		"image":        containers[0].Image,
+		"status":       containers[0].State,
+	})
+	w.Write([]byte("event: connected\ndata: " + string(connData) + "\n\n"))
 	flusher.Flush()
 
 	scanner := bufio.NewScanner(logReader)
@@ -94,7 +106,15 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 }
 
 // SendCommand handles POST /api/v1/apps/{id}/terminal
-// Executes a command in the container and returns output.
+// Executes a command in the container via runtime.Exec and returns output.
+//
+// Request body:
+//
+//	{"command": "ls -la"}
+//
+// Response:
+//
+//	{"output": "...", "exit_code": 0, "container_id": "abc123def456"}
 func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 	appID := r.PathValue("id")
 
@@ -111,26 +131,59 @@ func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verify the app exists
+	if t.store != nil {
+		if _, err := t.store.GetApp(r.Context(), appID); err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "app not found"})
+			return
+		}
+	}
+
 	containers, err := t.runtime.ListByLabels(r.Context(), map[string]string{
 		"monster.app.id": appID,
 	})
-	if err != nil || len(containers) == 0 {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no container found"})
+	if err != nil {
+		t.logger.Error("list containers for terminal", "app_id", appID, "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to find container"})
+		return
+	}
+	if len(containers) == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no running container for this app"})
 		return
 	}
 
-	t.logger.Info("terminal command",
+	containerID := containers[0].ID
+
+	t.logger.Info("terminal exec",
 		"app_id", appID,
-		"container", containers[0].ID[:12],
+		"container", containerID[:12],
 		"command", req.Command,
 	)
 
-	// In production, this would create a docker exec instance
-	// and stream I/O. For now, return acknowledgment.
+	// Execute the command via sh -c for shell interpretation
+	cmd := []string{"sh", "-c", req.Command}
+	output, err := t.runtime.Exec(r.Context(), containerID, cmd)
+	if err != nil {
+		t.logger.Error("terminal exec failed",
+			"app_id", appID,
+			"container", containerID[:12],
+			"command", req.Command,
+			"error", err,
+		)
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"output":       output,
+			"exit_code":    1,
+			"container_id": containerID[:12],
+			"error":        err.Error(),
+		})
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"container_id": containers[0].ID[:12],
-		"command":      req.Command,
-		"status":       "executed",
+		"output":       output,
+		"exit_code":    0,
+		"container_id": containerID[:12],
 	})
 }
 

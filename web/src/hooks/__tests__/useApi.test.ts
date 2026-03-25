@@ -40,7 +40,7 @@ describe('useApi', () => {
   })
 
   it('returns data on successful fetch', async () => {
-    const mockData = { data: [{ id: '1', name: 'my-app' }] }
+    const mockData = [{ id: '1', name: 'my-app' }]
     mockedApi.get.mockResolvedValue(mockData)
 
     const { result } = renderHook(() => useApi('/apps'))
@@ -49,7 +49,7 @@ describe('useApi', () => {
       expect(result.current.loading).toBe(false)
     })
 
-    expect(result.current.data).toEqual(mockData.data)
+    expect(result.current.data).toEqual(mockData)
     expect(result.current.error).toBeNull()
     expect(mockedApi.get).toHaveBeenCalledWith('/apps')
   })
@@ -80,7 +80,7 @@ describe('useApi', () => {
   })
 
   it('refetch triggers a new request', async () => {
-    const mockData = { data: { count: 1 } }
+    const mockData = { count: 1 }
     mockedApi.get.mockResolvedValue(mockData)
 
     const { result } = renderHook(() => useApi('/stats'))
@@ -100,7 +100,7 @@ describe('useApi', () => {
 
   it('handles polling with refreshInterval', async () => {
     vi.useFakeTimers()
-    const mockData = { data: { status: 'ok' } }
+    const mockData = { status: 'ok' }
     mockedApi.get.mockResolvedValue(mockData)
 
     renderHook(() => useApi('/health', { refreshInterval: 5000 }))
@@ -137,7 +137,7 @@ describe('useMutation', () => {
   })
 
   it('returns data on successful mutation', async () => {
-    const responseData = { data: { id: '123', name: 'new-app' } }
+    const responseData = { id: '123', name: 'new-app' }
     mockedApi.post.mockResolvedValue(responseData)
 
     const { result } = renderHook(() => useMutation('post', '/apps'))
@@ -146,7 +146,7 @@ describe('useMutation', () => {
       await result.current.mutate({ name: 'new-app' })
     })
 
-    expect(result.current.data).toEqual(responseData.data)
+    expect(result.current.data).toEqual(responseData)
     expect(result.current.error).toBeNull()
     expect(result.current.loading).toBe(false)
     expect(mockedApi.post).toHaveBeenCalledWith('/apps', { name: 'new-app' })
@@ -170,7 +170,7 @@ describe('useMutation', () => {
   })
 
   it('uses the correct HTTP method', async () => {
-    mockedApi.patch.mockResolvedValue({ data: { updated: true } })
+    mockedApi.patch.mockResolvedValue({ updated: true })
 
     const { result } = renderHook(() => useMutation('patch', '/apps/123'))
 
