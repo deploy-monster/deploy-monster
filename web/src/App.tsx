@@ -27,6 +27,7 @@ const Team = lazy(() => import('./pages/Team').then(m => ({ default: m.Team })))
 const Billing = lazy(() => import('./pages/Billing').then(m => ({ default: m.Billing })));
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const Monitoring = lazy(() => import('./pages/Monitoring').then(m => ({ default: m.Monitoring })));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="git" element={<GitSources />} />
             <Route path="backups" element={<Backups />} />
             <Route path="secrets" element={<Secrets />} />
+            <Route path="monitoring" element={<Monitoring />} />
             <Route path="admin" element={<Admin />} />
             <Route path="settings" element={<Settings />} />
           </Route>
