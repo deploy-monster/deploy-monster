@@ -1,0 +1,1 @@
+import{i as e,n as t,o as n}from"./button-vlD81DGf.js";n();var r=t();function i({className:t,ref:n,...i}){return(0,r.jsx)(`label`,{className:e(`flex items-center gap-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70`,t),ref:n,...i})}export{i as t};

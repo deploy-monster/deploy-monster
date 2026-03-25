@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { useAuthStore } from './stores/auth';
 import { useThemeStore } from './stores/theme';
@@ -6,25 +6,27 @@ import { AppLayout } from './components/layout/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastContainer } from './components/Toast';
 import { FullPageLoader } from './components/Spinner';
-import { Login } from './pages/Login';
-import { Register } from './pages/Register';
-import { NotFound } from './pages/NotFound';
-import { Dashboard } from './pages/Dashboard';
-import { Apps } from './pages/Apps';
-import { AppDetail } from './pages/AppDetail';
-import { Marketplace } from './pages/Marketplace';
-import { Databases } from './pages/Databases';
-import { Servers } from './pages/Servers';
-import { Settings } from './pages/Settings';
-import { DeployWizard } from './pages/DeployWizard';
-import { Domains } from './pages/Domains';
-import { Onboarding } from './pages/Onboarding';
-import { Team } from './pages/Team';
-import { Billing } from './pages/Billing';
-import { GitSources } from './pages/GitSources';
-import { Backups } from './pages/Backups';
-import { Secrets } from './pages/Secrets';
-import { Admin } from './pages/Admin';
+
+// Lazy-loaded pages (code splitting)
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const Register = lazy(() => import('./pages/Register').then(m => ({ default: m.Register })));
+const Onboarding = lazy(() => import('./pages/Onboarding').then(m => ({ default: m.Onboarding })));
+const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const Apps = lazy(() => import('./pages/Apps').then(m => ({ default: m.Apps })));
+const AppDetail = lazy(() => import('./pages/AppDetail').then(m => ({ default: m.AppDetail })));
+const DeployWizard = lazy(() => import('./pages/DeployWizard').then(m => ({ default: m.DeployWizard })));
+const Marketplace = lazy(() => import('./pages/Marketplace').then(m => ({ default: m.Marketplace })));
+const Domains = lazy(() => import('./pages/Domains').then(m => ({ default: m.Domains })));
+const Databases = lazy(() => import('./pages/Databases').then(m => ({ default: m.Databases })));
+const Servers = lazy(() => import('./pages/Servers').then(m => ({ default: m.Servers })));
+const GitSources = lazy(() => import('./pages/GitSources').then(m => ({ default: m.GitSources })));
+const Backups = lazy(() => import('./pages/Backups').then(m => ({ default: m.Backups })));
+const Secrets = lazy(() => import('./pages/Secrets').then(m => ({ default: m.Secrets })));
+const Team = lazy(() => import('./pages/Team').then(m => ({ default: m.Team })));
+const Billing = lazy(() => import('./pages/Billing').then(m => ({ default: m.Billing })));
+const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -53,37 +55,39 @@ export default function App() {
   return (
     <ErrorBoundary>
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/onboarding" element={<Onboarding />} />
+      <Suspense fallback={<FullPageLoader />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/onboarding" element={<Onboarding />} />
 
-        <Route
-          element={
-            <ProtectedRoute>
-              <AppLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Dashboard />} />
-          <Route path="apps" element={<Apps />} />
-          <Route path="apps/new" element={<DeployWizard />} />
-          <Route path="apps/:id" element={<AppDetail />} />
-          <Route path="domains" element={<Domains />} />
-          <Route path="databases" element={<Databases />} />
-          <Route path="servers" element={<Servers />} />
-          <Route path="marketplace" element={<Marketplace />} />
-          <Route path="team" element={<Team />} />
-          <Route path="billing" element={<Billing />} />
-          <Route path="git" element={<GitSources />} />
-          <Route path="backups" element={<Backups />} />
-          <Route path="secrets" element={<Secrets />} />
-          <Route path="admin" element={<Admin />} />
-          <Route path="settings" element={<Settings />} />
-        </Route>
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="apps" element={<Apps />} />
+            <Route path="apps/new" element={<DeployWizard />} />
+            <Route path="apps/:id" element={<AppDetail />} />
+            <Route path="domains" element={<Domains />} />
+            <Route path="databases" element={<Databases />} />
+            <Route path="servers" element={<Servers />} />
+            <Route path="marketplace" element={<Marketplace />} />
+            <Route path="team" element={<Team />} />
+            <Route path="billing" element={<Billing />} />
+            <Route path="git" element={<GitSources />} />
+            <Route path="backups" element={<Backups />} />
+            <Route path="secrets" element={<Secrets />} />
+            <Route path="admin" element={<Admin />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
 
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
       <ToastContainer />
     </BrowserRouter>
     </ErrorBoundary>
