@@ -53,3 +53,4 @@ screenshots/
 # Database files
 *.db
 *.bolt
+*.test.exe
