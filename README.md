@@ -2,9 +2,10 @@
 
 **Tame Your Deployments** — Self-hosted PaaS that transforms any VPS into a full deployment platform. Single binary, zero configuration, production-ready in under 60 seconds.
 
-[![CI](https://github.com/deploy-monster/deploy-monster/actions/workflows/ci.yml/badge.svg)](https://github.com/deploy-monster/deploy-monster/actions/workflows/ci.yml)
-[![Go Report](https://goreportcard.com/badge/github.com/deploy-monster/deploy-monster)](https://goreportcard.com/report/github.com/deploy-monster/deploy-monster)
+[![Go 1.26+](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Coverage](https://img.shields.io/badge/Coverage-92.8%25-brightgreen)](.)
 
 ## Quick Start
 
@@ -17,10 +18,10 @@ deploymonster
 docker run -d -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  deploymonster/deploymonster
+  ghcr.io/ersinkoc/deploymonster:latest
 ```
 
-Open `https://localhost:8443` — credentials are printed on first run.
+Open `http://localhost:8443` — admin credentials are printed on first run.
 
 ## Why DeployMonster?
 
@@ -28,7 +29,7 @@ Open `https://localhost:8443` — credentials are printed on first run.
 |---------|----------------------|
 | Coolify needs 5 Docker containers | **Single 22MB binary** |
 | Dokploy has no billing/teams | **Built-in billing, RBAC, teams** |
-| CapRover has outdated UI | **Modern React 19 + Tailwind** |
+| CapRover has outdated UI | **Modern React 19 + Tailwind 4 + shadcn/ui** |
 | Vercel/Netlify lock you in | **Self-hosted, zero vendor lock-in** |
 | Traefik needs separate config | **Built-in reverse proxy + auto-SSL** |
 | No AI integration anywhere | **MCP server for LLM-driven infra** |
@@ -43,18 +44,19 @@ Open `https://localhost:8443` — credentials are printed on first run.
 - **Marketplace** — One-click deploy 25+ apps (WordPress, Ghost, n8n, Ollama, Grafana, etc.)
 
 ### Platform
-- **223 REST API Endpoints** — Complete platform API
+- **224 REST API Endpoints** — Complete platform API with OpenAPI 3.0 spec
 - **Custom Reverse Proxy** — No Traefik/Nginx. Auto-SSL via Let's Encrypt
 - **5 Load Balancer Strategies** — Round-robin, least-conn, IP-hash, random, weighted
 - **Secret Vault** — AES-256-GCM encryption with `${SECRET:name}` resolution
 - **Managed Databases** — PostgreSQL, MySQL, MariaDB, Redis, MongoDB
 - **Backup Engine** — Local + S3 storage, cron scheduler, retention policies
-- **Monitoring** — CPU/RAM/disk metrics, threshold alerts, Prometheus `/metrics`
-- **DNS Sync** — Cloudflare + Route53 with auto-subdomain generation
+- **Monitoring** — CPU/RAM/disk/network metrics, threshold alerts, Prometheus `/metrics`
+- **DNS Sync** — Cloudflare with auto-subdomain generation
+- **Container Exec** — Run commands inside containers via API
 
 ### Infrastructure
 - **VPS Provisioning** — Hetzner, DigitalOcean, Vultr, Linode, or any server via SSH
-- **Multi-Server** — Docker Swarm support for scaling across nodes
+- **Master/Agent** — Same binary runs as master (full platform) or agent (worker node)
 - **SSH Key Management** — Generate Ed25519 keys, manage per-server access
 - **Server Bootstrap** — Cloud-init scripts, Docker install, agent deployment
 
@@ -64,7 +66,7 @@ Open `https://localhost:8443` — credentials are printed on first run.
 - **Billing** — Plans (Free/Pro/Business/Enterprise), Stripe integration, usage metering
 - **White-Label** — Custom branding, reseller support, WHMCS integration
 - **GDPR** — Data export and right to erasure compliance
-- **Audit Log** — Every state-changing action recorded
+- **Audit Log** — Every state-changing action recorded with IP tracking
 
 ### AI-Native
 - **MCP Server** — 9 AI-callable tools for LLM-driven infrastructure management
@@ -74,18 +76,24 @@ Open `https://localhost:8443` — credentials are printed on first run.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                   DeployMonster Binary (22MB)                  │
+│                   DeployMonster Binary (22MB)                 │
 ├────────┬────────┬────────┬────────┬──────────┬──────────────┤
 │ Web UI │  API   │  SSE   │Webhooks│ Ingress  │  MCP Server  │
-│(React) │223 eps │Stream  │In+Out  │:80/:443  │  9 AI Tools  │
+│shadcn  │224 eps │Stream  │In+Out  │:80/:443  │  9 AI Tools  │
 ├────────┴────────┴────────┴────────┴──────────┴──────────────┤
-│                    20 Auto-Registered Modules                 │
+│                    20 Auto-Registered Modules                │
 │ auth│deploy│build│ingress│discovery│dns│secrets│billing│mcp  │
 │ db│backup│vps│swarm│marketplace│notifications│resource│...   │
 ├──────────────────────────────────────────────────────────────┤
-│  SQLite + BBolt │ Docker SDK │ SSH Pool │ EventBus │ Store  │
+│  SQLite + BBolt │ Docker SDK │ SSH Pool │ EventBus │ Store   │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+## Screenshots
+
+| Login | Dashboard | Marketplace |
+|-------|-----------|-------------|
+| Split-screen with gradient branding | Stat cards, quick actions, activity feed | 25 templates with category colors |
 
 ## CLI
 
@@ -124,37 +132,53 @@ make dev
 # Frontend
 cd web && npm install && npm run dev
 
-# Tests (20 suites, 89 test files, 70%+ coverage on critical paths)
-make test
+# Tests
+make test                    # Go: 194 test files, 92.8% avg coverage
+cd web && npm test           # React: 6 test files, 50 tests
 
 # Full build (React UI → embed → Go binary)
-bash scripts/build.sh
+make build
 ```
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
-| Backend | Go 1.26+, 23K LOC, 221 files |
-| Frontend | React 19, Vite 8, Tailwind CSS 4, Zustand 5 |
-| Database | SQLite (default), PostgreSQL (enterprise) |
+| Backend | Go 1.26+, 27K source LOC, 47K test LOC |
+| Frontend | React 19, Vite 8, Tailwind CSS 4, shadcn/ui |
+| Database | SQLite + BBolt KV (PostgreSQL planned) |
 | Container | Docker SDK (moby/moby) |
 | Auth | JWT + bcrypt + TOTP 2FA + OAuth SSO |
 | Encryption | AES-256-GCM + Argon2id |
-| Proxy | Custom net/http/httputil (no Traefik) |
+| Proxy | Custom net/http reverse proxy (no Traefik) |
+| Testing | 194 Go test files, 92.8% coverage, 7 fuzz tests |
+
+## Project Stats
+
+```
+86K+ total LOC (27K Go source + 47K Go tests + 12K React)
+224 API endpoints · 115 handlers (100% wired to real services)
+20 auto-registered modules · 25 marketplace templates
+194 Go test files · 6 React test files (50 tests)
+92.8% avg Go coverage · 3 packages at 100%
+7 fuzz tests · 38 benchmarks
+22MB single binary with embedded React UI
+```
 
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) — Install to first deploy in 5 minutes
 - [Architecture](docs/architecture.md) — Module system, Store interface, EventBus
-- [API Reference](docs/api-reference.md) — All 127 endpoints documented
+- [API Reference](docs/api-reference.md) — 224 endpoints documented
+- [API Quickstart](docs/examples/api-quickstart.md) — curl examples for common workflows
 - [Deployment Guide](docs/deployment-guide.md) — Production deployment, domains, backups
+- [OpenAPI Spec](docs/openapi.yaml) — OpenAPI 3.0.3 specification
 
 ## License
 
-AGPL-3.0 (core) — Commercial license available for enterprise features.
+AGPL-3.0 — See [LICENSE](LICENSE) for details.
 
-See [LICENSE](LICENSE) for details.
+Commercial license available for enterprise features.
 
 ---
 
