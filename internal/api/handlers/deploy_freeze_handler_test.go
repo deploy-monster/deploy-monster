@@ -14,7 +14,7 @@ import (
 func TestDeployFreeze_Get_Success(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployFreezeHandler(store, events)
+	handler := NewDeployFreezeHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/deploy/freeze", nil)
 	rr := httptest.NewRecorder()
@@ -43,7 +43,7 @@ func TestDeployFreeze_Get_Success(t *testing.T) {
 func TestDeployFreeze_Create_Success(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployFreezeHandler(store, events)
+	handler := NewDeployFreezeHandler(store, events, newMockBoltStore())
 
 	startsAt := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
 	endsAt := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
@@ -84,7 +84,7 @@ func TestDeployFreeze_Create_Success(t *testing.T) {
 func TestDeployFreeze_Create_DefaultTimes(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployFreezeHandler(store, events)
+	handler := NewDeployFreezeHandler(store, events, newMockBoltStore())
 
 	body, _ := json.Marshal(map[string]string{
 		"reason": "emergency freeze",
@@ -117,7 +117,7 @@ func TestDeployFreeze_Create_DefaultTimes(t *testing.T) {
 func TestDeployFreeze_Create_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployFreezeHandler(store, events)
+	handler := NewDeployFreezeHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/freeze", bytes.NewReader([]byte("{")))
 	rr := httptest.NewRecorder()
@@ -133,7 +133,7 @@ func TestDeployFreeze_Create_InvalidJSON(t *testing.T) {
 func TestDeployFreeze_Delete_Success(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployFreezeHandler(store, events)
+	handler := NewDeployFreezeHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/deploy/freeze/freeze1", nil)
 	req.SetPathValue("id", "freeze1")

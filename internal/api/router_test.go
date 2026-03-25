@@ -1255,6 +1255,14 @@ func (s *testStore) ListRoles(_ context.Context, _ string) ([]core.Role, error) 
 func (s *testStore) CreateAuditLog(_ context.Context, _ *core.AuditEntry) error { return nil }
 func (s *testStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core.AuditEntry, int, error) { return nil, 0, nil }
 
+// testBoltStore is a minimal BoltStorer for router construction tests.
+type testBoltStore struct{}
+
+func (b *testBoltStore) Set(_, _ string, _ any, _ int64) error { return nil }
+func (b *testBoltStore) Get(_, _ string, _ any) error          { return fmt.Errorf("key not found") }
+func (b *testBoltStore) Delete(_, _ string) error              { return nil }
+func (b *testBoltStore) Close() error                          { return nil }
+
 // testCoreSetup creates a minimal Core + auth.Module for router tests.
 func testCoreSetup(t *testing.T) (*core.Core, *auth.Module) {
 	t.Helper()
@@ -1269,7 +1277,8 @@ func testCoreSetup(t *testing.T) (*core.Core, *auth.Module) {
 		Store:    store,
 		Build:    core.BuildInfo{Version: "0.1.0-test"},
 		Config:   &core.Config{Server: core.ServerConfig{SecretKey: "test-secret-key-32chars-for-jwt!"}},
-		Services: &core.Services{},
+		Services: core.NewServices(),
+		DB:       &core.Database{Bolt: &testBoltStore{}},
 	}
 
 	authMod := auth.New()

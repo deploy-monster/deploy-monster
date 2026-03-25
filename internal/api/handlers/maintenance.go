@@ -12,10 +12,11 @@ import (
 type MaintenanceHandler struct {
 	store  core.Store
 	events *core.EventBus
+	bolt   core.BoltStorer
 }
 
-func NewMaintenanceHandler(store core.Store, events *core.EventBus) *MaintenanceHandler {
-	return &MaintenanceHandler{store: store, events: events}
+func NewMaintenanceHandler(store core.Store, events *core.EventBus, bolt core.BoltStorer) *MaintenanceHandler {
+	return &MaintenanceHandler{store: store, events: events, bolt: bolt}
 }
 
 // MaintenanceConfig holds maintenance mode settings.
@@ -27,8 +28,15 @@ type MaintenanceConfig struct {
 
 // Get handles GET /api/v1/apps/{id}/maintenance
 func (h *MaintenanceHandler) Get(w http.ResponseWriter, r *http.Request) {
-	_ = r.PathValue("id")
-	writeJSON(w, http.StatusOK, MaintenanceConfig{Enabled: false})
+	appID := r.PathValue("id")
+
+	var cfg MaintenanceConfig
+	if err := h.bolt.Get("maintenance", appID, &cfg); err != nil {
+		writeJSON(w, http.StatusOK, MaintenanceConfig{Enabled: false})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, cfg)
 }
 
 // Update handles PUT /api/v1/apps/{id}/maintenance
@@ -38,6 +46,11 @@ func (h *MaintenanceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var cfg MaintenanceConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.bolt.Set("maintenance", appID, cfg, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save maintenance config")
 		return
 	}
 

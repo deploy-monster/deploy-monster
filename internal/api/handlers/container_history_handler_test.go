@@ -11,7 +11,7 @@ import (
 
 func TestContainerHistory_DefaultPeriod(t *testing.T) {
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(runtime)
+	handler := NewContainerHistoryHandler(runtime, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history", nil)
 	req.SetPathValue("id", "app1")
@@ -47,7 +47,7 @@ func TestContainerHistory_DefaultPeriod(t *testing.T) {
 
 func TestContainerHistory_24hPeriod(t *testing.T) {
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(runtime)
+	handler := NewContainerHistoryHandler(runtime, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history?period=24h", nil)
 	req.SetPathValue("id", "app1")
@@ -77,7 +77,7 @@ func TestContainerHistory_24hPeriod(t *testing.T) {
 
 func TestContainerHistory_7dPeriod(t *testing.T) {
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(runtime)
+	handler := NewContainerHistoryHandler(runtime, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history?period=7d", nil)
 	req.SetPathValue("id", "app1")
@@ -107,7 +107,7 @@ func TestContainerHistory_7dPeriod(t *testing.T) {
 
 func TestContainerHistory_UnknownPeriodDefaultsTo1h(t *testing.T) {
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(runtime)
+	handler := NewContainerHistoryHandler(runtime, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history?period=30d", nil)
 	req.SetPathValue("id", "app1")
@@ -130,7 +130,7 @@ func TestContainerHistory_UnknownPeriodDefaultsTo1h(t *testing.T) {
 
 func TestContainerHistory_PointStructure(t *testing.T) {
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(runtime)
+	handler := NewContainerHistoryHandler(runtime, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history", nil)
 	req.SetPathValue("id", "app1")

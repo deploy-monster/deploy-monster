@@ -44,6 +44,13 @@ func TestDeployApproval_Approve_Success(t *testing.T) {
 	events := testCore().Events
 	handler := NewDeployApprovalHandler(store, events)
 
+	// Pre-populate a pending approval request so Approve can find it.
+	handler.pending["appr1"] = &ApprovalRequest{
+		ID:     "appr1",
+		AppID:  "app1",
+		Status: "pending",
+	}
+
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/approvals/appr1/approve", nil)
 	req.SetPathValue("id", "appr1")
 	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
@@ -91,9 +98,17 @@ func TestDeployApproval_Reject_Success(t *testing.T) {
 	events := testCore().Events
 	handler := NewDeployApprovalHandler(store, events)
 
+	// Pre-populate a pending approval request so Reject can find it.
+	handler.pending["appr1"] = &ApprovalRequest{
+		ID:     "appr1",
+		AppID:  "app1",
+		Status: "pending",
+	}
+
 	body, _ := json.Marshal(map[string]string{"reason": "not ready for production"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/approvals/appr1/reject", bytes.NewReader(body))
 	req.SetPathValue("id", "appr1")
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 
 	handler.Reject(rr, req)
@@ -121,9 +136,17 @@ func TestDeployApproval_Reject_NoReason(t *testing.T) {
 	events := testCore().Events
 	handler := NewDeployApprovalHandler(store, events)
 
+	// Pre-populate a pending approval request so Reject can find it.
+	handler.pending["appr1"] = &ApprovalRequest{
+		ID:     "appr1",
+		AppID:  "app1",
+		Status: "pending",
+	}
+
 	body, _ := json.Marshal(map[string]string{})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/approvals/appr1/reject", bytes.NewReader(body))
 	req.SetPathValue("id", "appr1")
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 
 	handler.Reject(rr, req)

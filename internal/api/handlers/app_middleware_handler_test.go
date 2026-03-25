@@ -12,7 +12,7 @@ import (
 
 func TestAppMiddleware_Get_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewAppMiddlewareHandler(store)
+	handler := NewAppMiddlewareHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/middleware", nil)
 	req.SetPathValue("id", "app1")
@@ -34,7 +34,7 @@ func TestAppMiddleware_Get_Success(t *testing.T) {
 
 func TestAppMiddleware_Update_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewAppMiddlewareHandler(store)
+	handler := NewAppMiddlewareHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(MiddlewareConfig{
 		RateLimit: &RateLimitMiddleware{
@@ -109,7 +109,7 @@ func TestAppMiddleware_Update_Success(t *testing.T) {
 
 func TestAppMiddleware_Update_MinimalConfig(t *testing.T) {
 	store := newMockStore()
-	handler := NewAppMiddlewareHandler(store)
+	handler := NewAppMiddlewareHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(MiddlewareConfig{
 		Compress: false,
@@ -134,7 +134,7 @@ func TestAppMiddleware_Update_MinimalConfig(t *testing.T) {
 
 func TestAppMiddleware_Update_InvalidJSON(t *testing.T) {
 	store := newMockStore()
-	handler := NewAppMiddlewareHandler(store)
+	handler := NewAppMiddlewareHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/middleware", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")

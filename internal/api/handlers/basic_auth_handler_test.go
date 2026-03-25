@@ -12,7 +12,7 @@ import (
 
 func TestBasicAuth_Get_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewBasicAuthHandler(store)
+	handler := NewBasicAuthHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/basic-auth", nil)
 	req.SetPathValue("id", "app1")
@@ -37,7 +37,7 @@ func TestBasicAuth_Get_Success(t *testing.T) {
 
 func TestBasicAuth_Update_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewBasicAuthHandler(store)
+	handler := NewBasicAuthHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(BasicAuthConfig{
 		Enabled: true,
@@ -75,7 +75,7 @@ func TestBasicAuth_Update_Success(t *testing.T) {
 
 func TestBasicAuth_Update_DefaultRealm(t *testing.T) {
 	store := newMockStore()
-	handler := NewBasicAuthHandler(store)
+	handler := NewBasicAuthHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(BasicAuthConfig{
 		Enabled: true,
@@ -103,7 +103,7 @@ func TestBasicAuth_Update_DefaultRealm(t *testing.T) {
 
 func TestBasicAuth_Update_InvalidJSON(t *testing.T) {
 	store := newMockStore()
-	handler := NewBasicAuthHandler(store)
+	handler := NewBasicAuthHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/basic-auth", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")

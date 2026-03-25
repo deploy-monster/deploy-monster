@@ -14,7 +14,7 @@ import (
 func TestDeploySchedule_Schedule_Success(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployScheduleHandler(store, events)
+	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
 	futureTime := time.Now().Add(2 * time.Hour).Format(time.RFC3339)
 	body, _ := json.Marshal(map[string]string{
@@ -61,7 +61,7 @@ func TestDeploySchedule_Schedule_Success(t *testing.T) {
 func TestDeploySchedule_Schedule_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployScheduleHandler(store, events)
+	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy/schedule", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
@@ -78,7 +78,7 @@ func TestDeploySchedule_Schedule_InvalidJSON(t *testing.T) {
 func TestDeploySchedule_Schedule_InvalidTimeFormat(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployScheduleHandler(store, events)
+	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
 	body, _ := json.Marshal(map[string]string{
 		"scheduled_at": "not-a-date",
@@ -98,7 +98,7 @@ func TestDeploySchedule_Schedule_InvalidTimeFormat(t *testing.T) {
 func TestDeploySchedule_Schedule_PastTime(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployScheduleHandler(store, events)
+	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
 	pastTime := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
 	body, _ := json.Marshal(map[string]string{
@@ -119,7 +119,7 @@ func TestDeploySchedule_Schedule_PastTime(t *testing.T) {
 func TestDeploySchedule_ListScheduled_Success(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployScheduleHandler(store, events)
+	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deploy/scheduled", nil)
 	req.SetPathValue("id", "app1")
@@ -149,7 +149,7 @@ func TestDeploySchedule_ListScheduled_Success(t *testing.T) {
 func TestDeploySchedule_CancelScheduled_Success(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewDeployScheduleHandler(store, events)
+	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app1/deploy/scheduled/sched1", nil)
 	req.SetPathValue("id", "app1")

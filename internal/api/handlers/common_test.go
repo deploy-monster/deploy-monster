@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -835,6 +837,54 @@ func (m *mockContainerRuntime) ListByLabels(_ context.Context, _ map[string]stri
 	}
 	return m.containers, nil
 }
+
+// ─── Mock Bolt Storer ────────────────────────────────────────────────────────
+
+// mockBoltStore implements core.BoltStorer for testing.
+type mockBoltStore struct {
+	mu   sync.Mutex
+	data map[string]map[string][]byte // bucket -> key -> json bytes
+}
+
+func newMockBoltStore() *mockBoltStore {
+	return &mockBoltStore{data: make(map[string]map[string][]byte)}
+}
+
+func (m *mockBoltStore) Set(bucket, key string, value any, _ int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.data[bucket] == nil {
+		m.data[bucket] = make(map[string][]byte)
+	}
+	b, _ := json.Marshal(value)
+	m.data[bucket][key] = b
+	return nil
+}
+
+func (m *mockBoltStore) Get(bucket, key string, dest any) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	bkt, ok := m.data[bucket]
+	if !ok {
+		return fmt.Errorf("key not found")
+	}
+	raw, ok := bkt[key]
+	if !ok {
+		return fmt.Errorf("key not found")
+	}
+	return json.Unmarshal(raw, dest)
+}
+
+func (m *mockBoltStore) Delete(bucket, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if bkt, ok := m.data[bucket]; ok {
+		delete(bkt, key)
+	}
+	return nil
+}
+
+func (m *mockBoltStore) Close() error { return nil }
 
 // ─── Mock Notification Sender ────────────────────────────────────────────────
 

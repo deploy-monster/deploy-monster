@@ -12,10 +12,11 @@ import (
 type DeployScheduleHandler struct {
 	store  core.Store
 	events *core.EventBus
+	bolt   core.BoltStorer
 }
 
-func NewDeployScheduleHandler(store core.Store, events *core.EventBus) *DeployScheduleHandler {
-	return &DeployScheduleHandler{store: store, events: events}
+func NewDeployScheduleHandler(store core.Store, events *core.EventBus, bolt core.BoltStorer) *DeployScheduleHandler {
+	return &DeployScheduleHandler{store: store, events: events, bolt: bolt}
 }
 
 // ScheduledDeploy represents a deployment scheduled for a future time.
@@ -28,6 +29,11 @@ type ScheduledDeploy struct {
 	Strategy    string    `json:"strategy"`
 	Status      string    `json:"status"` // pending, executed, cancelled
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+// scheduledDeployList holds all scheduled deploys for an app.
+type scheduledDeployList struct {
+	Items []ScheduledDeploy `json:"items"`
 }
 
 // Schedule handles POST /api/v1/apps/{id}/deploy/schedule
@@ -66,18 +72,61 @@ func (h *DeployScheduleHandler) Schedule(w http.ResponseWriter, r *http.Request)
 		CreatedAt:   time.Now(),
 	}
 
+	// Load existing scheduled deploys and append
+	var list scheduledDeployList
+	_ = h.bolt.Get("deploy_schedule", appID, &list)
+	list.Items = append(list.Items, scheduled)
+
+	if err := h.bolt.Set("deploy_schedule", appID, list, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save scheduled deploy")
+		return
+	}
+
+	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.scheduled", "api",
+		map[string]string{"app_id": appID, "schedule_id": scheduled.ID}))
+
 	writeJSON(w, http.StatusCreated, scheduled)
 }
 
 // ListScheduled handles GET /api/v1/apps/{id}/deploy/scheduled
 func (h *DeployScheduleHandler) ListScheduled(w http.ResponseWriter, r *http.Request) {
-	_ = r.PathValue("id")
-	writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
+	appID := r.PathValue("id")
+
+	var list scheduledDeployList
+	if err := h.bolt.Get("deploy_schedule", appID, &list); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
+		return
+	}
+
+	// Return only pending items
+	pending := make([]ScheduledDeploy, 0)
+	for _, item := range list.Items {
+		if item.Status == "pending" {
+			pending = append(pending, item)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": pending, "total": len(pending)})
 }
 
 // CancelScheduled handles DELETE /api/v1/apps/{id}/deploy/scheduled/{scheduleId}
 func (h *DeployScheduleHandler) CancelScheduled(w http.ResponseWriter, r *http.Request) {
-	_ = r.PathValue("id")
-	_ = r.PathValue("scheduleId")
+	appID := r.PathValue("id")
+	scheduleID := r.PathValue("scheduleId")
+
+	var list scheduledDeployList
+	if err := h.bolt.Get("deploy_schedule", appID, &list); err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	for i := range list.Items {
+		if list.Items[i].ID == scheduleID {
+			list.Items[i].Status = "cancelled"
+			break
+		}
+	}
+
+	_ = h.bolt.Set("deploy_schedule", appID, list, 0)
 	w.WriteHeader(http.StatusNoContent)
 }

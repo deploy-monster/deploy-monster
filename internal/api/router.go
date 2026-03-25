@@ -119,7 +119,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Update)))
 
 	// ── App Pin ───────────────────────────────────────
-	pinH := handlers.NewPinHandler(r.store)
+	pinH := handlers.NewPinHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/apps/{id}/pin", protected(http.HandlerFunc(pinH.Pin)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/pin", protected(http.HandlerFunc(pinH.Unpin)))
 
@@ -202,7 +202,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/log-retention", protected(http.HandlerFunc(lrH.Update)))
 
 	// ── App Middleware Config ─────────────────────────
-	amwH := handlers.NewAppMiddlewareHandler(r.store)
+	amwH := handlers.NewAppMiddlewareHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/middleware", protected(http.HandlerFunc(amwH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/middleware", protected(http.HandlerFunc(amwH.Update)))
 
@@ -219,7 +219,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/deploy/preview", protected(http.HandlerFunc(dpH.Preview)))
 	diffH := handlers.NewDeployDiffHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/deployments/diff", protected(http.HandlerFunc(diffH.Diff)))
-	schedH := handlers.NewDeployScheduleHandler(r.store, r.core.Events)
+	schedH := handlers.NewDeployScheduleHandler(r.store, r.core.Events, r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/apps/{id}/deploy/schedule", protected(http.HandlerFunc(schedH.Schedule)))
 	r.mux.Handle("GET /api/v1/apps/{id}/deploy/scheduled", protected(http.HandlerFunc(schedH.ListScheduled)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/deploy/scheduled/{scheduleId}", protected(http.HandlerFunc(schedH.CancelScheduled)))
@@ -230,7 +230,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/builds/latest/log/download", protected(http.HandlerFunc(bldLogH.Download)))
 
 	// ── Maintenance Mode ──────────────────────────────
-	maintH := handlers.NewMaintenanceHandler(r.store, r.core.Events)
+	maintH := handlers.NewMaintenanceHandler(r.store, r.core.Events, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/maintenance", protected(http.HandlerFunc(maintH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/maintenance", protected(http.HandlerFunc(maintH.Update)))
 
@@ -251,7 +251,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/sticky-sessions", protected(http.HandlerFunc(stickyH.Update)))
 
 	// ── Autoscale ─────────────────────────────────────
-	asH := handlers.NewAutoscaleHandler(r.store)
+	asH := handlers.NewAutoscaleHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Update)))
 
@@ -261,16 +261,16 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/response-headers", protected(http.HandlerFunc(rhH.Update)))
 
 	// ── Container History ─────────────────────────────
-	chH := handlers.NewContainerHistoryHandler(r.core.Services.Container)
+	chH := handlers.NewContainerHistoryHandler(r.core.Services.Container, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/containers/history", protected(http.HandlerFunc(chH.History)))
 
 	// ── Deploy Notifications ──────────────────────────
-	dnH := handlers.NewDeployNotifyHandler(r.store)
+	dnH := handlers.NewDeployNotifyHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/deploy-notifications", protected(http.HandlerFunc(dnH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/deploy-notifications", protected(http.HandlerFunc(dnH.Update)))
 
 	// ── Basic Auth ────────────────────────────────────
-	baH := handlers.NewBasicAuthHandler(r.store)
+	baH := handlers.NewBasicAuthHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Update)))
 
@@ -283,7 +283,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/webhooks/logs", protected(http.HandlerFunc(whLogH.List)))
 
 	// ── Cron Jobs ─────────────────────────────────────
-	cronH := handlers.NewCronJobHandler(r.store)
+	cronH := handlers.NewCronJobHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/cron", protected(http.HandlerFunc(cronH.List)))
 	r.mux.Handle("POST /api/v1/apps/{id}/cron", protected(http.HandlerFunc(cronH.Create)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/cron/{jobId}", protected(http.HandlerFunc(cronH.Delete)))
@@ -517,7 +517,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("DELETE /api/v1/webhooks/outbound/{id}", protected(http.HandlerFunc(evtWhH.Delete)))
 
 	// ── Deploy Freeze ─────────────────────────────────
-	freezeH := handlers.NewDeployFreezeHandler(r.store, r.core.Events)
+	freezeH := handlers.NewDeployFreezeHandler(r.store, r.core.Events, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/deploy/freeze", protected(http.HandlerFunc(freezeH.Get)))
 	r.mux.Handle("POST /api/v1/deploy/freeze", protected(http.HandlerFunc(freezeH.Create)))
 	r.mux.Handle("DELETE /api/v1/deploy/freeze/{id}", protected(http.HandlerFunc(freezeH.Delete)))
@@ -594,7 +594,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/admin/db/status", protected(http.HandlerFunc(dbBackupH.Status)))
 
 	// ── Admin API Keys ────────────────────────────────
-	adminKeyH := handlers.NewAdminAPIKeyHandler(r.store)
+	adminKeyH := handlers.NewAdminAPIKeyHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/admin/api-keys", protected(http.HandlerFunc(adminKeyH.List)))
 	r.mux.Handle("POST /api/v1/admin/api-keys", protected(http.HandlerFunc(adminKeyH.Generate)))
 	r.mux.Handle("DELETE /api/v1/admin/api-keys/{prefix}", protected(http.HandlerFunc(adminKeyH.Revoke)))

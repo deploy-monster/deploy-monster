@@ -231,7 +231,7 @@ func TestLogRetentionHandler_Update_InvalidBody(t *testing.T) {
 func TestMaintenanceHandler_Get(t *testing.T) {
 	store := newMockStore()
 	events := core.NewEventBus(nil)
-	h := NewMaintenanceHandler(store, events)
+	h := NewMaintenanceHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/maintenance", nil)
 	req.SetPathValue("id", "app-1")
@@ -251,7 +251,7 @@ func TestMaintenanceHandler_Get(t *testing.T) {
 func TestMaintenanceHandler_Update_Enable(t *testing.T) {
 	store := newMockStore()
 	events := core.NewEventBus(nil)
-	h := NewMaintenanceHandler(store, events)
+	h := NewMaintenanceHandler(store, events, newMockBoltStore())
 
 	body := `{"enabled":true,"message":"We are upgrading","allowed_ips":["10.0.0.1"]}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/maintenance", strings.NewReader(body))
@@ -272,7 +272,7 @@ func TestMaintenanceHandler_Update_Enable(t *testing.T) {
 func TestMaintenanceHandler_Update_Disable(t *testing.T) {
 	store := newMockStore()
 	events := core.NewEventBus(nil)
-	h := NewMaintenanceHandler(store, events)
+	h := NewMaintenanceHandler(store, events, newMockBoltStore())
 
 	body := `{"enabled":false}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/maintenance", strings.NewReader(body))
@@ -293,7 +293,7 @@ func TestMaintenanceHandler_Update_Disable(t *testing.T) {
 func TestMaintenanceHandler_Update_InvalidBody(t *testing.T) {
 	store := newMockStore()
 	events := core.NewEventBus(nil)
-	h := NewMaintenanceHandler(store, events)
+	h := NewMaintenanceHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/maintenance", strings.NewReader("bad"))
 	req.SetPathValue("id", "app-1")

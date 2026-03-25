@@ -12,7 +12,7 @@ import (
 
 func TestAutoscale_Get_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewAutoscaleHandler(store)
+	handler := NewAutoscaleHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/autoscale", nil)
 	req.SetPathValue("id", "app1")
@@ -54,7 +54,7 @@ func TestAutoscale_Get_Success(t *testing.T) {
 
 func TestAutoscale_Update_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewAutoscaleHandler(store)
+	handler := NewAutoscaleHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(AutoscaleConfig{
 		Enabled:     true,
@@ -100,7 +100,7 @@ func TestAutoscale_Update_Success(t *testing.T) {
 
 func TestAutoscale_Update_InvalidJSON(t *testing.T) {
 	store := newMockStore()
-	handler := NewAutoscaleHandler(store)
+	handler := NewAutoscaleHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/autoscale", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
@@ -116,7 +116,7 @@ func TestAutoscale_Update_InvalidJSON(t *testing.T) {
 
 func TestAutoscale_Update_MaxLessThanMin(t *testing.T) {
 	store := newMockStore()
-	handler := NewAutoscaleHandler(store)
+	handler := NewAutoscaleHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(AutoscaleConfig{
 		Enabled:     true,
@@ -144,7 +144,7 @@ func TestAutoscale_Update_MaxLessThanMin(t *testing.T) {
 
 func TestAutoscale_Update_NegativeMin(t *testing.T) {
 	store := newMockStore()
-	handler := NewAutoscaleHandler(store)
+	handler := NewAutoscaleHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(AutoscaleConfig{
 		MinReplicas: -1,

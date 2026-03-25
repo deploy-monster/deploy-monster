@@ -11,7 +11,7 @@ import (
 
 func TestAdminAPIKeys_List_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewAdminAPIKeyHandler(store)
+	handler := NewAdminAPIKeyHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/api-keys", nil)
 	rr := httptest.NewRecorder()
@@ -41,7 +41,7 @@ func TestAdminAPIKeys_List_Success(t *testing.T) {
 
 func TestAdminAPIKeys_Generate_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewAdminAPIKeyHandler(store)
+	handler := NewAdminAPIKeyHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys", nil)
 	req = withClaims(req, "user1", "tenant1", "role_super_admin", "admin@test.com")
@@ -74,7 +74,7 @@ func TestAdminAPIKeys_Generate_Success(t *testing.T) {
 
 func TestAdminAPIKeys_Generate_NoClaims(t *testing.T) {
 	store := newMockStore()
-	handler := NewAdminAPIKeyHandler(store)
+	handler := NewAdminAPIKeyHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys", nil)
 	// No claims.
@@ -90,7 +90,7 @@ func TestAdminAPIKeys_Generate_NoClaims(t *testing.T) {
 
 func TestAdminAPIKeys_Generate_NonAdmin(t *testing.T) {
 	store := newMockStore()
-	handler := NewAdminAPIKeyHandler(store)
+	handler := NewAdminAPIKeyHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys", nil)
 	req = withClaims(req, "user1", "tenant1", "role_member", "user@test.com")
@@ -108,7 +108,7 @@ func TestAdminAPIKeys_Generate_NonAdmin(t *testing.T) {
 
 func TestAdminAPIKeys_Revoke_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewAdminAPIKeyHandler(store)
+	handler := NewAdminAPIKeyHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/api-keys/dm_abc12345", nil)
 	req.SetPathValue("prefix", "dm_abc12345")

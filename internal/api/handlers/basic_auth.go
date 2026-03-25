@@ -11,23 +11,31 @@ import (
 // When enabled, the ingress adds a Basic Auth challenge before proxying.
 type BasicAuthHandler struct {
 	store core.Store
+	bolt  core.BoltStorer
 }
 
-func NewBasicAuthHandler(store core.Store) *BasicAuthHandler {
-	return &BasicAuthHandler{store: store}
+func NewBasicAuthHandler(store core.Store, bolt core.BoltStorer) *BasicAuthHandler {
+	return &BasicAuthHandler{store: store, bolt: bolt}
 }
 
 // BasicAuthConfig holds per-app basic auth settings.
 type BasicAuthConfig struct {
-	Enabled  bool              `json:"enabled"`
-	Users    map[string]string `json:"users"`    // username -> bcrypt hash
-	Realm    string            `json:"realm"`    // Challenge realm text
+	Enabled bool              `json:"enabled"`
+	Users   map[string]string `json:"users"` // username -> bcrypt hash
+	Realm   string            `json:"realm"` // Challenge realm text
 }
 
 // Get handles GET /api/v1/apps/{id}/basic-auth
 func (h *BasicAuthHandler) Get(w http.ResponseWriter, r *http.Request) {
-	_ = r.PathValue("id")
-	writeJSON(w, http.StatusOK, BasicAuthConfig{Enabled: false, Realm: "Restricted"})
+	appID := r.PathValue("id")
+
+	var cfg BasicAuthConfig
+	if err := h.bolt.Get("basic_auth", appID, &cfg); err != nil {
+		writeJSON(w, http.StatusOK, BasicAuthConfig{Enabled: false, Realm: "Restricted"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, cfg)
 }
 
 // Update handles PUT /api/v1/apps/{id}/basic-auth
@@ -42,6 +50,11 @@ func (h *BasicAuthHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	if cfg.Realm == "" {
 		cfg.Realm = "Restricted"
+	}
+
+	if err := h.bolt.Set("basic_auth", appID, cfg, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save basic auth config")
+		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

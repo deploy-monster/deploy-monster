@@ -14,6 +14,18 @@ var (
 	bucketRateLimit   = []byte("ratelimit")
 	bucketBuildCache  = []byte("buildcache")
 	bucketMetricsRing = []byte("metrics_ring")
+	bucketCronJobs    = []byte("cronjobs")
+	bucketAppPins     = []byte("app_pins")
+	bucketAutoscale   = []byte("autoscale")
+	bucketBasicAuth   = []byte("basic_auth")
+	bucketAPIKeys     = []byte("api_keys")
+	bucketSchedule    = []byte("deploy_schedule")
+	bucketFreeze      = []byte("deploy_freeze")
+	bucketNotify      = []byte("deploy_notify")
+	bucketApproval    = []byte("deploy_approval")
+	bucketMaintenance = []byte("maintenance")
+	bucketMiddleware  = []byte("app_middleware")
+	bucketMetrics     = []byte("container_metrics")
 )
 
 // BoltStore wraps a BBolt database for key-value operations with TTL support.
@@ -30,7 +42,12 @@ func NewBoltStore(path string) (*BoltStore, error) {
 
 	// Create default buckets
 	err = db.Update(func(tx *bolt.Tx) error {
-		for _, b := range [][]byte{bucketSessions, bucketRateLimit, bucketBuildCache, bucketMetricsRing} {
+		for _, b := range [][]byte{
+		bucketSessions, bucketRateLimit, bucketBuildCache, bucketMetricsRing,
+		bucketCronJobs, bucketAppPins, bucketAutoscale, bucketBasicAuth,
+		bucketAPIKeys, bucketSchedule, bucketFreeze, bucketNotify,
+		bucketApproval, bucketMaintenance, bucketMiddleware, bucketMetrics,
+	} {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
 				return err
 			}

@@ -11,10 +11,11 @@ import (
 
 func TestAppPin_Pin_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewPinHandler(store)
+	handler := NewPinHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/pin", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 
 	handler.Pin(rr, req)
@@ -36,10 +37,11 @@ func TestAppPin_Pin_Success(t *testing.T) {
 
 func TestAppPin_Pin_DifferentAppID(t *testing.T) {
 	store := newMockStore()
-	handler := NewPinHandler(store)
+	handler := NewPinHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/my-special-app/pin", nil)
 	req.SetPathValue("id", "my-special-app")
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 
 	handler.Pin(rr, req)
@@ -58,10 +60,11 @@ func TestAppPin_Pin_DifferentAppID(t *testing.T) {
 
 func TestAppPin_Unpin_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewPinHandler(store)
+	handler := NewPinHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app1/pin", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 
 	handler.Unpin(rr, req)
@@ -83,10 +86,11 @@ func TestAppPin_Unpin_Success(t *testing.T) {
 
 func TestAppPin_Unpin_DifferentAppID(t *testing.T) {
 	store := newMockStore()
-	handler := NewPinHandler(store)
+	handler := NewPinHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app99/pin", nil)
 	req.SetPathValue("id", "app99")
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 
 	handler.Unpin(rr, req)

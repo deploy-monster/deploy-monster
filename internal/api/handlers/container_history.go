@@ -10,10 +10,11 @@ import (
 // ContainerHistoryHandler serves per-container resource usage over time.
 type ContainerHistoryHandler struct {
 	runtime core.ContainerRuntime
+	bolt    core.BoltStorer
 }
 
-func NewContainerHistoryHandler(runtime core.ContainerRuntime) *ContainerHistoryHandler {
-	return &ContainerHistoryHandler{runtime: runtime}
+func NewContainerHistoryHandler(runtime core.ContainerRuntime, bolt core.BoltStorer) *ContainerHistoryHandler {
+	return &ContainerHistoryHandler{runtime: runtime, bolt: bolt}
 }
 
 // ContainerResourcePoint represents a data point in container history.
@@ -27,6 +28,11 @@ type ContainerResourcePoint struct {
 	PIDs       int       `json:"pids"`
 }
 
+// metricsRingData is what we store in the metrics_ring bucket per app.
+type metricsRingData struct {
+	Points []ContainerResourcePoint `json:"points"`
+}
+
 // History handles GET /api/v1/apps/{id}/containers/history
 func (h *ContainerHistoryHandler) History(w http.ResponseWriter, r *http.Request) {
 	appID := r.PathValue("id")
@@ -35,6 +41,42 @@ func (h *ContainerHistoryHandler) History(w http.ResponseWriter, r *http.Request
 		period = "1h"
 	}
 
+	// Try to load real metrics from BBolt
+	var ring metricsRingData
+	if h.bolt != nil {
+		_ = h.bolt.Get("metrics_ring", appID, &ring)
+	}
+
+	if len(ring.Points) > 0 {
+		// Filter points by requested period
+		var cutoff time.Time
+		now := time.Now()
+		switch period {
+		case "24h":
+			cutoff = now.Add(-24 * time.Hour)
+		case "7d":
+			cutoff = now.Add(-7 * 24 * time.Hour)
+		default:
+			cutoff = now.Add(-1 * time.Hour)
+		}
+
+		filtered := make([]ContainerResourcePoint, 0, len(ring.Points))
+		for _, p := range ring.Points {
+			if p.Timestamp.After(cutoff) {
+				filtered = append(filtered, p)
+			}
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"app_id": appID,
+			"period": period,
+			"points": filtered,
+			"count":  len(filtered),
+		})
+		return
+	}
+
+	// No stored metrics — return empty timeline
 	var count int
 	switch period {
 	case "24h":
