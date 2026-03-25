@@ -43,3 +43,13 @@ deploymonster.exe
 # GoReleaser
 dist/
 *.out
+
+# Playwright MCP logs
+.playwright-mcp/
+
+# Screenshots (development only)
+screenshots/
+
+# Database files
+*.db
+*.bolt
