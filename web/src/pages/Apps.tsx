@@ -8,26 +8,43 @@ import {
   Square,
   RotateCcw,
   Trash2,
-  MoreVertical,
   GitBranch,
-  Box,
   Clock,
+  Box,
+  Container,
+  Store,
 } from 'lucide-react';
 import { useApi } from '../hooks';
 import { appsAPI, type App } from '../api/apps';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Tooltip } from '@/components/ui/tooltip';
 
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  running: 'default',
-  stopped: 'secondary',
-  deploying: 'outline',
-  building: 'outline',
-  failed: 'destructive',
-  pending: 'secondary',
+/* ------------------------------------------------------------------ */
+/*  Constants                                                         */
+/* ------------------------------------------------------------------ */
+
+const STATUS_CONFIG: Record<string, {
+  variant: 'default' | 'secondary' | 'destructive' | 'outline';
+  dot: string;
+  label: string;
+}> = {
+  running: { variant: 'default', dot: 'bg-emerald-500', label: 'Running' },
+  stopped: { variant: 'secondary', dot: 'bg-red-500', label: 'Stopped' },
+  deploying: { variant: 'outline', dot: 'bg-amber-500', label: 'Deploying' },
+  building: { variant: 'outline', dot: 'bg-amber-500', label: 'Building' },
+  failed: { variant: 'destructive', dot: 'bg-red-500', label: 'Failed' },
+  pending: { variant: 'secondary', dot: 'bg-slate-400', label: 'Pending' },
+  created: { variant: 'secondary', dot: 'bg-slate-400', label: 'Created' },
+};
+
+const SOURCE_CONFIG: Record<string, { icon: typeof GitBranch; label: string; color: string }> = {
+  git: { icon: GitBranch, label: 'Git', color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400' },
+  docker: { icon: Container, label: 'Docker', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  marketplace: { icon: Store, label: 'Marketplace', color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400' },
 };
 
 const FILTER_TABS = [
@@ -37,7 +54,11 @@ const FILTER_TABS = [
   { key: 'deploying', label: 'Deploying' },
 ] as const;
 
-type FilterKey = typeof FILTER_TABS[number]['key'];
+type FilterKey = (typeof FILTER_TABS)[number]['key'];
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                           */
+/* ------------------------------------------------------------------ */
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -50,6 +71,46 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+function getStatusConfig(status: string) {
+  return STATUS_CONFIG[status] || { variant: 'secondary' as const, dot: 'bg-slate-400', label: status };
+}
+
+function getSourceConfig(sourceType: string) {
+  const key = sourceType.toLowerCase();
+  return SOURCE_CONFIG[key] || SOURCE_CONFIG['git'];
+}
+
+/* ------------------------------------------------------------------ */
+/*  Empty states                                                      */
+/* ------------------------------------------------------------------ */
+
+const EMPTY_MESSAGES: Record<string, { title: string; description: string }> = {
+  all: {
+    title: 'No applications yet',
+    description: 'Deploy your first application to get started with DeployMonster.',
+  },
+  running: {
+    title: 'No running applications',
+    description: 'Start an application or deploy a new one to see it here.',
+  },
+  stopped: {
+    title: 'No stopped applications',
+    description: 'All your applications are currently running. Great job!',
+  },
+  deploying: {
+    title: 'No active deployments',
+    description: 'Trigger a new deployment to see it appear here.',
+  },
+  search: {
+    title: 'No matching applications',
+    description: 'Try adjusting your search or filter criteria.',
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                         */
+/* ------------------------------------------------------------------ */
+
 export function Apps() {
   const { data: appsResponse, refetch } = useApi<{ data: App[]; total: number }>(
     '/apps?page=1&per_page=50',
@@ -60,11 +121,13 @@ export function Apps() {
 
   const [filter, setFilter] = useState<FilterKey>('all');
   const [search, setSearch] = useState('');
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const filteredApps = allApps.filter((app) => {
-    const matchesFilter = filter === 'all' || app.status === filter;
+    const matchesFilter =
+      filter === 'all' ||
+      app.status === filter ||
+      (filter === 'deploying' && app.status === 'building');
     const matchesSearch =
       !search ||
       app.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -79,12 +142,21 @@ export function Apps() {
     deploying: allApps.filter((a) => a.status === 'deploying' || a.status === 'building').length,
   };
 
-  const handleAction = async (appId: string, action: 'start' | 'stop' | 'restart' | 'delete') => {
-    setMenuOpen(null);
+  const handleAction = async (
+    e: React.MouseEvent,
+    appId: string,
+    action: 'start' | 'stop' | 'restart' | 'delete'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
     setActionLoading(appId);
     try {
       if (action === 'delete') {
-        if (!confirm('Are you sure you want to delete this application? This action cannot be undone.')) {
+        if (
+          !confirm(
+            'Are you sure you want to delete this application? This action cannot be undone.'
+          )
+        ) {
           setActionLoading(null);
           return;
         }
@@ -100,8 +172,11 @@ export function Apps() {
     }
   };
 
+  const emptyKey = search ? 'search' : filter;
+  const emptyMsg = EMPTY_MESSAGES[emptyKey] || EMPTY_MESSAGES['all'];
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -110,71 +185,68 @@ export function Apps() {
             {total} application{total !== 1 ? 's' : ''} deployed
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search applications..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 w-64"
-            />
-          </div>
-          <Link to="/apps/new">
-            <Button>
-              <Plus className="size-4" />
-              New Application
-            </Button>
-          </Link>
-        </div>
+        <Link to="/apps/new">
+          <Button className="cursor-pointer">
+            <Plus className="size-4" />
+            New Application
+          </Button>
+        </Link>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-1 border-b">
-        {FILTER_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setFilter(tab.key)}
-            className={cn(
-              'inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px cursor-pointer',
-              filter === tab.key
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-            )}
-          >
-            {tab.label}
-            <span
+      {/* Filter bar + Search */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Segmented filter group */}
+        <div className="inline-flex items-center gap-1 rounded-lg bg-muted p-1">
+          {FILTER_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setFilter(tab.key)}
               className={cn(
-                'inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium',
+                'inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all cursor-pointer',
                 filter === tab.key
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground'
               )}
             >
-              {filterCounts[tab.key]}
-            </span>
-          </button>
-        ))}
+              {tab.label}
+              <span
+                className={cn(
+                  'inline-flex items-center justify-center rounded-full min-w-5 h-5 px-1.5 text-xs font-semibold',
+                  filter === tab.key
+                    ? 'bg-primary-foreground/20 text-primary-foreground'
+                    : 'bg-muted-foreground/15 text-muted-foreground'
+                )}
+              >
+                {filterCounts[tab.key]}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search applications..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 w-full sm:w-72"
+          />
+        </div>
       </div>
 
       {/* App Grid or Empty State */}
       {filteredApps.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="rounded-full bg-muted p-5 mb-5">
             <Box className="size-10 text-muted-foreground" />
           </div>
-          <h2 className="text-xl font-semibold text-foreground mb-2">
-            {search || filter !== 'all' ? 'No matching applications' : 'No applications yet'}
-          </h2>
-          <p className="text-muted-foreground mb-6 max-w-sm">
-            {search || filter !== 'all'
-              ? 'Try adjusting your search or filter criteria.'
-              : 'Deploy your first application to get started with DeployMonster.'}
-          </p>
+          <h2 className="text-xl font-semibold text-foreground mb-2">{emptyMsg.title}</h2>
+          <p className="text-muted-foreground mb-6 max-w-sm">{emptyMsg.description}</p>
           {!search && filter === 'all' && (
             <Link to="/apps/new">
-              <Button>
+              <Button className="cursor-pointer">
                 <Rocket className="size-4" />
                 Deploy Your First App
               </Button>
@@ -182,104 +254,135 @@ export function Apps() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredApps.map((app) => (
-            <Card
-              key={app.id}
-              className={cn(
-                'group relative transition-all hover:shadow-md',
-                actionLoading === app.id && 'opacity-60 pointer-events-none'
-              )}
-            >
-              <CardHeader className="flex-row items-start justify-between space-y-0 pb-0 gap-6">
-                <div className="flex-1 min-w-0">
-                  <Link to={`/apps/${app.id}`}>
-                    <CardTitle className="text-base truncate hover:text-primary transition-colors cursor-pointer">
-                      {app.name}
-                    </CardTitle>
-                  </Link>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge variant={STATUS_VARIANT[app.status] || 'secondary'}>
-                      {app.status}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">{app.type}</span>
-                  </div>
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredApps.map((app) => {
+              const statusCfg = getStatusConfig(app.status);
+              const sourceCfg = getSourceConfig(app.source_type);
+              const SourceIcon = sourceCfg.icon;
+              const isLoading = actionLoading === app.id;
 
-                {/* Actions Menu */}
-                <div className="relative">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => setMenuOpen(menuOpen === app.id ? null : app.id)}
+              return (
+                <Link key={app.id} to={`/apps/${app.id}`} className="block group">
+                  <Card
+                    className={cn(
+                      'relative transition-all duration-200 h-full',
+                      'hover:ring-1 hover:ring-primary/20 hover:shadow-md hover:-translate-y-px',
+                      isLoading && 'opacity-60 pointer-events-none'
+                    )}
                   >
-                    <MoreVertical className="size-4" />
-                  </Button>
-                  {menuOpen === app.id && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setMenuOpen(null)}
-                      />
-                      <div className="absolute right-0 top-8 z-50 w-44 rounded-md border bg-popover p-1 shadow-md">
-                        <button
-                          onClick={() => handleAction(app.id, 'start')}
-                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors cursor-pointer"
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {/* Status dot */}
+                          <span className="relative flex h-2.5 w-2.5 shrink-0">
+                            {app.status === 'running' && (
+                              <span
+                                className={cn(
+                                  'absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping',
+                                  statusCfg.dot
+                                )}
+                              />
+                            )}
+                            <span
+                              className={cn(
+                                'relative inline-flex rounded-full h-2.5 w-2.5',
+                                statusCfg.dot
+                              )}
+                            />
+                          </span>
+                          <CardTitle className="text-base truncate">{app.name}</CardTitle>
+                        </div>
+                        {/* Source badge */}
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium shrink-0',
+                            sourceCfg.color
+                          )}
                         >
-                          <Play className="size-4" /> Start
-                        </button>
-                        <button
-                          onClick={() => handleAction(app.id, 'stop')}
-                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors cursor-pointer"
-                        >
-                          <Square className="size-4" /> Stop
-                        </button>
-                        <button
-                          onClick={() => handleAction(app.id, 'restart')}
-                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors cursor-pointer"
-                        >
-                          <RotateCcw className="size-4" /> Restart
-                        </button>
-                        <div className="my-1 h-px bg-border" />
-                        <button
-                          onClick={() => handleAction(app.id, 'delete')}
-                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="size-4" /> Delete
-                        </button>
+                          <SourceIcon className="size-3" />
+                          {sourceCfg.label}
+                        </span>
                       </div>
-                    </>
-                  )}
-                </div>
-              </CardHeader>
+                    </CardHeader>
 
-              <CardContent className="pt-0">
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <GitBranch className="size-3" />
-                    {app.source_type}
-                  </span>
-                  {app.branch && (
-                    <span className="truncate">{app.branch}</span>
-                  )}
-                </div>
-              </CardContent>
+                    <CardContent className="pb-3 space-y-3">
+                      {/* Status badge */}
+                      <Badge variant={statusCfg.variant} className="text-xs">
+                        {statusCfg.label}
+                      </Badge>
 
-              <CardFooter className="border-t pt-4 pb-0 justify-between text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <Clock className="size-3" />
-                  {timeAgo(app.updated_at)}
-                </span>
-                <Link to={`/apps/${app.id}`}>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs">
-                    View Details
-                  </Button>
+                      {/* Meta info */}
+                      <div className="space-y-1.5 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="size-3 shrink-0" />
+                          <span>Last deploy: {timeAgo(app.updated_at)}</span>
+                        </div>
+                        {app.branch && (
+                          <div className="flex items-center gap-1.5">
+                            <GitBranch className="size-3 shrink-0" />
+                            <span className="truncate">{app.branch}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <Container className="size-3 shrink-0" />
+                          <span className="font-mono text-[11px] truncate">
+                            {app.id.slice(0, 12)}
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+
+                    {/* Action row */}
+                    <div className="border-t px-4 py-2.5 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {app.status === 'running' ? (
+                        <Tooltip content="Stop">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 cursor-pointer"
+                              onClick={(e) => handleAction(e, app.id, 'stop')}
+                            >
+                              <Square className="size-3.5" />
+                            </Button>
+                        </Tooltip>
+                      ) : (
+                        <Tooltip content="Start">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 cursor-pointer"
+                              onClick={(e) => handleAction(e, app.id, 'start')}
+                            >
+                              <Play className="size-3.5" />
+                            </Button>
+                        </Tooltip>
+                      )}
+                      <Tooltip content="Restart">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 cursor-pointer"
+                            onClick={(e) => handleAction(e, app.id, 'restart')}
+                          >
+                            <RotateCcw className="size-3.5" />
+                          </Button>
+                      </Tooltip>
+                      <Tooltip content="Delete">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-destructive hover:text-destructive cursor-pointer"
+                            onClick={(e) => handleAction(e, app.id, 'delete')}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                      </Tooltip>
+                    </div>
+                  </Card>
                 </Link>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+              );
+            })}
+          </div>
       )}
     </div>
   );

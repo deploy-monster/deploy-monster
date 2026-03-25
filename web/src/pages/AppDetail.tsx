@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router';
 import {
   ArrowLeft,
@@ -8,10 +8,8 @@ import {
   Trash2,
   GitBranch,
   Clock,
-  Container,
   Cpu,
   MemoryStick,
-  Activity,
   Upload,
   Plus,
   Pencil,
@@ -23,6 +21,12 @@ import {
   Terminal,
   Layers,
   Rocket,
+  Network,
+  Timer,
+  Server,
+  Calendar,
+  User,
+  CheckCircle2,
 } from 'lucide-react';
 import { appsAPI, type App } from '../api/apps';
 import { useApi } from '../hooks';
@@ -42,6 +46,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tooltip } from '@/components/ui/tooltip';
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                             */
+/* ------------------------------------------------------------------ */
 
 interface Deployment {
   id: string;
@@ -59,15 +68,27 @@ interface EnvVar {
   isSecret: boolean;
 }
 
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  running: 'default',
-  stopped: 'secondary',
-  deploying: 'outline',
-  building: 'outline',
-  failed: 'destructive',
-  success: 'default',
-  pending: 'secondary',
+/* ------------------------------------------------------------------ */
+/*  Constants                                                         */
+/* ------------------------------------------------------------------ */
+
+const STATUS_CONFIG: Record<string, {
+  variant: 'default' | 'secondary' | 'destructive' | 'outline';
+  dot: string;
+  label: string;
+}> = {
+  running: { variant: 'default', dot: 'bg-emerald-500', label: 'Running' },
+  stopped: { variant: 'secondary', dot: 'bg-red-500', label: 'Stopped' },
+  deploying: { variant: 'outline', dot: 'bg-amber-500', label: 'Deploying' },
+  building: { variant: 'outline', dot: 'bg-amber-500', label: 'Building' },
+  failed: { variant: 'destructive', dot: 'bg-red-500', label: 'Failed' },
+  success: { variant: 'default', dot: 'bg-emerald-500', label: 'Success' },
+  pending: { variant: 'secondary', dot: 'bg-slate-400', label: 'Pending' },
 };
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                           */
+/* ------------------------------------------------------------------ */
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -80,6 +101,14 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+function getStatusConfig(status: string) {
+  return STATUS_CONFIG[status] || { variant: 'secondary' as const, dot: 'bg-slate-400', label: status };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main Component                                                    */
+/* ------------------------------------------------------------------ */
+
 export function AppDetail() {
   const { id } = useParams();
   const { data: app, loading: appLoading, refetch: refetchApp } = useApi<App>(`/apps/${id}`);
@@ -88,32 +117,44 @@ export function AppDetail() {
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Environment variables local state (demo — would be fetched from API)
+  // Environment variables local state (demo -- would be fetched from API)
   const [envVars, setEnvVars] = useState<EnvVar[]>([
     { key: 'NODE_ENV', value: 'production', isSecret: false },
     { key: 'DATABASE_URL', value: '${SECRET:db_url}', isSecret: true },
+    { key: 'API_KEY', value: '${SECRET:api_key}', isSecret: true },
+    { key: 'PORT', value: '3000', isSecret: false },
   ]);
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
   const [showSecrets, setShowSecrets] = useState(false);
   const [_editingEnv, setEditingEnv] = useState<string | null>(null);
 
-  const handleAction = useCallback(async (action: 'start' | 'stop' | 'restart') => {
-    if (!id) return;
-    setActionLoading(action);
-    try {
-      await appsAPI[action](id);
-      refetchApp();
-    } catch {
-      // Error handled by API layer
-    } finally {
-      setActionLoading(null);
-    }
-  }, [id, refetchApp]);
+  /* -- Actions ---------------------------------------------------- */
+
+  const handleAction = useCallback(
+    async (action: 'start' | 'stop' | 'restart') => {
+      if (!id) return;
+      setActionLoading(action);
+      try {
+        await appsAPI[action](id);
+        refetchApp();
+      } catch {
+        // Error handled by API layer
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [id, refetchApp]
+  );
 
   const handleDelete = useCallback(async () => {
     if (!id) return;
-    if (!confirm('Are you sure you want to delete this application? All deployments, domains, and data will be permanently removed.')) return;
+    if (
+      !confirm(
+        'Are you sure you want to delete this application? All deployments, domains, and data will be permanently removed.'
+      )
+    )
+      return;
     setActionLoading('delete');
     try {
       await appsAPI.delete(id);
@@ -127,7 +168,7 @@ export function AppDetail() {
     if (!id) return;
     setActionLoading('deploy');
     try {
-      await appsAPI.restart(id); // Trigger redeploy
+      await appsAPI.restart(id);
       refetchApp();
     } catch {
       // Error handled by API layer
@@ -147,11 +188,7 @@ export function AppDetail() {
     setEnvVars((prev) => prev.filter((v) => v.key !== key));
   };
 
-  // SSE log streaming
-  useEffect(() => {
-    if (!id) return;
-    // Only connect when on logs tab — managed by tab visibility
-  }, [id]);
+  /* -- Loading state ---------------------------------------------- */
 
   if (appLoading || !app) {
     return (
@@ -164,24 +201,39 @@ export function AppDetail() {
     );
   }
 
+  const statusCfg = getStatusConfig(app.status);
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ============================================================ */}
+      {/*  Header                                                      */}
+      {/* ============================================================ */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <Link to="/apps">
-            <Button variant="ghost" size="icon" className="mt-1">
+            <Button variant="ghost" size="icon" className="mt-1 cursor-pointer">
               <ArrowLeft className="size-4" />
             </Button>
           </Link>
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-3xl font-bold tracking-tight">{app.name}</h1>
-              <Badge variant={STATUS_VARIANT[app.status] || 'secondary'} className="text-xs">
-                {app.status}
+              <Badge variant={statusCfg.variant} className="text-xs gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  {app.status === 'running' && (
+                    <span
+                      className={cn(
+                        'absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping',
+                        statusCfg.dot
+                      )}
+                    />
+                  )}
+                  <span className={cn('relative inline-flex rounded-full h-2 w-2', statusCfg.dot)} />
+                </span>
+                {statusCfg.label}
               </Badge>
             </div>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-muted-foreground mt-1 text-sm">
               {app.source_type} &middot; {app.type}
               {app.branch && (
                 <span className="inline-flex items-center gap-1 ml-2">
@@ -192,10 +244,13 @@ export function AppDetail() {
             </p>
           </div>
         </div>
+
+        {/* Action buttons */}
         <div className="flex items-center gap-2 ml-12 sm:ml-0">
           <Button
             variant="outline"
             size="sm"
+            className="cursor-pointer"
             onClick={() => handleAction('restart')}
             disabled={actionLoading !== null}
           >
@@ -205,6 +260,7 @@ export function AppDetail() {
           <Button
             variant="outline"
             size="sm"
+            className="cursor-pointer"
             onClick={() => handleAction(app.status === 'running' ? 'stop' : 'start')}
             disabled={actionLoading !== null}
           >
@@ -222,82 +278,157 @@ export function AppDetail() {
           </Button>
           <Button
             size="sm"
+            className="cursor-pointer"
             onClick={handleDeploy}
             disabled={actionLoading !== null}
           >
             <Upload className={cn('size-4', actionLoading === 'deploy' && 'animate-bounce')} />
             Deploy
           </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="cursor-pointer"
+            onClick={handleDelete}
+            disabled={actionLoading !== null}
+          >
+            <Trash2 className="size-4" />
+          </Button>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* ============================================================ */}
+      {/*  Tabs                                                        */}
+      {/* ============================================================ */}
       <Tabs defaultValue="overview">
         <TabsList>
-          <TabsTrigger value="overview">
+          <TabsTrigger value="overview" className="cursor-pointer">
             <Layers className="size-4" />
             Overview
           </TabsTrigger>
-          <TabsTrigger value="deployments">
+          <TabsTrigger value="deployments" className="cursor-pointer">
             <Rocket className="size-4" />
             Deployments
           </TabsTrigger>
-          <TabsTrigger value="env">
+          <TabsTrigger value="env" className="cursor-pointer">
             <Settings className="size-4" />
             Environment
           </TabsTrigger>
-          <TabsTrigger value="logs">
+          <TabsTrigger value="logs" className="cursor-pointer">
             <Terminal className="size-4" />
             Logs
           </TabsTrigger>
-          <TabsTrigger value="settings">
+          <TabsTrigger value="settings" className="cursor-pointer">
             <Settings className="size-4" />
             Settings
           </TabsTrigger>
         </TabsList>
 
-        {/* Overview Tab */}
+        {/* ========================================================== */}
+        {/*  Overview Tab                                               */}
+        {/* ========================================================== */}
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Metric cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              {
+                icon: Cpu,
+                label: 'CPU Usage',
+                value: '12%',
+                color: 'text-blue-500',
+                barColor: 'bg-blue-500',
+                percent: 12,
+              },
+              {
+                icon: MemoryStick,
+                label: 'Memory',
+                value: '256 MB / 512 MB',
+                color: 'text-emerald-500',
+                barColor: 'bg-emerald-500',
+                percent: 50,
+              },
+              {
+                icon: Network,
+                label: 'Network I/O',
+                value: '1.2 KB/s',
+                color: 'text-violet-500',
+                barColor: 'bg-violet-500',
+                percent: 8,
+              },
+              {
+                icon: Timer,
+                label: 'Uptime',
+                value: app.status === 'running' ? timeAgo(app.created_at).replace(' ago', '') : '--',
+                color: 'text-amber-500',
+                barColor: 'bg-amber-500',
+                percent: app.status === 'running' ? 100 : 0,
+              },
+            ].map(({ icon: Icon, label, value, color, barColor, percent }) => (
+              <Card key={label}>
+                <CardContent className="pt-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={cn('p-2 rounded-lg bg-muted')}>
+                      <Icon className={cn('size-4', color)} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <p className="text-sm font-semibold truncate">{value}</p>
+                    </div>
+                  </div>
+                  <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={cn('h-full rounded-full transition-all duration-500', barColor)}
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Application Info */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Application Info</CardTitle>
                 <CardDescription>Source and configuration details</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Type</p>
-                    <p className="font-medium">{app.type}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Source</p>
-                    <p className="font-medium">{app.source_type}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Branch</p>
-                    <p className="font-medium inline-flex items-center gap-1">
-                      <GitBranch className="size-3" />
-                      {app.branch || 'main'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Replicas</p>
-                    <p className="font-medium">{app.replicas}</p>
-                  </div>
-                </div>
-                {app.source_url && (
-                  <>
-                    <Separator />
-                    <div className="text-sm">
-                      <p className="text-muted-foreground mb-1">Repository URL</p>
-                      <p className="font-mono text-xs bg-muted rounded-md px-3 py-2 truncate">
-                        {app.source_url}
-                      </p>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    { icon: GitBranch, label: 'Source', value: app.source_type },
+                    { icon: GitBranch, label: 'Branch', value: app.branch || 'main' },
+                    { icon: Server, label: 'Replicas', value: String(app.replicas) },
+                    {
+                      icon: Calendar,
+                      label: 'Created',
+                      value: new Date(app.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      }),
+                    },
+                  ].map(({ icon: Icon, label, value }) => (
+                    <div key={label} className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Icon className="size-4" />
+                        {label}
+                      </span>
+                      <span className="font-medium">{value}</span>
                     </div>
-                  </>
-                )}
+                  ))}
+                  {app.source_url && (
+                    <>
+                      <Separator />
+                      <div className="text-sm">
+                        <p className="text-muted-foreground mb-1.5">Repository URL</p>
+                        <p className="font-mono text-xs bg-muted rounded-md px-3 py-2 truncate">
+                          {app.source_url}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -310,31 +441,36 @@ export function AppDetail() {
               <CardContent>
                 {deployments.length > 0 ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Version</p>
-                        <p className="font-medium">v{deployments[0].version}</p>
+                    {[
+                      { icon: Rocket, label: 'Version', value: `v${deployments[0].version}` },
+                      {
+                        icon: CheckCircle2,
+                        label: 'Status',
+                        value: deployments[0].status,
+                        isBadge: true,
+                      },
+                      { icon: User, label: 'Triggered by', value: deployments[0].triggered_by },
+                      { icon: Clock, label: 'Date', value: timeAgo(deployments[0].created_at) },
+                    ].map(({ icon: Icon, label, value, isBadge }) => (
+                      <div key={label} className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-2 text-muted-foreground">
+                          <Icon className="size-4" />
+                          {label}
+                        </span>
+                        {isBadge ? (
+                          <Badge variant={getStatusConfig(value).variant}>
+                            {getStatusConfig(value).label}
+                          </Badge>
+                        ) : (
+                          <span className="font-medium">{value}</span>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-muted-foreground">Status</p>
-                        <Badge variant={STATUS_VARIANT[deployments[0].status] || 'secondary'}>
-                          {deployments[0].status}
-                        </Badge>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Triggered by</p>
-                        <p className="font-medium">{deployments[0].triggered_by}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Date</p>
-                        <p className="font-medium">{timeAgo(deployments[0].created_at)}</p>
-                      </div>
-                    </div>
+                    ))}
                     {deployments[0].commit_sha && (
                       <>
                         <Separator />
                         <div className="text-sm">
-                          <p className="text-muted-foreground mb-1">Commit</p>
+                          <p className="text-muted-foreground mb-1.5">Commit SHA</p>
                           <code className="font-mono text-xs bg-muted rounded-md px-3 py-2 block">
                             {deployments[0].commit_sha.slice(0, 8)}
                           </code>
@@ -347,8 +483,8 @@ export function AppDetail() {
                     <div className="rounded-full bg-muted p-3 mb-3">
                       <Rocket className="size-5 text-muted-foreground" />
                     </div>
-                    <p className="text-sm text-muted-foreground">No deployments yet</p>
-                    <Button size="sm" className="mt-3" onClick={handleDeploy}>
+                    <p className="text-sm text-muted-foreground mb-3">No deployments yet</p>
+                    <Button size="sm" onClick={handleDeploy} className="cursor-pointer">
                       <Upload className="size-4" />
                       Deploy Now
                     </Button>
@@ -357,43 +493,21 @@ export function AppDetail() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Resource Usage */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Resource Usage</CardTitle>
-              <CardDescription>Current resource consumption</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                {[
-                  { icon: Cpu, label: 'CPU', value: '0%', color: 'text-blue-500' },
-                  { icon: MemoryStick, label: 'Memory', value: '0 MB', color: 'text-green-500' },
-                  { icon: Activity, label: 'Requests/min', value: '0', color: 'text-violet-500' },
-                  { icon: Container, label: 'Containers', value: `${app.replicas}`, color: 'text-amber-500' },
-                ].map(({ icon: Icon, label, value, color }) => (
-                  <div key={label} className="flex items-center gap-3 rounded-lg border p-4">
-                    <Icon className={cn('size-5', color)} />
-                    <div>
-                      <p className="text-lg font-bold">{value}</p>
-                      <p className="text-xs text-muted-foreground">{label}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
-        {/* Deployments Tab */}
+        {/* ========================================================== */}
+        {/*  Deployments Tab                                            */}
+        {/* ========================================================== */}
         <TabsContent value="deployments" className="space-y-4">
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle className="text-base">Deployment History</CardTitle>
-                <CardDescription>{deployments.length} deployment{deployments.length !== 1 ? 's' : ''}</CardDescription>
+                <CardDescription>
+                  {deployments.length} deployment{deployments.length !== 1 ? 's' : ''}
+                </CardDescription>
               </div>
-              <Button size="sm" onClick={handleDeploy}>
+              <Button size="sm" onClick={handleDeploy} className="cursor-pointer">
                 <Upload className="size-4" />
                 New Deployment
               </Button>
@@ -408,95 +522,121 @@ export function AppDetail() {
                   <p className="text-sm text-muted-foreground mb-4">
                     Trigger your first deployment to see the history here.
                   </p>
-                  <Button size="sm" onClick={handleDeploy}>
+                  <Button size="sm" onClick={handleDeploy} className="cursor-pointer">
                     <Rocket className="size-4" />
                     Deploy Now
                   </Button>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Version</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="hidden md:table-cell">Image</TableHead>
-                      <TableHead>Commit</TableHead>
-                      <TableHead className="hidden sm:table-cell">Triggered By</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {deployments.map((d, index) => (
-                      <TableRow key={d.id}>
-                        <TableCell className="font-medium">v{d.version}</TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_VARIANT[d.status] || 'secondary'}>
-                            {d.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className="font-mono text-xs text-muted-foreground max-w-48 truncate block">
-                            {d.image}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <code className="font-mono text-xs">
-                            {d.commit_sha?.slice(0, 8) || '-'}
-                          </code>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell text-muted-foreground">
-                          {d.triggered_by}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="size-3" />
-                            {timeAgo(d.created_at)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {index > 0 && (
-                            <Button variant="ghost" size="sm" className="h-7 text-xs">
-                              <History className="size-3" />
-                              Rollback
-                            </Button>
-                          )}
-                        </TableCell>
+                <div className="rounded-lg border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="font-semibold">Version</TableHead>
+                        <TableHead className="font-semibold">Status</TableHead>
+                        <TableHead className="font-semibold hidden md:table-cell">
+                          Image
+                        </TableHead>
+                        <TableHead className="font-semibold">Commit</TableHead>
+                        <TableHead className="font-semibold hidden sm:table-cell">
+                          Triggered By
+                        </TableHead>
+                        <TableHead className="font-semibold">Date</TableHead>
+                        <TableHead className="font-semibold text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {deployments.map((d, index) => {
+                        const dCfg = getStatusConfig(d.status);
+                        return (
+                          <TableRow
+                            key={d.id}
+                            className="hover:bg-muted/30 transition-colors"
+                          >
+                            <TableCell className="font-semibold">v{d.version}</TableCell>
+                            <TableCell>
+                              <Badge variant={dCfg.variant} className="text-xs gap-1.5">
+                                <span className={cn('inline-flex rounded-full h-1.5 w-1.5', dCfg.dot)} />
+                                {dCfg.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              <span className="font-mono text-xs text-muted-foreground max-w-48 truncate block">
+                                {d.image}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <code className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
+                                {d.commit_sha?.slice(0, 8) || '--------'}
+                              </code>
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
+                              {d.triggered_by}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              <span className="inline-flex items-center gap-1">
+                                <Clock className="size-3" />
+                                {timeAgo(d.created_at)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {index > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs cursor-pointer"
+                                >
+                                  <History className="size-3" />
+                                  Rollback
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Environment Tab */}
+        {/* ========================================================== */}
+        {/*  Environment Tab                                            */}
+        {/* ========================================================== */}
         <TabsContent value="env" className="space-y-4">
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle className="text-base">Environment Variables</CardTitle>
                 <CardDescription>
-                  Manage your application's environment configuration. Use <code className="text-xs bg-muted px-1 py-0.5 rounded">{'${SECRET:name}'}</code> for encrypted references.
+                  Manage your application's environment configuration. Use{' '}
+                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">
+                    {'${SECRET:name}'}
+                  </code>{' '}
+                  for encrypted references.
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
+                  className="cursor-pointer"
                   onClick={() => setShowSecrets(!showSecrets)}
                 >
                   {showSecrets ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  {showSecrets ? 'Hide' : 'Reveal'}
+                  {showSecrets ? 'Hide Values' : 'Reveal Values'}
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Add new variable */}
-              <div className="flex items-end gap-3">
+              <div className="flex items-end gap-3 p-4 rounded-lg border border-dashed bg-muted/30">
                 <div className="flex-1">
-                  <Label htmlFor="env-key" className="mb-1.5">Key</Label>
+                  <Label htmlFor="env-key" className="mb-1.5 text-xs">
+                    Key
+                  </Label>
                   <Input
                     id="env-key"
                     placeholder="VARIABLE_NAME"
@@ -506,18 +646,25 @@ export function AppDetail() {
                   />
                 </div>
                 <div className="flex-1">
-                  <Label htmlFor="env-value" className="mb-1.5">Value</Label>
+                  <Label htmlFor="env-value" className="mb-1.5 text-xs">
+                    Value
+                  </Label>
                   <Input
                     id="env-value"
-                    placeholder="value"
+                    placeholder="value or ${SECRET:name}"
                     value={newEnvValue}
                     onChange={(e) => setNewEnvValue(e.target.value)}
                     className="font-mono text-sm"
                   />
                 </div>
-                <Button size="sm" onClick={addEnvVar} disabled={!newEnvKey.trim()}>
+                <Button
+                  size="sm"
+                  onClick={addEnvVar}
+                  disabled={!newEnvKey.trim()}
+                  className="cursor-pointer"
+                >
                   <Plus className="size-4" />
-                  Add
+                  Add Variable
                 </Button>
               </div>
 
@@ -525,72 +672,93 @@ export function AppDetail() {
 
               {/* Variable list */}
               {envVars.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">
-                  No environment variables configured.
-                </p>
+                <div className="flex flex-col items-center py-8 text-center">
+                  <div className="rounded-full bg-muted p-3 mb-3">
+                    <Settings className="size-5 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    No environment variables configured.
+                  </p>
+                </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Key</TableHead>
-                      <TableHead>Value</TableHead>
-                      <TableHead className="w-24 text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {envVars.map((v) => (
-                      <TableRow key={v.key}>
-                        <TableCell className="font-mono text-sm font-medium">
-                          {v.key}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm text-muted-foreground">
-                          {v.isSecret && !showSecrets
-                            ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'
-                            : v.value}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-7"
-                              onClick={() => navigator.clipboard.writeText(v.value)}
-                            >
-                              <Copy className="size-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-7"
-                              onClick={() => setEditingEnv(v.key)}
-                            >
-                              <Pencil className="size-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-7 text-destructive hover:text-destructive"
-                              onClick={() => removeEnvVar(v.key)}
-                            >
-                              <Trash2 className="size-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="font-semibold">Key</TableHead>
+                          <TableHead className="font-semibold">Value</TableHead>
+                          <TableHead className="w-28 text-right font-semibold">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {envVars.map((v) => (
+                          <TableRow key={v.key} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="font-mono text-sm font-bold">
+                              {v.key}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm text-muted-foreground">
+                              {v.isSecret && !showSecrets ? (
+                                <span className="select-none tracking-wider">
+                                  {'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'}
+                                </span>
+                              ) : (
+                                v.value
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Tooltip content="Copy value">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-7 cursor-pointer"
+                                      onClick={() => navigator.clipboard.writeText(v.value)}
+                                    >
+                                      <Copy className="size-3" />
+                                    </Button>
+                                </Tooltip>
+                                <Tooltip content="Edit">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-7 cursor-pointer"
+                                      onClick={() => setEditingEnv(v.key)}
+                                    >
+                                      <Pencil className="size-3" />
+                                    </Button>
+                                </Tooltip>
+                                <Tooltip content="Delete">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-7 text-destructive hover:text-destructive cursor-pointer"
+                                      onClick={() => removeEnvVar(v.key)}
+                                    >
+                                      <Trash2 className="size-3" />
+                                    </Button>
+                                </Tooltip>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Logs Tab */}
+        {/* ========================================================== */}
+        {/*  Logs Tab                                                   */}
+        {/* ========================================================== */}
         <TabsContent value="logs" className="space-y-4">
           <LogsPanel appId={id || ''} />
         </TabsContent>
 
-        {/* Settings Tab */}
+        {/* ========================================================== */}
+        {/*  Settings Tab                                               */}
+        {/* ========================================================== */}
         <TabsContent value="settings" className="space-y-6">
           <Card>
             <CardHeader>
@@ -610,6 +778,7 @@ export function AppDetail() {
                     <Button
                       variant="outline"
                       size="icon"
+                      className="cursor-pointer"
                       onClick={() => navigator.clipboard.writeText(app.id)}
                     >
                       <Copy className="size-4" />
@@ -650,12 +819,14 @@ export function AppDetail() {
                 <div>
                   <p className="font-medium text-sm">Delete this application</p>
                   <p className="text-sm text-muted-foreground">
-                    Permanently remove this application, all deployments, domains, and associated data.
+                    Permanently remove this application, all deployments, domains, and associated
+                    data.
                   </p>
                 </div>
                 <Button
                   variant="destructive"
                   size="sm"
+                  className="cursor-pointer shrink-0 ml-4"
                   onClick={handleDelete}
                   disabled={actionLoading === 'delete'}
                 >
@@ -671,10 +842,21 @@ export function AppDetail() {
   );
 }
 
-/** Separated logs panel to manage SSE lifecycle independently */
+/* ------------------------------------------------------------------ */
+/*  Logs Panel (SSE lifecycle managed independently)                   */
+/* ------------------------------------------------------------------ */
+
 function LogsPanel({ appId }: { appId: string }) {
   const [logs, setLogs] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [logs]);
 
   useEffect(() => {
     if (!appId) return;
@@ -697,45 +879,51 @@ function LogsPanel({ appId }: { appId: string }) {
   }, [appId]);
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <div>
-          <CardTitle className="text-base inline-flex items-center gap-2">
-            <Terminal className="size-4" />
-            Application Logs
-          </CardTitle>
-          <CardDescription>Real-time log stream via SSE</CardDescription>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={cn(
-            'size-2 rounded-full',
-            connected ? 'bg-green-500' : 'bg-muted-foreground'
-          )} />
-          <span className="text-xs text-muted-foreground">
-            {connected ? 'Connected' : 'Disconnected'}
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="relative rounded-lg bg-zinc-950 border border-zinc-800 overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 bg-zinc-900">
-            <div className="flex gap-1.5">
-              <div className="size-3 rounded-full bg-red-500/80" />
-              <div className="size-3 rounded-full bg-yellow-500/80" />
-              <div className="size-3 rounded-full bg-green-500/80" />
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        <div className="rounded-lg bg-[#0d1117] overflow-hidden">
+          {/* Terminal header */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 bg-[#161b22]">
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1.5">
+                <div className="size-3 rounded-full bg-[#ff5f57] hover:bg-[#ff5f57]/80 transition-colors" />
+                <div className="size-3 rounded-full bg-[#febc2e] hover:bg-[#febc2e]/80 transition-colors" />
+                <div className="size-3 rounded-full bg-[#28c840] hover:bg-[#28c840]/80 transition-colors" />
+              </div>
+              <span className="text-xs text-[#8b949e] font-mono">Container Logs</span>
             </div>
-            <span className="text-xs text-zinc-500 ml-2 font-mono">logs — {appId}</span>
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  'size-2 rounded-full transition-colors',
+                  connected ? 'bg-[#28c840] shadow-sm shadow-[#28c840]/50' : 'bg-[#8b949e]'
+                )}
+              />
+              <span className="text-xs text-[#8b949e] font-mono">
+                {connected ? 'Live' : 'Disconnected'}
+              </span>
+            </div>
           </div>
-          <div className="h-96 overflow-auto p-4 font-mono text-sm leading-relaxed">
+
+          {/* Log content */}
+          <div
+            ref={scrollRef}
+            className="h-[28rem] overflow-auto p-4 font-mono text-sm leading-relaxed scroll-smooth"
+          >
             {logs.length === 0 ? (
-              <div className="flex items-center gap-2 text-zinc-500">
-                <div className="size-1.5 rounded-full bg-zinc-500 animate-pulse" />
-                Waiting for logs...
+              <div className="flex items-center gap-2 text-[#8b949e]">
+                <div className="size-1.5 rounded-full bg-[#8b949e] animate-pulse" />
+                <span>Waiting for logs...</span>
               </div>
             ) : (
               logs.map((line, i) => (
-                <div key={i} className="text-zinc-300 hover:bg-zinc-900/50 px-1 -mx-1 rounded">
-                  <span className="text-zinc-600 select-none mr-3">{String(i + 1).padStart(4, ' ')}</span>
+                <div
+                  key={i}
+                  className="text-[#c9d1d9] hover:bg-[#161b22] px-2 -mx-2 py-px rounded group"
+                >
+                  <span className="text-[#484f58] select-none mr-4 inline-block w-10 text-right group-hover:text-[#6e7681]">
+                    {String(i + 1).padStart(4, ' ')}
+                  </span>
                   {line}
                 </div>
               ))
