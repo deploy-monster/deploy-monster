@@ -63,6 +63,24 @@ func (m *mockRuntime) ListByLabels(_ context.Context, _ map[string]string) ([]co
 	return nil, nil
 }
 
+func (m *mockRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) {
+	return "", nil
+}
+
+func (m *mockRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
+	return &core.ContainerStats{}, nil
+}
+
+func (m *mockRuntime) ImagePull(_ context.Context, _ string) error { return nil }
+
+func (m *mockRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) { return nil, nil }
+
+func (m *mockRuntime) ImageRemove(_ context.Context, _ string) error { return nil }
+
+func (m *mockRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) { return nil, nil }
+
+func (m *mockRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) { return nil, nil }
+
 func TestRecreate_Name(t *testing.T) {
 	r := &Recreate{}
 	if got := r.Name(); got != "recreate" {

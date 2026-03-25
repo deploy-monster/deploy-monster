@@ -16,20 +16,52 @@ func NewImageCleanupHandler(runtime core.ContainerRuntime) *ImageCleanupHandler 
 }
 
 // DanglingImages handles GET /api/v1/images/dangling
-func (h *ImageCleanupHandler) DanglingImages(w http.ResponseWriter, _ *http.Request) {
+func (h *ImageCleanupHandler) DanglingImages(w http.ResponseWriter, r *http.Request) {
+	images, err := h.runtime.ImageList(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list images: "+err.Error())
+		return
+	}
+
+	var danglingCount int
+	var reclaimableMB int64
+	for _, img := range images {
+		if len(img.Tags) == 0 || (len(img.Tags) == 1 && img.Tags[0] == "<none>:<none>") {
+			danglingCount++
+			reclaimableMB += img.Size / (1024 * 1024)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"dangling_count": 0,
-		"reclaimable_mb": 0,
+		"dangling_count": danglingCount,
+		"reclaimable_mb": reclaimableMB,
 	})
 }
 
 // Prune handles DELETE /api/v1/images/prune
 // Removes unused and dangling images.
-func (h *ImageCleanupHandler) Prune(w http.ResponseWriter, _ *http.Request) {
-	// docker image prune -a --filter "until=24h"
+func (h *ImageCleanupHandler) Prune(w http.ResponseWriter, r *http.Request) {
+	images, err := h.runtime.ImageList(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list images: "+err.Error())
+		return
+	}
+
+	var removed int
+	var reclaimedMB int64
+	for _, img := range images {
+		if len(img.Tags) == 0 || (len(img.Tags) == 1 && img.Tags[0] == "<none>:<none>") {
+			if err := h.runtime.ImageRemove(r.Context(), img.ID); err != nil {
+				continue // skip images that can't be removed (in use)
+			}
+			removed++
+			reclaimedMB += img.Size / (1024 * 1024)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"reclaimed_mb": 0,
-		"images_removed": 0,
-		"status": "pruned",
+		"reclaimed_mb":   reclaimedMB,
+		"images_removed": removed,
+		"status":         "pruned",
 	})
 }

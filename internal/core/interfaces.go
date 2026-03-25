@@ -26,6 +26,13 @@ type ContainerRuntime interface {
 	Restart(ctx context.Context, containerID string) error
 	Logs(ctx context.Context, containerID string, tail string, follow bool) (io.ReadCloser, error)
 	ListByLabels(ctx context.Context, labels map[string]string) ([]ContainerInfo, error)
+	Exec(ctx context.Context, containerID string, cmd []string) (string, error)
+	Stats(ctx context.Context, containerID string) (*ContainerStats, error)
+	ImagePull(ctx context.Context, image string) error
+	ImageList(ctx context.Context) ([]ImageInfo, error)
+	ImageRemove(ctx context.Context, imageID string) error
+	NetworkList(ctx context.Context) ([]NetworkInfo, error)
+	VolumeList(ctx context.Context) ([]VolumeInfo, error)
 }
 
 // ContainerOpts holds options for creating a container.
@@ -51,6 +58,43 @@ type ContainerInfo struct {
 	State   string
 	Labels  map[string]string
 	Created int64
+}
+
+// ContainerStats holds real-time resource usage statistics for a container.
+type ContainerStats struct {
+	CPUPercent    float64
+	MemoryUsage   int64
+	MemoryLimit   int64
+	MemoryPercent float64
+	NetworkRx     int64
+	NetworkTx     int64
+	BlockRead     int64
+	BlockWrite    int64
+	PIDs          int
+}
+
+// ImageInfo holds basic Docker image information.
+type ImageInfo struct {
+	ID      string
+	Tags    []string
+	Size    int64
+	Created int64
+}
+
+// NetworkInfo holds basic Docker network information.
+type NetworkInfo struct {
+	ID     string
+	Name   string
+	Driver string
+	Scope  string
+}
+
+// VolumeInfo holds basic Docker volume information.
+type VolumeInfo struct {
+	Name       string
+	Driver     string
+	Mountpoint string
+	CreatedAt  string
 }
 
 // --- SSH ---
@@ -236,6 +280,7 @@ type BoltStorer interface {
 	Set(bucket, key string, value any, ttlSeconds int64) error
 	Get(bucket, key string, dest any) error
 	Delete(bucket, key string) error
+	List(bucket string) ([]string, error)
 	Close() error
 }
 

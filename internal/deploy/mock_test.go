@@ -70,6 +70,24 @@ func (m *mockRuntime) ListByLabels(ctx context.Context, labels map[string]string
 	return nil, nil
 }
 
+func (m *mockRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) {
+	return "", nil
+}
+
+func (m *mockRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
+	return &core.ContainerStats{}, nil
+}
+
+func (m *mockRuntime) ImagePull(_ context.Context, _ string) error { return nil }
+
+func (m *mockRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) { return nil, nil }
+
+func (m *mockRuntime) ImageRemove(_ context.Context, _ string) error { return nil }
+
+func (m *mockRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) { return nil, nil }
+
+func (m *mockRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) { return nil, nil }
+
 // mockStore implements core.Store for testing.
 // Only the methods needed by the deploy package are implemented;
 // others panic if called, which helps catch unexpected usage.

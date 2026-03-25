@@ -122,7 +122,8 @@ func TestErrorPageHandler_Update_InvalidBody(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestImageCleanupHandler_DanglingImages(t *testing.T) {
-	h := NewImageCleanupHandler(nil)
+	runtime := &mockContainerRuntime{}
+	h := NewImageCleanupHandler(runtime)
 
 	req := httptest.NewRequest("GET", "/api/v1/images/dangling", nil)
 	rr := httptest.NewRecorder()
@@ -134,7 +135,8 @@ func TestImageCleanupHandler_DanglingImages(t *testing.T) {
 }
 
 func TestImageCleanupHandler_Prune(t *testing.T) {
-	h := NewImageCleanupHandler(nil)
+	runtime := &mockContainerRuntime{}
+	h := NewImageCleanupHandler(runtime)
 
 	req := httptest.NewRequest("DELETE", "/api/v1/images/prune", nil)
 	rr := httptest.NewRecorder()
@@ -156,7 +158,7 @@ func TestImageCleanupHandler_Prune(t *testing.T) {
 
 func TestLogRetentionHandler_Get(t *testing.T) {
 	store := newMockStore()
-	h := NewLogRetentionHandler(store)
+	h := NewLogRetentionHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/log-retention", nil)
 	req.SetPathValue("id", "app-1")
@@ -181,7 +183,7 @@ func TestLogRetentionHandler_Get(t *testing.T) {
 
 func TestLogRetentionHandler_Update(t *testing.T) {
 	store := newMockStore()
-	h := NewLogRetentionHandler(store)
+	h := NewLogRetentionHandler(store, newMockBoltStore())
 
 	body := `{"max_size_mb":100,"max_files":10,"driver":"local"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader(body))
@@ -196,7 +198,7 @@ func TestLogRetentionHandler_Update(t *testing.T) {
 
 func TestLogRetentionHandler_Update_DefaultValues(t *testing.T) {
 	store := newMockStore()
-	h := NewLogRetentionHandler(store)
+	h := NewLogRetentionHandler(store, newMockBoltStore())
 
 	// max_size_mb <= 0 should default to 50, max_files <= 0 should default to 5
 	body := `{"max_size_mb":-1,"max_files":0}`
@@ -212,7 +214,7 @@ func TestLogRetentionHandler_Update_DefaultValues(t *testing.T) {
 
 func TestLogRetentionHandler_Update_InvalidBody(t *testing.T) {
 	store := newMockStore()
-	h := NewLogRetentionHandler(store)
+	h := NewLogRetentionHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader("{invalid"))
 	req.SetPathValue("id", "app-1")

@@ -43,6 +43,30 @@ func (r *testContainerRuntime) ListByLabels(_ context.Context, _ map[string]stri
 	return nil, nil
 }
 
+func (r *testContainerRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) {
+	return "", nil
+}
+
+func (r *testContainerRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
+	return nil, nil
+}
+
+func (r *testContainerRuntime) ImagePull(_ context.Context, _ string) error { return nil }
+
+func (r *testContainerRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) {
+	return nil, nil
+}
+
+func (r *testContainerRuntime) ImageRemove(_ context.Context, _ string) error { return nil }
+
+func (r *testContainerRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) {
+	return nil, nil
+}
+
+func (r *testContainerRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) {
+	return nil, nil
+}
+
 // ─── List Engines ────────────────────────────────────────────────────────────
 
 func TestListEngines_Success(t *testing.T) {

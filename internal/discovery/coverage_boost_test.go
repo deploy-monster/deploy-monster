@@ -36,6 +36,30 @@ func (m *mockContainerRuntime) ListByLabels(_ context.Context, _ map[string]stri
 	return m.containers, nil
 }
 
+func (m *mockContainerRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) {
+	return "", nil
+}
+
+func (m *mockContainerRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
+	return &core.ContainerStats{}, nil
+}
+
+func (m *mockContainerRuntime) ImagePull(_ context.Context, _ string) error { return nil }
+
+func (m *mockContainerRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) {
+	return nil, nil
+}
+
+func (m *mockContainerRuntime) ImageRemove(_ context.Context, _ string) error { return nil }
+
+func (m *mockContainerRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) {
+	return nil, nil
+}
+
+func (m *mockContainerRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) {
+	return nil, nil
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Watcher.syncRoutes — various container scenarios
 // ═══════════════════════════════════════════════════════════════════════════════

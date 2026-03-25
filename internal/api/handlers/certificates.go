@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -11,10 +12,11 @@ import (
 // CertificateHandler manages SSL/TLS certificates.
 type CertificateHandler struct {
 	store core.Store
+	bolt  core.BoltStorer
 }
 
-func NewCertificateHandler(store core.Store) *CertificateHandler {
-	return &CertificateHandler{store: store}
+func NewCertificateHandler(store core.Store, bolt core.BoltStorer) *CertificateHandler {
+	return &CertificateHandler{store: store, bolt: bolt}
 }
 
 // CertInfo represents certificate information returned by the API.
@@ -27,10 +29,29 @@ type CertInfo struct {
 	Status    string    `json:"status"` // active, expired, pending
 }
 
+// certStore wraps the persisted list of certificates.
+type certStore struct {
+	Certs []CertInfo `json:"certs"`
+}
+
 // List handles GET /api/v1/certificates
-func (h *CertificateHandler) List(w http.ResponseWriter, r *http.Request) {
-	// Would query ssl_certs table joined with domains
-	writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
+func (h *CertificateHandler) List(w http.ResponseWriter, _ *http.Request) {
+	var cs certStore
+	_ = h.bolt.Get("certificates", "all", &cs)
+
+	if cs.Certs == nil {
+		cs.Certs = []CertInfo{}
+	}
+
+	// Filter out expired certs from active status
+	now := time.Now()
+	for i := range cs.Certs {
+		if cs.Certs[i].ExpiresAt.Before(now) && cs.Certs[i].Status == "active" {
+			cs.Certs[i].Status = "expired"
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": cs.Certs, "total": len(cs.Certs)})
 }
 
 type uploadCertRequest struct {
@@ -53,11 +74,54 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate cert/key pair would happen here (tls.X509KeyPair)
+	// Validate cert/key pair
+	cert, err := tls.X509KeyPair([]byte(req.CertPEM), []byte(req.KeyPEM))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid certificate/key pair: "+err.Error())
+		return
+	}
 
-	writeJSON(w, http.StatusCreated, map[string]string{
-		"status":    "uploaded",
+	// Extract certificate info
+	leaf := cert.Leaf
+	issuer := "custom"
+	var expiresAt time.Time
+	if leaf != nil {
+		issuer = leaf.Issuer.CommonName
+		expiresAt = leaf.NotAfter
+	}
+
+	info := CertInfo{
+		ID:        core.GenerateID(),
+		Domain:    req.DomainID,
+		Issuer:    issuer,
+		ExpiresAt: expiresAt,
+		AutoRenew: false,
+		Status:    "active",
+	}
+
+	// Store cert data in BBolt
+	certData := map[string]string{
+		"cert_pem": req.CertPEM,
+		"key_pem":  req.KeyPEM,
+	}
+	if err := h.bolt.Set("certificates", "data:"+info.ID, certData, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to store certificate")
+		return
+	}
+
+	// Add to cert list
+	var cs certStore
+	_ = h.bolt.Get("certificates", "all", &cs)
+	cs.Certs = append(cs.Certs, info)
+	if err := h.bolt.Set("certificates", "all", cs, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update certificate list")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":        info.ID,
 		"domain_id": req.DomainID,
-		"issuer":    "custom",
+		"issuer":    issuer,
+		"status":    "active",
 	})
 }

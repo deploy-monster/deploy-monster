@@ -12,7 +12,7 @@ import (
 
 func TestCertificateList_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store)
+	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/certificates", nil)
 	rr := httptest.NewRecorder()
@@ -42,9 +42,9 @@ func TestCertificateList_Success(t *testing.T) {
 
 // ─── Upload Certificate ──────────────────────────────────────────────────────
 
-func TestCertificateUpload_Success(t *testing.T) {
+func TestCertificateUpload_InvalidCertKeyPair(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store)
+	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(uploadCertRequest{
 		DomainID: "domain1",
@@ -56,27 +56,15 @@ func TestCertificateUpload_Success(t *testing.T) {
 
 	handler.Upload(rr, req)
 
-	if rr.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
-	}
-
-	var resp map[string]string
-	json.Unmarshal(rr.Body.Bytes(), &resp)
-
-	if resp["status"] != "uploaded" {
-		t.Errorf("expected status 'uploaded', got %q", resp["status"])
-	}
-	if resp["domain_id"] != "domain1" {
-		t.Errorf("expected domain_id 'domain1', got %q", resp["domain_id"])
-	}
-	if resp["issuer"] != "custom" {
-		t.Errorf("expected issuer 'custom', got %q", resp["issuer"])
+	// Now validates cert/key pair — dummy PEM data fails validation
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
 
 func TestCertificateUpload_InvalidJSON(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store)
+	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader([]byte("bad")))
 	rr := httptest.NewRecorder()
@@ -91,7 +79,7 @@ func TestCertificateUpload_InvalidJSON(t *testing.T) {
 
 func TestCertificateUpload_MissingDomainID(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store)
+	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(uploadCertRequest{
 		CertPEM: "cert",
@@ -110,7 +98,7 @@ func TestCertificateUpload_MissingDomainID(t *testing.T) {
 
 func TestCertificateUpload_MissingCertPEM(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store)
+	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(uploadCertRequest{
 		DomainID: "domain1",
@@ -129,7 +117,7 @@ func TestCertificateUpload_MissingCertPEM(t *testing.T) {
 
 func TestCertificateUpload_MissingKeyPEM(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store)
+	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(uploadCertRequest{
 		DomainID: "domain1",
@@ -148,7 +136,7 @@ func TestCertificateUpload_MissingKeyPEM(t *testing.T) {
 
 func TestCertificateUpload_AllFieldsMissing(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store)
+	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(uploadCertRequest{})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader(body))

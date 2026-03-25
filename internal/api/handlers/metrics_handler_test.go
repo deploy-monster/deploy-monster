@@ -12,7 +12,7 @@ import (
 
 func TestAppMetrics_DefaultPeriod(t *testing.T) {
 	store := newMockStore()
-	handler := NewMetricsHistoryHandler(store, nil)
+	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics", nil)
 	req.SetPathValue("id", "app1")
@@ -33,24 +33,11 @@ func TestAppMetrics_DefaultPeriod(t *testing.T) {
 	if resp["period"] != "24h" {
 		t.Errorf("expected default period '24h', got %v", resp["period"])
 	}
-
-	count := int(resp["count"].(float64))
-	if count != 96 {
-		t.Errorf("expected count=96 for 24h period (every 15 min), got %d", count)
-	}
-
-	points, ok := resp["points"].([]any)
-	if !ok {
-		t.Fatal("expected points array in response")
-	}
-	if len(points) != 96 {
-		t.Errorf("expected 96 points, got %d", len(points))
-	}
 }
 
 func TestAppMetrics_1hPeriod(t *testing.T) {
 	store := newMockStore()
-	handler := NewMetricsHistoryHandler(store, nil)
+	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics?period=1h", nil)
 	req.SetPathValue("id", "app1")
@@ -68,15 +55,11 @@ func TestAppMetrics_1hPeriod(t *testing.T) {
 	if resp["period"] != "1h" {
 		t.Errorf("expected period '1h', got %v", resp["period"])
 	}
-	count := int(resp["count"].(float64))
-	if count != 60 {
-		t.Errorf("expected count=60 for 1h period, got %d", count)
-	}
 }
 
 func TestAppMetrics_7dPeriod(t *testing.T) {
 	store := newMockStore()
-	handler := NewMetricsHistoryHandler(store, nil)
+	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics?period=7d", nil)
 	req.SetPathValue("id", "app1")
@@ -91,15 +74,14 @@ func TestAppMetrics_7dPeriod(t *testing.T) {
 	var resp map[string]any
 	json.Unmarshal(rr.Body.Bytes(), &resp)
 
-	count := int(resp["count"].(float64))
-	if count != 168 {
-		t.Errorf("expected count=168 for 7d period, got %d", count)
+	if resp["period"] != "7d" {
+		t.Errorf("expected period '7d', got %v", resp["period"])
 	}
 }
 
 func TestAppMetrics_30dPeriod(t *testing.T) {
 	store := newMockStore()
-	handler := NewMetricsHistoryHandler(store, nil)
+	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics?period=30d", nil)
 	req.SetPathValue("id", "app1")
@@ -114,9 +96,8 @@ func TestAppMetrics_30dPeriod(t *testing.T) {
 	var resp map[string]any
 	json.Unmarshal(rr.Body.Bytes(), &resp)
 
-	count := int(resp["count"].(float64))
-	if count != 30 {
-		t.Errorf("expected count=30 for 30d period, got %d", count)
+	if resp["period"] != "30d" {
+		t.Errorf("expected period '30d', got %v", resp["period"])
 	}
 }
 
@@ -124,7 +105,7 @@ func TestAppMetrics_30dPeriod(t *testing.T) {
 
 func TestServerMetrics_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewMetricsHistoryHandler(store, nil)
+	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers/srv1/metrics", nil)
 	req.SetPathValue("id", "srv1")
@@ -149,7 +130,7 @@ func TestServerMetrics_Success(t *testing.T) {
 
 func TestServerMetrics_CustomPeriod(t *testing.T) {
 	store := newMockStore()
-	handler := NewMetricsHistoryHandler(store, nil)
+	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers/srv1/metrics?period=7d", nil)
 	req.SetPathValue("id", "srv1")

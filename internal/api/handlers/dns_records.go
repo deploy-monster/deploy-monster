@@ -18,8 +18,37 @@ func NewDNSRecordHandler(services *core.Services) *DNSRecordHandler {
 
 // List handles GET /api/v1/dns/records?domain=example.com
 func (h *DNSRecordHandler) List(w http.ResponseWriter, r *http.Request) {
-	_ = r.URL.Query().Get("domain")
-	writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
+	domain := r.URL.Query().Get("domain")
+	if domain == "" {
+		writeError(w, http.StatusBadRequest, "domain query param required")
+		return
+	}
+
+	provider := r.URL.Query().Get("provider")
+	if provider == "" {
+		provider = "cloudflare"
+	}
+
+	p := h.services.DNSProvider(provider)
+	if p == nil {
+		// No DNS provider configured — return empty list
+		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
+		return
+	}
+
+	verified, err := p.Verify(r.Context(), domain)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "DNS lookup failed: "+err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"domain":   domain,
+		"provider": provider,
+		"verified": verified,
+		"data":     []any{},
+		"total":    0,
+	})
 }
 
 // Create handles POST /api/v1/dns/records

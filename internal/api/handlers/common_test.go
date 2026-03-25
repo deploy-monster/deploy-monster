@@ -838,6 +838,30 @@ func (m *mockContainerRuntime) ListByLabels(_ context.Context, _ map[string]stri
 	return m.containers, nil
 }
 
+func (m *mockContainerRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) {
+	return "", nil
+}
+
+func (m *mockContainerRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
+	return &core.ContainerStats{}, nil
+}
+
+func (m *mockContainerRuntime) ImagePull(_ context.Context, _ string) error { return nil }
+
+func (m *mockContainerRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) {
+	return nil, nil
+}
+
+func (m *mockContainerRuntime) ImageRemove(_ context.Context, _ string) error { return nil }
+
+func (m *mockContainerRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) {
+	return nil, nil
+}
+
+func (m *mockContainerRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) {
+	return nil, nil
+}
+
 // ─── Mock Bolt Storer ────────────────────────────────────────────────────────
 
 // mockBoltStore implements core.BoltStorer for testing.
@@ -882,6 +906,20 @@ func (m *mockBoltStore) Delete(bucket, key string) error {
 		delete(bkt, key)
 	}
 	return nil
+}
+
+func (m *mockBoltStore) List(bucket string) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	bkt, ok := m.data[bucket]
+	if !ok {
+		return nil, fmt.Errorf("bucket not found")
+	}
+	keys := make([]string, 0, len(bkt))
+	for k := range bkt {
+		keys = append(keys, k)
+	}
+	return keys, nil
 }
 
 func (m *mockBoltStore) Close() error { return nil }

@@ -442,6 +442,30 @@ func (s *stubRuntime) ListByLabels(_ context.Context, _ map[string]string) ([]co
 	return nil, nil
 }
 
+func (s *stubRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) {
+	return "", nil
+}
+
+func (s *stubRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
+	return nil, nil
+}
+
+func (s *stubRuntime) ImagePull(_ context.Context, _ string) error { return nil }
+
+func (s *stubRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) {
+	return nil, nil
+}
+
+func (s *stubRuntime) ImageRemove(_ context.Context, _ string) error { return nil }
+
+func (s *stubRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) {
+	return nil, nil
+}
+
+func (s *stubRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) {
+	return nil, nil
+}
+
 func TestProvision_NilRuntime(t *testing.T) {
 	engine := &Postgres{}
 	opts := ProvisionOpts{

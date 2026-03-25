@@ -248,6 +248,17 @@ func (m *mockBoltStorer) Delete(bucket, key string) error {
 	return nil
 }
 
+func (m *mockBoltStorer) List(bucket string) ([]string, error) {
+	if m.data[bucket] == nil {
+		return nil, nil
+	}
+	keys := make([]string, 0, len(m.data[bucket]))
+	for k := range m.data[bucket] {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
 func (m *mockBoltStorer) Close() error {
 	return nil
 }

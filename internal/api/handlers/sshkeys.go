@@ -15,10 +15,11 @@ import (
 // SSHKeyHandler manages SSH keys for server access.
 type SSHKeyHandler struct {
 	store core.Store
+	bolt  core.BoltStorer
 }
 
-func NewSSHKeyHandler(store core.Store) *SSHKeyHandler {
-	return &SSHKeyHandler{store: store}
+func NewSSHKeyHandler(store core.Store, bolt core.BoltStorer) *SSHKeyHandler {
+	return &SSHKeyHandler{store: store, bolt: bolt}
 }
 
 // SSHKeyInfo represents an SSH key.
@@ -27,6 +28,11 @@ type SSHKeyInfo struct {
 	Name        string `json:"name"`
 	Fingerprint string `json:"fingerprint"`
 	PublicKey   string `json:"public_key"`
+}
+
+// sshKeyList wraps the persisted list of SSH keys for a user.
+type sshKeyList struct {
+	Keys []SSHKeyInfo `json:"keys"`
 }
 
 // Generate handles POST /api/v1/ssh-keys/generate
@@ -70,8 +76,26 @@ func (h *SSHKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	// Fingerprint
 	fp := ssh.FingerprintSHA256(sshPub)
 
+	keyID := core.GenerateID()
+	info := SSHKeyInfo{
+		ID:          keyID,
+		Name:        req.Name,
+		Fingerprint: fp,
+		PublicKey:   pubKeyStr,
+	}
+
+	// Store key metadata in BBolt (private key is only returned once)
+	var list sshKeyList
+	_ = h.bolt.Get("ssh_keys", claims.UserID, &list)
+	list.Keys = append(list.Keys, info)
+
+	if err := h.bolt.Set("ssh_keys", claims.UserID, list, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to store SSH key")
+		return
+	}
+
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"id":          core.GenerateID(),
+		"id":          keyID,
 		"name":        req.Name,
 		"public_key":  pubKeyStr,
 		"private_key": string(privPEM), // Only returned once at generation
@@ -80,7 +104,18 @@ func (h *SSHKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
 }
 
 // List handles GET /api/v1/ssh-keys
-func (h *SSHKeyHandler) List(w http.ResponseWriter, _ *http.Request) {
-	// Would query SSH keys from DB
-	writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
+func (h *SSHKeyHandler) List(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var list sshKeyList
+	if err := h.bolt.Get("ssh_keys", claims.UserID, &list); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": list.Keys, "total": len(list.Keys)})
 }

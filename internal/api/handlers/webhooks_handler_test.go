@@ -11,7 +11,7 @@ import (
 
 func TestWebhookLogList_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewWebhookLogHandler(store)
+	handler := NewWebhookLogHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/webhooks/logs", nil)
 	req.SetPathValue("id", "app1")
@@ -41,7 +41,7 @@ func TestWebhookLogList_Success(t *testing.T) {
 
 func TestWebhookLogList_EmptyAppID(t *testing.T) {
 	store := newMockStore()
-	handler := NewWebhookLogHandler(store)
+	handler := NewWebhookLogHandler(store, newMockBoltStore())
 
 	// Even with no path value, the handler should return 200 with empty data.
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps//webhooks/logs", nil)
@@ -56,7 +56,7 @@ func TestWebhookLogList_EmptyAppID(t *testing.T) {
 
 func TestWebhookLogList_ResponseFormat(t *testing.T) {
 	store := newMockStore()
-	handler := NewWebhookLogHandler(store)
+	handler := NewWebhookLogHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/webhooks/logs", nil)
 	req.SetPathValue("id", "app1")

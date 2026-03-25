@@ -37,6 +37,8 @@ func (c *Collector) CollectServer(ctx context.Context) *core.ServerMetrics {
 }
 
 // CollectContainers gathers per-container metrics via Docker Stats API.
+// It discovers running DeployMonster containers and fetches real-time
+// CPU, memory, network, and PID stats for each.
 func (c *Collector) CollectContainers(ctx context.Context) []core.ContainerMetrics {
 	if c.runtime == nil {
 		return nil
@@ -51,15 +53,32 @@ func (c *Collector) CollectContainers(ctx context.Context) []core.ContainerMetri
 	}
 
 	var metrics []core.ContainerMetrics
-	for _, container := range containers {
-		if container.State != "running" {
+	for _, ctr := range containers {
+		if ctr.State != "running" {
 			continue
 		}
-		metrics = append(metrics, core.ContainerMetrics{
-			ContainerID: container.ID,
-			AppID:       container.Labels["monster.app.id"],
+
+		m := core.ContainerMetrics{
+			ContainerID: ctr.ID,
+			AppID:       ctr.Labels["monster.app.id"],
 			Timestamp:   time.Now(),
-		})
+		}
+
+		// Fetch real-time stats from Docker
+		stats, err := c.runtime.Stats(ctx, ctr.ID)
+		if err != nil {
+			c.logger.Debug("failed to get container stats",
+				"container", ctr.ID, "error", err)
+		} else {
+			m.CPUPercent = stats.CPUPercent
+			m.RAMUsedMB = stats.MemoryUsage / (1024 * 1024)
+			m.RAMLimitMB = stats.MemoryLimit / (1024 * 1024)
+			m.NetworkRxMB = stats.NetworkRx / (1024 * 1024)
+			m.NetworkTxMB = stats.NetworkTx / (1024 * 1024)
+			m.PIDs = stats.PIDs
+		}
+
+		metrics = append(metrics, m)
 	}
 
 	return metrics

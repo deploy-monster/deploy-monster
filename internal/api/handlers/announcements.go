@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -12,34 +11,38 @@ import (
 
 // AnnouncementHandler manages platform-wide announcements.
 type AnnouncementHandler struct {
-	mu            sync.RWMutex
-	announcements []Announcement
+	bolt core.BoltStorer
 }
 
-func NewAnnouncementHandler() *AnnouncementHandler {
-	return &AnnouncementHandler{}
+func NewAnnouncementHandler(bolt core.BoltStorer) *AnnouncementHandler {
+	return &AnnouncementHandler{bolt: bolt}
 }
 
 // Announcement is a platform-wide broadcast message.
 type Announcement struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Body      string    `json:"body"`
-	Type      string    `json:"type"` // info, warning, critical, maintenance
-	Active    bool      `json:"active"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        string     `json:"id"`
+	Title     string     `json:"title"`
+	Body      string     `json:"body"`
+	Type      string     `json:"type"` // info, warning, critical, maintenance
+	Active    bool       `json:"active"`
+	CreatedAt time.Time  `json:"created_at"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+}
+
+// announcementList wraps the persisted list of announcements.
+type announcementList struct {
+	Items []Announcement `json:"items"`
 }
 
 // List handles GET /api/v1/announcements
 // Returns active announcements for the dashboard banner.
 func (h *AnnouncementHandler) List(w http.ResponseWriter, _ *http.Request) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	var list announcementList
+	_ = h.bolt.Get("announcements", "all", &list)
 
 	active := make([]Announcement, 0)
 	now := time.Now()
-	for _, a := range h.announcements {
+	for _, a := range list.Items {
 		if a.Active && (a.ExpiresAt == nil || a.ExpiresAt.After(now)) {
 			active = append(active, a)
 		}
@@ -66,9 +69,15 @@ func (h *AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {
 	a.Active = true
 	a.CreatedAt = time.Now()
 
-	h.mu.Lock()
-	h.announcements = append(h.announcements, a)
-	h.mu.Unlock()
+	var list announcementList
+	_ = h.bolt.Get("announcements", "all", &list)
+
+	list.Items = append(list.Items, a)
+
+	if err := h.bolt.Set("announcements", "all", list, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save announcement")
+		return
+	}
 
 	writeJSON(w, http.StatusCreated, a)
 }
@@ -77,15 +86,19 @@ func (h *AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *AnnouncementHandler) Dismiss(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	var list announcementList
+	if err := h.bolt.Get("announcements", "all", &list); err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 
-	for i := range h.announcements {
-		if h.announcements[i].ID == id {
-			h.announcements[i].Active = false
+	for i := range list.Items {
+		if list.Items[i].ID == id {
+			list.Items[i].Active = false
 			break
 		}
 	}
 
+	_ = h.bolt.Set("announcements", "all", list, 0)
 	w.WriteHeader(http.StatusNoContent)
 }

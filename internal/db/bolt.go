@@ -25,7 +25,13 @@ var (
 	bucketApproval    = []byte("deploy_approval")
 	bucketMaintenance = []byte("maintenance")
 	bucketMiddleware  = []byte("app_middleware")
-	bucketMetrics     = []byte("container_metrics")
+	bucketMetrics       = []byte("container_metrics")
+	bucketAnnouncements = []byte("announcements")
+	bucketCertificates  = []byte("certificates")
+	bucketSSHKeys       = []byte("ssh_keys")
+	bucketLogRetention  = []byte("log_retention")
+	bucketEventWebhooks = []byte("event_webhooks")
+	bucketWebhookLogs   = []byte("webhook_logs")
 )
 
 // BoltStore wraps a BBolt database for key-value operations with TTL support.
@@ -47,6 +53,8 @@ func NewBoltStore(path string) (*BoltStore, error) {
 		bucketCronJobs, bucketAppPins, bucketAutoscale, bucketBasicAuth,
 		bucketAPIKeys, bucketSchedule, bucketFreeze, bucketNotify,
 		bucketApproval, bucketMaintenance, bucketMiddleware, bucketMetrics,
+		bucketAnnouncements, bucketCertificates, bucketSSHKeys,
+		bucketLogRetention, bucketEventWebhooks, bucketWebhookLogs,
 	} {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
 				return err
@@ -129,6 +137,30 @@ func (b *BoltStore) Delete(bucket, key string) error {
 		}
 		return bkt.Delete([]byte(key))
 	})
+}
+
+// List returns all non-expired keys in the given bucket.
+func (b *BoltStore) List(bucket string) ([]string, error) {
+	var keys []string
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket([]byte(bucket))
+		if bkt == nil {
+			return fmt.Errorf("bucket %q not found", bucket)
+		}
+		now := time.Now().Unix()
+		return bkt.ForEach(func(k, v []byte) error {
+			var entry boltEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				return nil // skip corrupt entries
+			}
+			if entry.ExpiresAt > 0 && now >= entry.ExpiresAt {
+				return nil // skip expired
+			}
+			keys = append(keys, string(k))
+			return nil
+		})
+	})
+	return keys, err
 }
 
 // Close closes the BBolt database.

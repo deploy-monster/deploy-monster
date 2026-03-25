@@ -1,7 +1,9 @@
 package deploy
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -174,6 +177,168 @@ func (d *DockerManager) InspectContainer(ctx context.Context, containerID string
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// Exec runs a command inside a running container and returns the output.
+func (d *DockerManager) Exec(ctx context.Context, containerID string, cmd []string) (string, error) {
+	execCfg := container.ExecOptions{
+		Cmd:          cmd,
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+
+	execResp, err := d.cli.ContainerExecCreate(ctx, containerID, execCfg)
+	if err != nil {
+		return "", fmt.Errorf("exec create: %w", err)
+	}
+
+	attachResp, err := d.cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
+	if err != nil {
+		return "", fmt.Errorf("exec attach: %w", err)
+	}
+	defer attachResp.Close()
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, attachResp.Reader); err != nil {
+		return "", fmt.Errorf("exec read: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
+// Stats returns real-time resource usage statistics for a container.
+func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.ContainerStats, error) {
+	resp, err := d.cli.ContainerStats(ctx, containerID, false)
+	if err != nil {
+		return nil, fmt.Errorf("container stats: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var stats container.StatsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
+		return nil, fmt.Errorf("decode stats: %w", err)
+	}
+
+	// Calculate CPU percentage
+	cpuPercent := 0.0
+	cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage - stats.PreCPUStats.CPUUsage.TotalUsage)
+	sysDelta := float64(stats.CPUStats.SystemUsage - stats.PreCPUStats.SystemUsage)
+	if sysDelta > 0 && cpuDelta > 0 {
+		cpuPercent = (cpuDelta / sysDelta) * float64(stats.CPUStats.OnlineCPUs) * 100.0
+	}
+
+	// Calculate memory percentage
+	memPercent := 0.0
+	if stats.MemoryStats.Limit > 0 {
+		memPercent = float64(stats.MemoryStats.Usage) / float64(stats.MemoryStats.Limit) * 100.0
+	}
+
+	// Aggregate network stats across all interfaces
+	var netRx, netTx int64
+	for _, iface := range stats.Networks {
+		netRx += int64(iface.RxBytes)
+		netTx += int64(iface.TxBytes)
+	}
+
+	// Aggregate block I/O
+	var blockRead, blockWrite int64
+	for _, entry := range stats.BlkioStats.IoServiceBytesRecursive {
+		switch entry.Op {
+		case "read", "Read":
+			blockRead += int64(entry.Value)
+		case "write", "Write":
+			blockWrite += int64(entry.Value)
+		}
+	}
+
+	return &core.ContainerStats{
+		CPUPercent:    cpuPercent,
+		MemoryUsage:  int64(stats.MemoryStats.Usage),
+		MemoryLimit:  int64(stats.MemoryStats.Limit),
+		MemoryPercent: memPercent,
+		NetworkRx:    netRx,
+		NetworkTx:    netTx,
+		BlockRead:    blockRead,
+		BlockWrite:   blockWrite,
+		PIDs:         int(stats.PidsStats.Current),
+	}, nil
+}
+
+// ImagePull pulls an image from a registry.
+func (d *DockerManager) ImagePull(ctx context.Context, img string) error {
+	reader, err := d.cli.ImagePull(ctx, img, image.PullOptions{})
+	if err != nil {
+		return fmt.Errorf("pull image %s: %w", img, err)
+	}
+	io.Copy(io.Discard, reader)
+	reader.Close()
+	return nil
+}
+
+// ImageList returns all images in the Docker host.
+func (d *DockerManager) ImageList(ctx context.Context) ([]core.ImageInfo, error) {
+	images, err := d.cli.ImageList(ctx, image.ListOptions{All: true})
+	if err != nil {
+		return nil, fmt.Errorf("list images: %w", err)
+	}
+
+	result := make([]core.ImageInfo, len(images))
+	for i, img := range images {
+		result[i] = core.ImageInfo{
+			ID:      img.ID,
+			Tags:    img.RepoTags,
+			Size:    img.Size,
+			Created: img.Created,
+		}
+	}
+	return result, nil
+}
+
+// ImageRemove removes an image from the Docker host.
+func (d *DockerManager) ImageRemove(ctx context.Context, imageID string) error {
+	_, err := d.cli.ImageRemove(ctx, imageID, image.RemoveOptions{Force: false, PruneChildren: true})
+	if err != nil {
+		return fmt.Errorf("remove image %s: %w", imageID, err)
+	}
+	return nil
+}
+
+// NetworkList returns all networks configured in the Docker host.
+func (d *DockerManager) NetworkList(ctx context.Context) ([]core.NetworkInfo, error) {
+	networks, err := d.cli.NetworkList(ctx, network.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list networks: %w", err)
+	}
+
+	result := make([]core.NetworkInfo, len(networks))
+	for i, n := range networks {
+		result[i] = core.NetworkInfo{
+			ID:     n.ID,
+			Name:   n.Name,
+			Driver: n.Driver,
+			Scope:  n.Scope,
+		}
+	}
+	return result, nil
+}
+
+// VolumeList returns all volumes configured in the Docker host.
+func (d *DockerManager) VolumeList(ctx context.Context) ([]core.VolumeInfo, error) {
+	resp, err := d.cli.VolumeList(ctx, volume.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list volumes: %w", err)
+	}
+
+	result := make([]core.VolumeInfo, len(resp.Volumes))
+	for i, v := range resp.Volumes {
+		result[i] = core.VolumeInfo{
+			Name:       v.Name,
+			Driver:     v.Driver,
+			Mountpoint: v.Mountpoint,
+			CreatedAt:  v.CreatedAt,
+		}
+	}
+	return result, nil
 }
 
 // EnsureNetwork creates a bridge network if it doesn't exist.

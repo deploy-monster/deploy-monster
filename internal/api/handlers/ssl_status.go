@@ -5,25 +5,29 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // SSLStatusHandler checks SSL certificate status for domains.
-type SSLStatusHandler struct{}
+type SSLStatusHandler struct {
+	bolt core.BoltStorer
+}
 
-func NewSSLStatusHandler() *SSLStatusHandler {
-	return &SSLStatusHandler{}
+func NewSSLStatusHandler(bolt core.BoltStorer) *SSLStatusHandler {
+	return &SSLStatusHandler{bolt: bolt}
 }
 
 // SSLCheckResult holds SSL verification details.
 type SSLCheckResult struct {
-	FQDN       string    `json:"fqdn"`
-	Valid      bool      `json:"valid"`
-	Issuer     string    `json:"issuer,omitempty"`
-	Subject    string    `json:"subject,omitempty"`
-	ExpiresAt  time.Time `json:"expires_at,omitempty"`
-	DaysLeft   int       `json:"days_left,omitempty"`
-	Error      string    `json:"error,omitempty"`
-	CheckedAt  time.Time `json:"checked_at"`
+	FQDN      string    `json:"fqdn"`
+	Valid     bool      `json:"valid"`
+	Issuer    string    `json:"issuer,omitempty"`
+	Subject   string    `json:"subject,omitempty"`
+	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	DaysLeft  int       `json:"days_left,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	CheckedAt time.Time `json:"checked_at"`
 }
 
 // Check handles GET /api/v1/domains/{id}/ssl-status
@@ -34,7 +38,18 @@ func (h *SSLStatusHandler) Check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check cache first (cache for 5 minutes)
+	var cached SSLCheckResult
+	if err := h.bolt.Get("certificates", "ssl_check:"+fqdn, &cached); err == nil {
+		writeJSON(w, http.StatusOK, cached)
+		return
+	}
+
 	result := checkSSL(fqdn)
+
+	// Cache the result for 5 minutes
+	_ = h.bolt.Set("certificates", "ssl_check:"+fqdn, result, 300)
+
 	writeJSON(w, http.StatusOK, result)
 }
 
