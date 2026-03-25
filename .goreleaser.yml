@@ -76,4 +76,4 @@ release:
     **Full Changelog**: https://github.com/ersinkoc/DeployMonster_GO/compare/{{ .PreviousTag }}...{{ .Tag }}
 
     ---
-    Built by [ECOSTACK TECHNOLOGY OÜ](https://ecostack.dev)
+    Built by [ECOSTACK TECHNOLOGY OÜ](https://ecostack.ee)

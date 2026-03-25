@@ -3,6 +3,7 @@ module github.com/deploy-monster/deploy-monster
 go 1.26.1
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	go.etcd.io/bbolt v1.4.3

@@ -14,7 +14,7 @@
 
 Instead, please report them privately:
 
-1. **Email**: security@ecostack.dev
+1. **Email**: security@ecostack.ee
 2. **Subject**: `[DeployMonster Security] <brief description>`
 3. **Include**:
    - Description of the vulnerability

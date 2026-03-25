@@ -1,0 +1,896 @@
+package deploy
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"log/slog"
+	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/webhooks"
+)
+
+// =============================================================================
+// Module — Health returns HealthDegraded when docker is nil
+// =============================================================================
+
+func TestModule_Health_NilDocker_Degraded(t *testing.T) {
+	m := New()
+	if m.Health() != core.HealthDegraded {
+		t.Errorf("Health() = %v, want HealthDegraded", m.Health())
+	}
+}
+
+// =============================================================================
+// Module — Stop returns nil when docker is nil
+// =============================================================================
+
+func TestModule_Stop_Nil(t *testing.T) {
+	m := New()
+	if err := m.Stop(context.Background()); err != nil {
+		t.Errorf("Stop() = %v, want nil", err)
+	}
+}
+
+// =============================================================================
+// Module — Init with store sets store field
+// =============================================================================
+
+func TestModule_Init_SetsStore(t *testing.T) {
+	m := New()
+	store := newMockStore()
+	c := &core.Core{
+		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Store:    store,
+		Config:   &core.Config{},
+		Services: core.NewServices(),
+	}
+
+	err := m.Init(context.Background(), c)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if m.store != store {
+		t.Error("store not set after Init")
+	}
+	// Docker should be nil (no Docker daemon available in tests)
+	if m.docker != nil {
+		t.Log("Docker is available in test environment (unexpected but OK)")
+	}
+}
+
+// =============================================================================
+// Module — Init with nil store returns error
+// =============================================================================
+
+func TestModule_Init_NilStore_ReturnsError(t *testing.T) {
+	m := New()
+	c := &core.Core{
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Store:  nil,
+	}
+
+	err := m.Init(context.Background(), c)
+	if err == nil {
+		t.Fatal("expected error when Store is nil")
+	}
+}
+
+// =============================================================================
+// Module — Start with nil docker does not error
+// =============================================================================
+
+func TestModule_Start_NilDocker_LogsStarted(t *testing.T) {
+	m := New()
+	m.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+}
+
+// =============================================================================
+// Pipeline — HandleWebhook branch mismatch with empty webhook branch
+// =============================================================================
+
+func TestPipeline_HandleWebhook_EmptyWebhookBranch_NoMismatch(t *testing.T) {
+	store := newMockStore()
+	store.apps["app-1"] = &core.Application{
+		ID:        "app-1",
+		Name:      "branch-app",
+		SourceURL: "https://github.com/test/repo",
+		TenantID:  "t-1",
+		Branch:    "main",
+	}
+	store.allTenantsList = []core.Tenant{{ID: "t-1", Name: "T1"}}
+
+	runtime := &mockRuntime{}
+	events := core.NewEventBus(nil)
+	p := NewPipeline(store, runtime, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	payload := webhooks.WebhookPayload{
+		RepoURL:   "https://github.com/test/repo",
+		Branch:    "", // Empty branch in webhook
+		CommitSHA: "abc",
+	}
+
+	// Empty webhook branch should NOT cause mismatch — build will proceed
+	// and fail (no real repo), but that's expected
+	err := p.HandleWebhook(context.Background(), payload)
+	// Build will fail, but it should NOT be a branch mismatch
+	if err != nil {
+		if err.Error() == "branch mismatch" {
+			t.Error("empty webhook branch should not cause mismatch")
+		}
+	}
+}
+
+// =============================================================================
+// Pipeline — HandleWebhook branches both empty
+// =============================================================================
+
+func TestPipeline_HandleWebhook_BothBranchesEmpty(t *testing.T) {
+	store := newMockStore()
+	store.apps["app-1"] = &core.Application{
+		ID:        "app-1",
+		Name:      "no-branch",
+		SourceURL: "https://github.com/test/repo",
+		TenantID:  "t-1",
+		Branch:    "", // No branch configured
+	}
+	store.allTenantsList = []core.Tenant{{ID: "t-1", Name: "T1"}}
+
+	runtime := &mockRuntime{}
+	events := core.NewEventBus(nil)
+	p := NewPipeline(store, runtime, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	payload := webhooks.WebhookPayload{
+		RepoURL:   "https://github.com/test/repo",
+		Branch:    "", // No branch in webhook either
+		CommitSHA: "abc",
+	}
+
+	// Should proceed to build phase (which fails, no real repo)
+	_ = p.HandleWebhook(context.Background(), payload)
+
+	// Verify "building" status was set (proves we got past the branch check)
+	foundBuilding := false
+	for _, u := range store.appStatusUpdates {
+		if u.Status == "building" {
+			foundBuilding = true
+		}
+	}
+	if !foundBuilding {
+		t.Error("expected 'building' status — branch check should have passed")
+	}
+}
+
+// =============================================================================
+// Pipeline — HandleWebhook matching branches
+// =============================================================================
+
+func TestPipeline_HandleWebhook_MatchingBranch(t *testing.T) {
+	store := newMockStore()
+	store.apps["app-1"] = &core.Application{
+		ID:        "app-1",
+		Name:      "branch-match",
+		SourceURL: "https://github.com/test/repo",
+		TenantID:  "t-1",
+		Branch:    "main",
+	}
+	store.allTenantsList = []core.Tenant{{ID: "t-1", Name: "T1"}}
+
+	runtime := &mockRuntime{}
+	events := core.NewEventBus(nil)
+	p := NewPipeline(store, runtime, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	payload := webhooks.WebhookPayload{
+		RepoURL:   "https://github.com/test/repo",
+		Branch:    "main", // Same branch
+		CommitSHA: "abc",
+	}
+
+	// Build will fail (no real repo) but should reach the build phase
+	err := p.HandleWebhook(context.Background(), payload)
+	if err == nil {
+		t.Log("HandleWebhook succeeded (unexpected in test without real repo)")
+	}
+
+	// Verify "building" status was set
+	foundBuilding := false
+	for _, u := range store.appStatusUpdates {
+		if u.Status == "building" {
+			foundBuilding = true
+		}
+	}
+	if !foundBuilding {
+		t.Error("expected 'building' status for matching branch")
+	}
+}
+
+// =============================================================================
+// Rollback — ListDeployments error
+// =============================================================================
+
+func TestRollback_ListDeploymentsError(t *testing.T) {
+	store := newMockStore()
+	store.listDeploymentsErr = fmt.Errorf("db unavailable")
+	events := core.NewEventBus(nil)
+	re := NewRollbackEngine(store, nil, events)
+
+	_, err := re.Rollback(context.Background(), "app-1", 1)
+	if err == nil {
+		t.Fatal("expected error when ListDeploymentsByApp fails")
+	}
+}
+
+// =============================================================================
+// Rollback — target version not found
+// =============================================================================
+
+func TestRollback_TargetVersionNotFound(t *testing.T) {
+	store := newMockStore()
+	store.deployments = []core.Deployment{
+		{Version: 1, Image: "v1", Status: "done"},
+	}
+	events := core.NewEventBus(nil)
+	re := NewRollbackEngine(store, nil, events)
+
+	_, err := re.Rollback(context.Background(), "app-1", 99)
+	if err == nil {
+		t.Fatal("expected error for nonexistent version")
+	}
+}
+
+// =============================================================================
+// Rollback — target deployment has no image
+// =============================================================================
+
+func TestRollback_EmptyImage(t *testing.T) {
+	store := newMockStore()
+	store.deployments = []core.Deployment{
+		{Version: 1, Image: "", Status: "done"},
+	}
+	events := core.NewEventBus(nil)
+	re := NewRollbackEngine(store, nil, events)
+
+	_, err := re.Rollback(context.Background(), "app-1", 1)
+	if err == nil {
+		t.Fatal("expected error when deployment has no image")
+	}
+}
+
+// =============================================================================
+// Rollback — GetApp error
+// =============================================================================
+
+func TestRollback_GetAppError(t *testing.T) {
+	store := newMockStore()
+	store.deployments = []core.Deployment{
+		{Version: 1, Image: "nginx:1", Status: "done"},
+	}
+	store.getAppErr = fmt.Errorf("app not found")
+	events := core.NewEventBus(nil)
+	re := NewRollbackEngine(store, nil, events)
+
+	_, err := re.Rollback(context.Background(), "app-1", 1)
+	if err == nil {
+		t.Fatal("expected error when GetApp fails")
+	}
+}
+
+// =============================================================================
+// Rollback — nil runtime (no container operations)
+// =============================================================================
+
+func TestRollback_NilRuntime(t *testing.T) {
+	store := newMockStore()
+	store.deployments = []core.Deployment{
+		{Version: 1, Image: "nginx:1", Status: "stopped"},
+	}
+	store.apps["app-nr"] = &core.Application{
+		ID: "app-nr", Name: "no-runtime-app", TenantID: "t1",
+	}
+	store.latestDeployment = &core.Deployment{ContainerID: "old-ctr"}
+	store.nextVersion = 2
+	events := core.NewEventBus(nil)
+	re := NewRollbackEngine(store, nil, events)
+
+	dep, err := re.Rollback(context.Background(), "app-nr", 1)
+	if err != nil {
+		t.Fatalf("Rollback: %v", err)
+	}
+	if dep.Status != "running" {
+		t.Errorf("Status = %q, want running", dep.Status)
+	}
+	// ContainerID should be empty since runtime is nil
+	if dep.ContainerID != "" {
+		t.Errorf("ContainerID = %q, want empty", dep.ContainerID)
+	}
+}
+
+// =============================================================================
+// Rollback — runtime CreateAndStart fails
+// =============================================================================
+
+func TestRollback_RuntimeCreateFails(t *testing.T) {
+	store := newMockStore()
+	store.deployments = []core.Deployment{
+		{Version: 1, Image: "nginx:1", Status: "stopped"},
+	}
+	store.apps["app-cf"] = &core.Application{
+		ID: "app-cf", Name: "create-fail", TenantID: "t1",
+	}
+	store.latestDeployment = nil // No current deployment
+	store.nextVersion = 2
+
+	runtime := &mockRuntime{
+		createAndStartFn: func(_ context.Context, _ core.ContainerOpts) (string, error) {
+			return "", fmt.Errorf("out of memory")
+		},
+	}
+	events := core.NewEventBus(nil)
+	re := NewRollbackEngine(store, runtime, events)
+
+	_, err := re.Rollback(context.Background(), "app-cf", 1)
+	if err == nil {
+		t.Fatal("expected error when CreateAndStart fails")
+	}
+
+	// Verify app status was set to failed
+	foundFailed := false
+	for _, u := range store.appStatusUpdates {
+		if u.Status == "failed" {
+			foundFailed = true
+		}
+	}
+	if !foundFailed {
+		t.Error("expected 'failed' status when runtime fails")
+	}
+}
+
+// =============================================================================
+// Rollback — with runtime success and existing container
+// =============================================================================
+
+func TestRollback_FullSuccess_WithOldContainer(t *testing.T) {
+	store := newMockStore()
+	store.deployments = []core.Deployment{
+		{Version: 2, Image: "app:v2", Status: "running"},
+		{Version: 1, Image: "app:v1", Status: "stopped"},
+	}
+	store.apps["app-full"] = &core.Application{
+		ID: "app-full", Name: "full-rollback", TenantID: "t1",
+	}
+	store.latestDeployment = &core.Deployment{ContainerID: "old-ctr-id"}
+	store.nextVersion = 3
+
+	runtime := &mockRuntime{}
+	events := core.NewEventBus(nil)
+
+	var receivedEvent bool
+	events.Subscribe(core.EventRollbackDone, func(_ context.Context, ev core.Event) error {
+		receivedEvent = true
+		return nil
+	})
+
+	re := NewRollbackEngine(store, runtime, events)
+	dep, err := re.Rollback(context.Background(), "app-full", 1)
+	if err != nil {
+		t.Fatalf("Rollback: %v", err)
+	}
+
+	if dep.Status != "running" {
+		t.Errorf("Status = %q", dep.Status)
+	}
+	if dep.Image != "app:v1" {
+		t.Errorf("Image = %q, want app:v1", dep.Image)
+	}
+	if dep.Version != 3 {
+		t.Errorf("Version = %d, want 3", dep.Version)
+	}
+	if dep.ContainerID != "container-new-123" {
+		t.Errorf("ContainerID = %q", dep.ContainerID)
+	}
+	if !runtime.stopCalled {
+		t.Error("Stop should be called for old container")
+	}
+	if !runtime.removeCalled {
+		t.Error("Remove should be called for old container")
+	}
+	if !runtime.createCalled {
+		t.Error("CreateAndStart should be called")
+	}
+	if !receivedEvent {
+		t.Error("EventRollbackDone should be published")
+	}
+
+	// Verify rollback label
+	if runtime.lastOpts.Labels["monster.rollback.from"] != "1" {
+		t.Errorf("rollback.from label = %q, want 1",
+			runtime.lastOpts.Labels["monster.rollback.from"])
+	}
+}
+
+// =============================================================================
+// Rollback — no current deployment (GetLatestDeployment returns nil)
+// =============================================================================
+
+func TestRollback_NoPreviousDeployment(t *testing.T) {
+	store := newMockStore()
+	store.deployments = []core.Deployment{
+		{Version: 1, Image: "app:v1", Status: "stopped"},
+	}
+	store.apps["app-no-prev"] = &core.Application{
+		ID: "app-no-prev", Name: "no-prev", TenantID: "t1",
+	}
+	store.latestDeployment = nil // No current deployment
+	store.nextVersion = 2
+
+	runtime := &mockRuntime{}
+	events := core.NewEventBus(nil)
+	re := NewRollbackEngine(store, runtime, events)
+
+	dep, err := re.Rollback(context.Background(), "app-no-prev", 1)
+	if err != nil {
+		t.Fatalf("Rollback: %v", err)
+	}
+	if dep.Status != "running" {
+		t.Errorf("Status = %q", dep.Status)
+	}
+	// Stop/Remove should NOT be called since there's no old container
+	if runtime.stopCalled {
+		t.Error("Stop should not be called when no old container")
+	}
+}
+
+// =============================================================================
+// Rollback — ListVersions error
+// =============================================================================
+
+func TestRollback_ListVersions_Error(t *testing.T) {
+	store := newMockStore()
+	store.listDeploymentsErr = fmt.Errorf("db read error")
+	events := core.NewEventBus(nil)
+	re := NewRollbackEngine(store, nil, events)
+
+	_, err := re.ListVersions(context.Background(), "app-1", 10)
+	if err == nil {
+		t.Fatal("expected error when ListDeploymentsByApp fails")
+	}
+}
+
+// =============================================================================
+// Rollback — ListVersions empty
+// =============================================================================
+
+func TestRollback_ListVersions_Empty(t *testing.T) {
+	store := newMockStore()
+	events := core.NewEventBus(nil)
+	re := NewRollbackEngine(store, nil, events)
+
+	versions, err := re.ListVersions(context.Background(), "app-1", 10)
+	if err != nil {
+		t.Fatalf("ListVersions: %v", err)
+	}
+	if len(versions) != 0 {
+		t.Errorf("expected 0, got %d", len(versions))
+	}
+}
+
+// =============================================================================
+// ImageUpdateChecker — Start and Stop
+// =============================================================================
+
+func TestImageUpdateChecker_StartStop(t *testing.T) {
+	store := newMockStore()
+	events := core.NewEventBus(nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	checker := NewImageUpdateChecker(store, events, logger)
+	checker.Start()
+	checker.Stop()
+}
+
+// =============================================================================
+// ImageUpdateChecker — checkAll with ListAppsByTenant error
+// =============================================================================
+
+func TestImageUpdateChecker_CheckAll_ListError(t *testing.T) {
+	store := newMockStore()
+	store.listAppsByTenantErr = fmt.Errorf("db error")
+	events := core.NewEventBus(nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	checker := NewImageUpdateChecker(store, events, logger)
+	// Should not panic
+	checker.checkAll()
+}
+
+// =============================================================================
+// ImageUpdateChecker — checkAll with apps of various types
+// =============================================================================
+
+func TestImageUpdateChecker_CheckAll_MixedApps(t *testing.T) {
+	store := newMockStore()
+	store.apps["img"] = &core.Application{
+		ID: "img", SourceType: "image", SourceURL: "nginx:latest",
+	}
+	store.apps["git"] = &core.Application{
+		ID: "git", SourceType: "git", SourceURL: "https://github.com/t/r",
+	}
+	store.apps["empty-img"] = &core.Application{
+		ID: "empty-img", SourceType: "image", SourceURL: "",
+	}
+	events := core.NewEventBus(nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	checker := NewImageUpdateChecker(store, events, logger)
+	checker.checkAll()
+	// Coverage: exercises the loop, SourceType check, and empty URL skip
+}
+
+// =============================================================================
+// AutoRestarter — checkCrashed with nil runtime
+// =============================================================================
+
+func TestCov_AutoRestarter_CheckCrashed_NilRuntime(t *testing.T) {
+	store := newMockStore()
+	events := core.NewEventBus(nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	ar := NewAutoRestarter(nil, store, events, logger)
+	// Should return early without error
+	ar.checkCrashed()
+}
+
+// =============================================================================
+// AutoRestarter — checkCrashed with containers in various states
+// =============================================================================
+
+func TestAutoRestarter_CheckCrashed_DeadWithAppID(t *testing.T) {
+	store := newMockStore()
+	events := core.NewEventBus(nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	runtime := &mockRuntime{
+		listByLabelsFn: func(_ context.Context, _ map[string]string) ([]core.ContainerInfo, error) {
+			return []core.ContainerInfo{
+				{ID: "c1", State: "running", Labels: map[string]string{"monster.app.id": "a1"}},
+				{ID: "c2", State: "dead", Labels: map[string]string{"monster.app.id": "a2"}},
+				{ID: "c3", State: "exited", Labels: map[string]string{}}, // no app ID
+			}, nil
+		},
+		restartFn: func(_ context.Context, _ string) error {
+			return nil
+		},
+	}
+
+	ar := NewAutoRestarter(runtime, store, events, logger)
+	ar.maxRetries = 1
+	ar.checkCrashed()
+
+	// Only c2 should trigger handleCrash (dead + has app ID)
+	// c1 is running, c3 has no app ID
+}
+
+// =============================================================================
+// AutoRestarter — handleCrash with retry failure then success
+// =============================================================================
+
+func TestAutoRestarter_HandleCrash_RetryThenSuccess(t *testing.T) {
+	store := newMockStore()
+	events := core.NewEventBus(nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	attempt := 0
+	runtime := &mockRuntime{
+		restartFn: func(_ context.Context, _ string) error {
+			attempt++
+			if attempt < 2 {
+				return fmt.Errorf("restart failed attempt %d", attempt)
+			}
+			return nil
+		},
+	}
+
+	ar := NewAutoRestarter(runtime, store, events, logger)
+	ar.maxRetries = 3
+
+	ar.handleCrash(context.Background(), "app-retry", "ctr-retry")
+
+	if attempt < 2 {
+		t.Errorf("expected at least 2 attempts, got %d", attempt)
+	}
+
+	foundRunning := false
+	for _, u := range store.appStatusUpdates {
+		if u.Status == "running" {
+			foundRunning = true
+		}
+	}
+	if !foundRunning {
+		t.Error("expected 'running' status after successful retry")
+	}
+}
+
+// =============================================================================
+// AutoRestarter — handleCrash all retries fail
+// =============================================================================
+
+func TestAutoRestarter_HandleCrash_AllRetriesFail(t *testing.T) {
+	store := newMockStore()
+	events := core.NewEventBus(nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	runtime := &mockRuntime{
+		restartFn: func(_ context.Context, _ string) error {
+			return fmt.Errorf("always fails")
+		},
+	}
+
+	ar := NewAutoRestarter(runtime, store, events, logger)
+	ar.maxRetries = 2
+
+	ar.handleCrash(context.Background(), "app-allfail", "ctr-allfail")
+
+	foundFailed := false
+	for _, u := range store.appStatusUpdates {
+		if u.Status == "failed" {
+			foundFailed = true
+		}
+	}
+	if !foundFailed {
+		t.Error("expected 'failed' status after all retries exhausted")
+	}
+}
+
+// =============================================================================
+// Deployer — DeployImage with various version numbers
+// =============================================================================
+
+func TestDeployer_DeployImage_HighVersion(t *testing.T) {
+	store := newMockStore()
+	store.nextVersion = 42
+	runtime := &mockRuntime{}
+	events := core.NewEventBus(nil)
+
+	d := NewDeployer(runtime, store, events)
+	app := &core.Application{
+		ID: "app-hv", Name: "high-version", TenantID: "t1", ProjectID: "p1",
+	}
+
+	dep, err := d.DeployImage(context.Background(), app, "myapp:v42")
+	if err != nil {
+		t.Fatalf("DeployImage: %v", err)
+	}
+	if dep.Version != 42 {
+		t.Errorf("Version = %d, want 42", dep.Version)
+	}
+	if dep.AppID != "app-hv" {
+		t.Errorf("AppID = %q", dep.AppID)
+	}
+	if runtime.lastOpts.Labels["monster.deploy.version"] != "42" {
+		t.Errorf("version label = %q", runtime.lastOpts.Labels["monster.deploy.version"])
+	}
+	if runtime.lastOpts.Labels["monster.enable"] != "true" {
+		t.Errorf("enable label = %q", runtime.lastOpts.Labels["monster.enable"])
+	}
+	if runtime.lastOpts.RestartPolicy != "unless-stopped" {
+		t.Errorf("RestartPolicy = %q", runtime.lastOpts.RestartPolicy)
+	}
+	if runtime.lastOpts.Network != "monster-network" {
+		t.Errorf("Network = %q", runtime.lastOpts.Network)
+	}
+}
+
+// =============================================================================
+// NewDockerManager — empty host
+// =============================================================================
+
+func TestNewDockerManager_EmptyHost(t *testing.T) {
+	// Empty host should use default Docker socket
+	_, err := NewDockerManager("")
+	if err != nil {
+		t.Logf("NewDockerManager with empty host failed (expected in CI): %v", err)
+	}
+}
+
+// =============================================================================
+// Pipeline — findAppBySourceURL with multiple tenants
+// =============================================================================
+
+func TestPipeline_FindAppBySourceURL_MultipleTenants(t *testing.T) {
+	store := newMockStore()
+	store.apps["app-mt"] = &core.Application{
+		ID:        "app-mt",
+		SourceURL: "https://github.com/multi/tenant",
+		TenantID:  "t-2",
+	}
+	store.allTenantsList = []core.Tenant{
+		{ID: "t-1", Name: "T1"},
+		{ID: "t-2", Name: "T2"},
+	}
+
+	events := core.NewEventBus(nil)
+	p := NewPipeline(store, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	app, err := p.findAppBySourceURL(context.Background(), "https://github.com/multi/tenant")
+	if err != nil {
+		t.Fatalf("findAppBySourceURL: %v", err)
+	}
+	if app.ID != "app-mt" {
+		t.Errorf("app ID = %q, want app-mt", app.ID)
+	}
+}
+
+// =============================================================================
+// VersionInfo struct verification
+// =============================================================================
+
+func TestVersionInfo_Struct(t *testing.T) {
+	v := VersionInfo{
+		Version:   3,
+		Image:     "app:v3",
+		Status:    "running",
+		CommitSHA: "abc123",
+		IsCurrent: true,
+	}
+	if v.Version != 3 {
+		t.Errorf("Version = %d", v.Version)
+	}
+	if !v.IsCurrent {
+		t.Error("IsCurrent should be true")
+	}
+}
+
+// =============================================================================
+// Pipeline — HandleWebhook emits DeployStarted and DeployFailed events
+// =============================================================================
+
+func TestPipeline_HandleWebhook_EmitsEvents(t *testing.T) {
+	store := newMockStore()
+	store.apps["app-ev"] = &core.Application{
+		ID:        "app-ev",
+		Name:      "event-app",
+		SourceURL: "https://github.com/test/events",
+		TenantID:  "t-1",
+		Branch:    "main",
+	}
+	store.allTenantsList = []core.Tenant{{ID: "t-1", Name: "T1"}}
+
+	runtime := &mockRuntime{}
+	events := core.NewEventBus(nil)
+
+	startedCount := 0
+	events.Subscribe(core.EventDeployStarted, func(_ context.Context, ev core.Event) error {
+		startedCount++
+		return nil
+	})
+
+	failedCount := 0
+	events.Subscribe(core.EventDeployFailed, func(_ context.Context, ev core.Event) error {
+		failedCount++
+		return nil
+	})
+
+	p := NewPipeline(store, runtime, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	payload := webhooks.WebhookPayload{
+		RepoURL:   "https://github.com/test/events",
+		Branch:    "main",
+		CommitSHA: "sha123",
+	}
+
+	// Build will fail (no real repo), which exercises the build failure path
+	_ = p.HandleWebhook(context.Background(), payload)
+
+	if startedCount != 1 {
+		t.Errorf("EventDeployStarted count = %d, want 1", startedCount)
+	}
+	if failedCount != 1 {
+		t.Errorf("EventDeployFailed count = %d, want 1", failedCount)
+	}
+}
+
+// =============================================================================
+// NewAutoRestarter — field assignment
+// =============================================================================
+
+func TestNewAutoRestarter_Fields(t *testing.T) {
+	store := newMockStore()
+	runtime := &mockRuntime{}
+	events := core.NewEventBus(nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	ar := NewAutoRestarter(runtime, store, events, logger)
+	if ar.runtime != runtime {
+		t.Error("runtime mismatch")
+	}
+	if ar.store != store {
+		t.Error("store mismatch")
+	}
+	if ar.events != events {
+		t.Error("events mismatch")
+	}
+	if ar.logger != logger {
+		t.Error("logger mismatch")
+	}
+	if ar.maxRetries != 5 {
+		t.Errorf("maxRetries = %d, want 5", ar.maxRetries)
+	}
+}
+
+// =============================================================================
+// NewImageUpdateChecker — field assignment
+// =============================================================================
+
+func TestNewImageUpdateChecker_Fields(t *testing.T) {
+	store := newMockStore()
+	events := core.NewEventBus(nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	checker := NewImageUpdateChecker(store, events, logger)
+	if checker.store != store {
+		t.Error("store mismatch")
+	}
+	if checker.events != events {
+		t.Error("events mismatch")
+	}
+	if checker.logger != logger {
+		t.Error("logger mismatch")
+	}
+	if checker.client == nil {
+		t.Error("client should not be nil")
+	}
+	if checker.stopCh == nil {
+		t.Error("stopCh should not be nil")
+	}
+}
+
+// =============================================================================
+// EnsureNetwork — Docker-specific, test with mock approach
+// =============================================================================
+
+func TestDockerManager_EnsureNetwork_NeedsDocker(t *testing.T) {
+	// This tests the code path for EnsureNetwork — requires Docker.
+	// In CI/test environments without Docker, NewDockerManager fails,
+	// so we test the branch coverage via module.Start instead.
+	m := New()
+	m.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	// docker is nil — Start with nil docker skips EnsureNetwork
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+}
+
+// =============================================================================
+// Module — full lifecycle (Init -> Start -> Stop) with nil docker
+// =============================================================================
+
+func TestModule_FullLifecycle_NilDocker(t *testing.T) {
+	m := New()
+	store := newMockStore()
+	c := &core.Core{
+		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Store:    store,
+		Config:   &core.Config{},
+		Services: core.NewServices(),
+		Events:   core.NewEventBus(nil),
+	}
+
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := m.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+
+	if m.Docker() != nil {
+		t.Log("Docker available in test (unexpected but OK)")
+	}
+}

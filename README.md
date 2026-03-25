@@ -182,4 +182,4 @@ Commercial license available for enterprise features.
 
 ---
 
-**Built by [ECOSTACK TECHNOLOGY OÜ](https://ecostack.dev)** | [deploy.monster](https://deploy.monster)
+**Built by [ECOSTACK TECHNOLOGY OÜ](https://ecostack.ee)** | [deploy.monster](https://deploy.monster)
