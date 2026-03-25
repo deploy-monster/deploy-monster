@@ -2,6 +2,41 @@
 
 All notable changes to DeployMonster will be documented in this file.
 
+## [1.3.0] - 2026-03-25
+
+### Highlights
+- **92.8% avg test coverage** across 20 packages (3 at 100%)
+- **194 Go test files** + 6 React test files (50 tests)
+- **115/115 handlers** wired to real services (zero placeholders)
+- **Enterprise-grade UI** with shadcn/ui, hover transitions, micro-interactions
+
+### Added
+- Container exec API (POST /apps/{id}/exec) with real Docker SDK
+- Container stats API (real-time CPU/RAM/network/IO per container)
+- Docker image management (pull, list, remove, cleanup dangling)
+- Docker network and volume listing APIs
+- Deploy pipeline: webhook → build → deploy orchestration
+- BBolt KV persistence for 30+ config/state buckets
+- React component tests: Button, Card, Badge, Input (50 tests total)
+- 7 Go fuzz tests for security-critical packages
+- 38 Go benchmark functions
+- OpenAPI 3.0.3 specification (docs/openapi.yaml)
+
+### Changed
+- All 115 handlers now use real services (SQLite Store, BBolt KV, Docker SDK)
+- React UI completely redesigned with shadcn/ui components
+- Login: gradient branding, glass-effect features, password toggle
+- Dashboard: greeting banner, stat cards with trends, quick actions
+- Marketplace: category-colored icons, Featured badges, deploy dialog
+- Sidebar: collapsible groups, glow logo, theme toggle, Cmd+B shortcut
+- All 19 pages: hover transitions, skeleton loading, rich empty states
+
+### Fixed
+- Compose parser nil pointer dereference (found by fuzzing)
+- Marketplace nil pointer (module init order dependency)
+- useApi hook double response unwrapping
+- audit_log table name mismatch (audit_logs → audit_log)
+
 ## [0.1.0] - 2026-03-24
 
 ### Added
