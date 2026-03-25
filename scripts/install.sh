@@ -3,7 +3,7 @@
 # Usage: curl -fsSL https://get.deploy.monster | bash
 set -euo pipefail
 
-REPO="deploy-monster/deploy-monster"
+REPO="ersinkoc/DeployMonster_GO"
 INSTALL_DIR="/usr/local/bin"
 DATA_DIR="/var/lib/deploymonster"
 
@@ -122,6 +122,15 @@ main() {
     echo ""
 
     detect_platform
+
+    # Check Docker
+    if command -v docker &>/dev/null; then
+        info "Docker found: $(docker --version | head -1)"
+    else
+        warn "Docker not found. DeployMonster requires Docker to deploy applications."
+        warn "Install Docker: https://docs.docker.com/engine/install/"
+    fi
+
     get_latest_version
     install_binary
     setup_service

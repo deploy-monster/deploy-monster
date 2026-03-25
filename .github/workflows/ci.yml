@@ -30,6 +30,30 @@ jobs:
           name: coverage
           path: coverage.out
 
+  test-react:
+    name: React Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: TypeScript check
+        working-directory: web
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Run Vitest
+        working-directory: web
+        run: npm test
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -49,7 +73,7 @@ jobs:
 
   build:
     name: Build
-    needs: [test, lint]
+    needs: [test, test-react, lint]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -101,7 +125,7 @@ jobs:
 
   docker:
     name: Docker
-    needs: [test, lint]
+    needs: [test, test-react, lint]
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     steps:
