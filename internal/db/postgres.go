@@ -16,6 +16,8 @@ type PostgresDB struct {
 	dsn string
 }
 
+var _ core.Store = (*PostgresDB)(nil)
+
 // NewPostgres creates a new PostgreSQL store.
 // DSN format: postgres://user:pass@host:5432/dbname?sslmode=disable
 func NewPostgres(dsn string) (*PostgresDB, error) {
@@ -142,10 +144,87 @@ func (p *PostgresDB) migrate() error {
 			updated_at TIMESTAMPTZ DEFAULT NOW()
 		);
 
+		CREATE TABLE IF NOT EXISTS team_members (
+			id TEXT PRIMARY KEY,
+			tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			role_id TEXT NOT NULL,
+			invited_by TEXT,
+			status TEXT DEFAULT 'active',
+			last_active_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			UNIQUE(tenant_id, user_id)
+		);
+
+		CREATE TABLE IF NOT EXISTS roles (
+			id TEXT PRIMARY KEY,
+			tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			description TEXT DEFAULT '',
+			permissions_json TEXT NOT NULL DEFAULT '[]',
+			is_builtin BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+
+		CREATE TABLE IF NOT EXISTS secrets (
+			id TEXT PRIMARY KEY,
+			tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+			project_id TEXT,
+			app_id TEXT,
+			name TEXT NOT NULL,
+			type TEXT DEFAULT 'env',
+			description TEXT DEFAULT '',
+			scope TEXT DEFAULT 'app',
+			current_version INTEGER DEFAULT 1,
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			updated_at TIMESTAMPTZ DEFAULT NOW()
+		);
+
+		CREATE TABLE IF NOT EXISTS secret_versions (
+			id TEXT PRIMARY KEY,
+			secret_id TEXT NOT NULL REFERENCES secrets(id) ON DELETE CASCADE,
+			version INTEGER NOT NULL,
+			value_enc TEXT NOT NULL,
+			created_by TEXT,
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			UNIQUE(secret_id, version)
+		);
+
+		CREATE TABLE IF NOT EXISTS audit_log (
+			id SERIAL PRIMARY KEY,
+			tenant_id TEXT,
+			user_id TEXT,
+			action TEXT NOT NULL,
+			resource_type TEXT NOT NULL,
+			resource_id TEXT NOT NULL,
+			details_json TEXT DEFAULT '{}',
+			ip_address TEXT DEFAULT '',
+			user_agent TEXT DEFAULT '',
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+
+		CREATE TABLE IF NOT EXISTS invitations (
+			id TEXT PRIMARY KEY,
+			tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+			email TEXT NOT NULL,
+			role_id TEXT NOT NULL,
+			invited_by TEXT,
+			token_hash TEXT NOT NULL UNIQUE,
+			expires_at TIMESTAMPTZ NOT NULL,
+			accepted_at TIMESTAMPTZ,
+			status TEXT DEFAULT 'pending',
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+
 		CREATE INDEX IF NOT EXISTS idx_apps_tenant ON applications(tenant_id);
 		CREATE INDEX IF NOT EXISTS idx_apps_project ON applications(project_id);
 		CREATE INDEX IF NOT EXISTS idx_deployments_app ON deployments(app_id, version DESC);
 		CREATE INDEX IF NOT EXISTS idx_domains_app ON domains(app_id);
+		CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
+		CREATE INDEX IF NOT EXISTS idx_team_members_tenant ON team_members(tenant_id);
+		CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_log(tenant_id, created_at);
+		CREATE INDEX IF NOT EXISTS idx_secrets_tenant ON secrets(tenant_id);
+		CREATE INDEX IF NOT EXISTS idx_invitations_tenant ON invitations(tenant_id);
 	`)
 	return err
 }
@@ -201,18 +280,673 @@ func (p *PostgresDB) DeleteTenant(ctx context.Context, id string) error {
 }
 
 // =====================================================
-// Remaining methods follow the same pattern.
-// Each SQLite method has a PostgreSQL equivalent —
-// only placeholder syntax changes (? → $1, $2, $3).
-// The full implementation mirrors internal/db/users.go,
-// apps.go, deployments.go, domains.go, etc.
+// User CRUD
 // =====================================================
 
-// TODO: Implement remaining Store methods for PostgreSQL.
-// These are identical to SQLite except:
-// 1. Placeholders: ? → $1, $2, $3
-// 2. AUTOINCREMENT → SERIAL
-// 3. datetime('now') → NOW()
-// 4. Requires "github.com/lib/pq" driver
-//
-// For now, use SQLite as default. PostgreSQL is enterprise.
+func (p *PostgresDB) CreateUser(ctx context.Context, u *core.User) error {
+	if u.ID == "" {
+		u.ID = core.GenerateID()
+	}
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO users (id, email, password_hash, name, avatar_url, status)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		u.ID, u.Email, u.PasswordHash, u.Name, u.AvatarURL, u.Status,
+	)
+	return err
+}
+
+func (p *PostgresDB) GetUser(ctx context.Context, id string) (*core.User, error) {
+	u := &core.User{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, last_login_at, created_at, updated_at
+		 FROM users WHERE id = $1`, id,
+	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.AvatarURL, &u.Status,
+		&u.TOTPEnabled, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return u, err
+}
+
+func (p *PostgresDB) GetUserByEmail(ctx context.Context, email string) (*core.User, error) {
+	u := &core.User{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, last_login_at, created_at, updated_at
+		 FROM users WHERE email = $1`, email,
+	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.AvatarURL, &u.Status,
+		&u.TOTPEnabled, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return u, err
+}
+
+func (p *PostgresDB) UpdateUser(ctx context.Context, u *core.User) error {
+	_, err := p.db.ExecContext(ctx,
+		`UPDATE users SET email=$1, name=$2, avatar_url=$3, status=$4, updated_at=NOW() WHERE id=$5`,
+		u.Email, u.Name, u.AvatarURL, u.Status, u.ID,
+	)
+	return err
+}
+
+func (p *PostgresDB) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	_, err := p.db.ExecContext(ctx,
+		`UPDATE users SET password_hash=$1, updated_at=NOW() WHERE id=$2`,
+		passwordHash, userID,
+	)
+	return err
+}
+
+func (p *PostgresDB) UpdateLastLogin(ctx context.Context, userID string) error {
+	_, err := p.db.ExecContext(ctx,
+		`UPDATE users SET last_login_at=NOW() WHERE id=$1`, userID,
+	)
+	return err
+}
+
+func (p *PostgresDB) CountUsers(ctx context.Context) (int, error) {
+	var count int
+	err := p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count)
+	return count, err
+}
+
+func (p *PostgresDB) CreateUserWithMembership(ctx context.Context, email, passwordHash, name, status, tenantID, roleID string) (string, error) {
+	userID := core.GenerateID()
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO users (id, email, password_hash, name, status) VALUES ($1, $2, $3, $4, $5)`,
+		userID, email, passwordHash, name, status,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	memberID := core.GenerateID()
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO team_members (id, tenant_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'active')`,
+		memberID, tenantID, userID, roleID,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	_, err = tx.ExecContext(ctx,
+		`UPDATE tenants SET owner_id = $1 WHERE id = $2`,
+		userID, tenantID,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return userID, tx.Commit()
+}
+
+// =====================================================
+// App CRUD
+// =====================================================
+
+func (p *PostgresDB) CreateApp(ctx context.Context, a *core.Application) error {
+	if a.ID == "" {
+		a.ID = core.GenerateID()
+	}
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO applications (id, project_id, tenant_id, name, type, source_type, source_url, branch, dockerfile, build_pack, env_vars_enc, labels_json, replicas, status, server_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+		a.ID, a.ProjectID, a.TenantID, a.Name, a.Type, a.SourceType, a.SourceURL, a.Branch,
+		a.Dockerfile, a.BuildPack, a.EnvVarsEnc, a.LabelsJSON, a.Replicas, a.Status, a.ServerID,
+	)
+	return err
+}
+
+func (p *PostgresDB) GetApp(ctx context.Context, id string) (*core.Application, error) {
+	a := &core.Application{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
+		        dockerfile, build_pack, env_vars_enc, labels_json, replicas, status, COALESCE(server_id,''),
+		        created_at, updated_at
+		 FROM applications WHERE id = $1`, id,
+	).Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType, &a.SourceURL, &a.Branch,
+		&a.Dockerfile, &a.BuildPack, &a.EnvVarsEnc, &a.LabelsJSON, &a.Replicas, &a.Status, &a.ServerID,
+		&a.CreatedAt, &a.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return a, err
+}
+
+func (p *PostgresDB) UpdateApp(ctx context.Context, a *core.Application) error {
+	_, err := p.db.ExecContext(ctx,
+		`UPDATE applications SET name=$1, source_url=$2, branch=$3, dockerfile=$4,
+		 env_vars_enc=$5, labels_json=$6, replicas=$7, status=$8, updated_at=NOW() WHERE id=$9`,
+		a.Name, a.SourceURL, a.Branch, a.Dockerfile,
+		a.EnvVarsEnc, a.LabelsJSON, a.Replicas, a.Status, a.ID,
+	)
+	return err
+}
+
+func (p *PostgresDB) ListAppsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]core.Application, int, error) {
+	var total int
+	err := p.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM applications WHERE tenant_id = $1`, tenantID,
+	).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
+		        status, replicas, created_at, updated_at
+		 FROM applications WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		tenantID, limit, offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var apps []core.Application
+	for rows.Next() {
+		var a core.Application
+		if err := rows.Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType,
+			&a.SourceURL, &a.Branch, &a.Status, &a.Replicas, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			return nil, 0, err
+		}
+		apps = append(apps, a)
+	}
+	return apps, total, rows.Err()
+}
+
+func (p *PostgresDB) ListAppsByProject(ctx context.Context, projectID string) ([]core.Application, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
+		        status, replicas, created_at, updated_at
+		 FROM applications WHERE project_id = $1 ORDER BY name`,
+		projectID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var apps []core.Application
+	for rows.Next() {
+		var a core.Application
+		if err := rows.Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType,
+			&a.SourceURL, &a.Branch, &a.Status, &a.Replicas, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			return nil, err
+		}
+		apps = append(apps, a)
+	}
+	return apps, rows.Err()
+}
+
+func (p *PostgresDB) UpdateAppStatus(ctx context.Context, id, status string) error {
+	_, err := p.db.ExecContext(ctx,
+		`UPDATE applications SET status=$1, updated_at=NOW() WHERE id=$2`,
+		status, id,
+	)
+	return err
+}
+
+func (p *PostgresDB) DeleteApp(ctx context.Context, id string) error {
+	_, err := p.db.ExecContext(ctx, `DELETE FROM applications WHERE id = $1`, id)
+	return err
+}
+
+// =====================================================
+// Deployment CRUD
+// =====================================================
+
+func (p *PostgresDB) CreateDeployment(ctx context.Context, d *core.Deployment) error {
+	if d.ID == "" {
+		d.ID = core.GenerateID()
+	}
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO deployments (id, app_id, version, image, container_id, status, build_log, commit_sha, commit_message, triggered_by, strategy, started_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		d.ID, d.AppID, d.Version, d.Image, d.ContainerID, d.Status, d.BuildLog,
+		d.CommitSHA, d.CommitMessage, d.TriggeredBy, d.Strategy, d.StartedAt,
+	)
+	return err
+}
+
+func (p *PostgresDB) GetLatestDeployment(ctx context.Context, appID string) (*core.Deployment, error) {
+	d := &core.Deployment{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, app_id, version, image, container_id, status, commit_sha, commit_message,
+		        triggered_by, strategy, started_at, finished_at, created_at
+		 FROM deployments WHERE app_id = $1 ORDER BY version DESC LIMIT 1`, appID,
+	).Scan(&d.ID, &d.AppID, &d.Version, &d.Image, &d.ContainerID, &d.Status,
+		&d.CommitSHA, &d.CommitMessage, &d.TriggeredBy, &d.Strategy,
+		&d.StartedAt, &d.FinishedAt, &d.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return d, err
+}
+
+func (p *PostgresDB) ListDeploymentsByApp(ctx context.Context, appID string, limit int) ([]core.Deployment, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, app_id, version, image, container_id, status, commit_sha, commit_message,
+		        triggered_by, strategy, started_at, finished_at, created_at
+		 FROM deployments WHERE app_id = $1 ORDER BY version DESC LIMIT $2`,
+		appID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var deployments []core.Deployment
+	for rows.Next() {
+		var d core.Deployment
+		if err := rows.Scan(&d.ID, &d.AppID, &d.Version, &d.Image, &d.ContainerID, &d.Status,
+			&d.CommitSHA, &d.CommitMessage, &d.TriggeredBy, &d.Strategy,
+			&d.StartedAt, &d.FinishedAt, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		deployments = append(deployments, d)
+	}
+	return deployments, rows.Err()
+}
+
+func (p *PostgresDB) GetNextDeployVersion(ctx context.Context, appID string) (int, error) {
+	var maxVersion sql.NullInt64
+	err := p.db.QueryRowContext(ctx,
+		`SELECT MAX(version) FROM deployments WHERE app_id = $1`, appID,
+	).Scan(&maxVersion)
+	if err != nil {
+		return 1, err
+	}
+	if !maxVersion.Valid {
+		return 1, nil
+	}
+	return int(maxVersion.Int64) + 1, nil
+}
+
+// =====================================================
+// Domain CRUD
+// =====================================================
+
+func (p *PostgresDB) CreateDomain(ctx context.Context, d *core.Domain) error {
+	if d.ID == "" {
+		d.ID = core.GenerateID()
+	}
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO domains (id, app_id, fqdn, type, dns_provider, dns_synced, verified)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		d.ID, d.AppID, d.FQDN, d.Type, d.DNSProvider, d.DNSSynced, d.Verified,
+	)
+	return err
+}
+
+func (p *PostgresDB) GetDomainByFQDN(ctx context.Context, fqdn string) (*core.Domain, error) {
+	d := &core.Domain{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
+		 FROM domains WHERE fqdn = $1`, fqdn,
+	).Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider, &d.DNSSynced, &d.Verified, &d.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return d, err
+}
+
+func (p *PostgresDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.Domain, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
+		 FROM domains WHERE app_id = $1 ORDER BY created_at`,
+		appID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var domains []core.Domain
+	for rows.Next() {
+		var d core.Domain
+		if err := rows.Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider,
+			&d.DNSSynced, &d.Verified, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		domains = append(domains, d)
+	}
+	return domains, rows.Err()
+}
+
+func (p *PostgresDB) DeleteDomain(ctx context.Context, id string) error {
+	_, err := p.db.ExecContext(ctx, `DELETE FROM domains WHERE id = $1`, id)
+	return err
+}
+
+func (p *PostgresDB) ListAllDomains(ctx context.Context) ([]core.Domain, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
+		 FROM domains ORDER BY created_at`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var domains []core.Domain
+	for rows.Next() {
+		var d core.Domain
+		if err := rows.Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider,
+			&d.DNSSynced, &d.Verified, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		domains = append(domains, d)
+	}
+	return domains, rows.Err()
+}
+
+// =====================================================
+// Project CRUD
+// =====================================================
+
+func (p *PostgresDB) CreateProject(ctx context.Context, proj *core.Project) error {
+	if proj.ID == "" {
+		proj.ID = core.GenerateID()
+	}
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO projects (id, tenant_id, name, description, environment)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		proj.ID, proj.TenantID, proj.Name, proj.Description, proj.Environment,
+	)
+	return err
+}
+
+func (p *PostgresDB) GetProject(ctx context.Context, id string) (*core.Project, error) {
+	proj := &core.Project{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, tenant_id, name, description, environment, created_at, updated_at
+		 FROM projects WHERE id = $1`, id,
+	).Scan(&proj.ID, &proj.TenantID, &proj.Name, &proj.Description, &proj.Environment, &proj.CreatedAt, &proj.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return proj, err
+}
+
+func (p *PostgresDB) ListProjectsByTenant(ctx context.Context, tenantID string) ([]core.Project, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, tenant_id, name, description, environment, created_at, updated_at
+		 FROM projects WHERE tenant_id = $1 ORDER BY name`,
+		tenantID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var projects []core.Project
+	for rows.Next() {
+		var proj core.Project
+		if err := rows.Scan(&proj.ID, &proj.TenantID, &proj.Name, &proj.Description,
+			&proj.Environment, &proj.CreatedAt, &proj.UpdatedAt); err != nil {
+			return nil, err
+		}
+		projects = append(projects, proj)
+	}
+	return projects, rows.Err()
+}
+
+func (p *PostgresDB) DeleteProject(ctx context.Context, id string) error {
+	_, err := p.db.ExecContext(ctx, `DELETE FROM projects WHERE id = $1`, id)
+	return err
+}
+
+func (p *PostgresDB) CreateTenantWithDefaults(ctx context.Context, name, slug string) (string, error) {
+	tenantID := core.GenerateID()
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO tenants (id, name, slug, status) VALUES ($1, $2, $3, 'active')`,
+		tenantID, name, slug,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	projectID := core.GenerateID()
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO projects (id, tenant_id, name, description, environment)
+		 VALUES ($1, $2, 'Default', 'Default project', 'production')`,
+		projectID, tenantID,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return tenantID, tx.Commit()
+}
+
+// =====================================================
+// Role + TeamMember queries
+// =====================================================
+
+func (p *PostgresDB) GetRole(ctx context.Context, roleID string) (*core.Role, error) {
+	r := &core.Role{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, COALESCE(tenant_id,''), name, description, permissions_json, is_builtin, created_at
+		 FROM roles WHERE id = $1`, roleID,
+	).Scan(&r.ID, &r.TenantID, &r.Name, &r.Description, &r.PermissionsJSON, &r.IsBuiltin, &r.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return r, err
+}
+
+func (p *PostgresDB) GetUserMembership(ctx context.Context, userID string) (*core.TeamMember, error) {
+	tm := &core.TeamMember{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, tenant_id, user_id, role_id, status, created_at
+		 FROM team_members WHERE user_id = $1 AND status = 'active' LIMIT 1`, userID,
+	).Scan(&tm.ID, &tm.TenantID, &tm.UserID, &tm.RoleID, &tm.Status, &tm.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return tm, err
+}
+
+func (p *PostgresDB) ListRoles(ctx context.Context, tenantID string) ([]core.Role, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, COALESCE(tenant_id,''), name, description, permissions_json, is_builtin, created_at
+		 FROM roles WHERE tenant_id = $1 OR is_builtin = TRUE ORDER BY is_builtin DESC, name`,
+		tenantID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var roles []core.Role
+	for rows.Next() {
+		var r core.Role
+		if err := rows.Scan(&r.ID, &r.TenantID, &r.Name, &r.Description,
+			&r.PermissionsJSON, &r.IsBuiltin, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		roles = append(roles, r)
+	}
+	return roles, rows.Err()
+}
+
+// =====================================================
+// Audit Log
+// =====================================================
+
+func (p *PostgresDB) CreateAuditLog(ctx context.Context, entry *core.AuditEntry) error {
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO audit_log (tenant_id, user_id, action, resource_type, resource_id, details_json, ip_address, user_agent)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		entry.TenantID, entry.UserID, entry.Action, entry.ResourceType,
+		entry.ResourceID, entry.DetailsJSON, entry.IPAddress, entry.UserAgent,
+	)
+	return err
+}
+
+func (p *PostgresDB) ListAuditLogs(ctx context.Context, tenantID string, limit, offset int) ([]core.AuditEntry, int, error) {
+	var total int
+	err := p.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM audit_log WHERE tenant_id = $1`, tenantID,
+	).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, tenant_id, user_id, action, resource_type, resource_id, details_json,
+		        ip_address, user_agent, created_at
+		 FROM audit_log WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		tenantID, limit, offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var entries []core.AuditEntry
+	for rows.Next() {
+		var e core.AuditEntry
+		if err := rows.Scan(&e.ID, &e.TenantID, &e.UserID, &e.Action, &e.ResourceType,
+			&e.ResourceID, &e.DetailsJSON, &e.IPAddress, &e.UserAgent, &e.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, total, rows.Err()
+}
+
+// =====================================================
+// Secret CRUD
+// =====================================================
+
+func (p *PostgresDB) CreateSecret(ctx context.Context, secret *core.Secret) error {
+	if secret.ID == "" {
+		secret.ID = core.GenerateID()
+	}
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO secrets (id, tenant_id, project_id, app_id, name, type, description, scope, current_version)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		secret.ID, secret.TenantID, secret.ProjectID, secret.AppID,
+		secret.Name, secret.Type, secret.Description, secret.Scope, secret.CurrentVersion,
+	)
+	return err
+}
+
+func (p *PostgresDB) CreateSecretVersion(ctx context.Context, version *core.SecretVersion) error {
+	if version.ID == "" {
+		version.ID = core.GenerateID()
+	}
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO secret_versions (id, secret_id, version, value_enc, created_by)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		version.ID, version.SecretID, version.Version, version.ValueEnc, version.CreatedBy,
+	)
+	return err
+}
+
+func (p *PostgresDB) ListSecretsByTenant(ctx context.Context, tenantID string) ([]core.Secret, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, COALESCE(tenant_id,''), COALESCE(project_id,''), COALESCE(app_id,''),
+		        name, type, description, scope, current_version, created_at, updated_at
+		 FROM secrets WHERE tenant_id = $1 ORDER BY created_at DESC`, tenantID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var secrets []core.Secret
+	for rows.Next() {
+		var s core.Secret
+		if err := rows.Scan(&s.ID, &s.TenantID, &s.ProjectID, &s.AppID,
+			&s.Name, &s.Type, &s.Description, &s.Scope, &s.CurrentVersion,
+			&s.CreatedAt, &s.UpdatedAt); err != nil {
+			return nil, err
+		}
+		secrets = append(secrets, s)
+	}
+	return secrets, rows.Err()
+}
+
+// =====================================================
+// Invite CRUD
+// =====================================================
+
+func (p *PostgresDB) CreateInvite(ctx context.Context, invite *core.Invitation) error {
+	if invite.ID == "" {
+		invite.ID = core.GenerateID()
+	}
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO invitations (id, tenant_id, email, role_id, invited_by, token_hash, expires_at, status)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		invite.ID, invite.TenantID, invite.Email, invite.RoleID,
+		invite.InvitedBy, invite.TokenHash, invite.ExpiresAt, invite.Status,
+	)
+	return err
+}
+
+func (p *PostgresDB) ListInvitesByTenant(ctx context.Context, tenantID string) ([]core.Invitation, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, tenant_id, email, role_id, COALESCE(invited_by,''), token_hash,
+		        expires_at, accepted_at, status, created_at
+		 FROM invitations WHERE tenant_id = $1 ORDER BY created_at DESC`, tenantID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var invites []core.Invitation
+	for rows.Next() {
+		var inv core.Invitation
+		if err := rows.Scan(&inv.ID, &inv.TenantID, &inv.Email, &inv.RoleID,
+			&inv.InvitedBy, &inv.TokenHash, &inv.ExpiresAt, &inv.AcceptedAt,
+			&inv.Status, &inv.CreatedAt); err != nil {
+			return nil, err
+		}
+		invites = append(invites, inv)
+	}
+	return invites, rows.Err()
+}
+
+func (p *PostgresDB) ListAllTenants(ctx context.Context, limit, offset int) ([]core.Tenant, int, error) {
+	var total int
+	if err := p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM tenants`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, name, slug, avatar_url, plan_id, COALESCE(owner_id,''),
+		        status, limits_json, metadata_json, created_at, updated_at
+		 FROM tenants ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var tenants []core.Tenant
+	for rows.Next() {
+		var t core.Tenant
+		if err := rows.Scan(&t.ID, &t.Name, &t.Slug, &t.AvatarURL, &t.PlanID, &t.OwnerID,
+			&t.Status, &t.LimitsJSON, &t.MetadataJSON, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			return nil, 0, err
+		}
+		tenants = append(tenants, t)
+	}
+	return tenants, total, rows.Err()
+}

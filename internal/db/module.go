@@ -55,13 +55,15 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 		m.logger.Info("sqlite initialized", "path", c.Config.Database.Path)
 
 	case "postgres", "postgresql":
-		// PostgreSQL support is planned for enterprise edition.
-		// The Store interface is fully abstracted — implementing
-		// PostgresDB just requires $1/$2 placeholder syntax.
-		return fmt.Errorf("postgres driver not yet fully implemented — use sqlite (default)")
+		pgDB, err := NewPostgres(c.Config.Database.URL)
+		if err != nil {
+			return fmt.Errorf("postgres: %w", err)
+		}
+		c.Store = pgDB
+		m.logger.Info("postgres initialized")
 
 	default:
-		return fmt.Errorf("unsupported database driver: %s (supported: sqlite)", driver)
+		return fmt.Errorf("unsupported database driver: %s (supported: sqlite, postgres)", driver)
 	}
 
 	// Initialize BBolt KV store
