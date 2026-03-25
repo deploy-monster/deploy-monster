@@ -101,14 +101,19 @@ type mockStore struct {
 	createDeployErr  error
 
 	// App methods
-	apps          map[string]*core.Application
-	getAppErr     error
-	updateStatusFn func(ctx context.Context, id, status string) error
+	apps                 map[string]*core.Application
+	getAppErr            error
+	listAppsByTenantErr  error
+	updateStatusFn       func(ctx context.Context, id, status string) error
 
 	// Domain methods
 	domains       map[string]*core.Domain
 	createDomainErr error
 	getDomainByFQDNErr error
+
+	// Tenant methods
+	allTenantsList []core.Tenant
+	listTenantsErr bool
 
 	// Tracking
 	appStatusUpdates []statusUpdate
@@ -174,6 +179,9 @@ func (s *mockStore) GetApp(_ context.Context, id string) (*core.Application, err
 func (s *mockStore) UpdateApp(_ context.Context, _ *core.Application) error { return nil }
 
 func (s *mockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
+	if s.listAppsByTenantErr != nil {
+		return nil, 0, s.listAppsByTenantErr
+	}
 	var apps []core.Application
 	for _, a := range s.apps {
 		apps = append(apps, *a)
@@ -308,7 +316,10 @@ func (s *mockStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Inv
 	return nil, nil
 }
 func (s *mockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
-	return nil, 0, nil
+	if s.listTenantsErr {
+		return nil, 0, fmt.Errorf("list tenants error")
+	}
+	return s.allTenantsList, len(s.allTenantsList), nil
 }
 
 // Store methods
