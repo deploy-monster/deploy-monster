@@ -228,17 +228,23 @@ func (h *ImportExportHandler) Import(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create domains
+	var domainsCreated, domainsFailed int
 	for _, fqdn := range manifest.Domains {
-		h.store.CreateDomain(r.Context(), &core.Domain{
+		if err := h.store.CreateDomain(r.Context(), &core.Domain{
 			AppID: app.ID,
 			FQDN:  fqdn,
 			Type:  "custom",
-		})
+		}); err != nil {
+			domainsFailed++
+		} else {
+			domainsCreated++
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"app_id":  app.ID,
-		"name":    app.Name,
-		"domains": len(manifest.Domains),
+		"app_id":          app.ID,
+		"name":            app.Name,
+		"domains_created": domainsCreated,
+		"domains_failed":  domainsFailed,
 	})
 }

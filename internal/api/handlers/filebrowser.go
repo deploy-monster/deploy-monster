@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	stdpath "path"
+	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -23,6 +25,29 @@ type FileEntry struct {
 	ModTime string `json:"mod_time"`
 }
 
+// isPathSafe checks if a path is safe from traversal attacks.
+func isPathSafe(p string) bool {
+	// Ensure path starts with /
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	// Block path traversal attempts
+	if strings.Contains(p, "..") {
+		return false
+	}
+	// Block null bytes
+	if strings.Contains(p, "\x00") {
+		return false
+	}
+	// Block absolute paths outside root (Windows drive letters)
+	if len(p) >= 2 && p[1] == ':' && (p[0] >= 'A' && p[0] <= 'Z') {
+		return false
+	}
+	// Use path.Clean (forward slashes) instead of filepath.Clean (OS-specific)
+	cleaned := stdpath.Clean(p)
+	return strings.HasPrefix(cleaned, "/")
+}
+
 // List handles GET /api/v1/apps/{id}/files?path=/
 // Lists files in a container directory.
 func (h *FileBrowserHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -30,6 +55,12 @@ func (h *FileBrowserHandler) List(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		path = "/"
+	}
+
+	// Security: Validate path to prevent traversal attacks
+	if !isPathSafe(path) {
+		writeError(w, http.StatusBadRequest, "invalid path")
+		return
 	}
 
 	if h.runtime == nil {

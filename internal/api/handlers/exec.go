@@ -217,9 +217,10 @@ func (h *ExecHandler) Exec(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Command ran but returned non-zero — still return the output we got
+		// Don't expose internal error details, just return the output
 		h.auditExec(r.Context(), appID, containerID, req.Command, exitCode, nil)
 		writeJSON(w, http.StatusOK, execResponse{
-			Output:      output + "\n" + errMsg,
+			Output:      output,
 			ExitCode:    exitCode,
 			ContainerID: containerID,
 		})
