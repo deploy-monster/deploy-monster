@@ -716,3 +716,113 @@ func TestSQLite_GetUserByEmail_NotFound(t *testing.T) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GetSecretByScopeAndName — lookup by scope + name
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestSQLite_GetSecretByScopeAndName_Found(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	tenantID, _ := setupTenantAndProject(t, db)
+
+	// Create a secret with specific scope (valid values: global, tenant, project, app)
+	secret := &core.Secret{
+		TenantID:       tenantID,
+		Name:           "SECRET_BY_SCOPE",
+		Type:           "env",
+		Description:    "Test secret for scope lookup",
+		Scope:          "project",
+		CurrentVersion: 1,
+	}
+	if err := db.CreateSecret(ctx, secret); err != nil {
+		t.Fatalf("CreateSecret: %v", err)
+	}
+
+	// Look up by scope + name
+	got, err := db.GetSecretByScopeAndName(ctx, "project", "SECRET_BY_SCOPE")
+	if err != nil {
+		t.Fatalf("GetSecretByScopeAndName: %v", err)
+	}
+	if got.ID != secret.ID {
+		t.Errorf("ID = %q, want %q", got.ID, secret.ID)
+	}
+	if got.Scope != "project" {
+		t.Errorf("Scope = %q, want 'project'", got.Scope)
+	}
+	if got.Name != "SECRET_BY_SCOPE" {
+		t.Errorf("Name = %q, want 'SECRET_BY_SCOPE'", got.Name)
+	}
+}
+
+func TestSQLite_GetSecretByScopeAndName_NotFound(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	_, err := db.GetSecretByScopeAndName(ctx, "nonexistent", "no-such-secret")
+	if err == nil {
+		t.Fatal("expected error for non-existent secret")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GetLatestSecretVersion — version lookup
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestSQLite_GetLatestSecretVersion_Found(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	tenantID, _ := setupTenantAndProject(t, db)
+
+	// Create parent secret
+	secret := &core.Secret{
+		TenantID:       tenantID,
+		Name:           "SECRET_WITH_VERSIONS",
+		Type:           "env",
+		Scope:          "tenant",
+		CurrentVersion: 3,
+	}
+	if err := db.CreateSecret(ctx, secret); err != nil {
+		t.Fatalf("CreateSecret: %v", err)
+	}
+
+	// Create multiple versions
+	for v := 1; v <= 3; v++ {
+		ver := &core.SecretVersion{
+			SecretID:  secret.ID,
+			Version:   v,
+			ValueEnc:  "encrypted-value-v" + string(rune('0'+v)),
+			CreatedBy: "user-1",
+		}
+		if err := db.CreateSecretVersion(ctx, ver); err != nil {
+			t.Fatalf("CreateSecretVersion(%d): %v", v, err)
+		}
+	}
+
+	// Get latest version
+	got, err := db.GetLatestSecretVersion(ctx, secret.ID)
+	if err != nil {
+		t.Fatalf("GetLatestSecretVersion: %v", err)
+	}
+	if got.Version != 3 {
+		t.Errorf("Version = %d, want 3 (latest)", got.Version)
+	}
+	if got.SecretID != secret.ID {
+		t.Errorf("SecretID = %q, want %q", got.SecretID, secret.ID)
+	}
+	if got.ValueEnc == "" {
+		t.Error("expected ValueEnc to be populated")
+	}
+}
+
+func TestSQLite_GetLatestSecretVersion_NotFound(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	_, err := db.GetLatestSecretVersion(ctx, "nonexistent-secret-id")
+	if err == nil {
+		t.Fatal("expected error for non-existent secret versions")
+	}
+}
