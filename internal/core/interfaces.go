@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"io"
+
+	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
 // =====================================================
@@ -282,6 +284,12 @@ type BoltStorer interface {
 	Delete(bucket, key string) error
 	List(bucket string) ([]string, error)
 	Close() error
+	// GetAPIKeyByPrefix retrieves an API key by its key prefix (first 8 chars).
+	// Used for API key validation in middleware.
+	GetAPIKeyByPrefix(ctx context.Context, prefix string) (*models.APIKey, error)
+	// GetWebhookSecret retrieves the webhook secret for signature verification.
+	// Returns the secret hash stored for the given webhook ID.
+	GetWebhookSecret(webhookID string) (string, error)
 }
 
 // =====================================================

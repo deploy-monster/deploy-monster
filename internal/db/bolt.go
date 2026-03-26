@@ -1,10 +1,12 @@
 package db
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/db/models"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -32,6 +34,7 @@ var (
 	bucketLogRetention  = []byte("log_retention")
 	bucketEventWebhooks = []byte("event_webhooks")
 	bucketWebhookLogs   = []byte("webhook_logs")
+	bucketWebhooks      = []byte("webhooks")
 )
 
 // BoltStore wraps a BBolt database for key-value operations with TTL support.
@@ -54,7 +57,7 @@ func NewBoltStore(path string) (*BoltStore, error) {
 			bucketAPIKeys, bucketSchedule, bucketFreeze, bucketNotify,
 			bucketApproval, bucketMaintenance, bucketMiddleware, bucketMetrics,
 			bucketAnnouncements, bucketCertificates, bucketSSHKeys,
-			bucketLogRetention, bucketEventWebhooks, bucketWebhookLogs,
+			bucketLogRetention, bucketEventWebhooks, bucketWebhookLogs, bucketWebhooks,
 		} {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
 				return err
@@ -166,4 +169,65 @@ func (b *BoltStore) List(bucket string) ([]string, error) {
 // Close closes the BBolt database.
 func (b *BoltStore) Close() error {
 	return b.db.Close()
+}
+
+// GetAPIKeyByPrefix retrieves an API key by its key prefix (first 8 chars).
+// Used for API key validation in middleware.
+func (b *BoltStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*models.APIKey, error) {
+	_ = ctx // context not used directly but kept for interface consistency
+	var key models.APIKey
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(bucketAPIKeys)
+		if bkt == nil {
+			return fmt.Errorf("bucket api_keys not found")
+		}
+
+		// Iterate to find key with matching prefix
+		c := bkt.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var apiKey models.APIKey
+			if err := json.Unmarshal(v, &apiKey); err != nil {
+				continue
+			}
+			if apiKey.KeyPrefix == prefix {
+				key = apiKey
+				return nil
+			}
+		}
+		return fmt.Errorf("api key not found")
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &key, nil
+}
+
+// GetWebhookSecret retrieves the webhook secret hash for signature verification.
+// Returns the secret hash stored for the given webhook ID.
+func (b *BoltStore) GetWebhookSecret(webhookID string) (string, error) {
+	var secret string
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(bucketWebhooks)
+		if bkt == nil {
+			return fmt.Errorf("webhooks bucket not found")
+		}
+
+		// Look up webhook by ID
+		data := bkt.Get([]byte(webhookID))
+		if data == nil {
+			return fmt.Errorf("webhook not found")
+		}
+
+		var wh models.Webhook
+		if err := json.Unmarshal(data, &wh); err != nil {
+			return fmt.Errorf("unmarshal webhook: %w", err)
+		}
+
+		secret = wh.SecretHash
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return secret, nil
 }

@@ -1,27 +1,102 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+// Command validation - dangerous patterns that should be blocked.
+var blockedPatterns = []string{
+	"rm -rf /",
+	"rm -rf /*",
+	":(){ :|:& };:",   // Fork bomb
+	"mkfs",            // Format filesystem
+	"dd if=/dev/zero", // Disk wipe
+	"> /dev/sd",       // Direct disk write
+	"chmod -R 777 /",  // Dangerous permission change
+	"chown -R",        // Mass ownership change (often abused)
+	"curl | sh",       // Remote code execution pattern
+	"wget | sh",       // Remote code execution pattern
+	"curl | bash",     // Remote code execution pattern
+	"wget | bash",     // Remote code execution pattern
+}
+
+// isCommandSafe checks if a command is safe to execute.
+func isCommandSafe(cmd string) bool {
+	cmdLower := strings.ToLower(cmd)
+	for _, pattern := range blockedPatterns {
+		if strings.Contains(cmdLower, strings.ToLower(pattern)) {
+			return false
+		}
+	}
+	return true
+}
 
 // ExecHandler handles container exec endpoints.
 type ExecHandler struct {
 	runtime core.ContainerRuntime
 	store   core.Store
 	logger  *slog.Logger
+	bolt    core.BoltStorer
 }
 
 // NewExecHandler creates a new exec handler.
-func NewExecHandler(runtime core.ContainerRuntime, store core.Store, logger *slog.Logger) *ExecHandler {
+func NewExecHandler(runtime core.ContainerRuntime, store core.Store, logger *slog.Logger, bolt core.BoltStorer) *ExecHandler {
 	return &ExecHandler{
 		runtime: runtime,
 		store:   store,
 		logger:  logger,
+		bolt:    bolt,
+	}
+}
+
+// auditExec logs the container exec command to the audit log.
+func (h *ExecHandler) auditExec(ctx context.Context, appID, containerID, command string, exitCode int, execErr error) {
+	claims := auth.ClaimsFromContext(ctx)
+	userID := "unknown"
+	tenantID := "unknown"
+	if claims != nil {
+		userID = claims.UserID
+		tenantID = claims.TenantID
+	}
+
+	action := "container.exec.success"
+	if execErr != nil {
+		action = "container.exec.failed"
+	}
+
+	// Marshal details to JSON string
+	details := map[string]any{
+		"container_id": containerID,
+		"command":      command,
+		"exit_code":    exitCode,
+	}
+	detailsJSON, _ := json.Marshal(details)
+
+	auditEntry := &core.AuditEntry{
+		ID:           time.Now().UnixNano(),
+		TenantID:     tenantID,
+		UserID:       userID,
+		Action:       action,
+		ResourceType: "app",
+		ResourceID:   appID,
+		DetailsJSON:  string(detailsJSON),
+		CreatedAt:    time.Now(),
+	}
+
+	if h.store != nil {
+		if auditErr := h.store.CreateAuditLog(ctx, auditEntry); auditErr != nil {
+			h.logger.Error("failed to write audit log", "error", auditErr)
+		}
 	}
 }
 
@@ -66,6 +141,18 @@ func (h *ExecHandler) Exec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Security: Validate command against blocked patterns
+	if !isCommandSafe(req.Command) {
+		h.logger.Warn("blocked dangerous exec command",
+			"app_id", appID,
+			"command", req.Command,
+		)
+		// Audit the blocked attempt
+		h.auditExec(r.Context(), appID, "", req.Command, 0, fmt.Errorf("command blocked by security policy"))
+		writeError(w, http.StatusBadRequest, "command contains blocked pattern for security reasons")
+		return
+	}
+
 	// Verify the app exists
 	if h.store != nil {
 		if _, err := h.store.GetApp(r.Context(), appID); err != nil {
@@ -101,6 +188,7 @@ func (h *ExecHandler) Exec(w http.ResponseWriter, r *http.Request) {
 
 	// Execute the command inside the container
 	output, err := h.runtime.Exec(r.Context(), containerID, cmd)
+	exitCode := 0
 	if err != nil {
 		h.logger.Error("container exec failed",
 			"app_id", appID,
@@ -109,15 +197,27 @@ func (h *ExecHandler) Exec(w http.ResponseWriter, r *http.Request) {
 			"error", err,
 		)
 
-		// If the error contains "exit code", parse it; otherwise report as failure
-		exitCode := 1
+		// If the error contains "exec create" or "exec attach", it's an infrastructure error
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "exec create") || strings.Contains(errMsg, "exec attach") {
-			writeError(w, http.StatusInternalServerError, "failed to exec in container: "+errMsg)
+			h.auditExec(r.Context(), appID, containerID, req.Command, exitCode, err)
+			writeError(w, http.StatusInternalServerError, "failed to exec in container")
 			return
 		}
 
+		// Try to parse exit code from error message (e.g., "exit code 1")
+		if strings.Contains(errMsg, "exit code") {
+			parts := strings.Split(errMsg, "exit code")
+			if len(parts) > 1 {
+				codeStr := strings.TrimSpace(parts[len(parts)-1])
+				if parsed, parseErr := strconv.Atoi(codeStr); parseErr == nil {
+					exitCode = parsed
+				}
+			}
+		}
+
 		// Command ran but returned non-zero — still return the output we got
+		h.auditExec(r.Context(), appID, containerID, req.Command, exitCode, nil)
 		writeJSON(w, http.StatusOK, execResponse{
 			Output:      output + "\n" + errMsg,
 			ExitCode:    exitCode,
@@ -131,7 +231,7 @@ func (h *ExecHandler) Exec(w http.ResponseWriter, r *http.Request) {
 		"container_id", containerID,
 		"command", req.Command,
 	)
-
+	h.auditExec(r.Context(), appID, containerID, req.Command, 0, nil)
 	writeJSON(w, http.StatusOK, execResponse{
 		Output:      output,
 		ExitCode:    0,

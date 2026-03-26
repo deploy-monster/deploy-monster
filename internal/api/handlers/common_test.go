@@ -13,6 +13,7 @@ import (
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
 // ─── Test constants ──────────────────────────────────────────────────────────
@@ -931,6 +932,43 @@ func (m *mockBoltStore) List(bucket string) ([]string, error) {
 }
 
 func (m *mockBoltStore) Close() error { return nil }
+
+func (m *mockBoltStore) GetAPIKeyByPrefix(_ context.Context, prefix string) (*models.APIKey, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	bkt, ok := m.data["api_keys"]
+	if !ok {
+		return nil, fmt.Errorf("api key not found")
+	}
+	for _, raw := range bkt {
+		var apiKey models.APIKey
+		if err := json.Unmarshal(raw, &apiKey); err != nil {
+			continue
+		}
+		if apiKey.KeyPrefix == prefix {
+			return &apiKey, nil
+		}
+	}
+	return nil, fmt.Errorf("api key not found")
+}
+
+func (m *mockBoltStore) GetWebhookSecret(webhookID string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	bkt, ok := m.data["webhooks"]
+	if !ok {
+		return "", fmt.Errorf("webhook not found")
+	}
+	raw, ok := bkt[webhookID]
+	if !ok {
+		return "", fmt.Errorf("webhook not found")
+	}
+	var wh models.Webhook
+	if err := json.Unmarshal(raw, &wh); err != nil {
+		return "", err
+	}
+	return wh.SecretHash, nil
+}
 
 // ─── Mock Notification Sender ────────────────────────────────────────────────
 

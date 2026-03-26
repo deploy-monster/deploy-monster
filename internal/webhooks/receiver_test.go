@@ -756,7 +756,7 @@ func TestParsePayload_Dispatch(t *testing.T) {
 
 func TestHandleWebhook_MissingWebhookID(t *testing.T) {
 	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	recv := NewReceiver(nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	// Use a mux to simulate real routing.
 	mux := http.NewServeMux()
@@ -782,7 +782,7 @@ func TestHandleWebhook_MissingWebhookID(t *testing.T) {
 
 func TestHandleWebhook_GitHubPush(t *testing.T) {
 	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	recv := NewReceiver(nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	// Track received events.
 	var receivedEvent core.Event
@@ -850,7 +850,7 @@ func TestHandleWebhook_GitHubPush(t *testing.T) {
 
 func TestHandleWebhook_GitLabPush(t *testing.T) {
 	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	recv := NewReceiver(nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	mux := http.NewServeMux()
 	recv.RegisterRoutes(mux)
@@ -880,7 +880,7 @@ func TestHandleWebhook_GitLabPush(t *testing.T) {
 
 func TestHandleWebhook_InvalidPayload(t *testing.T) {
 	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	recv := NewReceiver(nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	mux := http.NewServeMux()
 	recv.RegisterRoutes(mux)
@@ -901,7 +901,7 @@ func TestHandleWebhook_InvalidPayload(t *testing.T) {
 
 func TestHandleWebhook_GenericProvider(t *testing.T) {
 	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	recv := NewReceiver(nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	mux := http.NewServeMux()
 	recv.RegisterRoutes(mux)
@@ -926,7 +926,7 @@ func TestHandleWebhook_GenericProvider(t *testing.T) {
 
 func TestHandleWebhook_EmptyBody(t *testing.T) {
 	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	recv := NewReceiver(nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	mux := http.NewServeMux()
 	recv.RegisterRoutes(mux)

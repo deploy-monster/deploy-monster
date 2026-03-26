@@ -1300,7 +1300,7 @@ func TestFinal95_ExecHandler_ExecCreateError(t *testing.T) {
 	}
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1"})
-	h := NewExecHandler(runtime, store, slog.Default())
+	h := NewExecHandler(runtime, store, slog.Default(), nil)
 
 	body := `{"command":"ls"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(body))
@@ -1323,7 +1323,7 @@ func TestFinal95_ExecHandler_ExecNonZeroExit(t *testing.T) {
 	}
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1"})
-	h := NewExecHandler(runtime, store, slog.Default())
+	h := NewExecHandler(runtime, store, slog.Default(), nil)
 
 	body := `{"command":"false"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(body))

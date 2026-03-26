@@ -1539,7 +1539,7 @@ func TestExecHandler_Exec_WithArgs(t *testing.T) {
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{{ID: "c1", Name: "test"}},
 	}
-	h := NewExecHandler(runtime, store, slog.Default())
+	h := NewExecHandler(runtime, store, slog.Default(), nil)
 
 	body := `{"command":"ls","args":["-la","/tmp"]}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(body))
@@ -1556,7 +1556,7 @@ func TestExecHandler_Exec_NoContainers(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", Name: "test"})
 	runtime := &mockContainerRuntime{containers: nil}
-	h := NewExecHandler(runtime, store, slog.Default())
+	h := NewExecHandler(runtime, store, slog.Default(), nil)
 
 	body := `{"command":"echo hello"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(body))
@@ -1573,7 +1573,7 @@ func TestExecHandler_Exec_ListError(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", Name: "test"})
 	runtime := &mockContainerRuntime{listErr: io.EOF}
-	h := NewExecHandler(runtime, store, slog.Default())
+	h := NewExecHandler(runtime, store, slog.Default(), nil)
 
 	body := `{"command":"echo hello"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(body))
@@ -1589,7 +1589,7 @@ func TestExecHandler_Exec_ListError(t *testing.T) {
 func TestExecHandler_Exec_AppNotFound(t *testing.T) {
 	store := newMockStore()
 	runtime := &mockContainerRuntime{}
-	h := NewExecHandler(runtime, store, slog.Default())
+	h := NewExecHandler(runtime, store, slog.Default(), nil)
 
 	body := `{"command":"echo hello"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/no-app/exec", strings.NewReader(body))

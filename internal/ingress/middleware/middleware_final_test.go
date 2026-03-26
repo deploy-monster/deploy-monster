@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,6 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
 // =============================================================================
@@ -73,6 +76,14 @@ func (m *fullMockBoltStorer) List(bucket string) ([]string, error) {
 }
 
 func (m *fullMockBoltStorer) Close() error { return nil }
+
+func (m *fullMockBoltStorer) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*models.APIKey, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *fullMockBoltStorer) GetWebhookSecret(webhookID string) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
 
 func TestPersistentRateLimiter_WithBolt_RateLimitEnforced(t *testing.T) {
 	bolt := newFullMockBoltStorer()

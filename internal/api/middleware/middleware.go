@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // Chain applies middlewares in order (last applied runs first).
@@ -92,7 +94,8 @@ func CORS(allowedOrigins string) func(http.Handler) http.Handler {
 }
 
 // RequireAuth returns middleware that validates JWT from the Authorization header.
-func RequireAuth(jwtSvc *auth.JWTService) func(http.Handler) http.Handler {
+// It also validates API keys using BoltStorer for lookup.
+func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Try JWT from Authorization header
@@ -110,26 +113,123 @@ func RequireAuth(jwtSvc *auth.JWTService) func(http.Handler) http.Handler {
 			}
 
 			// Try API key from X-API-Key header
-			if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {
-				// API key validation — hash and lookup in DB
-				// For now, accept any dm_ prefixed key as valid for development
-				if strings.HasPrefix(apiKey, "dm_") {
-					// In production: hash key, lookup in api_keys table, extract user/tenant
-					claims := &auth.Claims{
-						UserID:   "api-key-user",
-						TenantID: "api-key-tenant",
-						RoleID:   "role_developer",
-						Email:    "api@deploy.monster",
-					}
-					ctx := auth.ContextWithClaims(r.Context(), claims)
-					next.ServeHTTP(w, r.WithContext(ctx))
+			apiKey := r.Header.Get("X-API-Key")
+			if apiKey != "" {
+				// Validate API key format
+				if !strings.HasPrefix(apiKey, "dm_") {
+					http.Error(w, `{"error":"invalid api key format"}`, http.StatusUnauthorized)
 					return
 				}
-				http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+
+				// Extract prefix (first 8 chars) for lookup
+				if len(apiKey) < 12 {
+					http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+					return
+				}
+
+				// Check if bolt store is available for API key lookup
+				if bolt == nil {
+					http.Error(w, `{"error":"api key authentication not available"}`, http.StatusUnauthorized)
+					return
+				}
+
+				keyPrefix := apiKey[:8]
+
+				// Lookup API key by prefix using BoltStorer
+				storedKey, err := bolt.GetAPIKeyByPrefix(r.Context(), keyPrefix)
+				if err != nil {
+					http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+					return
+				}
+
+				// Verify the full key using constant-time comparison to prevent timing attacks
+				if subtle.ConstantTimeCompare([]byte(apiKey), []byte(storedKey.KeyHash)) != 1 {
+					http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+					return
+				}
+
+				// Check if key is expired
+				if storedKey.ExpiresAt != nil && time.Now().After(*storedKey.ExpiresAt) {
+					http.Error(w, `{"error":"api key expired"}`, http.StatusUnauthorized)
+					return
+				}
+
+				// Create claims from the API key's associated user
+				// Note: RoleID and Email would need to be looked up from user if needed
+				claims := &auth.Claims{
+					UserID:   storedKey.UserID,
+					TenantID: storedKey.TenantID,
+				}
+
+				ctx := auth.ContextWithClaims(r.Context(), claims)
+				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 
 			http.Error(w, `{"error":"missing authorization — use Bearer token or X-API-Key"}`, http.StatusUnauthorized)
+		})
+	}
+}
+
+// RequireAPIKey returns middleware that validates API key from X-API-Key header.
+// This is a stricter version that only accepts API keys, not JWT tokens.
+func RequireAPIKey(bolt core.BoltStorer) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			apiKey := r.Header.Get("X-API-Key")
+			if apiKey == "" {
+				http.Error(w, `{"error":"api key required"}`, http.StatusUnauthorized)
+				return
+			}
+
+			// Validate API key format
+			if !strings.HasPrefix(apiKey, "dm_") {
+				http.Error(w, `{"error":"invalid api key format"}`, http.StatusUnauthorized)
+				return
+			}
+
+			// Extract prefix (first 8 chars) for lookup
+			if len(apiKey) < 12 {
+				http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+				return
+			}
+
+			// Check if bolt store is available
+			if bolt == nil {
+				http.Error(w, `{"error":"api key authentication not available"}`, http.StatusUnauthorized)
+				return
+			}
+
+			keyPrefix := apiKey[:8]
+
+			// Lookup API key by prefix using BoltStorer
+			storedKey, err := bolt.GetAPIKeyByPrefix(r.Context(), keyPrefix)
+			if err != nil {
+				http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+				return
+			}
+
+			// Verify the full key using constant-time comparison
+			if subtle.ConstantTimeCompare([]byte(apiKey), []byte(storedKey.KeyHash)) != 1 {
+				http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+				return
+			}
+
+			// Check if key is expired
+			if storedKey.ExpiresAt != nil && time.Now().After(*storedKey.ExpiresAt) {
+				http.Error(w, `{"error":"api key expired"}`, http.StatusUnauthorized)
+				return
+			}
+
+			// Create claims from the API key's associated user
+			// Note: RoleID and Email would need to be looked up from user if needed
+			claims := &auth.Claims{
+				UserID:   storedKey.UserID,
+				TenantID: storedKey.TenantID,
+			}
+
+			ctx := auth.ContextWithClaims(r.Context(), claims)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

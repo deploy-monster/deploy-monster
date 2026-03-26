@@ -65,7 +65,7 @@ func TestDetectProvider_BitbucketHeader(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	events := core.NewEventBus(logger)
 	store := &pipelineMockStore{}
-	recv := NewReceiver(store, events, logger)
+	recv := NewReceiver(store, nil, events, logger)
 
 	body := `{"push":{"changes":[]}}`
 	req := httptest.NewRequest("POST", "/hooks/v1/wh-bb", strings.NewReader(body))

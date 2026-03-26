@@ -437,7 +437,7 @@ func TestFinal_VerifySignature_GitHubInvalid(t *testing.T) {
 func TestFinal_Receiver_HandleWebhook_MissingWebhookID(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	events := core.NewEventBus(logger)
-	recv := NewReceiver(nil, events, logger)
+	recv := NewReceiver(nil, nil, events, logger)
 
 	req := httptest.NewRequest("POST", "/hooks/v1/", strings.NewReader(`{}`))
 	// No webhookID path value set

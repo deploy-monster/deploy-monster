@@ -291,14 +291,14 @@ func TestEventWebhookHandler_Delete_Success(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestExecHandler_New(t *testing.T) {
-	h := NewExecHandler(nil, nil, slog.Default())
+	h := NewExecHandler(nil, nil, slog.Default(), nil)
 	if h == nil {
 		t.Fatal("NewExecHandler returned nil")
 	}
 }
 
 func TestExecHandler_NilRuntime(t *testing.T) {
-	h := NewExecHandler(nil, nil, slog.Default())
+	h := NewExecHandler(nil, nil, slog.Default(), nil)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(`{"command":"ls"}`))
 	req.SetPathValue("id", "app-1")
@@ -311,7 +311,7 @@ func TestExecHandler_NilRuntime(t *testing.T) {
 }
 
 func TestExecHandler_InvalidBody(t *testing.T) {
-	h := NewExecHandler(&mockContainerRuntime{}, nil, slog.Default())
+	h := NewExecHandler(&mockContainerRuntime{}, nil, slog.Default(), nil)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader("{bad"))
 	req.SetPathValue("id", "app-1")
@@ -324,7 +324,7 @@ func TestExecHandler_InvalidBody(t *testing.T) {
 }
 
 func TestExecHandler_EmptyCommand(t *testing.T) {
-	h := NewExecHandler(&mockContainerRuntime{}, nil, slog.Default())
+	h := NewExecHandler(&mockContainerRuntime{}, nil, slog.Default(), nil)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(`{"command":""}`))
 	req.SetPathValue("id", "app-1")
@@ -337,7 +337,7 @@ func TestExecHandler_EmptyCommand(t *testing.T) {
 }
 
 func TestExecHandler_NoContainer(t *testing.T) {
-	h := NewExecHandler(&mockContainerRuntime{containers: []core.ContainerInfo{}}, nil, slog.Default())
+	h := NewExecHandler(&mockContainerRuntime{containers: []core.ContainerInfo{}}, nil, slog.Default(), nil)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(`{"command":"ls"}`))
 	req.SetPathValue("id", "app-1")
@@ -352,7 +352,7 @@ func TestExecHandler_NoContainer(t *testing.T) {
 func TestExecHandler_Success(t *testing.T) {
 	h := NewExecHandler(&mockContainerRuntime{
 		containers: []core.ContainerInfo{{ID: "ctr-abc123", State: "running"}},
-	}, nil, slog.Default())
+	}, nil, slog.Default(), nil)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(`{"command":"ls -la"}`))
 	req.SetPathValue("id", "app-1")

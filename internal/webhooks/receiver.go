@@ -19,13 +19,14 @@ import (
 // It verifies signatures, parses payloads, and dispatches build events.
 type Receiver struct {
 	store  core.Store
+	bolt   core.BoltStorer
 	events *core.EventBus
 	logger *slog.Logger
 }
 
 // NewReceiver creates a new webhook receiver.
-func NewReceiver(store core.Store, events *core.EventBus, logger *slog.Logger) *Receiver {
-	return &Receiver{store: store, events: events, logger: logger}
+func NewReceiver(store core.Store, bolt core.BoltStorer, events *core.EventBus, logger *slog.Logger) *Receiver {
+	return &Receiver{store: store, bolt: bolt, events: events, logger: logger}
 }
 
 // WebhookPayload is the parsed result of an inbound webhook.
@@ -56,14 +57,38 @@ func (recv *Receiver) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	recv.logger.Info("webhook received",
-		"webhook_id", webhookID,
-		"provider", detectProvider(r),
-		"size", len(body),
-	)
-
 	// Detect provider from headers
 	provider := detectProvider(r)
+
+	// Security: Verify webhook signature before processing
+	if recv.bolt != nil {
+		secret, err := recv.bolt.GetWebhookSecret(webhookID)
+		if err != nil {
+			recv.logger.Warn("webhook secret lookup failed",
+				"webhook_id", webhookID,
+				"error", err,
+			)
+			// For security, return generic error
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+
+		// Verify the signature
+		if !VerifySignature(r.Context(), provider, body, secret, r) {
+			recv.logger.Warn("webhook signature verification failed",
+				"webhook_id", webhookID,
+				"provider", provider,
+			)
+			http.Error(w, `{"error":"invalid signature"}`, http.StatusUnauthorized)
+			return
+		}
+	}
+
+	recv.logger.Info("webhook received",
+		"webhook_id", webhookID,
+		"provider", provider,
+		"size", len(body),
+	)
 
 	// Parse the payload based on provider
 	payload, err := parsePayload(provider, body, r)

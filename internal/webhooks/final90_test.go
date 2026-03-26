@@ -50,7 +50,7 @@ func (e *errReader) Read(_ []byte) (int, error) {
 func TestHandleWebhook_ReadBodyError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	events := core.NewEventBus(logger)
-	recv := NewReceiver(nil, events, logger)
+	recv := NewReceiver(nil, nil, events, logger)
 
 	req := httptest.NewRequest("POST", "/hooks/v1/wh-1", &errReader{})
 	req.SetPathValue("webhookID", "wh-1")
@@ -73,7 +73,7 @@ func TestHandleWebhook_ReadBodyError(t *testing.T) {
 func TestHandleWebhook_BitbucketPush_FullPath(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	events := core.NewEventBus(logger)
-	recv := NewReceiver(nil, events, logger)
+	recv := NewReceiver(nil, nil, events, logger)
 
 	mux := http.NewServeMux()
 	recv.RegisterRoutes(mux)
@@ -125,7 +125,7 @@ func TestNewReceiver_FieldsSet(t *testing.T) {
 	events := core.NewEventBus(logger)
 	store := &pipelineMockStore{}
 
-	r := NewReceiver(store, events, logger)
+	r := NewReceiver(store, nil, events, logger)
 	if r == nil {
 		t.Fatal("NewReceiver returned nil")
 	}
@@ -147,7 +147,7 @@ func TestNewReceiver_FieldsSet(t *testing.T) {
 func TestHandleWebhook_ParseError_Generic(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	events := core.NewEventBus(logger)
-	recv := NewReceiver(nil, events, logger)
+	recv := NewReceiver(nil, nil, events, logger)
 
 	// No provider headers => generic, but body is not valid JSON
 	req := httptest.NewRequest("POST", "/hooks/v1/wh-parse", strings.NewReader("not json at all{{{"))

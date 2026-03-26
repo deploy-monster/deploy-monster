@@ -500,7 +500,7 @@ func TestFinal_Import_CreateAppError(t *testing.T) {
 	store.errCreateApp = fmt.Errorf("db write error")
 	h := NewImportExportHandler(store)
 
-	body := `{"version":"1","name":"imported","type":"service","source_type":"image","replicas":1}`
+	body := `{"version":"1","name":"imported","type":"service","source_type":"image","source_url":"nginx:latest","replicas":1}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/import", strings.NewReader(body))
 	req = withClaims(req, "u1", "t1", "role_owner", "test@test.com")
 	rr := httptest.NewRecorder()
@@ -520,7 +520,7 @@ func TestFinal_Import_WithProject(t *testing.T) {
 	store.projects = map[string][]core.Project{"t1": {{ID: "p1", TenantID: "t1"}}}
 	h := NewImportExportHandler(store)
 
-	body := `{"version":"1","name":"imported","type":"service","source_type":"image","replicas":1,"domains":["app.example.com"]}`
+	body := `{"version":"1","name":"imported","type":"service","source_type":"image","source_url":"nginx:latest","replicas":1,"domains":["app.example.com"]}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/import", strings.NewReader(body))
 	req = withClaims(req, "u1", "t1", "role_owner", "test@test.com")
 	rr := httptest.NewRecorder()

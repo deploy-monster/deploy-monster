@@ -50,7 +50,7 @@ func (r *Router) Handler() http.Handler {
 }
 
 func (r *Router) registerRoutes() {
-	protected := middleware.RequireAuth(r.authMod.JWT())
+	protected := middleware.RequireAuth(r.authMod.JWT(), r.core.DB.Bolt)
 
 	// ── Health ──────────────────────────────────────────
 	r.mux.HandleFunc("GET /health", r.handleHealth)
@@ -75,7 +75,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/auth/change-password", protected(http.HandlerFunc(sessionH.ChangePassword)))
 
 	// ── Webhooks (signature-verified, not JWT) ─────────
-	webhookRecv := webhooks.NewReceiver(r.store, r.core.Events, r.core.Logger)
+	webhookRecv := webhooks.NewReceiver(r.store, r.core.DB.Bolt, r.core.Events, r.core.Logger)
 	r.mux.HandleFunc("POST /hooks/v1/{webhookID}", webhookRecv.HandleWebhook)
 
 	// ── Dashboard ─────────────────────────────────────
@@ -411,7 +411,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("DELETE /api/v1/domains/{id}", protected(http.HandlerFunc(domH.Delete)))
 
 	// ── Container Exec ────────────────────────────────
-	execH := handlers.NewExecHandler(r.core.Services.Container, r.store, r.core.Logger)
+	execH := handlers.NewExecHandler(r.core.Services.Container, r.store, r.core.Logger, r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/apps/{id}/exec", protected(http.HandlerFunc(execH.Exec)))
 
 	// ── Team ───────────────────────────────────────────

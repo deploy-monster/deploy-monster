@@ -12,6 +12,7 @@ import (
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
 // =====================================================
@@ -1283,6 +1284,12 @@ func (b *testBoltStore) Get(_, _ string, _ any) error          { return fmt.Erro
 func (b *testBoltStore) Delete(_, _ string) error              { return nil }
 func (b *testBoltStore) List(_ string) ([]string, error)       { return nil, nil }
 func (b *testBoltStore) Close() error                          { return nil }
+func (b *testBoltStore) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
+	return nil, fmt.Errorf("not found")
+}
+func (b *testBoltStore) GetWebhookSecret(_ string) (string, error) {
+	return "", fmt.Errorf("not found")
+}
 
 // testCoreSetup creates a minimal Core + auth.Module for router tests.
 func testCoreSetup(t *testing.T) (*core.Core, *auth.Module) {
