@@ -106,6 +106,8 @@ type SecretStore interface {
 	CreateSecret(ctx context.Context, secret *Secret) error
 	CreateSecretVersion(ctx context.Context, version *SecretVersion) error
 	ListSecretsByTenant(ctx context.Context, tenantID string) ([]Secret, error)
+	GetSecretByScopeAndName(ctx context.Context, scope, name string) (*Secret, error)
+	GetLatestSecretVersion(ctx context.Context, secretID string) (*SecretVersion, error)
 }
 
 // InviteStore manages team invitations.

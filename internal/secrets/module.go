@@ -2,6 +2,8 @@ package secrets
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -61,11 +63,77 @@ func (m *Module) Health() core.HealthStatus    { return core.HealthOK }
 // Vault returns the encryption vault.
 func (m *Module) Vault() *Vault { return m.vault }
 
+// buildScopeHierarchy creates the scope fallback chain.
+// Order: exact scope -> global (for non-global scopes)
+func buildScopeHierarchy(scope string) []string {
+	parts := strings.Split(scope, "/")
+	if len(parts) < 1 {
+		return []string{scope}
+	}
+
+	scopeType := parts[0]
+	switch scopeType {
+	case "global":
+		return []string{"global"}
+	case "tenant", "project", "app":
+		// Try exact scope first, then fall back to global
+		if len(parts) >= 2 {
+			return []string{scope, "global"}
+		}
+		return []string{scope, "global"}
+	default:
+		return []string{scope}
+	}
+}
+
 // Resolve implements core.SecretResolver.
 // Looks up a secret by scope/name and returns the decrypted value.
+// Falls back through scope hierarchy: exact scope -> global
 func (m *Module) Resolve(scope, name string) (string, error) {
-	// Placeholder — full implementation queries secret_versions table
-	return "", fmt.Errorf("secret %s/%s not found", scope, name)
+	ctx := context.Background()
+	scopeHierarchy := buildScopeHierarchy(scope)
+
+	var lastErr error
+	for _, tryScope := range scopeHierarchy {
+		secret, err := m.store.GetSecretByScopeAndName(ctx, tryScope, name)
+		if err != nil {
+			if errors.Is(err, core.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			lastErr = err
+			continue
+		}
+
+		if secret == nil {
+			continue
+		}
+
+		// Get latest version
+		version, err := m.store.GetLatestSecretVersion(ctx, secret.ID)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		if version == nil {
+			lastErr = fmt.Errorf("no versions found for secret %s", secret.ID)
+			continue
+		}
+
+		// Decrypt value
+		value, err := m.vault.Decrypt(version.ValueEnc)
+		if err != nil {
+			return "", fmt.Errorf("decrypt secret: %w", err)
+		}
+
+		m.logger.Debug("resolved secret", "scope", tryScope, "name", name, "version", version.Version)
+		return value, nil
+	}
+
+	if lastErr != nil {
+		return "", fmt.Errorf("secret %s/%s: %w", scope, name, lastErr)
+	}
+	return "", fmt.Errorf("secret %s/%s not found in any scope", scope, name)
 }
 
 // ResolveAll implements core.SecretResolver.

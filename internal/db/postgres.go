@@ -950,3 +950,43 @@ func (p *PostgresDB) ListAllTenants(ctx context.Context, limit, offset int) ([]c
 	}
 	return tenants, total, rows.Err()
 }
+
+// =====================================================
+// Secret Lookup Methods
+// =====================================================
+
+// GetSecretByScopeAndName returns a secret by its scope and name.
+func (p *PostgresDB) GetSecretByScopeAndName(ctx context.Context, scope, name string) (*core.Secret, error) {
+	var secret core.Secret
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, COALESCE(tenant_id,''), COALESCE(project_id,''), COALESCE(app_id,''),
+		        name, type, description, scope, current_version, created_at, updated_at
+		 FROM secrets WHERE scope = $1 AND name = $2`, scope, name,
+	).Scan(&secret.ID, &secret.TenantID, &secret.ProjectID, &secret.AppID,
+		&secret.Name, &secret.Type, &secret.Description, &secret.Scope, &secret.CurrentVersion,
+		&secret.CreatedAt, &secret.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("secret %s/%s not found", scope, name)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &secret, nil
+}
+
+// GetLatestSecretVersion returns the most recent version of a secret.
+func (p *PostgresDB) GetLatestSecretVersion(ctx context.Context, secretID string) (*core.SecretVersion, error) {
+	var version core.SecretVersion
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, secret_id, version, value_enc, created_by, created_at
+		 FROM secret_versions WHERE secret_id = $1 ORDER BY version DESC LIMIT 1`, secretID,
+	).Scan(&version.ID, &version.SecretID, &version.Version, &version.ValueEnc,
+		&version.CreatedBy, &version.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("no versions found for secret %s", secretID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &version, nil
+}
