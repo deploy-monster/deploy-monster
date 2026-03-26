@@ -172,40 +172,6 @@ make build
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
-[![Go Report](https://goreportcard.com/parsing-coverage?format=%s&report=coverage)
-
-![Go Report](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
-[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
-[![Coverage](https://img.shields.io/badge/Coverage-92.8%25-brightgreen)](.)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-
-[![Go Report](https://goreportcard.com/parsing-coverage?format=%s&report=coverage)
-
-![Go Report](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
-[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Go Report](https://goreportcard.com/parsing-coverage?format=%s&report=coverage)
-![Go Report](https://img.shields.io/badge/Go 1.26+-00ADD8?logo=go)](https://go.dev)
-[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
-[![Coverage https://img.shields.io/badge/Coverage-92.8%25-brightgreen)](.)
-
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-
-[![Go Report](https://goreportcard.com/parsing-coverage?format=%s&report=coverage)
-![Go Report](https://img.shields.io/badge-Go 1.26+-00ADD8?logo=go)](https://go.dev)
-[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
-[![Coverage](https://img.shields.io/badge/Coverage-92.8%25-brightgreen)](https://img.shields.io/badge/Coverage-92.8%25-brightgreen)
-
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-
-[![Go Report](https://goreportcard.com/parsing-coverage?format=%s&report=coverage)
-
-![Go Report](https://img.shields.io/badge-Go 1.26+-00ADD8?logo=go)](https://go.dev)
-[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
-
-[![Coverage https://img.shields.io/badge/Coverage-92.8%25-brightgreen)](https://img.shields.io/badge/Coverage-92.8%25-brightgreen)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE), 7 fuzz tests |
-
 ## Project Stats
 
 ```
