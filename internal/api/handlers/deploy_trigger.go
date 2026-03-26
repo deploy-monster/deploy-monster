@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"io"
 	"net/http"
 
@@ -79,9 +80,11 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 	// For git-sourced apps, trigger full build pipeline
 	h.store.UpdateAppStatus(r.Context(), appID, "building")
 
+	// Use background context to avoid cancellation when request completes
 	go func() {
+		ctx := context.Background()
 		builder := build.NewBuilder(h.runtime, h.events)
-		result, err := builder.Build(r.Context(), build.BuildOpts{
+		result, err := builder.Build(ctx, build.BuildOpts{
 			AppID:     app.ID,
 			AppName:   app.Name,
 			SourceURL: app.SourceURL,
@@ -89,13 +92,13 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 		}, io.Discard)
 
 		if err != nil {
-			h.store.UpdateAppStatus(r.Context(), appID, "failed")
+			h.store.UpdateAppStatus(ctx, appID, "failed")
 			return
 		}
 
 		// Deploy built image
-		h.store.UpdateAppStatus(r.Context(), appID, "deploying")
-		version, _ := h.store.GetNextDeployVersion(r.Context(), appID)
+		h.store.UpdateAppStatus(ctx, appID, "deploying")
+		version, _ := h.store.GetNextDeployVersion(ctx, appID)
 		dep := &core.Deployment{
 			AppID:       appID,
 			Version:     version,
@@ -105,8 +108,8 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 			TriggeredBy: "manual",
 			Strategy:    "recreate",
 		}
-		h.store.CreateDeployment(r.Context(), dep)
-		h.store.UpdateAppStatus(r.Context(), appID, "running")
+		h.store.CreateDeployment(ctx, dep)
+		h.store.UpdateAppStatus(ctx, appID, "running")
 	}()
 
 	writeJSON(w, http.StatusAccepted, map[string]string{

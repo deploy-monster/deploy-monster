@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -89,10 +90,11 @@ func (h *MarketplaceDeployHandler) Deploy(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Deploy via compose deployer (async)
+	// Deploy via compose deployer (async) - use background context to avoid cancellation
 	go func() {
+		ctx := context.Background()
 		deployer := compose.NewStackDeployer(h.runtime, h.store, h.events, nil)
-		err := deployer.Deploy(r.Context(), compose.DeployOpts{
+		err := deployer.Deploy(ctx, compose.DeployOpts{
 			AppID:     app.ID,
 			TenantID:  claims.TenantID,
 			StackName: appName,
@@ -100,9 +102,9 @@ func (h *MarketplaceDeployHandler) Deploy(w http.ResponseWriter, r *http.Request
 			EnvVars:   req.Config,
 		})
 		if err != nil {
-			h.store.UpdateAppStatus(r.Context(), app.ID, "failed")
+			h.store.UpdateAppStatus(ctx, app.ID, "failed")
 		} else {
-			h.store.UpdateAppStatus(r.Context(), app.ID, "running")
+			h.store.UpdateAppStatus(ctx, app.ID, "running")
 		}
 	}()
 

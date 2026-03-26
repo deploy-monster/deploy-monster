@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -84,10 +85,11 @@ func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 	}
 	h.store.CreateApp(r.Context(), app)
 
-	// Deploy async
+	// Deploy async - use background context to avoid cancellation when request completes
 	go func() {
+		ctx := context.Background()
 		deployer := ic.NewStackDeployer(h.runtime, h.store, h.events, nil)
-		err := deployer.Deploy(r.Context(), ic.DeployOpts{
+		err := deployer.Deploy(ctx, ic.DeployOpts{
 			AppID:     app.ID,
 			TenantID:  claims.TenantID,
 			StackName: req.Name,
@@ -95,9 +97,9 @@ func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 			EnvVars:   req.EnvVars,
 		})
 		if err != nil {
-			h.store.UpdateAppStatus(r.Context(), app.ID, "failed")
+			h.store.UpdateAppStatus(ctx, app.ID, "failed")
 		} else {
-			h.store.UpdateAppStatus(r.Context(), app.ID, "running")
+			h.store.UpdateAppStatus(ctx, app.ID, "running")
 		}
 	}()
 
