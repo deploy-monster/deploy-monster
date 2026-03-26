@@ -216,3 +216,152 @@ func TestRequireAuth_ExpiredToken(t *testing.T) {
 		t.Errorf("expected 401 for wrong-secret token, got %d", rr.Code)
 	}
 }
+
+// =============================================================================
+// RequireAPIKey Tests
+// =============================================================================
+
+func TestRequireAPIKey_MissingKey(t *testing.T) {
+	bolt := newMockBoltStore()
+	handler := RequireAPIKey(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached without API key")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for missing API key, got %d", rr.Code)
+	}
+}
+
+func TestRequireAPIKey_ValidKey(t *testing.T) {
+	bolt := newMockBoltStore()
+	bolt.apiKeys["dm_test_"] = &models.APIKey{
+		ID:        "key-1",
+		UserID:    "api-user",
+		TenantID:  "api-tenant",
+		KeyPrefix: "dm_test_",
+		KeyHash:   "dm_test_valid_key_12345",
+		CreatedAt: time.Now(),
+	}
+
+	handler := RequireAPIKey(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims := auth.ClaimsFromContext(r.Context())
+		if claims == nil {
+			t.Fatal("expected claims in context")
+		}
+		if claims.UserID != "api-user" {
+			t.Errorf("expected api-user, got %q", claims.UserID)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_test_valid_key_12345")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 for valid API key, got %d", rr.Code)
+	}
+}
+
+func TestRequireAPIKey_InvalidFormat(t *testing.T) {
+	bolt := newMockBoltStore()
+	handler := RequireAPIKey(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with invalid format")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "invalid_no_prefix")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for invalid format, got %d", rr.Code)
+	}
+}
+
+func TestRequireAPIKey_TooShort(t *testing.T) {
+	bolt := newMockBoltStore()
+	handler := RequireAPIKey(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with short key")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_short")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for short key, got %d", rr.Code)
+	}
+}
+
+func TestRequireAPIKey_NilBolt(t *testing.T) {
+	handler := RequireAPIKey(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with nil bolt")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_test_some_key")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 with nil bolt, got %d", rr.Code)
+	}
+}
+
+func TestRequireAPIKey_KeyMismatch(t *testing.T) {
+	bolt := newMockBoltStore()
+	bolt.apiKeys["dm_test_"] = &models.APIKey{
+		ID:        "key-1",
+		UserID:    "api-user",
+		TenantID:  "api-tenant",
+		KeyPrefix: "dm_test_",
+		KeyHash:   "dm_test_correct_key",
+		CreatedAt: time.Now(),
+	}
+
+	handler := RequireAPIKey(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with wrong key")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_test_wrong_key")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for key mismatch, got %d", rr.Code)
+	}
+}
+
+func TestRequireAPIKey_ExpiredKey(t *testing.T) {
+	bolt := newMockBoltStore()
+	expiredTime := time.Now().Add(-1 * time.Hour)
+	bolt.apiKeys["dm_test_"] = &models.APIKey{
+		ID:        "key-1",
+		UserID:    "api-user",
+		TenantID:  "api-tenant",
+		KeyPrefix: "dm_test_",
+		KeyHash:   "dm_test_expired_key",
+		ExpiresAt: &expiredTime,
+	}
+
+	handler := RequireAPIKey(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with expired key")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_test_expired_key")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for expired key, got %d", rr.Code)
+	}
+}
