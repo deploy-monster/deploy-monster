@@ -151,7 +151,60 @@ make build
 | Auth | JWT + bcrypt + TOTP 2FA + OAuth SSO |
 | Encryption | AES-256-GCM + Argon2id |
 | Proxy | Custom net/http reverse proxy (no Traefik) |
+| Testing | 194 Go test files, ##  Tech Stack
+
+ | Component | Technology |
+|-----------|-----------|
+| Backend | Go 1.26+, 27K source LOC | 47K test loc |
+| Frontend | React 19, Vite 8, Tailwind CSS 4. shadcn/ui |
+| Database | SQLite + BBolt (PostgreSQL planned) |
+| Container | Docker SDK (moby/moby) |
+| Auth | JWT + bcrypt + TOTP 2FA + OAuth SSO |
+| Encryption | AES-256-GCM + Argon2id |
+| Proxy | Custom net/http reverse proxy (no Traefik) |
 | Testing | 194 Go test files, 92.8% coverage, 7 fuzz tests |
+| 38 benchmarks |
+|------------|-----------|------------|
+|-----------|
+| Binary | 22MB (16MB stripped) |
+
+## License
+
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+
+[![Go Report](https://goreportcard.com/parsing-coverage?format=%s&report=coverage)
+
+![Go Report](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
+[![Coverage](https://img.shields.io/badge/Coverage-92.8%25-brightgreen)](.)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+
+[![Go Report](https://goreportcard.com/parsing-coverage?format=%s&report=coverage)
+
+![Go Report](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Go Report](https://goreportcard.com/parsing-coverage?format=%s&report=coverage)
+![Go Report](https://img.shields.io/badge/Go 1.26+-00ADD8?logo=go)](https://go.dev)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
+[![Coverage https://img.shields.io/badge/Coverage-92.8%25-brightgreen)](.)
+
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+
+[![Go Report](https://goreportcard.com/parsing-coverage?format=%s&report=coverage)
+![Go Report](https://img.shields.io/badge-Go 1.26+-00ADD8?logo=go)](https://go.dev)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
+[![Coverage](https://img.shields.io/badge/Coverage-92.8%25-brightgreen)](https://img.shields.io/badge/Coverage-92.8%25-brightgreen)
+
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+
+[![Go Report](https://goreportcard.com/parsing-coverage?format=%s&report=coverage)
+
+![Go Report](https://img.shields.io/badge-Go 1.26+-00ADD8?logo=go)](https://go.dev)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
+
+[![Coverage https://img.shields.io/badge/Coverage-92.8%25-brightgreen)](https://img.shields.io/badge/Coverage-92.8%25-brightgreen)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE), 7 fuzz tests |
 
 ## Project Stats
 
