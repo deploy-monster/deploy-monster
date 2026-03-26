@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { Table } from '../Table'
 
 describe('Table', () => {
@@ -78,7 +78,7 @@ describe('Table', () => {
 
     const row = container.querySelector('tbody tr')
     if (row) {
-      row.click()
+      fireEvent.click(row)
       expect(handleClick).toHaveBeenCalledTimes(1)
     }
   })
