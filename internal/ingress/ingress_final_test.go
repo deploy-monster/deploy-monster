@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -622,4 +623,164 @@ func TestFinal_AccessLogger_Stats(t *testing.T) {
 	if avgLatency < 0 {
 		t.Errorf("avg_latency_ms should be >= 0, got %f", avgLatency)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// ACMEManager.RenewalLoop — ticker fires (exercises select case <-ticker.C)
+// ---------------------------------------------------------------------------
+
+func TestFinal_ACMEManager_RenewalLoop_TickerPath(t *testing.T) {
+	cs := NewCertStore()
+	am := NewACMEManager(cs, "test@example.com", true, slog.Default())
+
+	// Pre-populate a certificate so checkRenewals has something to iterate
+	cert, _ := GenerateSelfSigned("renewal-test.example.com")
+	cs.Put("renewal-test.example.com", cert)
+
+	// Call checkRenewals directly to ensure that code path is covered
+	am.checkRenewals()
+
+	// Also verify the RenewalLoop ticker path by running briefly
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		am.RenewalLoop(ctx)
+		close(done)
+	}()
+
+	// Wait for the context to expire (ticker path may or may not fire)
+	<-done
+}
+
+// ---------------------------------------------------------------------------
+// Module.Start — HTTP listen failure path (port conflict simulation)
+// ---------------------------------------------------------------------------
+
+func TestFinal_Module_Start_HTTPListenFail(t *testing.T) {
+	// Create a listener on a specific port to cause conflict
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("create listener: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	m := New()
+	m.logger = slog.Default()
+	m.router = NewRouteTable()
+	m.proxy = NewReverseProxy(m.router, m.logger)
+	m.certStore = NewCertStore()
+	m.acme = NewACMEManager(m.certStore, "test@example.com", true, m.logger)
+
+	m.core = &core.Core{
+		Logger: slog.Default(),
+		Config: &core.Config{
+			Ingress: core.IngressConfig{
+				HTTPPort:    port, // This port is already in use
+				HTTPSPort:   0,
+				EnableHTTPS: false,
+			},
+			ACME: core.ACMEConfig{Email: "test@test.com", Staging: true},
+		},
+	}
+
+	// Start should not return error (it logs and continues in goroutine)
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Give the goroutine time to attempt listening (it will fail and log)
+	time.Sleep(100 * time.Millisecond)
+
+	// Clean up
+	ln.Close()
+	m.Stop(context.Background())
+}
+
+// ---------------------------------------------------------------------------
+// Module.Start — HTTPS listen failure path (port conflict simulation)
+// ---------------------------------------------------------------------------
+
+func TestFinal_Module_Start_HTTPSListenFail(t *testing.T) {
+	// Create a listener on a specific HTTPS port to cause conflict
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("create listener: %v", err)
+	}
+	httpsPort := ln.Addr().(*net.TCPAddr).Port
+
+	m := New()
+	m.logger = slog.Default()
+	m.router = NewRouteTable()
+	m.proxy = NewReverseProxy(m.router, m.logger)
+	m.certStore = NewCertStore()
+	m.acme = NewACMEManager(m.certStore, "test@example.com", true, m.logger)
+
+	m.core = &core.Core{
+		Logger: slog.Default(),
+		Config: &core.Config{
+			Ingress: core.IngressConfig{
+				HTTPPort:    0,
+				HTTPSPort:   httpsPort, // This port is already in use
+				EnableHTTPS: true,
+			},
+			ACME: core.ACMEConfig{Email: "test@test.com", Staging: true},
+		},
+	}
+
+	// Start should not return error (it logs and continues in goroutine)
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Give the goroutines time to attempt listening
+	time.Sleep(100 * time.Millisecond)
+
+	// Clean up
+	ln.Close()
+	m.Stop(context.Background())
+}
+
+// ---------------------------------------------------------------------------
+// Module.Start — HTTPS enabled, verify tlsServer creation
+// ---------------------------------------------------------------------------
+
+func TestFinal_Module_Start_HTTPSEnabled_TLSListener(t *testing.T) {
+	m := New()
+	m.logger = slog.Default()
+	m.router = NewRouteTable()
+	m.proxy = NewReverseProxy(m.router, m.logger)
+	m.certStore = NewCertStore()
+	m.acme = NewACMEManager(m.certStore, "test@example.com", true, m.logger)
+
+	m.core = &core.Core{
+		Logger: slog.Default(),
+		Config: &core.Config{
+			Ingress: core.IngressConfig{
+				HTTPPort:    0,
+				HTTPSPort:   0,
+				EnableHTTPS: true,
+			},
+			ACME: core.ACMEConfig{Email: "test@test.com", Staging: true},
+		},
+	}
+
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Verify both servers exist
+	if m.httpServer == nil {
+		t.Error("expected httpServer to be created")
+	}
+	if m.tlsServer == nil {
+		t.Error("expected tlsServer to be created when HTTPS enabled")
+	}
+	if m.tlsServer.TLSConfig == nil {
+		t.Error("expected TLSConfig to be set")
+	}
+
+	// Clean up
+	m.Stop(context.Background())
 }
