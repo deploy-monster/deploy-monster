@@ -69,10 +69,10 @@ cmd = []string{"sh", "-c", req.Command} // Kullanıcı girdisi doğrudan shell!
 | # | Sorun | Dosya | Satır | Durum |
 |---|-------|-------|-------|-------|
 | 7 | Import manifest validasyonu yok | `import_export.go` | 75-91 | [x] Düzeltildi |
-| 8 | Domain create hatası ignore ediliyor | `import_export.go` | 105-110 | [ ] |
-| 9 | Goroutine'de request context kullanımı | `marketplace_deploy.go` | 95 | [ ] |
-| 10 | Goroutine'de request context kullanımı | `deploy_trigger.go` | 84 | [ ] |
-| 11 | Goroutine'de request context kullanımı | `apps.go` | 118 | [ ] |
+| 8 | Domain create hatası ignore ediliyor | `import_export.go` | 105-110 | [x] Düzeltildi |
+| 9 | Goroutine'de request context kullanımı | `marketplace_deploy.go` | 95 | [x] Düzeltildi |
+| 10 | Goroutine'de request context kullanımı | `deploy_trigger.go` | 84 | [x] Düzeltildi |
+| 11 | Goroutine'de request context kullanımı | `compose.go` | 88 | [x] Düzeltildi |
 | 12 | QuotaEnforcement middleware uygulanmamış | `router.go` | - | [ ] |
 
 ### Arayüz Eksiklikleri
