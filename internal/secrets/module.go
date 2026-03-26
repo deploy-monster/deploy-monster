@@ -129,7 +129,9 @@ func (m *Module) Resolve(scope, name string) (string, error) {
 			return "", fmt.Errorf("decrypt secret: %w", err)
 		}
 
-		m.logger.Debug("resolved secret", "scope", tryScope, "name", name, "version", version.Version)
+		if m.logger != nil {
+			m.logger.Debug("resolved secret", "scope", tryScope, "name", name, "version", version.Version)
+		}
 		return value, nil
 	}
 
