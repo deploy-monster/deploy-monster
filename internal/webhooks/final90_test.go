@@ -2,6 +2,10 @@ package webhooks
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -10,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
 // =============================================================================
@@ -162,4 +167,91 @@ func TestHandleWebhook_ParseError_Generic(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), "invalid payload") {
 		t.Errorf("expected 'invalid payload' in response, got: %s", rr.Body.String())
 	}
+}
+
+// =============================================================================
+// HandleWebhook - Signature Verification Tests
+// =============================================================================
+
+func TestHandleWebhook_SignatureVerification_Success(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	events := core.NewEventBus(logger)
+	bolt := &mockBoltWithSecret{secret: "test-secret"}
+	recv := NewReceiver(nil, bolt, events, logger)
+
+	body := `{"ref":"refs/heads/main"}`
+	req := httptest.NewRequest("POST", "/hooks/v1/wh-test", strings.NewReader(body))
+	req.SetPathValue("webhookID", "wh-test")
+	req.Header.Set("X-GitHub-Event", "push")
+	req.Header.Set("X-Hub-Signature-256", computeTestSignature(body, "test-secret"))
+	rr := httptest.NewRecorder()
+	recv.HandleWebhook(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 with valid signature, got %d", rr.Code)
+	}
+}
+
+func TestHandleWebhook_SignatureVerification_Failed(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	events := core.NewEventBus(logger)
+	bolt := &mockBoltWithSecret{secret: "correct-secret"}
+	recv := NewReceiver(nil, bolt, events, logger)
+
+	body := `{"ref":"refs/heads/main"}`
+	req := httptest.NewRequest("POST", "/hooks/v1/wh-test", strings.NewReader(body))
+	req.SetPathValue("webhookID", "wh-test")
+	req.Header.Set("X-GitHub-Event", "push")
+	req.Header.Set("X-Hub-Signature-256", computeTestSignature(body, "wrong-secret"))
+	rr := httptest.NewRecorder()
+	recv.HandleWebhook(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 with invalid signature, got %d", rr.Code)
+	}
+}
+
+func TestHandleWebhook_SecretLookupFailed(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	events := core.NewEventBus(logger)
+	bolt := &mockBoltWithSecret{err: fmt.Errorf("secret not found")}
+	recv := NewReceiver(nil, bolt, events, logger)
+
+	body := `{"ref":"refs/heads/main"}`
+	req := httptest.NewRequest("POST", "/hooks/v1/wh-test", strings.NewReader(body))
+	req.SetPathValue("webhookID", "wh-test")
+	req.Header.Set("X-GitHub-Event", "push")
+	rr := httptest.NewRecorder()
+	recv.HandleWebhook(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 when secret lookup fails, got %d", rr.Code)
+	}
+}
+
+// mockBoltWithSecret is a mock that returns a webhook secret
+type mockBoltWithSecret struct {
+	secret string
+	err    error
+}
+
+func (m *mockBoltWithSecret) Set(_, _ string, _ any, _ int64) error { return nil }
+func (m *mockBoltWithSecret) Get(_, _ string, _ any) error { return fmt.Errorf("not found") }
+func (m *mockBoltWithSecret) Delete(_, _ string) error { return nil }
+func (m *mockBoltWithSecret) List(_ string) ([]string, error) { return nil, nil }
+func (m *mockBoltWithSecret) Close() error { return nil }
+func (m *mockBoltWithSecret) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
+	return nil, fmt.Errorf("not found")
+}
+func (m *mockBoltWithSecret) GetWebhookSecret(_ string) (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.secret, nil
+}
+
+func computeTestSignature(body, secret string) string {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(body))
+	return "sha256=" + hex.EncodeToString(h.Sum(nil))
 }
