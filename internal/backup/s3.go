@@ -82,8 +82,18 @@ func (s *S3Storage) Name() string { return "s3" }
 
 // retry executes an operation with exponential backoff.
 func (s *S3Storage) retry(ctx context.Context, op func() error) error {
+	// Handle nil context gracefully
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	maxRetries := s.maxRetries
+	if maxRetries <= 0 {
+		maxRetries = 1
+	}
+
 	var lastErr error
-	for i := 0; i < s.maxRetries; i++ {
+	for i := 0; i < maxRetries; i++ {
 		err := op()
 		if err == nil {
 			return nil
@@ -96,12 +106,14 @@ func (s *S3Storage) retry(ctx context.Context, op func() error) error {
 			delay = s.maxDelay
 		}
 
-		s.logger.Warn("S3 operation failed, retrying",
-			"attempt", i+1,
-			"max_retries", s.maxRetries,
-			"delay", delay,
-			"error", err,
-		)
+		if s.logger != nil {
+			s.logger.Warn("S3 operation failed, retrying",
+				"attempt", i+1,
+				"max_retries", maxRetries,
+				"delay", delay,
+				"error", err,
+			)
+		}
 
 		select {
 		case <-time.After(delay):
@@ -109,7 +121,7 @@ func (s *S3Storage) retry(ctx context.Context, op func() error) error {
 			return ctx.Err()
 		}
 	}
-	return fmt.Errorf("S3 operation failed after %d retries: %w", s.maxRetries, lastErr)
+	return fmt.Errorf("S3 operation failed after %d retries: %w", maxRetries, lastErr)
 }
 
 func (s *S3Storage) Upload(ctx context.Context, key string, reader io.Reader, size int64) error {
@@ -136,7 +148,9 @@ func (s *S3Storage) Upload(ctx context.Context, key string, reader io.Reader, si
 			return fmt.Errorf("S3 upload failed: HTTP %d", resp.StatusCode)
 		}
 
-		s.logger.Debug("S3 upload complete", "key", key, "size", size)
+		if s.logger != nil {
+			s.logger.Debug("S3 upload complete", "key", key, "size", size)
+		}
 		return nil
 	})
 }
@@ -182,7 +196,9 @@ func (s *S3Storage) Delete(ctx context.Context, key string) error {
 			return fmt.Errorf("S3 delete failed: HTTP %d", resp.StatusCode)
 		}
 
-		s.logger.Debug("S3 delete complete", "key", key)
+		if s.logger != nil {
+			s.logger.Debug("S3 delete complete", "key", key)
+		}
 		return nil
 	})
 }

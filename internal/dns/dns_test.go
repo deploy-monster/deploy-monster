@@ -163,6 +163,12 @@ func (s *mockStore) CreateSecretVersion(_ context.Context, _ *core.SecretVersion
 func (s *mockStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) {
 	return nil, nil
 }
+func (s *mockStore) GetSecretByScopeAndName(_ context.Context, _, _ string) (*core.Secret, error) {
+	return nil, core.ErrNotFound
+}
+func (s *mockStore) GetLatestSecretVersion(_ context.Context, _ string) (*core.SecretVersion, error) {
+	return nil, core.ErrNotFound
+}
 func (s *mockStore) CreateInvite(_ context.Context, _ *core.Invitation) error { return nil }
 func (s *mockStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Invitation, error) {
 	return nil, nil

@@ -90,6 +90,9 @@ func buildScopeHierarchy(scope string) []string {
 // Looks up a secret by scope/name and returns the decrypted value.
 // Falls back through scope hierarchy: exact scope -> global
 func (m *Module) Resolve(scope, name string) (string, error) {
+	if m.store == nil {
+		return "", fmt.Errorf("secret %s/%s: not found (store not initialized)", scope, name)
+	}
 	ctx := context.Background()
 	scopeHierarchy := buildScopeHierarchy(scope)
 

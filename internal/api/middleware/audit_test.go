@@ -134,6 +134,12 @@ func (s *auditMockStore) CreateSecretVersion(_ context.Context, version *core.Se
 func (s *auditMockStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) {
 	return nil, nil
 }
+func (s *auditMockStore) GetSecretByScopeAndName(_ context.Context, _, _ string) (*core.Secret, error) {
+	return nil, core.ErrNotFound
+}
+func (s *auditMockStore) GetLatestSecretVersion(_ context.Context, _ string) (*core.SecretVersion, error) {
+	return nil, core.ErrNotFound
+}
 func (s *auditMockStore) CreateInvite(_ context.Context, invite *core.Invitation) error {
 	if invite.ID == "" {
 		invite.ID = core.GenerateID()

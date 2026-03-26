@@ -523,7 +523,7 @@ func TestNewS3Storage_CustomEndpoint(t *testing.T) {
 		AccessKey: "access",
 		SecretKey: "secret",
 		PathStyle: true,
-	})
+	}, testLogger())
 
 	if s.endpoint != "https://minio.local:9000" {
 		t.Errorf("endpoint = %q, want custom endpoint", s.endpoint)
@@ -543,7 +543,7 @@ func TestNewS3Storage_DefaultEndpoint(t *testing.T) {
 		Region:    "eu-west-1",
 		AccessKey: "ak",
 		SecretKey: "sk",
-	})
+	}, testLogger())
 
 	expected := "https://s3.eu-west-1.amazonaws.com"
 	if s.endpoint != expected {
@@ -555,7 +555,7 @@ func TestNewS3Storage_DefaultEndpoint(t *testing.T) {
 }
 
 func TestS3Storage_Name(t *testing.T) {
-	s := NewS3Storage(S3Config{Bucket: "b", Region: "r"})
+	s := NewS3Storage(S3Config{Bucket: "b", Region: "r"}, testLogger())
 	if name := s.Name(); name != "s3" {
 		t.Errorf("Name() = %q, want %q", name, "s3")
 	}
@@ -758,7 +758,7 @@ func TestS3Storage_Delete_NetworkError(t *testing.T) {
 }
 
 func TestS3Storage_List_ReturnsError(t *testing.T) {
-	s := NewS3Storage(S3Config{Bucket: "b", Region: "r"})
+	s := NewS3Storage(S3Config{Bucket: "b", Region: "r"}, testLogger())
 	_, err := s.List(context.Background(), "prefix")
 	if err == nil {
 		t.Fatal("List() expected error (not yet implemented)")

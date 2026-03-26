@@ -279,6 +279,12 @@ func (m *pipelineMockStore) CreateSecretVersion(_ context.Context, _ *core.Secre
 func (m *pipelineMockStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) {
 	return nil, nil
 }
+func (m *pipelineMockStore) GetSecretByScopeAndName(_ context.Context, _, _ string) (*core.Secret, error) {
+	return nil, core.ErrNotFound
+}
+func (m *pipelineMockStore) GetLatestSecretVersion(_ context.Context, _ string) (*core.SecretVersion, error) {
+	return nil, core.ErrNotFound
+}
 func (m *pipelineMockStore) CreateInvite(_ context.Context, _ *core.Invitation) error { return nil }
 func (m *pipelineMockStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Invitation, error) {
 	return nil, nil

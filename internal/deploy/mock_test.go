@@ -304,6 +304,12 @@ func (s *mockStore) CreateSecretVersion(_ context.Context, version *core.SecretV
 func (s *mockStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) {
 	return nil, nil
 }
+func (s *mockStore) GetSecretByScopeAndName(_ context.Context, _, _ string) (*core.Secret, error) {
+	return nil, core.ErrNotFound
+}
+func (s *mockStore) GetLatestSecretVersion(_ context.Context, _ string) (*core.SecretVersion, error) {
+	return nil, core.ErrNotFound
+}
 
 // InviteStore methods
 func (s *mockStore) CreateInvite(_ context.Context, invite *core.Invitation) error {
