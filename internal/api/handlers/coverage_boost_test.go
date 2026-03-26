@@ -1127,3 +1127,378 @@ func TestWriteError_NotFound(t *testing.T) {
 		t.Errorf("error = %q, want 'not found'", resp["error"])
 	}
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AppManifest.Validate — comprehensive validation tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestAppManifest_Validate_Valid(t *testing.T) {
+	m := AppManifest{
+		Name:       "valid-app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		Branch:     "main",
+		Replicas:   1,
+	}
+
+	errors := m.Validate()
+	if len(errors) != 0 {
+		t.Errorf("expected no errors, got: %v", errors)
+	}
+}
+
+func TestAppManifest_Validate_MissingName(t *testing.T) {
+	m := AppManifest{
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for missing name")
+	}
+	if errors[0] != "name is required" {
+		t.Errorf("error = %q, want 'name is required'", errors[0])
+	}
+}
+
+func TestAppManifest_Validate_NameTooLong(t *testing.T) {
+	m := AppManifest{
+		Name:       strings.Repeat("a", 65),
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for name too long")
+	}
+}
+
+func TestAppManifest_Validate_NameInvalidChars(t *testing.T) {
+	m := AppManifest{
+		Name:       "app<invalid>",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for invalid characters in name")
+	}
+}
+
+func TestAppManifest_Validate_MissingType(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for missing type")
+	}
+}
+
+func TestAppManifest_Validate_InvalidType(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "invalid-type",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for invalid type")
+	}
+}
+
+func TestAppManifest_Validate_MissingSourceType(t *testing.T) {
+	m := AppManifest{
+		Name:      "app",
+		Type:      "web",
+		SourceURL: "https://github.com/test/repo",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for missing source_type")
+	}
+}
+
+func TestAppManifest_Validate_InvalidSourceType(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "invalid",
+		SourceURL:  "https://github.com/test/repo",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for invalid source_type")
+	}
+}
+
+func TestAppManifest_Validate_MissingSourceURL(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for missing source_url")
+	}
+}
+
+func TestAppManifest_Validate_ImageSourceWithInvalidChars(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "image",
+		SourceURL:  "nginx;rm -rf /",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for invalid characters in image source_url")
+	}
+}
+
+func TestAppManifest_Validate_GitSourceWithInvalidScheme(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "ftp://github.com/test/repo",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for invalid scheme in git source_url")
+	}
+}
+
+func TestAppManifest_Validate_BranchPathTraversal(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		Branch:     "../../../etc/passwd",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for path traversal in branch")
+	}
+}
+
+func TestAppManifest_Validate_BranchInvalidChars(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		Branch:     "main;echo hacked",
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for invalid characters in branch")
+	}
+}
+
+func TestAppManifest_Validate_ReplicasNegative(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		Replicas:   -1,
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for negative replicas")
+	}
+}
+
+func TestAppManifest_Validate_ReplicasTooHigh(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		Replicas:   101,
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for replicas > 100")
+	}
+}
+
+func TestAppManifest_Validate_EmptyDomain(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		Domains:    []string{""},
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for empty domain")
+	}
+}
+
+func TestAppManifest_Validate_DomainTooLong(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		Domains:    []string{strings.Repeat("a", 254) + ".com"},
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for domain too long")
+	}
+}
+
+func TestAppManifest_Validate_InvalidDomainFormat(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		Domains:    []string{"invalid domain with spaces"},
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for invalid domain format")
+	}
+}
+
+func TestAppManifest_Validate_ValidDomain(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		Domains:    []string{"example.com", "sub.example.org"},
+	}
+
+	errors := m.Validate()
+	for _, e := range errors {
+		if strings.Contains(e, "domain") {
+			t.Errorf("unexpected domain error: %s", e)
+		}
+	}
+}
+
+func TestAppManifest_Validate_EmptyEnvVarKey(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		EnvVars:    map[string]string{"": "value"},
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for empty env var key")
+	}
+}
+
+func TestAppManifest_Validate_EnvVarKeyInvalidChars(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		EnvVars:    map[string]string{"KEY=BAD": "value"},
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for invalid characters in env var key")
+	}
+}
+
+func TestAppManifest_Validate_EmptyLabelKey(t *testing.T) {
+	m := AppManifest{
+		Name:       "app",
+		Type:       "web",
+		SourceType: "git",
+		SourceURL:  "https://github.com/test/repo",
+		Labels:     map[string]string{"": "value"},
+	}
+
+	errors := m.Validate()
+	if len(errors) == 0 {
+		t.Fatal("expected error for empty label key")
+	}
+}
+
+func TestAppManifest_Validate_AllValidTypes(t *testing.T) {
+	validTypes := []string{"web", "worker", "static", "cron", "docker", "compose", "database", "service"}
+
+	for _, typ := range validTypes {
+		t.Run(typ, func(t *testing.T) {
+			m := AppManifest{
+				Name:       "app",
+				Type:       typ,
+				SourceType: "git",
+				SourceURL:  "https://github.com/test/repo",
+			}
+
+			errors := m.Validate()
+			for _, e := range errors {
+				if strings.Contains(e, "type") {
+					t.Errorf("type %q should be valid, got error: %s", typ, e)
+				}
+			}
+		})
+	}
+}
+
+func TestAppManifest_Validate_AllValidSourceTypes(t *testing.T) {
+	validSourceTypes := []string{"git", "github", "gitlab", "image", "tarball", "docker", "dockerfile"}
+
+	for _, st := range validSourceTypes {
+		t.Run(st, func(t *testing.T) {
+			sourceURL := "https://github.com/test/repo"
+			if st == "image" || st == "docker" {
+				sourceURL = "nginx:latest"
+			}
+
+			m := AppManifest{
+				Name:       "app",
+				Type:       "web",
+				SourceType: st,
+				SourceURL:  sourceURL,
+			}
+
+			errors := m.Validate()
+			for _, e := range errors {
+				if strings.Contains(e, "source_type") {
+					t.Errorf("source_type %q should be valid, got error: %s", st, e)
+				}
+			}
+		})
+	}
+}
