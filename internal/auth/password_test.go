@@ -66,3 +66,65 @@ func TestValidatePasswordStrength_DefaultMinLength(t *testing.T) {
 		t.Errorf("unexpected error for 9-char password with default minLength: %v", err)
 	}
 }
+
+func TestHashPassword_DifferentPasswords(t *testing.T) {
+	hash1, err := HashPassword("Password1")
+	if err != nil {
+		t.Fatalf("HashPassword: %v", err)
+	}
+
+	hash2, err := HashPassword("Password2")
+	if err != nil {
+		t.Fatalf("HashPassword: %v", err)
+	}
+
+	// Different passwords should produce different hashes
+	if hash1 == hash2 {
+		t.Error("different passwords should produce different hashes")
+	}
+}
+
+func TestHashPassword_SamePasswordDifferentHashes(t *testing.T) {
+	// bcrypt generates different salts, so same password produces different hashes
+	hash1, err := HashPassword("SamePass1")
+	if err != nil {
+		t.Fatalf("HashPassword: %v", err)
+	}
+
+	hash2, err := HashPassword("SamePass1")
+	if err != nil {
+		t.Fatalf("HashPassword: %v", err)
+	}
+
+	// Same password should produce different hashes (due to salt)
+	if hash1 == hash2 {
+		t.Error("same password should produce different hashes (bcrypt salting)")
+	}
+
+	// But both should verify against the original password
+	if err := VerifyPassword(hash1, "SamePass1"); err != nil {
+		t.Errorf("hash1 should verify: %v", err)
+	}
+	if err := VerifyPassword(hash2, "SamePass1"); err != nil {
+		t.Errorf("hash2 should verify: %v", err)
+	}
+}
+
+func TestHashPassword_EmptyPassword(t *testing.T) {
+	// Empty passwords should still hash (bcrypt allows this)
+	hash, err := HashPassword("")
+	if err != nil {
+		t.Fatalf("HashPassword empty: %v", err)
+	}
+	if hash == "" {
+		t.Error("hash should not be empty")
+	}
+}
+
+func TestVerifyPassword_InvalidHash(t *testing.T) {
+	// Verify with malformed hash should fail
+	err := VerifyPassword("not-a-valid-hash", "anypassword")
+	if err == nil {
+		t.Error("expected error for invalid hash format")
+	}
+}

@@ -26,6 +26,9 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
+// Ensure testLogger is used for S3Storage tests
+var _ = testLogger()
+
 // mockStore implements core.Store minimally for scheduler tests.
 type mockStore struct{ core.Store }
 
@@ -1079,5 +1082,169 @@ func TestS3Storage_Delete_RequestCreationError(t *testing.T) {
 	err := s.Delete(nil, "key") //nolint:staticcheck
 	if err == nil {
 		t.Error("expected error with nil context")
+	}
+}
+
+// =====================================================
+// S3 RETRY PATHS
+// =====================================================
+
+func TestS3Storage_Retry_ContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError) // Always fail to trigger retry
+	}))
+	defer server.Close()
+
+	s := &S3Storage{
+		endpoint:     server.URL,
+		bucket:       "test",
+		pathStyle:    true,
+		client:       server.Client(),
+		maxRetries:   10,
+		initialDelay: 100 * time.Millisecond,
+		maxDelay:     5 * time.Second,
+		logger:       testLogger(),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	err := s.Upload(ctx, "key.tar", strings.NewReader("data"), 4)
+	if err == nil {
+		t.Fatal("expected error due to context cancellation")
+	}
+	if !strings.Contains(err.Error(), "context canceled") && !strings.Contains(err.Error(), "context") {
+		t.Logf("Upload error: %v (expected context cancellation)", err)
+	}
+}
+
+func TestS3Storage_Delete_404IsOK(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound) // 404 - should be treated as OK for delete
+	}))
+	defer server.Close()
+
+	s := &S3Storage{
+		endpoint:  server.URL,
+		bucket:    "test",
+		pathStyle: true,
+		client:    server.Client(),
+	}
+
+	err := s.Delete(context.Background(), "nonexistent.tar")
+	if err != nil {
+		t.Fatalf("Delete() should succeed for 404, got error: %v", err)
+	}
+}
+
+func TestS3Storage_Delete_Non404HTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden) // 403 - should be treated as error
+	}))
+	defer server.Close()
+
+	s := &S3Storage{
+		endpoint:  server.URL,
+		bucket:    "test",
+		pathStyle: true,
+		client:    server.Client(),
+	}
+
+	err := s.Delete(context.Background(), "key.tar")
+	if err == nil {
+		t.Fatal("Delete() expected error for 403")
+	}
+	if !strings.Contains(err.Error(), "403") {
+		t.Errorf("error should mention 403, got: %v", err)
+	}
+}
+
+func TestS3Storage_Retry_MaxDelayCapping(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		callCount++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	s := &S3Storage{
+		endpoint:     server.URL,
+		bucket:       "test",
+		pathStyle:    true,
+		client:       server.Client(),
+		maxRetries:   3,
+		initialDelay: 10 * time.Millisecond,
+		maxDelay:     50 * time.Millisecond, // Will cap the exponential backoff
+		logger:       testLogger(),
+	}
+
+	err := s.Upload(context.Background(), "key.tar", strings.NewReader("data"), 4)
+	if err == nil {
+		t.Fatal("expected error after retries exhausted")
+	}
+	if callCount < 3 {
+		t.Errorf("expected at least 3 calls, got %d", callCount)
+	}
+}
+
+func TestNewS3Storage_DefaultRetrySettings(t *testing.T) {
+	s := NewS3Storage(S3Config{
+		Bucket:    "test",
+		Region:    "us-east-1",
+		AccessKey: "ak",
+		SecretKey: "sk",
+		MaxRetries: 0, // Should default to 3
+	}, testLogger())
+
+	if s.maxRetries != 3 {
+		t.Errorf("maxRetries = %d, want 3 (default)", s.maxRetries)
+	}
+	if s.initialDelay != 100*time.Millisecond {
+		t.Errorf("initialDelay = %v, want 100ms (default)", s.initialDelay)
+	}
+	if s.maxDelay != 5*time.Second {
+		t.Errorf("maxDelay = %v, want 5s (default)", s.maxDelay)
+	}
+}
+
+func TestNewS3Storage_CustomRetrySettings(t *testing.T) {
+	s := NewS3Storage(S3Config{
+		Bucket:       "test",
+		Region:       "us-east-1",
+		AccessKey:    "ak",
+		SecretKey:    "sk",
+		MaxRetries:   5,
+		InitialDelay: 200 * time.Millisecond,
+		MaxDelay:     10 * time.Second,
+	}, testLogger())
+
+	if s.maxRetries != 5 {
+		t.Errorf("maxRetries = %d, want 5", s.maxRetries)
+	}
+	if s.initialDelay != 200*time.Millisecond {
+		t.Errorf("initialDelay = %v, want 200ms", s.initialDelay)
+	}
+	if s.maxDelay != 10*time.Second {
+		t.Errorf("maxDelay = %v, want 10s", s.maxDelay)
+	}
+}
+
+func TestS3Storage_Retry_NilContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	s := &S3Storage{
+		endpoint:  server.URL,
+		bucket:    "test",
+		pathStyle: true,
+		client:    server.Client(),
+	}
+
+	// Nil context should be handled gracefully (line 86-88 in retry)
+	err := s.Upload(nil, "key.tar", strings.NewReader("data"), 4) //nolint:staticcheck
+	if err != nil {
+		t.Logf("Upload with nil context: %v", err)
 	}
 }

@@ -365,3 +365,148 @@ func TestRequireAPIKey_ExpiredKey(t *testing.T) {
 		t.Errorf("expected 401 for expired key, got %d", rr.Code)
 	}
 }
+
+// =============================================================================
+// Additional RequireAuth tests for missing coverage
+// =============================================================================
+
+func TestRequireAuth_ExpiredAPIKey(t *testing.T) {
+	jwtSvc := testJWT()
+	bolt := newMockBoltStore()
+	expiredTime := time.Now().Add(-1 * time.Hour)
+	bolt.apiKeys["dm_test_"] = &models.APIKey{
+		ID:        "key-1",
+		UserID:    "api-user",
+		TenantID:  "api-tenant",
+		KeyPrefix: "dm_test_",
+		KeyHash:   "dm_test_expired_auth_key",
+		ExpiresAt: &expiredTime,
+	}
+
+	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with expired API key")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_test_expired_auth_key")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for expired API key, got %d", rr.Code)
+	}
+}
+
+func TestRequireAuth_APIKeyNilBolt(t *testing.T) {
+	jwtSvc := testJWT()
+
+	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with nil bolt")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_test_some_valid_key")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 with nil bolt, got %d", rr.Code)
+	}
+}
+
+func TestRequireAuth_APIKeyNotFoundInStore(t *testing.T) {
+	jwtSvc := testJWT()
+	bolt := newMockBoltStore() // Empty store
+
+	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with unknown key")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_unknown_key_12345")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for unknown key, got %d", rr.Code)
+	}
+}
+
+func TestRequireAuth_APIKeyMismatch(t *testing.T) {
+	jwtSvc := testJWT()
+	bolt := newMockBoltStore()
+	bolt.apiKeys["dm_test_"] = &models.APIKey{
+		ID:        "key-1",
+		UserID:    "api-user",
+		TenantID:  "api-tenant",
+		KeyPrefix: "dm_test_",
+		KeyHash:   "dm_test_correct_hash_value",
+		CreatedAt: time.Now(),
+	}
+
+	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with wrong key")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_test_wrong_hash_value")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for key mismatch, got %d", rr.Code)
+	}
+}
+
+func TestRequireAuth_APIKeyTooShort(t *testing.T) {
+	jwtSvc := testJWT()
+	bolt := newMockBoltStore()
+
+	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with short key")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_short")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for short key, got %d", rr.Code)
+	}
+}
+
+func TestRequireAuth_APIKeyNotExpired(t *testing.T) {
+	jwtSvc := testJWT()
+	bolt := newMockBoltStore()
+	futureTime := time.Now().Add(24 * time.Hour)
+	bolt.apiKeys["dm_test_"] = &models.APIKey{
+		ID:        "key-1",
+		UserID:    "api-user",
+		TenantID:  "api-tenant",
+		KeyPrefix: "dm_test_",
+		KeyHash:   "dm_test_not_expired_key",
+		ExpiresAt: &futureTime,
+		CreatedAt: time.Now(),
+	}
+
+	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims := auth.ClaimsFromContext(r.Context())
+		if claims == nil {
+			t.Fatal("expected claims in context")
+		}
+		if claims.UserID != "api-user" {
+			t.Errorf("expected api-user, got %q", claims.UserID)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("X-API-Key", "dm_test_not_expired_key")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 for non-expired key, got %d", rr.Code)
+	}
+}
