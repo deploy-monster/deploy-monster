@@ -33,12 +33,12 @@ func NewWHMCSBridge(apiURL, apiID, apiSecret string) *WHMCSBridge {
 
 // ProvisionRequest is what WHMCS sends when a new service is ordered.
 type ProvisionRequest struct {
-	ServiceID   int    `json:"service_id"`
-	ClientID    int    `json:"client_id"`
-	Email       string `json:"email"`
-	Package     string `json:"package"` // Maps to DeployMonster plan
-	Domain      string `json:"domain"`
-	Username    string `json:"username"`
+	ServiceID int    `json:"service_id"`
+	ClientID  int    `json:"client_id"`
+	Email     string `json:"email"`
+	Package   string `json:"package"` // Maps to DeployMonster plan
+	Domain    string `json:"domain"`
+	Username  string `json:"username"`
 }
 
 // ProvisionResponse is sent back to WHMCS.
@@ -52,11 +52,11 @@ type ProvisionResponse struct {
 // SyncModuleCommand calls a WHMCS module command.
 func (w *WHMCSBridge) SyncModuleCommand(ctx context.Context, action string, serviceID int) error {
 	params := url.Values{
-		"action":    {"ModuleCustom"},
-		"id":        {fmt.Sprintf("%d", serviceID)},
-		"custom":    {action},
+		"action":     {"ModuleCustom"},
+		"id":         {fmt.Sprintf("%d", serviceID)},
+		"custom":     {action},
 		"identifier": {w.apiID},
-		"secret":    {w.apiSecret},
+		"secret":     {w.apiSecret},
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.apiURL+"/includes/api.php",
@@ -78,7 +78,7 @@ func (w *WHMCSBridge) SyncModuleCommand(ctx context.Context, action string, serv
 	}
 
 	var result struct {
-		Result string `json:"result"`
+		Result  string `json:"result"`
 		Message string `json:"message"`
 	}
 	json.Unmarshal(body, &result)
@@ -93,10 +93,10 @@ func (w *WHMCSBridge) SyncModuleCommand(ctx context.Context, action string, serv
 // GetClientDetails fetches client info from WHMCS.
 func (w *WHMCSBridge) GetClientDetails(ctx context.Context, clientID int) (map[string]any, error) {
 	params := url.Values{
-		"action":     {"GetClientsDetails"},
-		"clientid":   {fmt.Sprintf("%d", clientID)},
-		"identifier": {w.apiID},
-		"secret":     {w.apiSecret},
+		"action":       {"GetClientsDetails"},
+		"clientid":     {fmt.Sprintf("%d", clientID)},
+		"identifier":   {w.apiID},
+		"secret":       {w.apiSecret},
 		"responsetype": {"json"},
 	}
 

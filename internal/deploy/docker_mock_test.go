@@ -1861,7 +1861,7 @@ func TestDockerManager_Stats_BothDeltasPositive(t *testing.T) {
 				SystemUsage: 500000000, // 0.5s
 			},
 			MemoryStats: container.MemoryStats{
-				Usage: 2147483648,  // 2GB
+				Usage: 2147483648, // 2GB
 				Limit: 4294967296, // 4GB
 			},
 		}

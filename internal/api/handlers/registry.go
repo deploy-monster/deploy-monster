@@ -21,7 +21,7 @@ func NewRegistryHandler(bolt core.BoltStorer) *RegistryHandler {
 type RegistryConfig struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
-	URL      string `json:"url"`      // e.g., ghcr.io, registry.example.com
+	URL      string `json:"url"` // e.g., ghcr.io, registry.example.com
 	Username string `json:"username"`
 	Password string `json:"-"` // Never returned
 	IsPublic bool   `json:"is_public"`

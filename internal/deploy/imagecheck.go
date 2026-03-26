@@ -14,11 +14,11 @@ import (
 
 // ImageUpdateChecker polls Docker registries for newer image versions.
 type ImageUpdateChecker struct {
-	store   core.Store
-	events  *core.EventBus
-	client  *http.Client
-	logger  *slog.Logger
-	stopCh  chan struct{}
+	store  core.Store
+	events *core.EventBus
+	client *http.Client
+	logger *slog.Logger
+	stopCh chan struct{}
 }
 
 // NewImageUpdateChecker creates an image update checker.

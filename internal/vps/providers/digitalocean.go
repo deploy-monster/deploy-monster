@@ -56,10 +56,10 @@ func (d *DigitalOcean) ListSizes(ctx context.Context, _ string) ([]core.VPSSize,
 	}
 	var resp struct {
 		Sizes []struct {
-			Slug     string  `json:"slug"`
-			VCPUs    int     `json:"vcpus"`
-			Memory   int     `json:"memory"`
-			Disk     int     `json:"disk"`
+			Slug        string  `json:"slug"`
+			VCPUs       int     `json:"vcpus"`
+			Memory      int     `json:"memory"`
+			Disk        int     `json:"disk"`
 			PriceHourly float64 `json:"price_hourly"`
 		} `json:"sizes"`
 	}
@@ -118,7 +118,9 @@ func (d *DigitalOcean) Status(ctx context.Context, instanceID string) (string, e
 		return "", err
 	}
 	var resp struct {
-		Droplet struct{ Status string `json:"status"` } `json:"droplet"`
+		Droplet struct {
+			Status string `json:"status"`
+		} `json:"droplet"`
 	}
 	json.Unmarshal(body, &resp)
 	return resp.Droplet.Status, nil

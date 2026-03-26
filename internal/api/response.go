@@ -10,8 +10,8 @@ import (
 
 // APIResponse is the standard response envelope for all API responses.
 type APIResponse struct {
-	Success bool   `json:"success"`
-	Data    any    `json:"data,omitempty"`
+	Success bool      `json:"success"`
+	Data    any       `json:"data,omitempty"`
 	Error   *APIError `json:"error,omitempty"`
 	Meta    *APIMeta  `json:"meta,omitempty"`
 }

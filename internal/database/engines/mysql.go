@@ -5,9 +5,9 @@ import "fmt"
 // MySQL implements the Engine interface for MySQL.
 type MySQL struct{}
 
-func (m *MySQL) Name() string        { return "mysql" }
-func (m *MySQL) Versions() []string  { return []string{"8.4", "8.0"} }
-func (m *MySQL) DefaultPort() int    { return 3306 }
+func (m *MySQL) Name() string       { return "mysql" }
+func (m *MySQL) Versions() []string { return []string{"8.4", "8.0"} }
+func (m *MySQL) DefaultPort() int   { return 3306 }
 
 func (m *MySQL) Image(version string) string {
 	return fmt.Sprintf("mysql:%s", version)
@@ -34,9 +34,9 @@ func (m *MySQL) ConnectionString(host string, port int, creds Credentials) strin
 // MariaDB implements the Engine interface for MariaDB.
 type MariaDB struct{}
 
-func (m *MariaDB) Name() string        { return "mariadb" }
-func (m *MariaDB) Versions() []string  { return []string{"11", "10.11"} }
-func (m *MariaDB) DefaultPort() int    { return 3306 }
+func (m *MariaDB) Name() string       { return "mariadb" }
+func (m *MariaDB) Versions() []string { return []string{"11", "10.11"} }
+func (m *MariaDB) DefaultPort() int   { return 3306 }
 
 func (m *MariaDB) Image(version string) string {
 	return fmt.Sprintf("mariadb:%s", version)

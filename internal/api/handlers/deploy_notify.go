@@ -26,7 +26,7 @@ type DeployNotifyConfig struct {
 
 // NotifyTarget defines where to send a notification.
 type NotifyTarget struct {
-	Channel   string `json:"channel"`   // slack, discord, telegram, email, webhook
+	Channel   string `json:"channel"` // slack, discord, telegram, email, webhook
 	Recipient string `json:"recipient"`
 }
 

@@ -32,9 +32,9 @@ func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 
 	// Read compose YAML from body
 	var req struct {
-		Name     string            `json:"name"`
-		YAML     string            `json:"yaml"`
-		EnvVars  map[string]string `json:"env_vars"`
+		Name    string            `json:"name"`
+		YAML    string            `json:"yaml"`
+		EnvVars map[string]string `json:"env_vars"`
 	}
 
 	if r.Header.Get("Content-Type") == "application/x-yaml" || r.Header.Get("Content-Type") == "text/yaml" {
@@ -123,8 +123,8 @@ func (h *ComposeHandler) Validate(w http.ResponseWriter, r *http.Request) {
 	cf, err := ic.Parse([]byte(req.YAML))
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"valid":   false,
-			"error":   err.Error(),
+			"valid": false,
+			"error": err.Error(),
 		})
 		return
 	}

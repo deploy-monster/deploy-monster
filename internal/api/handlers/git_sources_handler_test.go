@@ -14,9 +14,9 @@ import (
 // ─── Mock Git Provider ───────────────────────────────────────────────────────
 
 type mockGitProvider struct {
-	repos    []core.GitRepo
-	branches []string
-	errRepos error
+	repos     []core.GitRepo
+	branches  []string
+	errRepos  error
 	errBranch error
 }
 

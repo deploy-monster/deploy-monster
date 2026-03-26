@@ -56,10 +56,10 @@ func (h *PlatformStatsHandler) Overview(w http.ResponseWriter, r *http.Request) 
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"platform": map[string]any{
-			"version":    h.core.Build.Version,
-			"uptime_go":  runtime.NumGoroutine(),
-			"memory_mb":  mem.Alloc / 1024 / 1024,
-			"cpu_cores":  runtime.NumCPU(),
+			"version":   h.core.Build.Version,
+			"uptime_go": runtime.NumGoroutine(),
+			"memory_mb": mem.Alloc / 1024 / 1024,
+			"cpu_cores": runtime.NumCPU(),
 		},
 		"modules": map[string]int{
 			"total":    healthy + degraded + down,

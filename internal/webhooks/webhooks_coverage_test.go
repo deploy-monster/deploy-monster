@@ -197,8 +197,8 @@ func (m *pipelineMockStore) GetNextDeployVersion(_ context.Context, _ string) (i
 func (m *pipelineMockStore) CreateDeployment(_ context.Context, _ *core.Deployment) error {
 	return nil
 }
-func (m *pipelineMockStore) Close() error                     { return nil }
-func (m *pipelineMockStore) Ping(_ context.Context) error     { return nil }
+func (m *pipelineMockStore) Close() error                 { return nil }
+func (m *pipelineMockStore) Ping(_ context.Context) error { return nil }
 func (m *pipelineMockStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) {
 	return nil, core.ErrNotFound
 }
@@ -267,7 +267,7 @@ func (m *pipelineMockStore) GetProject(_ context.Context, _ string) (*core.Proje
 func (m *pipelineMockStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Project, error) {
 	return nil, nil
 }
-func (m *pipelineMockStore) DeleteProject(_ context.Context, _ string) error          { return nil }
+func (m *pipelineMockStore) DeleteProject(_ context.Context, _ string) error            { return nil }
 func (m *pipelineMockStore) CreateAuditLog(_ context.Context, _ *core.AuditEntry) error { return nil }
 func (m *pipelineMockStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core.AuditEntry, int, error) {
 	return nil, 0, nil

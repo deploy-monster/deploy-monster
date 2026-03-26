@@ -2,23 +2,23 @@ package billing
 
 // Plan defines a billing plan with resource limits.
 type Plan struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Description    string `json:"description"`
-	PriceCents     int    `json:"price_cents"`     // Monthly price in cents
-	Currency       string `json:"currency"`
-	MaxApps        int    `json:"max_apps"`
-	MaxContainers  int    `json:"max_containers"`
-	MaxCPUCores    int    `json:"max_cpu_cores"`
-	MaxRAMMB       int    `json:"max_ram_mb"`
-	MaxDiskGB      int    `json:"max_disk_gb"`
-	MaxBandwidthGB int    `json:"max_bandwidth_gb"`
-	MaxDomains     int    `json:"max_domains"`
-	MaxDatabases   int    `json:"max_databases"`
-	MaxTeamMembers int    `json:"max_team_members"`
-	MaxServers     int    `json:"max_servers"`
-	BuildMinutes   int    `json:"build_minutes"`
-	BackupGB       int    `json:"backup_gb"`
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	PriceCents     int      `json:"price_cents"` // Monthly price in cents
+	Currency       string   `json:"currency"`
+	MaxApps        int      `json:"max_apps"`
+	MaxContainers  int      `json:"max_containers"`
+	MaxCPUCores    int      `json:"max_cpu_cores"`
+	MaxRAMMB       int      `json:"max_ram_mb"`
+	MaxDiskGB      int      `json:"max_disk_gb"`
+	MaxBandwidthGB int      `json:"max_bandwidth_gb"`
+	MaxDomains     int      `json:"max_domains"`
+	MaxDatabases   int      `json:"max_databases"`
+	MaxTeamMembers int      `json:"max_team_members"`
+	MaxServers     int      `json:"max_servers"`
+	BuildMinutes   int      `json:"build_minutes"`
+	BackupGB       int      `json:"backup_gb"`
 	Features       []string `json:"features"`
 }
 

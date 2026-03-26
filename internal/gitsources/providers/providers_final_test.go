@@ -29,7 +29,7 @@ func TestGitHub_Do_HTTPError(t *testing.T) {
 
 	// Use the simpler approach: test network error path
 	gh2 := &GitHub{
-		token:  "test-token",
+		token: "test-token",
 		client: &http.Client{Transport: &testTransport{handler: func(req *http.Request) (*http.Response, error) {
 			rr := httptest.NewRecorder()
 			rr.WriteHeader(http.StatusForbidden)

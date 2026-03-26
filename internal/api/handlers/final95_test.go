@@ -407,16 +407,16 @@ type stubModule struct {
 	health core.HealthStatus
 }
 
-func (s *stubModule) ID() string                                  { return s.id }
-func (s *stubModule) Name() string                                { return s.id }
-func (s *stubModule) Version() string                             { return "1.0.0" }
-func (s *stubModule) Dependencies() []string                      { return nil }
-func (s *stubModule) Init(_ context.Context, _ *core.Core) error  { return nil }
-func (s *stubModule) Start(_ context.Context) error               { return nil }
-func (s *stubModule) Stop(_ context.Context) error                { return nil }
-func (s *stubModule) Health() core.HealthStatus                   { return s.health }
-func (s *stubModule) Routes() []core.Route                        { return nil }
-func (s *stubModule) Events() []core.EventHandler                 { return nil }
+func (s *stubModule) ID() string                                 { return s.id }
+func (s *stubModule) Name() string                               { return s.id }
+func (s *stubModule) Version() string                            { return "1.0.0" }
+func (s *stubModule) Dependencies() []string                     { return nil }
+func (s *stubModule) Init(_ context.Context, _ *core.Core) error { return nil }
+func (s *stubModule) Start(_ context.Context) error              { return nil }
+func (s *stubModule) Stop(_ context.Context) error               { return nil }
+func (s *stubModule) Health() core.HealthStatus                  { return s.health }
+func (s *stubModule) Routes() []core.Route                       { return nil }
+func (s *stubModule) Events() []core.EventHandler                { return nil }
 
 func TestFinal95_PlatformStats_ModuleHealth(t *testing.T) {
 	registry := core.NewRegistry()
@@ -774,12 +774,12 @@ func TestFinal95_SSLStatus_Check_Cached(t *testing.T) {
 	bolt := newMockBoltStore()
 	cached := SSLCheckResult{
 		FQDN:      "example.com",
-		Valid:      true,
-		Issuer:     "Let's Encrypt",
-		Subject:    "example.com",
-		ExpiresAt:  time.Now().Add(90 * 24 * time.Hour),
-		DaysLeft:   90,
-		CheckedAt:  time.Now(),
+		Valid:     true,
+		Issuer:    "Let's Encrypt",
+		Subject:   "example.com",
+		ExpiresAt: time.Now().Add(90 * 24 * time.Hour),
+		DaysLeft:  90,
+		CheckedAt: time.Now(),
 	}
 	bolt.Set("certificates", "ssl_check:example.com", cached, 300)
 
@@ -1287,7 +1287,6 @@ func TestFinal95_MarketplaceDeploy_CreateAppError(t *testing.T) {
 	}
 }
 
-
 // =============================================================================
 // ExecHandler.Exec — exec error with "exec create" in message
 // =============================================================================
@@ -1536,4 +1535,3 @@ func TestFinal95_DeployApproval_Reject_NoClaims(t *testing.T) {
 		t.Errorf("expected 401, got %d", rr.Code)
 	}
 }
-

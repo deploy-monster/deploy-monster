@@ -21,9 +21,9 @@ func (m *mockContainerRuntime) Ping() error { return nil }
 func (m *mockContainerRuntime) CreateAndStart(_ context.Context, _ core.ContainerOpts) (string, error) {
 	return "", nil
 }
-func (m *mockContainerRuntime) Stop(_ context.Context, _ string, _ int) error     { return nil }
-func (m *mockContainerRuntime) Remove(_ context.Context, _ string, _ bool) error  { return nil }
-func (m *mockContainerRuntime) Restart(_ context.Context, _ string) error         { return nil }
+func (m *mockContainerRuntime) Stop(_ context.Context, _ string, _ int) error    { return nil }
+func (m *mockContainerRuntime) Remove(_ context.Context, _ string, _ bool) error { return nil }
+func (m *mockContainerRuntime) Restart(_ context.Context, _ string) error        { return nil }
 func (m *mockContainerRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
 	return nil, nil
 }
@@ -149,25 +149,25 @@ func TestMeterCollect_GroupsByTenant(t *testing.T) {
 			{
 				ID: "c1", Name: "app1",
 				Labels: map[string]string{
-					"monster.enable":  "true",
-					"monster.tenant":  "tenant-1",
-					"monster.app.id":  "app-1",
+					"monster.enable": "true",
+					"monster.tenant": "tenant-1",
+					"monster.app.id": "app-1",
 				},
 			},
 			{
 				ID: "c2", Name: "app2",
 				Labels: map[string]string{
-					"monster.enable":  "true",
-					"monster.tenant":  "tenant-1",
-					"monster.app.id":  "app-2",
+					"monster.enable": "true",
+					"monster.tenant": "tenant-1",
+					"monster.app.id": "app-2",
 				},
 			},
 			{
 				ID: "c3", Name: "app3",
 				Labels: map[string]string{
-					"monster.enable":  "true",
-					"monster.tenant":  "tenant-2",
-					"monster.app.id":  "app-3",
+					"monster.enable": "true",
+					"monster.tenant": "tenant-2",
+					"monster.app.id": "app-3",
 				},
 			},
 		},
@@ -323,10 +323,10 @@ func TestQuotaCheck_StoreError(t *testing.T) {
 
 func TestQuotaCheck_TableDriven(t *testing.T) {
 	tests := []struct {
-		name     string
-		total    int
-		maxApps  int
-		wantOK   bool
+		name    string
+		total   int
+		maxApps int
+		wantOK  bool
 	}{
 		{"zero of 5", 0, 5, true},
 		{"1 of 5", 1, 5, true},

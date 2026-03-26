@@ -80,8 +80,8 @@ func (p *Pipeline) Trigger(ctx context.Context, appID string, payload *WebhookPa
 
 	containerName := fmt.Sprintf("monster-%s-%d", app.Name, version)
 	containerID, err := p.runtime.CreateAndStart(ctx, core.ContainerOpts{
-		Name:          containerName,
-		Image:         result.ImageTag,
+		Name:  containerName,
+		Image: result.ImageTag,
 		Labels: map[string]string{
 			"monster.enable":         "true",
 			"monster.app.id":         appID,
@@ -101,13 +101,13 @@ func (p *Pipeline) Trigger(ctx context.Context, appID string, payload *WebhookPa
 
 	p.events.Publish(ctx, core.NewEvent(core.EventAppDeployed, "pipeline",
 		core.DeployEventData{
-			AppID:       appID,
+			AppID:        appID,
 			DeploymentID: deployment.ID,
-			Version:     version,
-			Image:       result.ImageTag,
-			ContainerID: containerID,
-			CommitSHA:   result.CommitSHA,
-			Strategy:    "recreate",
+			Version:      version,
+			Image:        result.ImageTag,
+			ContainerID:  containerID,
+			CommitSHA:    result.CommitSHA,
+			Strategy:     "recreate",
 		},
 	))
 

@@ -11,7 +11,7 @@ var builtinTemplates = []*Template{
 	{
 		Slug: "wordpress", Name: "WordPress", Category: "cms",
 		Description: "The world's most popular content management system",
-		Tags: []string{"blog", "cms", "php"}, Author: "WordPress.org", Version: "6.7",
+		Tags:        []string{"blog", "cms", "php"}, Author: "WordPress.org", Version: "6.7",
 		Verified: true, Featured: true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 1024},
 		ComposeYAML: `services:
@@ -40,7 +40,7 @@ volumes:
 	{
 		Slug: "ghost", Name: "Ghost", Category: "cms",
 		Description: "Professional publishing platform for blogs and newsletters",
-		Tags: []string{"blog", "newsletter", "nodejs"}, Author: "Ghost Foundation", Version: "5",
+		Tags:        []string{"blog", "newsletter", "nodejs"}, Author: "Ghost Foundation", Version: "5",
 		Verified: true, Featured: true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
 		ComposeYAML: `services:
@@ -71,7 +71,7 @@ volumes:
 	{
 		Slug: "n8n", Name: "n8n", Category: "automation",
 		Description: "Workflow automation tool — open-source alternative to Zapier",
-		Tags: []string{"automation", "workflow", "integration"}, Author: "n8n GmbH", Version: "latest",
+		Tags:        []string{"automation", "workflow", "integration"}, Author: "n8n GmbH", Version: "latest",
 		Verified: true, Featured: true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 256},
 		ComposeYAML: `services:
@@ -89,7 +89,7 @@ volumes:
 	{
 		Slug: "uptime-kuma", Name: "Uptime Kuma", Category: "monitoring",
 		Description: "Self-hosted monitoring tool like Uptime Robot",
-		Tags: []string{"monitoring", "uptime", "status"}, Author: "louislam", Version: "1",
+		Tags:        []string{"monitoring", "uptime", "status"}, Author: "louislam", Version: "1",
 		Verified: true, Featured: true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 256},
 		ComposeYAML: `services:
@@ -103,8 +103,8 @@ volumes:
 	{
 		Slug: "gitea", Name: "Gitea", Category: "devtools",
 		Description: "Lightweight self-hosted Git service",
-		Tags: []string{"git", "scm", "devops"}, Author: "Gitea", Version: "latest",
-		Verified: true,
+		Tags:        []string{"git", "scm", "devops"}, Author: "Gitea", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 512},
 		ComposeYAML: `services:
   gitea:
@@ -119,8 +119,8 @@ volumes:
 	{
 		Slug: "minio", Name: "MinIO", Category: "storage",
 		Description: "High-performance S3-compatible object storage",
-		Tags: []string{"s3", "storage", "object"}, Author: "MinIO Inc", Version: "latest",
-		Verified: true,
+		Tags:        []string{"s3", "storage", "object"}, Author: "MinIO Inc", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 1024},
 		ComposeYAML: `services:
   minio:
@@ -137,7 +137,7 @@ volumes:
 	{
 		Slug: "plausible", Name: "Plausible Analytics", Category: "analytics",
 		Description: "Privacy-friendly Google Analytics alternative",
-		Tags: []string{"analytics", "privacy", "web"}, Author: "Plausible", Version: "latest",
+		Tags:        []string{"analytics", "privacy", "web"}, Author: "Plausible", Version: "latest",
 		Verified: true, Featured: true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048},
 		ComposeYAML: `services:
@@ -154,8 +154,8 @@ volumes:
 	{
 		Slug: "vaultwarden", Name: "Vaultwarden", Category: "security",
 		Description: "Lightweight Bitwarden-compatible password manager",
-		Tags: []string{"password", "security", "bitwarden"}, Author: "dani-garcia", Version: "latest",
-		Verified: true,
+		Tags:        []string{"password", "security", "bitwarden"}, Author: "dani-garcia", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 128, DiskMB: 256},
 		ComposeYAML: `services:
   vaultwarden:
@@ -170,8 +170,8 @@ volumes:
 	{
 		Slug: "nextcloud", Name: "Nextcloud", Category: "storage",
 		Description: "Self-hosted file sync, sharing, and collaboration platform",
-		Tags: []string{"cloud", "files", "collaboration"}, Author: "Nextcloud", Version: "29",
-		Verified: true,
+		Tags:        []string{"cloud", "files", "collaboration"}, Author: "Nextcloud", Version: "29",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 5120},
 		ComposeYAML: `services:
   nextcloud:
@@ -199,8 +199,8 @@ volumes:
 	{
 		Slug: "metabase", Name: "Metabase", Category: "analytics",
 		Description: "Business intelligence and analytics dashboard",
-		Tags: []string{"bi", "analytics", "dashboard"}, Author: "Metabase", Version: "latest",
-		Verified: true,
+		Tags:        []string{"bi", "analytics", "dashboard"}, Author: "Metabase", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 512},
 		ComposeYAML: `services:
   metabase:
@@ -215,7 +215,7 @@ volumes:
 	{
 		Slug: "ollama", Name: "Ollama", Category: "ai",
 		Description: "Run large language models locally",
-		Tags: []string{"ai", "llm", "ml"}, Author: "Ollama", Version: "latest",
+		Tags:        []string{"ai", "llm", "ml"}, Author: "Ollama", Version: "latest",
 		Verified: true, Featured: true,
 		MinResources: ResourceReq{MemoryMB: 4096, DiskMB: 10240},
 		ComposeYAML: `services:
@@ -229,8 +229,8 @@ volumes:
 	{
 		Slug: "code-server", Name: "Code Server", Category: "devtools",
 		Description: "VS Code in the browser",
-		Tags: []string{"ide", "vscode", "development"}, Author: "Coder", Version: "latest",
-		Verified: true,
+		Tags:        []string{"ide", "vscode", "development"}, Author: "Coder", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048},
 		ComposeYAML: `services:
   code-server:

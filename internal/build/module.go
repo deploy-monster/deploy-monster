@@ -15,10 +15,10 @@ func init() {
 // Module implements the build engine — detects project types,
 // generates Dockerfiles, and builds container images.
 type Module struct {
-	core    *core.Core
-	store   core.Store
-	pool    *WorkerPool
-	logger  *slog.Logger
+	core   *core.Core
+	store  core.Store
+	pool   *WorkerPool
+	logger *slog.Logger
 }
 
 func New() *Module {

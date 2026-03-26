@@ -13,10 +13,10 @@ import (
 // DeployApprovalHandler manages deployment approval workflows.
 // When enabled, deploys require admin approval before executing.
 type DeployApprovalHandler struct {
-	store    core.Store
-	events   *core.EventBus
-	mu       sync.RWMutex
-	pending  map[string]*ApprovalRequest
+	store   core.Store
+	events  *core.EventBus
+	mu      sync.RWMutex
+	pending map[string]*ApprovalRequest
 }
 
 func NewDeployApprovalHandler(store core.Store, events *core.EventBus) *DeployApprovalHandler {
@@ -29,15 +29,15 @@ func NewDeployApprovalHandler(store core.Store, events *core.EventBus) *DeployAp
 
 // ApprovalRequest represents a pending deployment approval.
 type ApprovalRequest struct {
-	ID          string    `json:"id"`
-	AppID       string    `json:"app_id"`
-	RequestedBy string    `json:"requested_by"`
-	Image       string    `json:"image"`
-	Branch      string    `json:"branch"`
-	Status      string    `json:"status"` // pending, approved, rejected
-	Reason      string    `json:"reason,omitempty"`
-	ReviewedBy  string    `json:"reviewed_by,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          string     `json:"id"`
+	AppID       string     `json:"app_id"`
+	RequestedBy string     `json:"requested_by"`
+	Image       string     `json:"image"`
+	Branch      string     `json:"branch"`
+	Status      string     `json:"status"` // pending, approved, rejected
+	Reason      string     `json:"reason,omitempty"`
+	ReviewedBy  string     `json:"reviewed_by,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
 	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
 }
 

@@ -149,8 +149,8 @@ func TestBuilder_Build_LocalRepo_GoProject(t *testing.T) {
 	b := NewBuilder(nil, events)
 
 	_, err := b.Build(context.Background(), BuildOpts{
-		AppID:   "app-go",
-		AppName: "goapp",
+		AppID:     "app-go",
+		AppName:   "goapp",
 		SourceURL: repoDir,
 		Branch:    "",
 	}, io.Discard)

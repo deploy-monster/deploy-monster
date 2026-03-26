@@ -18,11 +18,11 @@ func NewDependencyHandler(store core.Store, runtime core.ContainerRuntime) *Depe
 
 // DependencyNode represents an element in the dependency graph.
 type DependencyNode struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Type     string   `json:"type"` // app, database, cache, volume
-	Status   string   `json:"status"`
-	Links    []string `json:"links"` // IDs this node depends on
+	ID     string   `json:"id"`
+	Name   string   `json:"name"`
+	Type   string   `json:"type"` // app, database, cache, volume
+	Status string   `json:"status"`
+	Links  []string `json:"links"` // IDs this node depends on
 }
 
 // Graph handles GET /api/v1/apps/{id}/dependencies

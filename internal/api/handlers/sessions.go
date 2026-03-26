@@ -44,9 +44,9 @@ func (h *SessionHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) 
 	membership, _ := h.store.GetUserMembership(r.Context(), claims.UserID)
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"user": user,
-		"tenant_id": claims.TenantID,
-		"role_id": claims.RoleID,
+		"user":       user,
+		"tenant_id":  claims.TenantID,
+		"role_id":    claims.RoleID,
 		"membership": membership,
 	})
 }

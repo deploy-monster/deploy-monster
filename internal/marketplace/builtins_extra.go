@@ -9,8 +9,8 @@ var extraTemplates = []*Template{
 	{
 		Slug: "strapi", Name: "Strapi", Category: "cms",
 		Description: "Open-source headless CMS built with Node.js",
-		Tags: []string{"cms", "headless", "api"}, Author: "Strapi", Version: "5",
-		Verified: true,
+		Tags:        []string{"cms", "headless", "api"}, Author: "Strapi", Version: "5",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 1024},
 		ComposeYAML: `services:
   strapi:
@@ -38,7 +38,7 @@ volumes:
 	{
 		Slug: "umami", Name: "Umami", Category: "analytics",
 		Description: "Simple, fast, privacy-focused web analytics",
-		Tags: []string{"analytics", "privacy"}, Author: "Umami", Version: "latest",
+		Tags:        []string{"analytics", "privacy"}, Author: "Umami", Version: "latest",
 		Verified: true, Featured: true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
 		ComposeYAML: `services:
@@ -62,7 +62,7 @@ volumes:
 	{
 		Slug: "open-webui", Name: "Open WebUI", Category: "ai",
 		Description: "Self-hosted ChatGPT-like interface for Ollama and OpenAI",
-		Tags: []string{"ai", "chat", "llm"}, Author: "Open WebUI", Version: "latest",
+		Tags:        []string{"ai", "chat", "llm"}, Author: "Open WebUI", Version: "latest",
 		Verified: true, Featured: true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048},
 		ComposeYAML: `services:
@@ -78,8 +78,8 @@ volumes:
 	{
 		Slug: "meilisearch", Name: "Meilisearch", Category: "search",
 		Description: "Lightning-fast search engine — open-source alternative to Algolia",
-		Tags: []string{"search", "api"}, Author: "Meilisearch", Version: "latest",
-		Verified: true,
+		Tags:        []string{"search", "api"}, Author: "Meilisearch", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
 		ComposeYAML: `services:
   meilisearch:
@@ -94,8 +94,8 @@ volumes:
 	{
 		Slug: "nocodb", Name: "NocoDB", Category: "database",
 		Description: "Open-source Airtable alternative — turn any database into a spreadsheet",
-		Tags: []string{"database", "spreadsheet", "no-code"}, Author: "NocoDB", Version: "latest",
-		Verified: true,
+		Tags:        []string{"database", "spreadsheet", "no-code"}, Author: "NocoDB", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
 		ComposeYAML: `services:
   nocodb:
@@ -108,8 +108,8 @@ volumes:
 	{
 		Slug: "portainer", Name: "Portainer CE", Category: "devtools",
 		Description: "Container management UI for Docker and Kubernetes",
-		Tags: []string{"docker", "containers", "management"}, Author: "Portainer", Version: "latest",
-		Verified: true,
+		Tags:        []string{"docker", "containers", "management"}, Author: "Portainer", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 256},
 		ComposeYAML: `services:
   portainer:
@@ -124,8 +124,8 @@ volumes:
 	{
 		Slug: "grafana", Name: "Grafana", Category: "monitoring",
 		Description: "Open-source observability and monitoring dashboards",
-		Tags: []string{"monitoring", "dashboards", "visualization"}, Author: "Grafana Labs", Version: "latest",
-		Verified: true,
+		Tags:        []string{"monitoring", "dashboards", "visualization"}, Author: "Grafana Labs", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
 		ComposeYAML: `services:
   grafana:
@@ -140,8 +140,8 @@ volumes:
 	{
 		Slug: "directus", Name: "Directus", Category: "cms",
 		Description: "Open-source headless CMS with real-time API and beautiful admin",
-		Tags: []string{"cms", "headless", "api", "admin"}, Author: "Directus", Version: "latest",
-		Verified: true,
+		Tags:        []string{"cms", "headless", "api", "admin"}, Author: "Directus", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 1024},
 		ComposeYAML: `services:
   directus:

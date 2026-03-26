@@ -33,7 +33,7 @@ func (r *testContainerRuntime) CreateAndStart(_ context.Context, _ core.Containe
 	return id, nil
 }
 
-func (r *testContainerRuntime) Stop(_ context.Context, _ string, _ int) error   { return nil }
+func (r *testContainerRuntime) Stop(_ context.Context, _ string, _ int) error    { return nil }
 func (r *testContainerRuntime) Remove(_ context.Context, _ string, _ bool) error { return nil }
 func (r *testContainerRuntime) Restart(_ context.Context, _ string) error        { return nil }
 func (r *testContainerRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {

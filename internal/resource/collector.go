@@ -27,12 +27,12 @@ func (c *Collector) CollectServer(ctx context.Context) *core.ServerMetrics {
 	runtime.ReadMemStats(&memStats)
 
 	return &core.ServerMetrics{
-		ServerID:    "local",
-		Timestamp:   time.Now(),
-		CPUPercent:  0, // Requires /proc parsing on Linux
-		RAMUsedMB:   int64(memStats.Sys / 1024 / 1024),
-		RAMTotalMB:  int64(memStats.Sys / 1024 / 1024), // Approximation; agent provides real values
-		Containers:  c.countContainers(ctx),
+		ServerID:   "local",
+		Timestamp:  time.Now(),
+		CPUPercent: 0, // Requires /proc parsing on Linux
+		RAMUsedMB:  int64(memStats.Sys / 1024 / 1024),
+		RAMTotalMB: int64(memStats.Sys / 1024 / 1024), // Approximation; agent provides real values
+		Containers: c.countContainers(ctx),
 	}
 }
 

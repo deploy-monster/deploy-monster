@@ -46,10 +46,10 @@ func TestPlanOrdering(t *testing.T) {
 	// Plans should be ordered free < pro < business < enterprise by price
 	// (enterprise is custom pricing at 0, so skip that for price ordering).
 	tests := []struct {
-		name       string
-		planIndex  int
-		wantID     string
-		wantPrice  int
+		name      string
+		planIndex int
+		wantID    string
+		wantPrice int
 	}{
 		{"free", 0, "free", 0},
 		{"pro", 1, "pro", 1500},
@@ -77,10 +77,10 @@ func TestPlanFeatureLimitsScaleUp(t *testing.T) {
 	business := BuiltinPlans[2]
 
 	tests := []struct {
-		field    string
-		freeVal  int
-		proVal   int
-		bizVal   int
+		field   string
+		freeVal int
+		proVal  int
+		bizVal  int
 	}{
 		{"MaxApps", free.MaxApps, pro.MaxApps, business.MaxApps},
 		{"MaxContainers", free.MaxContainers, pro.MaxContainers, business.MaxContainers},
@@ -136,10 +136,10 @@ func TestEnterprisePlanUnlimited(t *testing.T) {
 
 func TestPlanFeatureInclusion(t *testing.T) {
 	tests := []struct {
-		planID       string
-		planIndex    int
-		wantFeature  string
-		wantPresent  bool
+		planID      string
+		planIndex   int
+		wantFeature string
+		wantPresent bool
 	}{
 		{"free", 0, "community_support", true},
 		{"free", 0, "priority_support", false},

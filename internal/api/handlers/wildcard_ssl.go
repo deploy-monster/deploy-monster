@@ -20,7 +20,7 @@ func NewWildcardSSLHandler(bolt core.BoltStorer) *WildcardSSLHandler {
 type WildcardCertConfig struct {
 	ID          string `json:"id"`
 	Domain      string `json:"domain"`       // e.g., example.com
-	Wildcard    string `json:"wildcard"`      // *.example.com
+	Wildcard    string `json:"wildcard"`     // *.example.com
 	DNSProvider string `json:"dns_provider"` // cloudflare, route53
 	Status      string `json:"status"`       // pending, active, failed
 }

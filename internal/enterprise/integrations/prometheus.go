@@ -13,9 +13,9 @@ import (
 // PrometheusExporter serves an OpenMetrics /metrics endpoint
 // for scraping by Prometheus or compatible systems.
 type PrometheusExporter struct {
-	registry *core.Registry
-	events   *core.EventBus
-	services *core.Services
+	registry  *core.Registry
+	events    *core.EventBus
+	services  *core.Services
 	startTime time.Time
 }
 

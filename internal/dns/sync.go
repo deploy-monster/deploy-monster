@@ -12,14 +12,14 @@ import (
 
 // SyncJob represents a pending DNS record operation.
 type SyncJob struct {
-	ID         string
-	Action     string // create, update, delete
-	Provider   string
-	Record     core.DNSRecord
-	DomainID   string
-	Retries    int
-	LastError  string
-	CreatedAt  time.Time
+	ID        string
+	Action    string // create, update, delete
+	Provider  string
+	Record    core.DNSRecord
+	DomainID  string
+	Retries   int
+	LastError string
+	CreatedAt time.Time
 }
 
 // SyncQueue processes DNS operations asynchronously with retry logic.

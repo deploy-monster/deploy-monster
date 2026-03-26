@@ -16,13 +16,13 @@ type Strategy interface {
 
 // DeployPlan holds all information needed to execute a deployment.
 type DeployPlan struct {
-	App           *core.Application
-	Deployment    *core.Deployment
-	NewImage      string
+	App            *core.Application
+	Deployment     *core.Deployment
+	NewImage       string
 	OldContainerID string
-	Runtime       core.ContainerRuntime
-	Store         core.Store
-	Events        *core.EventBus
+	Runtime        core.ContainerRuntime
+	Store          core.Store
+	Events         *core.EventBus
 }
 
 // New creates a strategy by name.

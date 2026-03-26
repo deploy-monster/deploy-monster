@@ -12,12 +12,12 @@ import (
 // AlertRule defines a threshold-based alert.
 type AlertRule struct {
 	Name      string        `json:"name"`
-	Metric    string        `json:"metric"`     // cpu_percent, ram_percent, disk_percent
-	Operator  string        `json:"operator"`   // >, <, >=, <=, ==
+	Metric    string        `json:"metric"`   // cpu_percent, ram_percent, disk_percent
+	Operator  string        `json:"operator"` // >, <, >=, <=, ==
 	Threshold float64       `json:"threshold"`
-	Duration  time.Duration `json:"duration"`   // How long condition must hold
-	Severity  string        `json:"severity"`   // info, warning, critical
-	Channels  []string      `json:"channels"`   // notification channels
+	Duration  time.Duration `json:"duration"` // How long condition must hold
+	Severity  string        `json:"severity"` // info, warning, critical
+	Channels  []string      `json:"channels"` // notification channels
 }
 
 // AlertState tracks the current state of an alert.

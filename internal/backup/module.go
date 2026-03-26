@@ -70,7 +70,7 @@ func (m *Module) Stop(_ context.Context) error {
 	}
 	return nil
 }
-func (m *Module) Health() core.HealthStatus    { return core.HealthOK }
+func (m *Module) Health() core.HealthStatus { return core.HealthOK }
 
 // RegisterStorage adds a backup storage target.
 func (m *Module) RegisterStorage(name string, storage core.BackupStorage) {

@@ -120,7 +120,7 @@ func (r *Route53) findHostedZone(ctx context.Context, domain string) (string, er
 	body, _ := io.ReadAll(resp.Body)
 
 	var result struct {
-		XMLName    xml.Name `xml:"ListHostedZonesResponse"`
+		XMLName     xml.Name `xml:"ListHostedZonesResponse"`
 		HostedZones struct {
 			Zones []struct {
 				ID   string `xml:"Id"`

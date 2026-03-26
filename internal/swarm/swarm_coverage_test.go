@@ -397,9 +397,9 @@ func TestAgentServer_HandleConnect_FullProtocol(t *testing.T) {
 		ServerID:  "tcp-agent-1",
 		Timestamp: time.Now(),
 		Payload: core.AgentInfo{
-			ServerID:     "tcp-agent-1",
-			Hostname:     "worker-tcp",
-			IPAddress:    "10.0.0.6",
+			ServerID:      "tcp-agent-1",
+			Hostname:      "worker-tcp",
+			IPAddress:     "10.0.0.6",
 			DockerVersion: "24.0",
 		},
 	}
@@ -2965,10 +2965,10 @@ func TestAgentServer_HandleConnect_UnmarshalablePayload(t *testing.T) {
 	// to "123" and unmarshals "123" into AgentInfo which actually would fail!
 	encoder := json.NewEncoder(conn)
 	encoder.Encode(core.AgentMessage{
-		ID:        "init",
-		Type:      "agent.info",
-		ServerID:  "bad-agent",
-		Payload:   42, // float64 payload, cannot unmarshal into AgentInfo
+		ID:       "init",
+		Type:     "agent.info",
+		ServerID: "bad-agent",
+		Payload:  42, // float64 payload, cannot unmarshal into AgentInfo
 	})
 
 	time.Sleep(200 * time.Millisecond)

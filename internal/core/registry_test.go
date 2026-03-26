@@ -7,8 +7,8 @@ import (
 
 // stubModule is a minimal Module implementation for testing.
 type stubModule struct {
-	id   string
-	deps []string
+	id          string
+	deps        []string
 	initCalled  bool
 	startCalled bool
 	stopCalled  bool

@@ -105,8 +105,8 @@ func Bootstrap(ctx context.Context, pool *SSHPool, host string, port int, user s
 	// 2. Download DeployMonster binary
 	logger.Info("downloading DeployMonster binary", "host", host)
 	downloadCmd := fmt.Sprintf(
-		`ARCH=$(dpkg --print-architecture 2>/dev/null || echo amd64) && `+
-			`curl -fsSL "https://github.com/deploy-monster/deploy-monster/releases/latest/download/deploymonster-linux-${ARCH}" `+
+		`ARCH=$(dpkg --print-architecture 2>/dev/null || echo amd64) && ` +
+			`curl -fsSL "https://github.com/deploy-monster/deploy-monster/releases/latest/download/deploymonster-linux-${ARCH}" ` +
 			`-o /usr/local/bin/deploymonster && chmod +x /usr/local/bin/deploymonster`,
 	)
 	if _, err := run(downloadCmd); err != nil {

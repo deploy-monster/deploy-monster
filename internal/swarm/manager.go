@@ -23,12 +23,12 @@ func NewManager(runtime core.ContainerRuntime, store core.Store, events *core.Ev
 
 // SwarmInfo holds current swarm state.
 type SwarmInfo struct {
-	Active       bool     `json:"active"`
-	NodeID       string   `json:"node_id"`
-	ManagerAddr  string   `json:"manager_addr"`
-	WorkerToken  string   `json:"worker_token"`
-	ManagerToken string   `json:"manager_token"`
-	Nodes        int      `json:"nodes"`
+	Active       bool   `json:"active"`
+	NodeID       string `json:"node_id"`
+	ManagerAddr  string `json:"manager_addr"`
+	WorkerToken  string `json:"worker_token"`
+	ManagerToken string `json:"manager_token"`
+	Nodes        int    `json:"nodes"`
 }
 
 // Init initializes a new Docker Swarm on the current node.

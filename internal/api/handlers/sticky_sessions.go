@@ -19,8 +19,8 @@ func NewStickySessionHandler(bolt core.BoltStorer) *StickySessionHandler {
 // StickySessionConfig holds cookie-based session affinity settings.
 type StickySessionConfig struct {
 	Enabled  bool   `json:"enabled"`
-	Cookie   string `json:"cookie"`    // Cookie name (default: MONSTER_AFFINITY)
-	MaxAge   int    `json:"max_age"`   // Seconds
+	Cookie   string `json:"cookie"`  // Cookie name (default: MONSTER_AFFINITY)
+	MaxAge   int    `json:"max_age"` // Seconds
 	Secure   bool   `json:"secure"`
 	HTTPOnly bool   `json:"http_only"`
 	SameSite string `json:"same_site"` // lax, strict, none

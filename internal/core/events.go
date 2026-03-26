@@ -258,10 +258,10 @@ const (
 	EventContainerHealthy = "container.healthy"
 
 	// Server / Infrastructure
-	EventServerAdded      = "server.added"
-	EventServerRemoved    = "server.removed"
-	EventServerDown       = "server.down"
-	EventServerRecovered  = "server.recovered"
+	EventServerAdded     = "server.added"
+	EventServerRemoved   = "server.removed"
+	EventServerDown      = "server.down"
+	EventServerRecovered = "server.recovered"
 
 	// Webhook (inbound)
 	EventWebhookReceived  = "webhook.received"
@@ -282,14 +282,14 @@ const (
 	EventAlertResolved  = "alert.resolved"
 
 	// User / Auth
-	EventUserCreated    = "user.created"
-	EventUserLoggedIn   = "user.logged_in"
-	EventUserLoggedOut  = "user.logged_out"
-	EventUserInvited    = "user.invited"
+	EventUserCreated   = "user.created"
+	EventUserLoggedIn  = "user.logged_in"
+	EventUserLoggedOut = "user.logged_out"
+	EventUserInvited   = "user.invited"
 
 	// Tenant
-	EventTenantCreated  = "tenant.created"
-	EventTenantUpdated  = "tenant.updated"
+	EventTenantCreated   = "tenant.created"
+	EventTenantUpdated   = "tenant.updated"
 	EventTenantSuspended = "tenant.suspended"
 
 	// Secret
@@ -321,8 +321,8 @@ const (
 	EventNotificationFailed = "notification.failed"
 
 	// System
-	EventSystemStarted  = "system.started"
-	EventSystemStopping = "system.stopping"
+	EventSystemStarted       = "system.started"
+	EventSystemStopping      = "system.stopping"
 	EventModuleHealthChanged = "module.health_changed"
 )
 
@@ -353,11 +353,11 @@ type DeployEventData struct {
 
 // BuildEventData is the payload for build events.
 type BuildEventData struct {
-	AppID    string `json:"app_id"`
-	BuildID  string `json:"build_id"`
-	CommitSHA string `json:"commit_sha,omitempty"`
+	AppID     string        `json:"app_id"`
+	BuildID   string        `json:"build_id"`
+	CommitSHA string        `json:"commit_sha,omitempty"`
 	Duration  time.Duration `json:"duration,omitempty"`
-	Error     string `json:"error,omitempty"`
+	Error     string        `json:"error,omitempty"`
 }
 
 // DomainEventData is the payload for domain events.
@@ -397,7 +397,7 @@ type WebhookEventData struct {
 
 // NotificationEventData is the payload for notification events.
 type NotificationEventData struct {
-	Channel   string `json:"channel"`   // email, slack, discord, telegram, webhook
+	Channel   string `json:"channel"` // email, slack, discord, telegram, webhook
 	Recipient string `json:"recipient"`
 	Subject   string `json:"subject"`
 	Error     string `json:"error,omitempty"`

@@ -10,24 +10,24 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	Server        ServerConfig        `yaml:"server"`
-	Database      DatabaseConfig      `yaml:"database"`
-	Ingress       IngressConfig       `yaml:"ingress"`
-	ACME          ACMEConfig          `yaml:"acme"`
-	DNS           DNSConfig           `yaml:"dns"`
-	Docker        DockerConfig        `yaml:"docker"`
-	Backup        BackupConfig        `yaml:"backup"`
-	Notifications NotificationConfig  `yaml:"notifications"`
-	Swarm         SwarmConfig         `yaml:"swarm"`
-	VPSProviders  VPSProvidersConfig  `yaml:"vps_providers"`
-	GitSources    GitSourcesConfig    `yaml:"git_sources"`
-	Marketplace   MarketplaceConfig   `yaml:"marketplace"`
-	Registration  RegistrationConfig  `yaml:"registration"`
-	SSO           SSOConfig           `yaml:"sso"`
-	Secrets       SecretsConfig       `yaml:"secrets"`
-	Billing       BillingConfig       `yaml:"billing"`
-	Limits        LimitsConfig        `yaml:"limits"`
-	Enterprise    EnterpriseConfig    `yaml:"enterprise"`
+	Server        ServerConfig       `yaml:"server"`
+	Database      DatabaseConfig     `yaml:"database"`
+	Ingress       IngressConfig      `yaml:"ingress"`
+	ACME          ACMEConfig         `yaml:"acme"`
+	DNS           DNSConfig          `yaml:"dns"`
+	Docker        DockerConfig       `yaml:"docker"`
+	Backup        BackupConfig       `yaml:"backup"`
+	Notifications NotificationConfig `yaml:"notifications"`
+	Swarm         SwarmConfig        `yaml:"swarm"`
+	VPSProviders  VPSProvidersConfig `yaml:"vps_providers"`
+	GitSources    GitSourcesConfig   `yaml:"git_sources"`
+	Marketplace   MarketplaceConfig  `yaml:"marketplace"`
+	Registration  RegistrationConfig `yaml:"registration"`
+	SSO           SSOConfig          `yaml:"sso"`
+	Secrets       SecretsConfig      `yaml:"secrets"`
+	Billing       BillingConfig      `yaml:"billing"`
+	Limits        LimitsConfig       `yaml:"limits"`
+	Enterprise    EnterpriseConfig   `yaml:"enterprise"`
 }
 
 // ServerConfig holds the HTTP server configuration.
@@ -62,9 +62,9 @@ type ACMEConfig struct {
 
 // DNSConfig holds DNS provider configuration.
 type DNSConfig struct {
-	Provider       string `yaml:"provider"` // cloudflare, route53, manual
+	Provider        string `yaml:"provider"` // cloudflare, route53, manual
 	CloudflareToken string `yaml:"cloudflare_token"`
-	AutoSubdomain  string `yaml:"auto_subdomain"` // e.g., deploy.monster
+	AutoSubdomain   string `yaml:"auto_subdomain"` // e.g., deploy.monster
 }
 
 // DockerConfig holds Docker connection configuration.
@@ -76,25 +76,25 @@ type DockerConfig struct {
 
 // BackupConfig holds backup configuration.
 type BackupConfig struct {
-	Schedule    string `yaml:"schedule"`
-	RetentionDays int  `yaml:"retention_days"`
-	StoragePath string `yaml:"storage_path"`
-	Encryption  bool   `yaml:"encryption"`
+	Schedule      string `yaml:"schedule"`
+	RetentionDays int    `yaml:"retention_days"`
+	StoragePath   string `yaml:"storage_path"`
+	Encryption    bool   `yaml:"encryption"`
 }
 
 // NotificationConfig holds notification channel configuration.
 type NotificationConfig struct {
-	EmailSMTP    string `yaml:"email_smtp"`
-	SlackWebhook string `yaml:"slack_webhook"`
+	EmailSMTP      string `yaml:"email_smtp"`
+	SlackWebhook   string `yaml:"slack_webhook"`
 	DiscordWebhook string `yaml:"discord_webhook"`
-	TelegramToken string `yaml:"telegram_token"`
+	TelegramToken  string `yaml:"telegram_token"`
 }
 
 // SwarmConfig holds Docker Swarm configuration.
 type SwarmConfig struct {
-	Enabled    bool   `yaml:"enabled"`
-	ManagerIP  string `yaml:"manager_ip"`
-	JoinToken  string `yaml:"join_token"`
+	Enabled   bool   `yaml:"enabled"`
+	ManagerIP string `yaml:"manager_ip"`
+	JoinToken string `yaml:"join_token"`
 }
 
 // VPSProvidersConfig holds VPS provider configuration.

@@ -252,8 +252,8 @@ func TestPostgres_EnvVars(t *testing.T) {
 	env := e.Env(creds)
 
 	wantEnv := map[string]bool{
-		"POSTGRES_DB=testdb":       true,
-		"POSTGRES_USER=testuser":   true,
+		"POSTGRES_DB=testdb":         true,
+		"POSTGRES_USER=testuser":     true,
 		"POSTGRES_PASSWORD=testpass": true,
 	}
 
@@ -278,10 +278,10 @@ func TestMySQL_EnvVars(t *testing.T) {
 	}
 
 	wantEnv := map[string]bool{
-		"MYSQL_DATABASE=mydb":         true,
-		"MYSQL_USER=myuser":           true,
-		"MYSQL_PASSWORD=mypass":       true,
-		"MYSQL_ROOT_PASSWORD=mypass":  true,
+		"MYSQL_DATABASE=mydb":        true,
+		"MYSQL_USER=myuser":          true,
+		"MYSQL_PASSWORD=mypass":      true,
+		"MYSQL_ROOT_PASSWORD=mypass": true,
 	}
 
 	for _, v := range env {
@@ -343,7 +343,7 @@ func TestMongoDB_EnvVars(t *testing.T) {
 	}
 
 	wantEnv := map[string]bool{
-		"MONGO_INITDB_ROOT_USERNAME=root":     true,
+		"MONGO_INITDB_ROOT_USERNAME=root":      true,
 		"MONGO_INITDB_ROOT_PASSWORD=mongopass": true,
 		"MONGO_INITDB_DATABASE=admin_db":       true,
 	}
@@ -392,7 +392,7 @@ func TestHealthCmd_Content(t *testing.T) {
 func TestVersions_LatestFirst(t *testing.T) {
 	// The first version returned should be the latest (convention for Provision default).
 	tests := []struct {
-		engine  Engine
+		engine    Engine
 		wantFirst string
 	}{
 		{&Postgres{}, "17"},
@@ -432,9 +432,9 @@ func (s *stubRuntime) CreateAndStart(_ context.Context, opts core.ContainerOpts)
 	}
 	return "container-abc123", nil
 }
-func (s *stubRuntime) Stop(_ context.Context, _ string, _ int) error         { return nil }
-func (s *stubRuntime) Remove(_ context.Context, _ string, _ bool) error      { return nil }
-func (s *stubRuntime) Restart(_ context.Context, _ string) error             { return nil }
+func (s *stubRuntime) Stop(_ context.Context, _ string, _ int) error    { return nil }
+func (s *stubRuntime) Remove(_ context.Context, _ string, _ bool) error { return nil }
+func (s *stubRuntime) Restart(_ context.Context, _ string) error        { return nil }
 func (s *stubRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
 	return nil, nil
 }

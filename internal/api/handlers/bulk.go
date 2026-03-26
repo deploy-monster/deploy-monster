@@ -25,9 +25,9 @@ type bulkRequest struct {
 }
 
 type bulkResult struct {
-	AppID   string `json:"app_id"`
-	Status  string `json:"status"`
-	Error   string `json:"error,omitempty"`
+	AppID  string `json:"app_id"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
 }
 
 // Execute handles POST /api/v1/apps/bulk

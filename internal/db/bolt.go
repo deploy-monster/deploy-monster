@@ -10,21 +10,21 @@ import (
 
 // Standard bucket names.
 var (
-	bucketSessions    = []byte("sessions")
-	bucketRateLimit   = []byte("ratelimit")
-	bucketBuildCache  = []byte("buildcache")
-	bucketMetricsRing = []byte("metrics_ring")
-	bucketCronJobs    = []byte("cronjobs")
-	bucketAppPins     = []byte("app_pins")
-	bucketAutoscale   = []byte("autoscale")
-	bucketBasicAuth   = []byte("basic_auth")
-	bucketAPIKeys     = []byte("api_keys")
-	bucketSchedule    = []byte("deploy_schedule")
-	bucketFreeze      = []byte("deploy_freeze")
-	bucketNotify      = []byte("deploy_notify")
-	bucketApproval    = []byte("deploy_approval")
-	bucketMaintenance = []byte("maintenance")
-	bucketMiddleware  = []byte("app_middleware")
+	bucketSessions      = []byte("sessions")
+	bucketRateLimit     = []byte("ratelimit")
+	bucketBuildCache    = []byte("buildcache")
+	bucketMetricsRing   = []byte("metrics_ring")
+	bucketCronJobs      = []byte("cronjobs")
+	bucketAppPins       = []byte("app_pins")
+	bucketAutoscale     = []byte("autoscale")
+	bucketBasicAuth     = []byte("basic_auth")
+	bucketAPIKeys       = []byte("api_keys")
+	bucketSchedule      = []byte("deploy_schedule")
+	bucketFreeze        = []byte("deploy_freeze")
+	bucketNotify        = []byte("deploy_notify")
+	bucketApproval      = []byte("deploy_approval")
+	bucketMaintenance   = []byte("maintenance")
+	bucketMiddleware    = []byte("app_middleware")
 	bucketMetrics       = []byte("container_metrics")
 	bucketAnnouncements = []byte("announcements")
 	bucketCertificates  = []byte("certificates")
@@ -49,13 +49,13 @@ func NewBoltStore(path string) (*BoltStore, error) {
 	// Create default buckets
 	err = db.Update(func(tx *bolt.Tx) error {
 		for _, b := range [][]byte{
-		bucketSessions, bucketRateLimit, bucketBuildCache, bucketMetricsRing,
-		bucketCronJobs, bucketAppPins, bucketAutoscale, bucketBasicAuth,
-		bucketAPIKeys, bucketSchedule, bucketFreeze, bucketNotify,
-		bucketApproval, bucketMaintenance, bucketMiddleware, bucketMetrics,
-		bucketAnnouncements, bucketCertificates, bucketSSHKeys,
-		bucketLogRetention, bucketEventWebhooks, bucketWebhookLogs,
-	} {
+			bucketSessions, bucketRateLimit, bucketBuildCache, bucketMetricsRing,
+			bucketCronJobs, bucketAppPins, bucketAutoscale, bucketBasicAuth,
+			bucketAPIKeys, bucketSchedule, bucketFreeze, bucketNotify,
+			bucketApproval, bucketMaintenance, bucketMiddleware, bucketMetrics,
+			bucketAnnouncements, bucketCertificates, bucketSSHKeys,
+			bucketLogRetention, bucketEventWebhooks, bucketWebhookLogs,
+		} {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
 				return err
 			}

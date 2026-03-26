@@ -20,9 +20,9 @@ func NewAppMiddlewareHandler(store core.Store, bolt core.BoltStorer) *AppMiddlew
 // MiddlewareConfig defines which middleware are active for an app.
 type MiddlewareConfig struct {
 	RateLimit *RateLimitMiddleware `json:"rate_limit,omitempty"`
-	CORS      *CORSMiddleware     `json:"cors,omitempty"`
-	Compress  bool                `json:"compress"`
-	Headers   map[string]string   `json:"headers,omitempty"`
+	CORS      *CORSMiddleware      `json:"cors,omitempty"`
+	Compress  bool                 `json:"compress"`
+	Headers   map[string]string    `json:"headers,omitempty"`
 }
 
 // RateLimitMiddleware config for per-app rate limiting.

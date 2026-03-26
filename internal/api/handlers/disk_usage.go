@@ -29,23 +29,23 @@ func (h *DiskUsageHandler) AppDisk(w http.ResponseWriter, r *http.Request) {
 	containers, _ := h.runtime.ListByLabels(r.Context(), map[string]string{"monster.app.id": appID})
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"app_id":           appID,
-		"containers":       len(containers),
+		"app_id":            appID,
+		"containers":        len(containers),
 		"container_size_mb": 0,
-		"volume_size_mb":   0,
-		"log_size_mb":      0,
-		"total_mb":         0,
+		"volume_size_mb":    0,
+		"log_size_mb":       0,
+		"total_mb":          0,
 	})
 }
 
 // SystemDisk handles GET /api/v1/admin/disk
 func (h *DiskUsageHandler) SystemDisk(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"containers_mb": 0,
-		"images_mb":     0,
-		"volumes_mb":    0,
+		"containers_mb":  0,
+		"images_mb":      0,
+		"volumes_mb":     0,
 		"build_cache_mb": 0,
-		"total_mb":      0,
-		"available_mb":  0,
+		"total_mb":       0,
+		"available_mb":   0,
 	})
 }

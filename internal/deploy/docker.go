@@ -253,14 +253,14 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 
 	return &core.ContainerStats{
 		CPUPercent:    cpuPercent,
-		MemoryUsage:  int64(stats.MemoryStats.Usage),
-		MemoryLimit:  int64(stats.MemoryStats.Limit),
+		MemoryUsage:   int64(stats.MemoryStats.Usage),
+		MemoryLimit:   int64(stats.MemoryStats.Limit),
 		MemoryPercent: memPercent,
-		NetworkRx:    netRx,
-		NetworkTx:    netTx,
-		BlockRead:    blockRead,
-		BlockWrite:   blockWrite,
-		PIDs:         int(stats.PidsStats.Current),
+		NetworkRx:     netRx,
+		NetworkTx:     netTx,
+		BlockRead:     blockRead,
+		BlockWrite:    blockWrite,
+		PIDs:          int(stats.PidsStats.Current),
 	}, nil
 }
 

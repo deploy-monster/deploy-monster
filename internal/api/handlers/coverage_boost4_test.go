@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"context"
-	crand "crypto/rand"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	crand "crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -1336,30 +1336,30 @@ func TestDeployNotifyHandler_Update_Success(t *testing.T) {
 // degradedModule is a module that reports HealthDegraded.
 type degradedModule struct{}
 
-func (d *degradedModule) ID() string                                       { return "test.degraded" }
-func (d *degradedModule) Name() string                                     { return "Degraded" }
-func (d *degradedModule) Version() string                                  { return "1.0.0" }
-func (d *degradedModule) Dependencies() []string                           { return nil }
-func (d *degradedModule) Init(_ context.Context, _ *core.Core) error       { return nil }
-func (d *degradedModule) Start(_ context.Context) error                    { return nil }
-func (d *degradedModule) Stop(_ context.Context) error                     { return nil }
-func (d *degradedModule) Health() core.HealthStatus                        { return core.HealthDegraded }
-func (d *degradedModule) Routes() []core.Route                             { return nil }
-func (d *degradedModule) Events() []core.EventHandler                      { return nil }
+func (d *degradedModule) ID() string                                 { return "test.degraded" }
+func (d *degradedModule) Name() string                               { return "Degraded" }
+func (d *degradedModule) Version() string                            { return "1.0.0" }
+func (d *degradedModule) Dependencies() []string                     { return nil }
+func (d *degradedModule) Init(_ context.Context, _ *core.Core) error { return nil }
+func (d *degradedModule) Start(_ context.Context) error              { return nil }
+func (d *degradedModule) Stop(_ context.Context) error               { return nil }
+func (d *degradedModule) Health() core.HealthStatus                  { return core.HealthDegraded }
+func (d *degradedModule) Routes() []core.Route                       { return nil }
+func (d *degradedModule) Events() []core.EventHandler                { return nil }
 
 // downModule is a module that reports HealthDown.
 type downModule struct{}
 
-func (d *downModule) ID() string                                       { return "test.down" }
-func (d *downModule) Name() string                                     { return "Down" }
-func (d *downModule) Version() string                                  { return "1.0.0" }
-func (d *downModule) Dependencies() []string                           { return nil }
-func (d *downModule) Init(_ context.Context, _ *core.Core) error       { return nil }
-func (d *downModule) Start(_ context.Context) error                    { return nil }
-func (d *downModule) Stop(_ context.Context) error                     { return nil }
-func (d *downModule) Health() core.HealthStatus                        { return core.HealthDown }
-func (d *downModule) Routes() []core.Route                             { return nil }
-func (d *downModule) Events() []core.EventHandler                      { return nil }
+func (d *downModule) ID() string                                 { return "test.down" }
+func (d *downModule) Name() string                               { return "Down" }
+func (d *downModule) Version() string                            { return "1.0.0" }
+func (d *downModule) Dependencies() []string                     { return nil }
+func (d *downModule) Init(_ context.Context, _ *core.Core) error { return nil }
+func (d *downModule) Start(_ context.Context) error              { return nil }
+func (d *downModule) Stop(_ context.Context) error               { return nil }
+func (d *downModule) Health() core.HealthStatus                  { return core.HealthDown }
+func (d *downModule) Routes() []core.Route                       { return nil }
+func (d *downModule) Events() []core.EventHandler                { return nil }
 
 // =============================================================================
 // ImageCleanupHandler — DanglingImages, Prune

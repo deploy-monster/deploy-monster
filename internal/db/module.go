@@ -27,11 +27,11 @@ func New() *Module {
 	return &Module{}
 }
 
-func (m *Module) ID() string           { return "core.db" }
-func (m *Module) Name() string         { return "Database" }
-func (m *Module) Version() string      { return "1.0.0" }
-func (m *Module) Dependencies() []string { return nil }
-func (m *Module) Routes() []core.Route { return nil }
+func (m *Module) ID() string                  { return "core.db" }
+func (m *Module) Name() string                { return "Database" }
+func (m *Module) Version() string             { return "1.0.0" }
+func (m *Module) Dependencies() []string      { return nil }
+func (m *Module) Routes() []core.Route        { return nil }
 func (m *Module) Events() []core.EventHandler { return nil }
 
 func (m *Module) Init(ctx context.Context, c *core.Core) error {

@@ -21,7 +21,7 @@ type ServiceLink struct {
 	ID          string `json:"id"`
 	SourceAppID string `json:"source_app_id"`
 	TargetAppID string `json:"target_app_id"`
-	EnvVar      string `json:"env_var"`    // Env var name injected into source (e.g., DATABASE_URL)
+	EnvVar      string `json:"env_var"` // Env var name injected into source (e.g., DATABASE_URL)
 	TargetPort  int    `json:"target_port"`
 	Protocol    string `json:"protocol"` // tcp, http, grpc
 }

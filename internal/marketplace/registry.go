@@ -7,19 +7,19 @@ import (
 
 // Template represents a marketplace application template.
 type Template struct {
-	Slug        string            `json:"slug"`
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Category    string            `json:"category"`
-	Icon        string            `json:"icon,omitempty"`
-	Tags        []string          `json:"tags"`
-	Author      string            `json:"author"`
-	Version     string            `json:"version"`
-	ComposeYAML string            `json:"compose_yaml"`
-	ConfigSchema map[string]any   `json:"config_schema,omitempty"` // JSON Schema for user config
-	MinResources ResourceReq      `json:"min_resources"`
-	Featured    bool              `json:"featured"`
-	Verified    bool              `json:"verified"`
+	Slug         string         `json:"slug"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description"`
+	Category     string         `json:"category"`
+	Icon         string         `json:"icon,omitempty"`
+	Tags         []string       `json:"tags"`
+	Author       string         `json:"author"`
+	Version      string         `json:"version"`
+	ComposeYAML  string         `json:"compose_yaml"`
+	ConfigSchema map[string]any `json:"config_schema,omitempty"` // JSON Schema for user config
+	MinResources ResourceReq    `json:"min_resources"`
+	Featured     bool           `json:"featured"`
+	Verified     bool           `json:"verified"`
 }
 
 // ResourceReq defines minimum resource requirements.

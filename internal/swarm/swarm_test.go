@@ -94,7 +94,7 @@ func (m *mockRuntime) Stats(ctx context.Context, containerID string) (*core.Cont
 	return &core.ContainerStats{CPUPercent: 5.0}, nil
 }
 
-func (m *mockRuntime) ImagePull(_ context.Context, _ string) error    { return nil }
+func (m *mockRuntime) ImagePull(_ context.Context, _ string) error { return nil }
 func (m *mockRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) {
 	return nil, nil
 }
@@ -1581,10 +1581,10 @@ func TestAgentServer_All_WithLocalAndAgents(t *testing.T) {
 
 	ac := &AgentConn{
 		ServerID: "remote-agent",
-		conn:    serverConn,
-		ctx:     ctx,
-		cancel:  cancel,
-		pending: make(map[string]chan core.AgentMessage),
+		conn:     serverConn,
+		ctx:      ctx,
+		cancel:   cancel,
+		pending:  make(map[string]chan core.AgentMessage),
 	}
 
 	s.mu.Lock()
@@ -2054,10 +2054,10 @@ func TestAgentServer_Get_Remote(t *testing.T) {
 
 	ac := &AgentConn{
 		ServerID: "remote-1",
-		conn:    serverConn,
-		ctx:     ctx,
-		cancel:  cancel,
-		pending: make(map[string]chan core.AgentMessage),
+		conn:     serverConn,
+		ctx:      ctx,
+		cancel:   cancel,
+		pending:  make(map[string]chan core.AgentMessage),
 	}
 
 	s.mu.Lock()

@@ -8,7 +8,7 @@ var moreTemplates = []*Template{
 	{
 		Slug: "immich", Name: "Immich", Category: "storage",
 		Description: "Self-hosted photo and video backup — Google Photos alternative",
-		Tags: []string{"photos", "backup", "media"}, Author: "Immich", Version: "latest",
+		Tags:        []string{"photos", "backup", "media"}, Author: "Immich", Version: "latest",
 		Verified: true, Featured: true,
 		MinResources: ResourceReq{MemoryMB: 2048, DiskMB: 10240},
 		ComposeYAML: `services:
@@ -39,8 +39,8 @@ volumes:
 	{
 		Slug: "paperless-ngx", Name: "Paperless-ngx", Category: "productivity",
 		Description: "Document management system — scan, index, and archive papers",
-		Tags: []string{"documents", "ocr", "archive"}, Author: "Paperless-ngx", Version: "latest",
-		Verified: true,
+		Tags:        []string{"documents", "ocr", "archive"}, Author: "Paperless-ngx", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048},
 		ComposeYAML: `services:
   paperless:
@@ -70,8 +70,8 @@ volumes:
 	{
 		Slug: "hedgedoc", Name: "HedgeDoc", Category: "collaboration",
 		Description: "Real-time collaborative markdown editor",
-		Tags: []string{"markdown", "wiki", "collaboration"}, Author: "HedgeDoc", Version: "latest",
-		Verified: true,
+		Tags:        []string{"markdown", "wiki", "collaboration"}, Author: "HedgeDoc", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
 		ComposeYAML: `services:
   hedgedoc:
@@ -95,8 +95,8 @@ volumes:
 	{
 		Slug: "actual-budget", Name: "Actual Budget", Category: "finance",
 		Description: "Privacy-focused personal finance and budgeting app",
-		Tags: []string{"budget", "finance", "money"}, Author: "Actual Budget", Version: "latest",
-		Verified: true,
+		Tags:        []string{"budget", "finance", "money"}, Author: "Actual Budget", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 256},
 		ComposeYAML: `services:
   actual:
@@ -109,8 +109,8 @@ volumes:
 	{
 		Slug: "linkwarden", Name: "Linkwarden", Category: "productivity",
 		Description: "Self-hosted bookmark manager with collaboration",
-		Tags: []string{"bookmarks", "links", "archive"}, Author: "Linkwarden", Version: "latest",
-		Verified: true,
+		Tags:        []string{"bookmarks", "links", "archive"}, Author: "Linkwarden", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
 		ComposeYAML: `services:
   linkwarden:

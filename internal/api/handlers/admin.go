@@ -35,18 +35,18 @@ func (h *AdminHandler) SystemInfo(w http.ResponseWriter, _ *http.Request) {
 	stats := h.core.Events.Stats()
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"version": h.core.Build.Version,
-		"commit":  h.core.Build.Commit,
-		"built":   h.core.Build.Date,
-		"go":      runtime.Version(),
-		"os":      runtime.GOOS,
-		"arch":    runtime.GOARCH,
-		"cpus":    runtime.NumCPU(),
+		"version":    h.core.Build.Version,
+		"commit":     h.core.Build.Commit,
+		"built":      h.core.Build.Date,
+		"go":         runtime.Version(),
+		"os":         runtime.GOOS,
+		"arch":       runtime.GOARCH,
+		"cpus":       runtime.NumCPU(),
 		"goroutines": runtime.NumGoroutine(),
 		"memory": map[string]any{
-			"alloc_mb":   mem.Alloc / 1024 / 1024,
-			"sys_mb":     mem.Sys / 1024 / 1024,
-			"gc_runs":    mem.NumGC,
+			"alloc_mb": mem.Alloc / 1024 / 1024,
+			"sys_mb":   mem.Sys / 1024 / 1024,
+			"gc_runs":  mem.NumGC,
 		},
 		"modules": modules,
 		"events": map[string]any{

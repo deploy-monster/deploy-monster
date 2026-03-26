@@ -987,9 +987,9 @@ func TestRespondCreated_NilData(t *testing.T) {
 
 func TestRespondPaginated_TotalPagesCalc(t *testing.T) {
 	tests := []struct {
-		total      int
-		perPage    int
-		wantPages  int
+		total     int
+		perPage   int
+		wantPages int
 	}{
 		{0, 20, 0},
 		{1, 20, 1},
@@ -1209,8 +1209,8 @@ type testStore struct {
 	core.Store // embed interface; unimplemented methods panic
 }
 
-func (s *testStore) Close() error                    { return nil }
-func (s *testStore) Ping(_ context.Context) error    { return nil }
+func (s *testStore) Close() error                              { return nil }
+func (s *testStore) Ping(_ context.Context) error              { return nil }
 func (s *testStore) CountUsers(_ context.Context) (int, error) { return 1, nil }
 func (s *testStore) CreateTenantWithDefaults(_ context.Context, _, _ string) (string, error) {
 	return "tenant-test", nil
@@ -1218,42 +1218,62 @@ func (s *testStore) CreateTenantWithDefaults(_ context.Context, _, _ string) (st
 func (s *testStore) CreateUserWithMembership(_ context.Context, _, _, _, _, _, _ string) (string, error) {
 	return "user-test", nil
 }
-func (s *testStore) CreateTenant(_ context.Context, _ *core.Tenant) error   { return nil }
+func (s *testStore) CreateTenant(_ context.Context, _ *core.Tenant) error        { return nil }
 func (s *testStore) GetTenant(_ context.Context, _ string) (*core.Tenant, error) { return nil, nil }
-func (s *testStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, error) { return nil, nil }
-func (s *testStore) UpdateTenant(_ context.Context, _ *core.Tenant) error { return nil }
-func (s *testStore) DeleteTenant(_ context.Context, _ string) error       { return nil }
-func (s *testStore) CreateUser(_ context.Context, _ *core.User) error { return nil }
-func (s *testStore) GetUser(_ context.Context, _ string) (*core.User, error) { return nil, nil }
+func (s *testStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, error) {
+	return nil, nil
+}
+func (s *testStore) UpdateTenant(_ context.Context, _ *core.Tenant) error           { return nil }
+func (s *testStore) DeleteTenant(_ context.Context, _ string) error                 { return nil }
+func (s *testStore) CreateUser(_ context.Context, _ *core.User) error               { return nil }
+func (s *testStore) GetUser(_ context.Context, _ string) (*core.User, error)        { return nil, nil }
 func (s *testStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) { return nil, nil }
-func (s *testStore) UpdateUser(_ context.Context, _ *core.User) error   { return nil }
-func (s *testStore) UpdatePassword(_ context.Context, _, _ string) error { return nil }
-func (s *testStore) UpdateLastLogin(_ context.Context, _ string) error   { return nil }
-func (s *testStore) CreateApp(_ context.Context, _ *core.Application) error { return nil }
-func (s *testStore) GetApp(_ context.Context, _ string) (*core.Application, error) { return nil, nil }
-func (s *testStore) UpdateApp(_ context.Context, _ *core.Application) error { return nil }
-func (s *testStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) { return nil, 0, nil }
-func (s *testStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) { return nil, nil }
-func (s *testStore) UpdateAppStatus(_ context.Context, _, _ string) error { return nil }
-func (s *testStore) DeleteApp(_ context.Context, _ string) error { return nil }
+func (s *testStore) UpdateUser(_ context.Context, _ *core.User) error               { return nil }
+func (s *testStore) UpdatePassword(_ context.Context, _, _ string) error            { return nil }
+func (s *testStore) UpdateLastLogin(_ context.Context, _ string) error              { return nil }
+func (s *testStore) CreateApp(_ context.Context, _ *core.Application) error         { return nil }
+func (s *testStore) GetApp(_ context.Context, _ string) (*core.Application, error)  { return nil, nil }
+func (s *testStore) UpdateApp(_ context.Context, _ *core.Application) error         { return nil }
+func (s *testStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
+	return nil, 0, nil
+}
+func (s *testStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
+	return nil, nil
+}
+func (s *testStore) UpdateAppStatus(_ context.Context, _, _ string) error         { return nil }
+func (s *testStore) DeleteApp(_ context.Context, _ string) error                  { return nil }
 func (s *testStore) CreateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
-func (s *testStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) { return nil, nil }
-func (s *testStore) ListDeploymentsByApp(_ context.Context, _ string, _ int) ([]core.Deployment, error) { return nil, nil }
+func (s *testStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) {
+	return nil, nil
+}
+func (s *testStore) ListDeploymentsByApp(_ context.Context, _ string, _ int) ([]core.Deployment, error) {
+	return nil, nil
+}
 func (s *testStore) GetNextDeployVersion(_ context.Context, _ string) (int, error) { return 1, nil }
-func (s *testStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
-func (s *testStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) { return nil, nil }
-func (s *testStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) { return nil, nil }
-func (s *testStore) DeleteDomain(_ context.Context, _ string) error { return nil }
-func (s *testStore) ListAllDomains(_ context.Context) ([]core.Domain, error) { return nil, nil }
-func (s *testStore) CreateProject(_ context.Context, _ *core.Project) error { return nil }
+func (s *testStore) CreateDomain(_ context.Context, _ *core.Domain) error          { return nil }
+func (s *testStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
+	return nil, nil
+}
+func (s *testStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+	return nil, nil
+}
+func (s *testStore) DeleteDomain(_ context.Context, _ string) error                { return nil }
+func (s *testStore) ListAllDomains(_ context.Context) ([]core.Domain, error)       { return nil, nil }
+func (s *testStore) CreateProject(_ context.Context, _ *core.Project) error        { return nil }
 func (s *testStore) GetProject(_ context.Context, _ string) (*core.Project, error) { return nil, nil }
-func (s *testStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Project, error) { return nil, nil }
-func (s *testStore) DeleteProject(_ context.Context, _ string) error { return nil }
+func (s *testStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Project, error) {
+	return nil, nil
+}
+func (s *testStore) DeleteProject(_ context.Context, _ string) error         { return nil }
 func (s *testStore) GetRole(_ context.Context, _ string) (*core.Role, error) { return nil, nil }
-func (s *testStore) GetUserMembership(_ context.Context, _ string) (*core.TeamMember, error) { return nil, nil }
+func (s *testStore) GetUserMembership(_ context.Context, _ string) (*core.TeamMember, error) {
+	return nil, nil
+}
 func (s *testStore) ListRoles(_ context.Context, _ string) ([]core.Role, error) { return nil, nil }
 func (s *testStore) CreateAuditLog(_ context.Context, _ *core.AuditEntry) error { return nil }
-func (s *testStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core.AuditEntry, int, error) { return nil, 0, nil }
+func (s *testStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core.AuditEntry, int, error) {
+	return nil, 0, nil
+}
 
 // testBoltStore is a minimal BoltStorer for router construction tests.
 type testBoltStore struct{}

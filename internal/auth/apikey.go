@@ -11,9 +11,9 @@ const apiKeyPrefix = "dm_"
 
 // APIKeyPair contains a generated API key and its hash.
 type APIKeyPair struct {
-	Key     string // Full key (only shown once): dm_xxxx...
-	Hash    string // SHA-256 hash (stored in DB)
-	Prefix  string // First 8 chars for display: dm_xxxx
+	Key    string // Full key (only shown once): dm_xxxx...
+	Hash   string // SHA-256 hash (stored in DB)
+	Prefix string // First 8 chars for display: dm_xxxx
 }
 
 // GenerateAPIKey creates a new API key with the dm_ prefix.

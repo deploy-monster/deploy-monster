@@ -139,8 +139,8 @@ func TestWriteError(t *testing.T) {
 // TestScaleRequest validates scale request parsing.
 func TestScaleRequestValidation(t *testing.T) {
 	tests := []struct {
-		body   string
-		valid  bool
+		body  string
+		valid bool
 	}{
 		{`{"replicas": 3}`, true},
 		{`{"replicas": 0}`, true},

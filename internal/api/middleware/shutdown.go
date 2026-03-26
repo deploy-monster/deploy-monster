@@ -7,8 +7,8 @@ import (
 
 // GracefulShutdown tracks in-flight requests for clean shutdown.
 type GracefulShutdown struct {
-	inFlight   atomic.Int64
-	draining   atomic.Bool
+	inFlight atomic.Int64
+	draining atomic.Bool
 }
 
 // NewGracefulShutdown creates a shutdown tracker.

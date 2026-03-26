@@ -22,9 +22,9 @@ type AutoscaleConfig struct {
 	Enabled        bool `json:"enabled"`
 	MinReplicas    int  `json:"min_replicas"`
 	MaxReplicas    int  `json:"max_replicas"`
-	CPUTarget      int  `json:"cpu_target_percent"`    // Scale up when CPU exceeds this
-	RAMTarget      int  `json:"ram_target_percent"`    // Scale up when RAM exceeds this
-	ScaleUpDelay   int  `json:"scale_up_delay_sec"`    // Cooldown before scaling up
+	CPUTarget      int  `json:"cpu_target_percent"` // Scale up when CPU exceeds this
+	RAMTarget      int  `json:"ram_target_percent"` // Scale up when RAM exceeds this
+	ScaleUpDelay   int  `json:"scale_up_delay_sec"` // Cooldown before scaling up
 	ScaleDownDelay int  `json:"scale_down_delay_sec"`
 }
 

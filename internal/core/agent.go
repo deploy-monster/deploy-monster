@@ -75,17 +75,17 @@ type AgentInfo struct {
 
 // ServerMetrics is the periodic metrics report from an agent.
 type ServerMetrics struct {
-	ServerID    string    `json:"server_id"`
-	Timestamp   time.Time `json:"timestamp"`
-	CPUPercent  float64   `json:"cpu_percent"`
-	RAMUsedMB   int64     `json:"ram_used_mb"`
-	RAMTotalMB  int64     `json:"ram_total_mb"`
-	DiskUsedMB  int64     `json:"disk_used_mb"`
-	DiskTotalMB int64     `json:"disk_total_mb"`
-	NetworkRxMB int64     `json:"network_rx_mb"`
-	NetworkTxMB int64     `json:"network_tx_mb"`
+	ServerID    string     `json:"server_id"`
+	Timestamp   time.Time  `json:"timestamp"`
+	CPUPercent  float64    `json:"cpu_percent"`
+	RAMUsedMB   int64      `json:"ram_used_mb"`
+	RAMTotalMB  int64      `json:"ram_total_mb"`
+	DiskUsedMB  int64      `json:"disk_used_mb"`
+	DiskTotalMB int64      `json:"disk_total_mb"`
+	NetworkRxMB int64      `json:"network_rx_mb"`
+	NetworkTxMB int64      `json:"network_tx_mb"`
 	LoadAvg     [3]float64 `json:"load_avg"`
-	Containers  int       `json:"containers"`
+	Containers  int        `json:"containers"`
 }
 
 // ContainerMetrics is per-container metrics from an agent.

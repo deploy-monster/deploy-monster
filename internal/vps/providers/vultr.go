@@ -56,11 +56,11 @@ func (v *Vultr) ListSizes(ctx context.Context, _ string) ([]core.VPSSize, error)
 	}
 	var resp struct {
 		Plans []struct {
-			ID        string  `json:"id"`
-			VCPUs     int     `json:"vcpu_count"`
-			RAM       int     `json:"ram"`
-			Disk      int     `json:"disk"`
-			CostHour  float64 `json:"monthly_cost"`
+			ID       string  `json:"id"`
+			VCPUs    int     `json:"vcpu_count"`
+			RAM      int     `json:"ram"`
+			Disk     int     `json:"disk"`
+			CostHour float64 `json:"monthly_cost"`
 		} `json:"plans"`
 	}
 	json.Unmarshal(body, &resp)
@@ -78,10 +78,10 @@ func (v *Vultr) ListSizes(ctx context.Context, _ string) ([]core.VPSSize, error)
 
 func (v *Vultr) Create(ctx context.Context, opts core.VPSCreateOpts) (*core.VPSInstance, error) {
 	payload := map[string]any{
-		"label":    opts.Name,
-		"region":   opts.Region,
-		"plan":     opts.Size,
-		"os_id":    opts.Image,
+		"label":     opts.Name,
+		"region":    opts.Region,
+		"plan":      opts.Size,
+		"os_id":     opts.Image,
 		"user_data": opts.UserData,
 	}
 	body, err := v.post(ctx, "/instances", payload)
@@ -91,10 +91,10 @@ func (v *Vultr) Create(ctx context.Context, opts core.VPSCreateOpts) (*core.VPSI
 
 	var resp struct {
 		Instance struct {
-			ID       string `json:"id"`
-			Label    string `json:"label"`
-			MainIP   string `json:"main_ip"`
-			Status   string `json:"status"`
+			ID     string `json:"id"`
+			Label  string `json:"label"`
+			MainIP string `json:"main_ip"`
+			Status string `json:"status"`
 		} `json:"instance"`
 	}
 	json.Unmarshal(body, &resp)
@@ -117,7 +117,9 @@ func (v *Vultr) Status(ctx context.Context, instanceID string) (string, error) {
 		return "", err
 	}
 	var resp struct {
-		Instance struct{ Status string `json:"status"` } `json:"instance"`
+		Instance struct {
+			Status string `json:"status"`
+		} `json:"instance"`
 	}
 	json.Unmarshal(body, &resp)
 	return resp.Instance.Status, nil

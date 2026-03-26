@@ -26,9 +26,9 @@ func TestAccessLogger_Middleware_StatusCapture(t *testing.T) {
 	al := NewAccessLogger(slog.Default())
 
 	tests := []struct {
-		name       string
-		status     int
-		statusIdx  int // index into StatusCounts (0-based: 1xx=0, 2xx=1, ...)
+		name      string
+		status    int
+		statusIdx int // index into StatusCounts (0-based: 1xx=0, 2xx=1, ...)
 	}{
 		{"200 OK", http.StatusOK, 1},
 		{"201 Created", http.StatusCreated, 1},

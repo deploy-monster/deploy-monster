@@ -29,17 +29,17 @@ type EnvironmentPreset struct {
 var defaultPresets = []EnvironmentPreset{
 	{
 		Name: "production", Description: "Live production environment",
-		Variables: map[string]string{"NODE_ENV": "production", "LOG_LEVEL": "warn"},
+		Variables:  map[string]string{"NODE_ENV": "production", "LOG_LEVEL": "warn"},
 		AutoDeploy: false, Branch: "main",
 	},
 	{
 		Name: "staging", Description: "Pre-production testing",
-		Variables: map[string]string{"NODE_ENV": "staging", "LOG_LEVEL": "info"},
+		Variables:  map[string]string{"NODE_ENV": "staging", "LOG_LEVEL": "info"},
 		AutoDeploy: true, Branch: "staging",
 	},
 	{
 		Name: "development", Description: "Development and testing",
-		Variables: map[string]string{"NODE_ENV": "development", "LOG_LEVEL": "debug", "DEBUG": "true"},
+		Variables:  map[string]string{"NODE_ENV": "development", "LOG_LEVEL": "debug", "DEBUG": "true"},
 		AutoDeploy: true, Branch: "develop",
 	},
 }

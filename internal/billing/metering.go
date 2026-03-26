@@ -85,10 +85,10 @@ func (m *Meter) collect() {
 
 // TenantUsage holds aggregated usage for a tenant.
 type TenantUsage struct {
-	Containers int
-	AppIDs     []string
-	CPUSeconds float64
-	RAMMBHours float64
+	Containers  int
+	AppIDs      []string
+	CPUSeconds  float64
+	RAMMBHours  float64
 	BandwidthMB float64
 }
 
@@ -113,7 +113,7 @@ func QuotaCheck(store core.Store, tenantID string, plan Plan) (*QuotaStatus, err
 
 // QuotaStatus shows current usage vs limits.
 type QuotaStatus struct {
-	AppsUsed     int  `json:"apps_used"`
-	AppsLimit    int  `json:"apps_limit"`
-	AppsOK       bool `json:"apps_ok"`
+	AppsUsed  int  `json:"apps_used"`
+	AppsLimit int  `json:"apps_limit"`
+	AppsOK    bool `json:"apps_ok"`
 }

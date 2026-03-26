@@ -17,22 +17,22 @@ var _ core.BackupStorage = (*S3Storage)(nil)
 // S3Storage stores backups in S3-compatible storage (AWS S3, MinIO, R2, etc.).
 // Uses raw HTTP with AWS Signature V4 to avoid the heavy AWS SDK dependency.
 type S3Storage struct {
-	endpoint      string
-	bucket        string
-	region        string
-	accessKey     string
-	secretKey     string
-	pathStyle     bool
-	client        *http.Client
-	maxRetries    int
-	initialDelay  time.Duration
-	maxDelay      time.Duration
-	logger        *slog.Logger
+	endpoint     string
+	bucket       string
+	region       string
+	accessKey    string
+	secretKey    string
+	pathStyle    bool
+	client       *http.Client
+	maxRetries   int
+	initialDelay time.Duration
+	maxDelay     time.Duration
+	logger       *slog.Logger
 }
 
 // S3Config holds S3 storage configuration.
 type S3Config struct {
-	Endpoint     string        `json:"endpoint"`      // Empty = AWS default
+	Endpoint     string        `json:"endpoint"` // Empty = AWS default
 	Bucket       string        `json:"bucket"`
 	Region       string        `json:"region"`
 	AccessKey    string        `json:"access_key"`

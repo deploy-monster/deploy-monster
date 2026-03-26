@@ -15,10 +15,10 @@ type AccessLogger struct {
 
 // AccessMetrics holds aggregated ingress traffic metrics.
 type AccessMetrics struct {
-	TotalRequests  atomic.Int64
-	TotalBytes     atomic.Int64
-	StatusCounts   [6]atomic.Int64 // Index by status/100 (1xx=0, 2xx=1, 3xx=2, 4xx=3, 5xx=4, other=5)
-	LatencySum     atomic.Int64    // Total latency in microseconds
+	TotalRequests atomic.Int64
+	TotalBytes    atomic.Int64
+	StatusCounts  [6]atomic.Int64 // Index by status/100 (1xx=0, 2xx=1, 3xx=2, 4xx=3, 5xx=4, other=5)
+	LatencySum    atomic.Int64    // Total latency in microseconds
 }
 
 // NewAccessLogger creates an access logger.

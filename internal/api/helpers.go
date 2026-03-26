@@ -62,11 +62,11 @@ func parsePagination(r *http.Request) Pagination {
 
 // PaginatedResponse wraps a list response with pagination metadata.
 type PaginatedResponse struct {
-	Data       any   `json:"data"`
-	Total      int   `json:"total"`
-	Page       int   `json:"page"`
-	PerPage    int   `json:"per_page"`
-	TotalPages int   `json:"total_pages"`
+	Data       any `json:"data"`
+	Total      int `json:"total"`
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	TotalPages int `json:"total_pages"`
 }
 
 // realIP extracts the real client IP from request headers.

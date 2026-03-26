@@ -340,19 +340,19 @@ func TestGitLabListRepos_Success(t *testing.T) {
 		json.NewEncoder(w).Encode([]map[string]any{
 			{
 				"path_with_namespace": "group/project1",
-				"http_url_to_repo":   "https://gitlab.com/group/project1.git",
-				"ssh_url_to_repo":    "git@gitlab.com:group/project1.git",
-				"description":        "GitLab project",
-				"default_branch":     "main",
-				"visibility":         "private",
+				"http_url_to_repo":    "https://gitlab.com/group/project1.git",
+				"ssh_url_to_repo":     "git@gitlab.com:group/project1.git",
+				"description":         "GitLab project",
+				"default_branch":      "main",
+				"visibility":          "private",
 			},
 			{
 				"path_with_namespace": "group/project2",
-				"http_url_to_repo":   "https://gitlab.com/group/project2.git",
-				"ssh_url_to_repo":    "git@gitlab.com:group/project2.git",
-				"description":        "Public project",
-				"default_branch":     "master",
-				"visibility":         "public",
+				"http_url_to_repo":    "https://gitlab.com/group/project2.git",
+				"ssh_url_to_repo":     "git@gitlab.com:group/project2.git",
+				"description":         "Public project",
+				"default_branch":      "master",
+				"visibility":          "public",
 			},
 		})
 	}))
@@ -432,10 +432,10 @@ func TestGitLabGetRepoInfo_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
 			"path_with_namespace": "group/project",
-			"http_url_to_repo":   "https://gitlab.com/group/project.git",
-			"ssh_url_to_repo":    "git@gitlab.com:group/project.git",
-			"description":        "desc",
-			"default_branch":     "main",
+			"http_url_to_repo":    "https://gitlab.com/group/project.git",
+			"ssh_url_to_repo":     "git@gitlab.com:group/project.git",
+			"description":         "desc",
+			"default_branch":      "main",
 		})
 	}))
 	defer srv.Close()

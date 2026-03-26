@@ -9,7 +9,7 @@ func TestNew(t *testing.T) {
 	}{
 		{"recreate", "recreate"},
 		{"rolling", "rolling"},
-		{"", "recreate"},       // default
+		{"", "recreate"},        // default
 		{"unknown", "recreate"}, // fallback
 	}
 

@@ -20,9 +20,9 @@ const stripeAPI = "https://api.stripe.com/v1"
 // StripeClient handles Stripe API operations.
 // Uses raw HTTP to avoid the heavy Stripe SDK dependency.
 type StripeClient struct {
-	secretKey    string
-	webhookKey   string
-	client       *http.Client
+	secretKey  string
+	webhookKey string
+	client     *http.Client
 }
 
 // NewStripeClient creates a Stripe API client.
@@ -37,8 +37,8 @@ func NewStripeClient(secretKey, webhookKey string) *StripeClient {
 // CreateCustomer creates a Stripe customer for a tenant.
 func (s *StripeClient) CreateCustomer(ctx context.Context, email, name, tenantID string) (string, error) {
 	params := url.Values{
-		"email":              {email},
-		"name":               {name},
+		"email":               {email},
+		"name":                {name},
 		"metadata[tenant_id]": {tenantID},
 	}
 
@@ -54,7 +54,7 @@ func (s *StripeClient) CreateCustomer(ctx context.Context, email, name, tenantID
 // CreateSubscription creates a subscription for a customer.
 func (s *StripeClient) CreateSubscription(ctx context.Context, customerID, priceID string) (string, error) {
 	params := url.Values{
-		"customer": {customerID},
+		"customer":        {customerID},
 		"items[0][price]": {priceID},
 	}
 

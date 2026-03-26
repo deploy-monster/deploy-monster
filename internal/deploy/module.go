@@ -14,10 +14,10 @@ func init() {
 
 // Module implements the deployment module.
 type Module struct {
-	core    *core.Core
-	docker  *DockerManager
-	store   core.Store
-	logger  *slog.Logger
+	core   *core.Core
+	docker *DockerManager
+	store  core.Store
+	logger *slog.Logger
 }
 
 // New creates a new deploy module.
@@ -25,12 +25,12 @@ func New() *Module {
 	return &Module{}
 }
 
-func (m *Module) ID() string                    { return "deploy" }
-func (m *Module) Name() string                  { return "Deploy Engine" }
-func (m *Module) Version() string               { return "1.0.0" }
-func (m *Module) Dependencies() []string        { return []string{"core.db"} }
-func (m *Module) Routes() []core.Route          { return nil }
-func (m *Module) Events() []core.EventHandler   { return nil }
+func (m *Module) ID() string                  { return "deploy" }
+func (m *Module) Name() string                { return "Deploy Engine" }
+func (m *Module) Version() string             { return "1.0.0" }
+func (m *Module) Dependencies() []string      { return []string{"core.db"} }
+func (m *Module) Routes() []core.Route        { return nil }
+func (m *Module) Events() []core.EventHandler { return nil }
 
 func (m *Module) Init(_ context.Context, c *core.Core) error {
 	m.core = c

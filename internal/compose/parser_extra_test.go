@@ -628,9 +628,9 @@ func (m *mockRuntime) CreateAndStart(_ context.Context, opts core.ContainerOpts)
 	m.created = append(m.created, opts)
 	return "container-" + opts.Name, nil
 }
-func (m *mockRuntime) Stop(_ context.Context, _ string, _ int) error           { return nil }
-func (m *mockRuntime) Remove(_ context.Context, _ string, _ bool) error        { return nil }
-func (m *mockRuntime) Restart(_ context.Context, _ string) error               { return nil }
+func (m *mockRuntime) Stop(_ context.Context, _ string, _ int) error    { return nil }
+func (m *mockRuntime) Remove(_ context.Context, _ string, _ bool) error { return nil }
+func (m *mockRuntime) Restart(_ context.Context, _ string) error        { return nil }
 func (m *mockRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
 	return nil, nil
 }

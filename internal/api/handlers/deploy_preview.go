@@ -49,16 +49,16 @@ func (h *DeployPreviewHandler) Preview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	preview := map[string]any{
-		"app_id":       appID,
-		"app_name":     app.Name,
-		"source_type":  app.SourceType,
-		"source_url":   app.SourceURL,
-		"branch":       app.Branch,
+		"app_id":          appID,
+		"app_name":        app.Name,
+		"source_type":     app.SourceType,
+		"source_url":      app.SourceURL,
+		"branch":          app.Branch,
 		"current_version": 0,
-		"next_version":   nextVersion,
-		"strategy":      "recreate",
-		"detected_type": detectedType,
-		"dockerfile":   dockerfile,
+		"next_version":    nextVersion,
+		"strategy":        "recreate",
+		"detected_type":   detectedType,
+		"dockerfile":      dockerfile,
 		"supported_types": []string{
 			string(build.TypeNodeJS), string(build.TypeNextJS), string(build.TypeGo),
 			string(build.TypePython), string(build.TypeRust), string(build.TypePHP),

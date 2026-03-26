@@ -55,4 +55,4 @@ func (m *Module) Stop(_ context.Context) error {
 	}
 	return nil
 }
-func (m *Module) Health() core.HealthStatus    { return core.HealthOK }
+func (m *Module) Health() core.HealthStatus { return core.HealthOK }

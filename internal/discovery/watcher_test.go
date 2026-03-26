@@ -83,9 +83,9 @@ func TestParseRule_MalformedPathPrefix(t *testing.T) {
 
 func TestParseLabelsToRoute(t *testing.T) {
 	labels := map[string]string{
-		"monster.app.id":                                       "app-123",
-		"monster.app.name":                                     "myapp",
-		"monster.http.routers.myapp.rule":                      "Host(`myapp.example.com`)",
+		"monster.app.id":                  "app-123",
+		"monster.app.name":                "myapp",
+		"monster.http.routers.myapp.rule": "Host(`myapp.example.com`)",
 		"monster.http.services.myapp.loadbalancer.server.port": "3000",
 		"monster.http.routers.myapp.middlewares":               "ratelimit, cors",
 	}
@@ -144,8 +144,8 @@ func TestParseLabelsToRoute_NoHost(t *testing.T) {
 
 func TestParseLabelsToRoute_DefaultPort(t *testing.T) {
 	labels := map[string]string{
-		"monster.app.id":                  "app-456",
-		"monster.app.name":                "webapp",
+		"monster.app.id":                   "app-456",
+		"monster.app.name":                 "webapp",
 		"monster.http.routers.webapp.rule": "Host(`webapp.com`)",
 		// No port label — should default to 80.
 	}
@@ -162,10 +162,10 @@ func TestParseLabelsToRoute_DefaultPort(t *testing.T) {
 
 func TestParseLabelsToRoute_WithPathPrefix(t *testing.T) {
 	labels := map[string]string{
-		"monster.app.id":                                       "app-789",
-		"monster.app.name":                                     "api",
-		"monster.http.routers.api.rule":                        "Host(`api.example.com`) && PathPrefix(`/v1`)",
-		"monster.http.services.api.loadbalancer.server.port":   "8080",
+		"monster.app.id":                "app-789",
+		"monster.app.name":              "api",
+		"monster.http.routers.api.rule": "Host(`api.example.com`) && PathPrefix(`/v1`)",
+		"monster.http.services.api.loadbalancer.server.port": "8080",
 	}
 
 	route := ParseLabelsToRoute(labels, "container789012345")
@@ -183,9 +183,9 @@ func TestParseLabelsToRoute_WithPathPrefix(t *testing.T) {
 
 func TestParseLabelsToRoute_CustomLBStrategy(t *testing.T) {
 	labels := map[string]string{
-		"monster.app.id":                                       "app-lb",
-		"monster.app.name":                                     "lbapp",
-		"monster.http.routers.lbapp.rule":                      "Host(`lb.example.com`)",
+		"monster.app.id":                  "app-lb",
+		"monster.app.name":                "lbapp",
+		"monster.http.routers.lbapp.rule": "Host(`lb.example.com`)",
 		"monster.http.services.lbapp.loadbalancer.server.port": "9090",
 		"monster.http.services.lbapp.loadbalancer.strategy":    "least-conn",
 	}
@@ -202,9 +202,9 @@ func TestParseLabelsToRoute_CustomLBStrategy(t *testing.T) {
 
 func TestParseLabelsToRoute_NoMiddlewares(t *testing.T) {
 	labels := map[string]string{
-		"monster.app.id":                                       "app-nomw",
-		"monster.app.name":                                     "simple",
-		"monster.http.routers.simple.rule":                     "Host(`simple.com`)",
+		"monster.app.id":                   "app-nomw",
+		"monster.app.name":                 "simple",
+		"monster.http.routers.simple.rule": "Host(`simple.com`)",
 		"monster.http.services.simple.loadbalancer.server.port": "3000",
 	}
 
@@ -220,11 +220,11 @@ func TestParseLabelsToRoute_NoMiddlewares(t *testing.T) {
 
 func TestParseLabelsToRoute_MultipleMiddlewares(t *testing.T) {
 	labels := map[string]string{
-		"monster.app.id":                                       "app-mw",
-		"monster.app.name":                                     "secured",
-		"monster.http.routers.secured.rule":                    "Host(`secure.com`)",
+		"monster.app.id":                    "app-mw",
+		"monster.app.name":                  "secured",
+		"monster.http.routers.secured.rule": "Host(`secure.com`)",
 		"monster.http.services.secured.loadbalancer.server.port": "443",
-		"monster.http.routers.secured.middlewares":             "auth, ratelimit, cors, compress",
+		"monster.http.routers.secured.middlewares":               "auth, ratelimit, cors, compress",
 	}
 
 	route := ParseLabelsToRoute(labels, "container_secured_1234567890")
@@ -246,8 +246,8 @@ func TestParseLabelsToRoute_MultipleMiddlewares(t *testing.T) {
 
 func TestParseLabelsToRoute_ShortContainerID(t *testing.T) {
 	labels := map[string]string{
-		"monster.app.id":                  "app-short",
-		"monster.app.name":                "shortid",
+		"monster.app.id":                    "app-short",
+		"monster.app.name":                  "shortid",
 		"monster.http.routers.shortid.rule": "Host(`short.com`)",
 	}
 
@@ -264,8 +264,8 @@ func TestParseLabelsToRoute_ShortContainerID(t *testing.T) {
 
 func TestParseLabelsToRoute_WildcardHost(t *testing.T) {
 	labels := map[string]string{
-		"monster.app.id":                  "app-wildcard",
-		"monster.app.name":                "wildcard",
+		"monster.app.id":                     "app-wildcard",
+		"monster.app.name":                   "wildcard",
 		"monster.http.routers.wildcard.rule": "Host(`*.example.com`)",
 	}
 

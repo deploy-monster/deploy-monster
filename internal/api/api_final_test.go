@@ -141,11 +141,11 @@ type downModule struct {
 	down bool
 }
 
-func (d *downModule) ID() string             { return d.id }
-func (d *downModule) Name() string           { return d.id }
-func (d *downModule) Version() string        { return "1.0.0" }
-func (d *downModule) Dependencies() []string { return nil }
-func (d *downModule) Routes() []core.Route   { return nil }
+func (d *downModule) ID() string                  { return d.id }
+func (d *downModule) Name() string                { return d.id }
+func (d *downModule) Version() string             { return "1.0.0" }
+func (d *downModule) Dependencies() []string      { return nil }
+func (d *downModule) Routes() []core.Route        { return nil }
 func (d *downModule) Events() []core.EventHandler { return nil }
 
 func (d *downModule) Init(_ context.Context, _ *core.Core) error { return nil }

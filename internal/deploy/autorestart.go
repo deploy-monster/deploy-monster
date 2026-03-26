@@ -11,10 +11,10 @@ import (
 // AutoRestarter monitors containers and restarts crashed ones.
 // Listens for container.died events and attempts restart with backoff.
 type AutoRestarter struct {
-	runtime core.ContainerRuntime
-	store   core.Store
-	events  *core.EventBus
-	logger  *slog.Logger
+	runtime    core.ContainerRuntime
+	store      core.Store
+	events     *core.EventBus
+	logger     *slog.Logger
 	maxRetries int
 }
 

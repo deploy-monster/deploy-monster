@@ -8,18 +8,18 @@ import (
 // Branding holds white-label customization settings.
 // Stored in the database per tenant (or globally for the platform).
 type Branding struct {
-	LogoURL      string `json:"logo_url"`
-	LogoDarkURL  string `json:"logo_dark_url"`
-	FaviconURL   string `json:"favicon_url"`
-	AppName      string `json:"app_name"`       // Replace "DeployMonster"
-	Domain       string `json:"domain"`          // Custom platform domain
-	PrimaryColor string `json:"primary_color"`   // Hex color
-	AccentColor  string `json:"accent_color"`    // Hex color
-	Copyright    string `json:"copyright"`       // Footer text
-	SupportEmail string `json:"support_email"`
-	SupportURL   string `json:"support_url"`
-	HidePoweredBy bool  `json:"hide_powered_by"` // Hide "Powered by DeployMonster"
-	CustomCSS    string `json:"custom_css"`       // Injected into UI head
+	LogoURL       string `json:"logo_url"`
+	LogoDarkURL   string `json:"logo_dark_url"`
+	FaviconURL    string `json:"favicon_url"`
+	AppName       string `json:"app_name"`      // Replace "DeployMonster"
+	Domain        string `json:"domain"`        // Custom platform domain
+	PrimaryColor  string `json:"primary_color"` // Hex color
+	AccentColor   string `json:"accent_color"`  // Hex color
+	Copyright     string `json:"copyright"`     // Footer text
+	SupportEmail  string `json:"support_email"`
+	SupportURL    string `json:"support_url"`
+	HidePoweredBy bool   `json:"hide_powered_by"` // Hide "Powered by DeployMonster"
+	CustomCSS     string `json:"custom_css"`      // Injected into UI head
 }
 
 // DefaultBranding returns the default DeployMonster branding.

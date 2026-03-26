@@ -64,16 +64,16 @@ type mockModule struct {
 	health core.HealthStatus
 }
 
-func (m *mockModule) ID() string                           { return m.id }
-func (m *mockModule) Name() string                         { return m.id }
-func (m *mockModule) Version() string                      { return "1.0.0" }
-func (m *mockModule) Dependencies() []string               { return nil }
+func (m *mockModule) ID() string                                 { return m.id }
+func (m *mockModule) Name() string                               { return m.id }
+func (m *mockModule) Version() string                            { return "1.0.0" }
+func (m *mockModule) Dependencies() []string                     { return nil }
 func (m *mockModule) Init(_ context.Context, _ *core.Core) error { return nil }
-func (m *mockModule) Start(_ context.Context) error        { return nil }
-func (m *mockModule) Stop(_ context.Context) error         { return nil }
-func (m *mockModule) Health() core.HealthStatus            { return m.health }
-func (m *mockModule) Routes() []core.Route                 { return nil }
-func (m *mockModule) Events() []core.EventHandler          { return nil }
+func (m *mockModule) Start(_ context.Context) error              { return nil }
+func (m *mockModule) Stop(_ context.Context) error               { return nil }
+func (m *mockModule) Health() core.HealthStatus                  { return m.health }
+func (m *mockModule) Routes() []core.Route                       { return nil }
+func (m *mockModule) Events() []core.EventHandler                { return nil }
 
 // ===========================================================================
 // PrometheusExporter tests

@@ -309,18 +309,18 @@ func (c *AgentClient) handleImagePull(ctx context.Context, msg core.AgentMessage
 func (c *AgentClient) handleMetricsCollect(ctx context.Context, _ core.AgentMessage) (core.ServerMetrics, error) {
 	hostname, _ := os.Hostname()
 	return core.ServerMetrics{
-		ServerID:  c.serverID,
-		Timestamp: time.Now(),
-		// Real metrics would be collected from /proc or runtime
-		CPUPercent: 0,
-		RAMUsedMB:  0,
-		RAMTotalMB: 0,
-		Containers: 0,
-		LoadAvg:    [3]float64{0, 0, 0},
-	}, func() error {
-		_ = hostname
-		return nil
-	}()
+			ServerID:  c.serverID,
+			Timestamp: time.Now(),
+			// Real metrics would be collected from /proc or runtime
+			CPUPercent: 0,
+			RAMUsedMB:  0,
+			RAMTotalMB: 0,
+			Containers: 0,
+			LoadAvg:    [3]float64{0, 0, 0},
+		}, func() error {
+			_ = hostname
+			return nil
+		}()
 }
 
 func (c *AgentClient) handleHealthCheck(_ context.Context) (map[string]any, error) {

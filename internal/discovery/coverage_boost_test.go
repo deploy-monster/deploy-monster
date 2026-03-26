@@ -19,13 +19,13 @@ type mockContainerRuntime struct {
 	listErr    error
 }
 
-func (m *mockContainerRuntime) Ping() error                         { return nil }
+func (m *mockContainerRuntime) Ping() error { return nil }
 func (m *mockContainerRuntime) CreateAndStart(_ context.Context, _ core.ContainerOpts) (string, error) {
 	return "mock-id", nil
 }
-func (m *mockContainerRuntime) Stop(_ context.Context, _ string, _ int) error   { return nil }
+func (m *mockContainerRuntime) Stop(_ context.Context, _ string, _ int) error    { return nil }
 func (m *mockContainerRuntime) Remove(_ context.Context, _ string, _ bool) error { return nil }
-func (m *mockContainerRuntime) Restart(_ context.Context, _ string) error       { return nil }
+func (m *mockContainerRuntime) Restart(_ context.Context, _ string) error        { return nil }
 func (m *mockContainerRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
 	return nil, nil
 }
@@ -75,10 +75,10 @@ func TestWatcher_SyncRoutes_WithRunningContainers(t *testing.T) {
 				ID:    "abc123def456789",
 				State: "running",
 				Labels: map[string]string{
-					"monster.enable":                                       "true",
-					"monster.app.id":                                       "app-1",
-					"monster.app.name":                                     "webapp",
-					"monster.http.routers.webapp.rule":                     "Host(`webapp.example.com`)",
+					"monster.enable":                   "true",
+					"monster.app.id":                   "app-1",
+					"monster.app.name":                 "webapp",
+					"monster.http.routers.webapp.rule": "Host(`webapp.example.com`)",
 					"monster.http.services.webapp.loadbalancer.server.port": "3000",
 				},
 			},
@@ -104,8 +104,8 @@ func TestWatcher_SyncRoutes_SkipsNonRunning(t *testing.T) {
 				ID:    "abc123def456789",
 				State: "exited",
 				Labels: map[string]string{
-					"monster.enable": "true",
-					"monster.app.id": "app-1",
+					"monster.enable":                   "true",
+					"monster.app.id":                   "app-1",
 					"monster.http.routers.webapp.rule": "Host(`webapp.example.com`)",
 				},
 			},
@@ -203,20 +203,20 @@ func TestWatcher_SyncRoutes_MultipleContainers(t *testing.T) {
 			{
 				ID: "aaa111bbb222333", State: "running",
 				Labels: map[string]string{
-					"monster.enable":                                       "true",
-					"monster.app.id":                                       "app-1",
-					"monster.app.name":                                     "web1",
-					"monster.http.routers.web1.rule":                       "Host(`web1.example.com`)",
+					"monster.enable":                 "true",
+					"monster.app.id":                 "app-1",
+					"monster.app.name":               "web1",
+					"monster.http.routers.web1.rule": "Host(`web1.example.com`)",
 					"monster.http.services.web1.loadbalancer.server.port": "3000",
 				},
 			},
 			{
 				ID: "ccc333ddd444555", State: "running",
 				Labels: map[string]string{
-					"monster.enable":                                       "true",
-					"monster.app.id":                                       "app-2",
-					"monster.app.name":                                     "web2",
-					"monster.http.routers.web2.rule":                       "Host(`web2.example.com`)",
+					"monster.enable":                 "true",
+					"monster.app.id":                 "app-2",
+					"monster.app.name":               "web2",
+					"monster.http.routers.web2.rule": "Host(`web2.example.com`)",
 					"monster.http.services.web2.loadbalancer.server.port": "8080",
 				},
 			},

@@ -37,7 +37,7 @@ func (s *auditMockStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([
 
 // ── Stubs for the rest of core.Store ────────────────────────────────────────
 
-func (s *auditMockStore) CreateTenant(_ context.Context, _ *core.Tenant) error   { return nil }
+func (s *auditMockStore) CreateTenant(_ context.Context, _ *core.Tenant) error { return nil }
 func (s *auditMockStore) GetTenant(_ context.Context, _ string) (*core.Tenant, error) {
 	return nil, core.ErrNotFound
 }
@@ -45,7 +45,7 @@ func (s *auditMockStore) GetTenantBySlug(_ context.Context, _ string) (*core.Ten
 	return nil, core.ErrNotFound
 }
 func (s *auditMockStore) UpdateTenant(_ context.Context, _ *core.Tenant) error { return nil }
-func (s *auditMockStore) DeleteTenant(_ context.Context, _ string) error        { return nil }
+func (s *auditMockStore) DeleteTenant(_ context.Context, _ string) error       { return nil }
 
 func (s *auditMockStore) CreateUser(_ context.Context, _ *core.User) error { return nil }
 func (s *auditMockStore) GetUser(_ context.Context, _ string) (*core.User, error) {
@@ -54,10 +54,10 @@ func (s *auditMockStore) GetUser(_ context.Context, _ string) (*core.User, error
 func (s *auditMockStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) {
 	return nil, core.ErrNotFound
 }
-func (s *auditMockStore) UpdateUser(_ context.Context, _ *core.User) error            { return nil }
-func (s *auditMockStore) UpdatePassword(_ context.Context, _, _ string) error          { return nil }
-func (s *auditMockStore) UpdateLastLogin(_ context.Context, _ string) error            { return nil }
-func (s *auditMockStore) CountUsers(_ context.Context) (int, error)                    { return 0, nil }
+func (s *auditMockStore) UpdateUser(_ context.Context, _ *core.User) error    { return nil }
+func (s *auditMockStore) UpdatePassword(_ context.Context, _, _ string) error { return nil }
+func (s *auditMockStore) UpdateLastLogin(_ context.Context, _ string) error   { return nil }
+func (s *auditMockStore) CountUsers(_ context.Context) (int, error)           { return 0, nil }
 func (s *auditMockStore) CreateUserWithMembership(_ context.Context, _, _, _, _, _, _ string) (string, error) {
 	return "", nil
 }
@@ -94,7 +94,7 @@ func (s *auditMockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Dom
 func (s *auditMockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (s *auditMockStore) DeleteDomain(_ context.Context, _ string) error         { return nil }
+func (s *auditMockStore) DeleteDomain(_ context.Context, _ string) error          { return nil }
 func (s *auditMockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) { return nil, nil }
 
 func (s *auditMockStore) CreateProject(_ context.Context, _ *core.Project) error { return nil }

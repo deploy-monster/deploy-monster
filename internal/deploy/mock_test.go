@@ -93,22 +93,22 @@ func (m *mockRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) {
 // others panic if called, which helps catch unexpected usage.
 type mockStore struct {
 	// Deployment methods
-	deployments      []core.Deployment
+	deployments        []core.Deployment
 	listDeploymentsErr error
-	nextVersion      int
-	nextVersionErr   error
-	latestDeployment *core.Deployment
-	createDeployErr  error
+	nextVersion        int
+	nextVersionErr     error
+	latestDeployment   *core.Deployment
+	createDeployErr    error
 
 	// App methods
-	apps                 map[string]*core.Application
-	getAppErr            error
-	listAppsByTenantErr  error
-	updateStatusFn       func(ctx context.Context, id, status string) error
+	apps                map[string]*core.Application
+	getAppErr           error
+	listAppsByTenantErr error
+	updateStatusFn      func(ctx context.Context, id, status string) error
 
 	// Domain methods
-	domains       map[string]*core.Domain
-	createDomainErr error
+	domains            map[string]*core.Domain
+	createDomainErr    error
 	getDomainByFQDNErr error
 
 	// Tenant methods
@@ -234,7 +234,7 @@ func (s *mockStore) DeleteDomain(_ context.Context, _ string) error { return nil
 func (s *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) { return nil, nil }
 
 // TenantStore methods
-func (s *mockStore) CreateTenant(_ context.Context, _ *core.Tenant) error   { return nil }
+func (s *mockStore) CreateTenant(_ context.Context, _ *core.Tenant) error { return nil }
 func (s *mockStore) GetTenant(_ context.Context, _ string) (*core.Tenant, error) {
 	return nil, fmt.Errorf("not implemented")
 }
@@ -252,7 +252,7 @@ func (s *mockStore) GetUser(_ context.Context, _ string) (*core.User, error) {
 func (s *mockStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) {
 	return nil, fmt.Errorf("not implemented")
 }
-func (s *mockStore) UpdateUser(_ context.Context, _ *core.User) error   { return nil }
+func (s *mockStore) UpdateUser(_ context.Context, _ *core.User) error    { return nil }
 func (s *mockStore) UpdatePassword(_ context.Context, _, _ string) error { return nil }
 func (s *mockStore) UpdateLastLogin(_ context.Context, _ string) error   { return nil }
 func (s *mockStore) CountUsers(_ context.Context) (int, error)           { return 0, nil }
@@ -329,8 +329,8 @@ func (s *mockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, 
 }
 
 // Store methods
-func (s *mockStore) Close() error                    { return nil }
-func (s *mockStore) Ping(_ context.Context) error    { return nil }
+func (s *mockStore) Close() error                 { return nil }
+func (s *mockStore) Ping(_ context.Context) error { return nil }
 
 // Ensure mockStore satisfies core.Store at compile time.
 var _ core.Store = (*mockStore)(nil)

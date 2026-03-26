@@ -60,8 +60,8 @@ func (h *NetworkHandler) Connect(w http.ResponseWriter, r *http.Request) {
 
 	// Docker network connect would happen here
 	writeJSON(w, http.StatusOK, map[string]string{
-		"status":      "connected",
-		"container":   req.ContainerID,
-		"network":     req.Network,
+		"status":    "connected",
+		"container": req.ContainerID,
+		"network":   req.Network,
 	})
 }

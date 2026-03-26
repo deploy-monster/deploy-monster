@@ -103,10 +103,10 @@ func (h *Hetzner) Create(ctx context.Context, opts core.VPSCreateOpts) (*core.VP
 
 	var resp struct {
 		Server struct {
-			ID         int    `json:"id"`
-			Name       string `json:"name"`
-			Status     string `json:"status"`
-			PublicNet  struct {
+			ID        int    `json:"id"`
+			Name      string `json:"name"`
+			Status    string `json:"status"`
+			PublicNet struct {
 				IPv4 struct {
 					IP string `json:"ip"`
 				} `json:"ipv4"`

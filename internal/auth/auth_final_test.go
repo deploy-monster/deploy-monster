@@ -32,7 +32,7 @@ func TestGenerateTokenPair_FieldValues(t *testing.T) {
 		t.Errorf("TokenType = %q, want Bearer", pair.TokenType)
 	}
 	if pair.ExpiresIn != int((15 * time.Minute).Seconds()) {
-		t.Errorf("ExpiresIn = %d, want %d", pair.ExpiresIn, int((15*time.Minute).Seconds()))
+		t.Errorf("ExpiresIn = %d, want %d", pair.ExpiresIn, int((15 * time.Minute).Seconds()))
 	}
 }
 

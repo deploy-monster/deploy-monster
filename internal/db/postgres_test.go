@@ -70,8 +70,8 @@ func (r testResult) LastInsertId() (int64, error) { return 0, nil }
 func (r testResult) RowsAffected() (int64, error) { return 0, nil }
 
 var (
-	registerOnce     sync.Once
-	testPgDriver     *testPostgresDriver
+	registerOnce sync.Once
+	testPgDriver *testPostgresDriver
 )
 
 func registerTestPostgresDriver() {

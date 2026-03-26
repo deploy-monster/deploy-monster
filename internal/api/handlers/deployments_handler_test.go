@@ -17,19 +17,19 @@ func TestListDeploymentsByApp_Success(t *testing.T) {
 	store := newMockStore()
 	now := time.Now()
 	store.addDeployment("app1", core.Deployment{
-		ID:      "dep1",
-		AppID:   "app1",
-		Version: 1,
-		Status:  "success",
-		Image:   "nginx:latest",
+		ID:        "dep1",
+		AppID:     "app1",
+		Version:   1,
+		Status:    "success",
+		Image:     "nginx:latest",
 		CreatedAt: now,
 	})
 	store.addDeployment("app1", core.Deployment{
-		ID:      "dep2",
-		AppID:   "app1",
-		Version: 2,
-		Status:  "running",
-		Image:   "nginx:1.25",
+		ID:        "dep2",
+		AppID:     "app1",
+		Version:   2,
+		Status:    "running",
+		Image:     "nginx:1.25",
 		CreatedAt: now,
 	})
 

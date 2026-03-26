@@ -19,12 +19,12 @@ import (
 
 type mockStore struct {
 	core.Store
-	userCount      int
-	countErr       error
-	createTenantID string
+	userCount       int
+	countErr        error
+	createTenantID  string
 	createTenantErr error
-	createUserID   string
-	createUserErr  error
+	createUserID    string
+	createUserErr   error
 }
 
 func (m *mockStore) CountUsers(_ context.Context) (int, error) {

@@ -10,8 +10,8 @@ var extendedTemplates = []*Template{
 	{
 		Slug: "postgresql", Name: "PostgreSQL", Category: "database",
 		Description: "The world's most advanced open source relational database",
-		Tags: []string{"database", "sql", "relational"}, Author: "PostgreSQL", Version: "17",
-		Verified: true,
+		Tags:        []string{"database", "sql", "relational"}, Author: "PostgreSQL", Version: "17",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 512},
 		ComposeYAML: `services:
   postgres:
@@ -28,8 +28,8 @@ volumes:
 	{
 		Slug: "mysql", Name: "MySQL", Category: "database",
 		Description: "The world's most popular open source database",
-		Tags: []string{"database", "sql", "relational"}, Author: "Oracle", Version: "8.4",
-		Verified: true,
+		Tags:        []string{"database", "sql", "relational"}, Author: "Oracle", Version: "8.4",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
 		ComposeYAML: `services:
   mysql:
@@ -47,8 +47,8 @@ volumes:
 	{
 		Slug: "redis", Name: "Redis", Category: "database",
 		Description: "In-memory data structure store, cache, and message broker",
-		Tags: []string{"cache", "database", "nosql"}, Author: "Redis Ltd", Version: "7",
-		Verified: true,
+		Tags:        []string{"cache", "database", "nosql"}, Author: "Redis Ltd", Version: "7",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 128, DiskMB: 128},
 		ComposeYAML: `services:
   redis:
@@ -62,8 +62,8 @@ volumes:
 	{
 		Slug: "mongodb", Name: "MongoDB", Category: "database",
 		Description: "Document-oriented NoSQL database",
-		Tags: []string{"database", "nosql", "document"}, Author: "MongoDB Inc", Version: "8",
-		Verified: true,
+		Tags:        []string{"database", "nosql", "document"}, Author: "MongoDB Inc", Version: "8",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 1024},
 		ComposeYAML: `services:
   mongo:
@@ -79,8 +79,8 @@ volumes:
 	{
 		Slug: "elasticsearch", Name: "Elasticsearch", Category: "search",
 		Description: "Distributed search and analytics engine",
-		Tags: []string{"search", "analytics", "logging"}, Author: "Elastic", Version: "8",
-		Verified: true,
+		Tags:        []string{"search", "analytics", "logging"}, Author: "Elastic", Version: "8",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 2048, DiskMB: 2048},
 		ComposeYAML: `services:
   elasticsearch:
@@ -98,8 +98,8 @@ volumes:
 	{
 		Slug: "gitlab", Name: "GitLab CE", Category: "devtools",
 		Description: "Complete DevOps platform in a single application",
-		Tags: []string{"git", "ci/cd", "devops"}, Author: "GitLab", Version: "latest",
-		Verified: true,
+		Tags:        []string{"git", "ci/cd", "devops"}, Author: "GitLab", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 4096, DiskMB: 10240},
 		ComposeYAML: `services:
   gitlab:
@@ -118,8 +118,8 @@ volumes:
 	{
 		Slug: "drone", Name: "Drone CI", Category: "devtools",
 		Description: "Container-native continuous integration platform",
-		Tags: []string{"ci", "cd", "containers"}, Author: "Harness", Version: "2",
-		Verified: true,
+		Tags:        []string{"ci", "cd", "containers"}, Author: "Harness", Version: "2",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 256},
 		ComposeYAML: `services:
   drone:
@@ -136,8 +136,8 @@ volumes:
 	{
 		Slug: "woodpecker", Name: "Woodpecker CI", Category: "devtools",
 		Description: "Simple CI engine with great extensibility",
-		Tags: []string{"ci", "cd", "automation"}, Author: "Woodpecker", Version: "latest",
-		Verified: true,
+		Tags:        []string{"ci", "cd", "automation"}, Author: "Woodpecker", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 256},
 		ComposeYAML: `services:
   woodpecker:
@@ -155,8 +155,8 @@ volumes:
 	{
 		Slug: "jellyfin", Name: "Jellyfin", Category: "media",
 		Description: "Free software media system — Plex alternative",
-		Tags: []string{"media", "streaming", "movies"}, Author: "Jellyfin", Version: "latest",
-		Verified: true,
+		Tags:        []string{"media", "streaming", "movies"}, Author: "Jellyfin", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048},
 		ComposeYAML: `services:
   jellyfin:
@@ -174,8 +174,8 @@ volumes:
 	{
 		Slug: "navidrome", Name: "Navidrome", Category: "media",
 		Description: "Modern music server and streamer — Subsonic compatible",
-		Tags: []string{"music", "streaming", "audio"}, Author: "Navidrome", Version: "latest",
-		Verified: true,
+		Tags:        []string{"music", "streaming", "audio"}, Author: "Navidrome", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 512},
 		ComposeYAML: `services:
   navidrome:
@@ -193,8 +193,8 @@ volumes:
 	{
 		Slug: "audiobookshelf", Name: "Audiobookshelf", Category: "media",
 		Description: "Self-hosted audiobook and podcast server",
-		Tags: []string{"audiobooks", "podcasts", "media"}, Author: "advplyr", Version: "latest",
-		Verified: true,
+		Tags:        []string{"audiobooks", "podcasts", "media"}, Author: "advplyr", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 1024},
 		ComposeYAML: `services:
   audiobookshelf:
@@ -215,8 +215,8 @@ volumes:
 	{
 		Slug: "mattermost", Name: "Mattermost", Category: "communication",
 		Description: "Open-source Slack alternative for developers",
-		Tags: []string{"chat", "team", "messaging"}, Author: "Mattermost", Version: "latest",
-		Verified: true,
+		Tags:        []string{"chat", "team", "messaging"}, Author: "Mattermost", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048},
 		ComposeYAML: `services:
   mattermost:
@@ -241,8 +241,8 @@ volumes:
 	{
 		Slug: "rocketchat", Name: "Rocket.Chat", Category: "communication",
 		Description: "Open-source team chat platform",
-		Tags: []string{"chat", "team", "messaging"}, Author: "Rocket.Chat", Version: "latest",
-		Verified: true,
+		Tags:        []string{"chat", "team", "messaging"}, Author: "Rocket.Chat", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048},
 		ComposeYAML: `services:
   rocketchat:
@@ -263,8 +263,8 @@ volumes:
 	{
 		Slug: "matrix-synapse", Name: "Matrix Synapse", Category: "communication",
 		Description: "Decentralized, secure messaging homeserver",
-		Tags: []string{"matrix", "chat", "federation"}, Author: "Matrix.org", Version: "latest",
-		Verified: true,
+		Tags:        []string{"matrix", "chat", "federation"}, Author: "Matrix.org", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 1024},
 		ComposeYAML: `services:
   synapse:
@@ -281,8 +281,8 @@ volumes:
 	{
 		Slug: "onlyoffice", Name: "ONLYOFFICE Docs", Category: "productivity",
 		Description: "Office suite for document editing — Google Docs alternative",
-		Tags: []string{"office", "documents", "collaboration"}, Author: "ONLYOFFICE", Version: "latest",
-		Verified: true,
+		Tags:        []string{"office", "documents", "collaboration"}, Author: "ONLYOFFICE", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 2048, DiskMB: 2048},
 		ComposeYAML: `services:
   onlyoffice:
@@ -300,8 +300,8 @@ volumes:
 	{
 		Slug: "collabora", Name: "Collabora Online", Category: "productivity",
 		Description: "LibreOffice-based online office suite",
-		Tags: []string{"office", "documents", "collaboration"}, Author: "Collabora", Version: "latest",
-		Verified: true,
+		Tags:        []string{"office", "documents", "collaboration"}, Author: "Collabora", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 512},
 		ComposeYAML: `services:
   collabora:
@@ -317,8 +317,8 @@ volumes:
 	{
 		Slug: "outline", Name: "Outline", Category: "productivity",
 		Description: "Modern team knowledge base — Notion alternative",
-		Tags: []string{"wiki", "knowledge", "documentation"}, Author: "Outline", Version: "latest",
-		Verified: true,
+		Tags:        []string{"wiki", "knowledge", "documentation"}, Author: "Outline", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
 		ComposeYAML: `services:
   outline:
@@ -346,8 +346,8 @@ volumes:
 	{
 		Slug: "prometheus", Name: "Prometheus", Category: "monitoring",
 		Description: "Systems monitoring and alerting toolkit",
-		Tags: []string{"monitoring", "metrics", "alerting"}, Author: "Prometheus", Version: "latest",
-		Verified: true,
+		Tags:        []string{"monitoring", "metrics", "alerting"}, Author: "Prometheus", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 512},
 		ComposeYAML: `services:
   prometheus:
@@ -363,8 +363,8 @@ volumes:
 	{
 		Slug: "loki", Name: "Loki", Category: "monitoring",
 		Description: "Log aggregation system designed for efficiency",
-		Tags: []string{"logging", "observability", "grafana"}, Author: "Grafana Labs", Version: "latest",
-		Verified: true,
+		Tags:        []string{"logging", "observability", "grafana"}, Author: "Grafana Labs", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 512},
 		ComposeYAML: `services:
   loki:
@@ -378,8 +378,8 @@ volumes:
 	{
 		Slug: "tempo", Name: "Tempo", Category: "monitoring",
 		Description: "Distributed tracing backend",
-		Tags: []string{"tracing", "observability", "grafana"}, Author: "Grafana Labs", Version: "latest",
-		Verified: true,
+		Tags:        []string{"tracing", "observability", "grafana"}, Author: "Grafana Labs", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 512},
 		ComposeYAML: `services:
   tempo:
@@ -394,8 +394,8 @@ volumes:
 	{
 		Slug: "traefik", Name: "Traefik", Category: "networking",
 		Description: "Modern HTTP reverse proxy and load balancer",
-		Tags: []string{"proxy", "load-balancer", "ssl"}, Author: "Traefik Labs", Version: "3",
-		Verified: true,
+		Tags:        []string{"proxy", "load-balancer", "ssl"}, Author: "Traefik Labs", Version: "3",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 128, DiskMB: 128},
 		ComposeYAML: `services:
   traefik:
@@ -413,8 +413,8 @@ volumes:
 	{
 		Slug: "caddy", Name: "Caddy", Category: "networking",
 		Description: "Powerful web server with automatic HTTPS",
-		Tags: []string{"web-server", "ssl", "proxy"}, Author: "Caddy", Version: "2",
-		Verified: true,
+		Tags:        []string{"web-server", "ssl", "proxy"}, Author: "Caddy", Version: "2",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 64, DiskMB: 64},
 		ComposeYAML: `services:
   caddy:
@@ -431,8 +431,8 @@ volumes:
 	{
 		Slug: "authentik", Name: "Authentik", Category: "security",
 		Description: "Open-source identity provider — Okta/Auth0 alternative",
-		Tags: []string{"sso", "oauth", "authentication"}, Author: "goauthentik", Version: "latest",
-		Verified: true,
+		Tags:        []string{"sso", "oauth", "authentication"}, Author: "goauthentik", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048},
 		ComposeYAML: `services:
   authentik-server:
@@ -472,8 +472,8 @@ volumes:
 	{
 		Slug: "openai-whisper", Name: "Whisper ASR", Category: "ai",
 		Description: "OpenAI's speech recognition model for transcription",
-		Tags: []string{"ai", "speech", "transcription"}, Author: "OpenAI", Version: "latest",
-		Verified: true,
+		Tags:        []string{"ai", "speech", "transcription"}, Author: "OpenAI", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 2048, DiskMB: 4096},
 		ComposeYAML: `services:
   whisper:
@@ -488,8 +488,8 @@ volumes:
 	{
 		Slug: "stable-diffusion", Name: "Stable Diffusion WebUI", Category: "ai",
 		Description: "Image generation with Stable Diffusion models",
-		Tags: []string{"ai", "image", "generation"}, Author: "AUTOMATIC1111", Version: "latest",
-		Verified: true,
+		Tags:        []string{"ai", "image", "generation"}, Author: "AUTOMATIC1111", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 8192, DiskMB: 20480},
 		ComposeYAML: `services:
   sd-webui:
@@ -507,8 +507,8 @@ volumes:
 	{
 		Slug: "langflow", Name: "LangFlow", Category: "ai",
 		Description: "Visual framework for building multi-agent and RAG applications",
-		Tags: []string{"ai", "langchain", "rag"}, Author: "DataStax", Version: "latest",
-		Verified: true,
+		Tags:        []string{"ai", "langchain", "rag"}, Author: "DataStax", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 2048, DiskMB: 2048},
 		ComposeYAML: `services:
   langflow:
@@ -524,8 +524,8 @@ volumes:
 	{
 		Slug: "dokuwiki", Name: "DokuWiki", Category: "collaboration",
 		Description: "Simple to use and highly versatile wiki",
-		Tags: []string{"wiki", "documentation", "knowledge"}, Author: "DokuWiki", Version: "latest",
-		Verified: true,
+		Tags:        []string{"wiki", "documentation", "knowledge"}, Author: "DokuWiki", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 128, DiskMB: 256},
 		ComposeYAML: `services:
   dokuwiki:
@@ -541,8 +541,8 @@ volumes:
 	{
 		Slug: "bookstack", Name: "BookStack", Category: "collaboration",
 		Description: "Simple, self-hosted wiki platform",
-		Tags: []string{"wiki", "documentation", "knowledge"}, Author: "BookStack", Version: "latest",
-		Verified: true,
+		Tags:        []string{"wiki", "documentation", "knowledge"}, Author: "BookStack", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 512},
 		ComposeYAML: `services:
   bookstack:
@@ -568,8 +568,8 @@ volumes:
 	{
 		Slug: "appwrite", Name: "Appwrite", Category: "devtools",
 		Description: "Backend-as-a-Service for web and mobile developers",
-		Tags: []string{"backend", "baas", "firebase-alternative"}, Author: "Appwrite", Version: "latest",
-		Verified: true,
+		Tags:        []string{"backend", "baas", "firebase-alternative"}, Author: "Appwrite", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048},
 		ComposeYAML: `services:
   appwrite:
@@ -585,8 +585,8 @@ volumes:
 	{
 		Slug: "pocketbase", Name: "PocketBase", Category: "devtools",
 		Description: "Open Source backend in 1 file written in Go",
-		Tags: []string{"backend", "baas", "sqlite"}, Author: "PocketBase", Version: "latest",
-		Verified: true,
+		Tags:        []string{"backend", "baas", "sqlite"}, Author: "PocketBase", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 64, DiskMB: 128},
 		ComposeYAML: `services:
   pocketbase:
@@ -599,8 +599,8 @@ volumes:
 	{
 		Slug: "supabase", Name: "Supabase", Category: "devtools",
 		Description: "Open Source Firebase Alternative with PostgreSQL",
-		Tags: []string{"backend", "baas", "postgresql"}, Author: "Supabase", Version: "latest",
-		Verified: true,
+		Tags:        []string{"backend", "baas", "postgresql"}, Author: "Supabase", Version: "latest",
+		Verified:     true,
 		MinResources: ResourceReq{MemoryMB: 2048, DiskMB: 4096},
 		ComposeYAML: `services:
   studio:

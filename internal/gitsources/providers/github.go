@@ -62,7 +62,9 @@ func (g *GitHub) ListBranches(ctx context.Context, repoFullName string) ([]strin
 		return nil, err
 	}
 
-	var raw []struct{ Name string `json:"name"` }
+	var raw []struct {
+		Name string `json:"name"`
+	}
 	json.Unmarshal(body, &raw)
 
 	branches := make([]string, len(raw))
@@ -110,7 +112,9 @@ func (g *GitHub) CreateWebhook(ctx context.Context, repoFullName, url, secret st
 		return "", err
 	}
 
-	var resp struct{ ID int `json:"id"` }
+	var resp struct {
+		ID int `json:"id"`
+	}
 	json.Unmarshal(body, &resp)
 	return fmt.Sprintf("%d", resp.ID), nil
 }

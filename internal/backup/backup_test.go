@@ -811,9 +811,9 @@ func TestScheduler_StartAndStop(t *testing.T) {
 
 func TestParseSimpleSchedule(t *testing.T) {
 	tests := []struct {
-		input    string
-		wantH    int
-		wantM    int
+		input string
+		wantH int
+		wantM int
 	}{
 		{"02:00", 2, 0},
 		{"14:30", 14, 30},
@@ -861,7 +861,7 @@ func TestParseSimpleSchedule_Invalid(t *testing.T) {
 
 func TestCleanupOldBackups_DeletesOldEntries(t *testing.T) {
 	now := time.Now()
-	old := now.AddDate(0, 0, -31).Unix()  // 31 days ago
+	old := now.AddDate(0, 0, -31).Unix()   // 31 days ago
 	recent := now.AddDate(0, 0, -5).Unix() // 5 days ago
 
 	storage := &mockBackupStorage{

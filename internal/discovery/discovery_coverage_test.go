@@ -175,10 +175,10 @@ func TestWatcher_Start_ContextCancel(t *testing.T) {
 			{
 				ID: "abc123def456789", State: "running",
 				Labels: map[string]string{
-					"monster.enable":                  "true",
-					"monster.app.id":                  "app-1",
-					"monster.app.name":                "web",
-					"monster.http.routers.web.rule":   "Host(`web.example.com`)",
+					"monster.enable":                "true",
+					"monster.app.id":                "app-1",
+					"monster.app.name":              "web",
+					"monster.http.routers.web.rule": "Host(`web.example.com`)",
 				},
 			},
 		},

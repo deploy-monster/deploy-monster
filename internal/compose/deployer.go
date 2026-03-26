@@ -29,11 +29,11 @@ func NewStackDeployer(runtime core.ContainerRuntime, store core.Store, events *c
 
 // DeployOpts holds options for deploying a compose stack.
 type DeployOpts struct {
-	AppID    string
-	TenantID string
+	AppID     string
+	TenantID  string
 	StackName string
-	Compose  *ComposeFile
-	EnvVars  map[string]string
+	Compose   *ComposeFile
+	EnvVars   map[string]string
 }
 
 // Deploy deploys all services in the compose file in dependency order.

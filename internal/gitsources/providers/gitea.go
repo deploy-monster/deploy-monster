@@ -61,7 +61,9 @@ func (g *Gitea) ListBranches(ctx context.Context, repoFullName string) ([]string
 	if err != nil {
 		return nil, err
 	}
-	var raw []struct{ Name string `json:"name"` }
+	var raw []struct {
+		Name string `json:"name"`
+	}
 	json.Unmarshal(body, &raw)
 	branches := make([]string, len(raw))
 	for i, b := range raw {
@@ -105,7 +107,9 @@ func (g *Gitea) CreateWebhook(ctx context.Context, repoFullName, url, secret str
 	if err != nil {
 		return "", err
 	}
-	var resp struct{ ID int `json:"id"` }
+	var resp struct {
+		ID int `json:"id"`
+	}
 	json.Unmarshal(body, &resp)
 	return fmt.Sprintf("%d", resp.ID), nil
 }

@@ -40,8 +40,8 @@ func (r *Router) Handler() http.Handler {
 		r.mux,
 		middleware.RequestID,
 		middleware.APIVersion(r.core.Build.Version),
-		middleware.BodyLimit(10<<20),         // 10MB max request body
-		middleware.Timeout(30*time.Second),   // 30s request timeout
+		middleware.BodyLimit(10<<20),       // 10MB max request body
+		middleware.Timeout(30*time.Second), // 30s request timeout
 		middleware.Recovery(r.core.Logger),
 		middleware.RequestLogger(r.core.Logger),
 		middleware.CORS("*"),
@@ -477,10 +477,18 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/stacks/validate", protected(http.HandlerFunc(composeH.Validate)))
 
 	// ── Secrets ───────────────────────────────────────
-	var vault interface{ Encrypt(string) (string, error); Decrypt(string) (string, error) }
+	var vault interface {
+		Encrypt(string) (string, error)
+		Decrypt(string) (string, error)
+	}
 	secretsMod := r.core.Registry.Get("secrets")
 	if secretsMod != nil {
-		type vaultProvider interface{ Vault() interface{ Encrypt(string) (string, error); Decrypt(string) (string, error) } }
+		type vaultProvider interface {
+			Vault() interface {
+				Encrypt(string) (string, error)
+				Decrypt(string) (string, error)
+			}
+		}
 		if vp, ok := secretsMod.(vaultProvider); ok {
 			vault = vp.Vault()
 		}
@@ -646,4 +654,3 @@ func (r *Router) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		"modules": modules,
 	})
 }
-

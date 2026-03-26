@@ -5,9 +5,9 @@ import "fmt"
 // Redis implements the Engine interface for Redis.
 type Redis struct{}
 
-func (r *Redis) Name() string        { return "redis" }
-func (r *Redis) Versions() []string  { return []string{"7"} }
-func (r *Redis) DefaultPort() int    { return 6379 }
+func (r *Redis) Name() string       { return "redis" }
+func (r *Redis) Versions() []string { return []string{"7"} }
+func (r *Redis) DefaultPort() int   { return 6379 }
 
 func (r *Redis) Image(version string) string {
 	return fmt.Sprintf("redis:%s-alpine", version)
@@ -34,9 +34,9 @@ func (r *Redis) ConnectionString(host string, port int, creds Credentials) strin
 // MongoDB implements the Engine interface for MongoDB.
 type MongoDB struct{}
 
-func (m *MongoDB) Name() string        { return "mongodb" }
-func (m *MongoDB) Versions() []string  { return []string{"7"} }
-func (m *MongoDB) DefaultPort() int    { return 27017 }
+func (m *MongoDB) Name() string       { return "mongodb" }
+func (m *MongoDB) Versions() []string { return []string{"7"} }
+func (m *MongoDB) DefaultPort() int   { return 27017 }
 
 func (m *MongoDB) Image(version string) string {
 	return fmt.Sprintf("mongo:%s", version)

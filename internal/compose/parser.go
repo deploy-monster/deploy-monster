@@ -19,29 +19,29 @@ type ComposeFile struct {
 
 // ServiceConfig represents a single service in the compose file.
 type ServiceConfig struct {
-	Image         string            `yaml:"image,omitempty" json:"image,omitempty"`
-	Build         *BuildConfig      `yaml:"build,omitempty" json:"build,omitempty"`
-	Command       any               `yaml:"command,omitempty" json:"command,omitempty"`
-	Entrypoint    any               `yaml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
-	Environment   any               `yaml:"environment,omitempty" json:"environment,omitempty"` // map or list
-	EnvFile       any               `yaml:"env_file,omitempty" json:"env_file,omitempty"`
-	Ports         []string          `yaml:"ports,omitempty" json:"ports,omitempty"`
-	Volumes       []string          `yaml:"volumes,omitempty" json:"volumes,omitempty"`
-	DependsOn     any               `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
-	Networks      any               `yaml:"networks,omitempty" json:"networks,omitempty"`
-	Labels        map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Restart       string            `yaml:"restart,omitempty" json:"restart,omitempty"`
-	HealthCheck   *HealthCheck      `yaml:"healthcheck,omitempty" json:"healthcheck,omitempty"`
-	Deploy        *DeployConfig     `yaml:"deploy,omitempty" json:"deploy,omitempty"`
-	CapAdd        []string          `yaml:"cap_add,omitempty" json:"cap_add,omitempty"`
-	CapDrop       []string          `yaml:"cap_drop,omitempty" json:"cap_drop,omitempty"`
-	Privileged    bool              `yaml:"privileged,omitempty" json:"privileged,omitempty"`
-	User          string            `yaml:"user,omitempty" json:"user,omitempty"`
-	WorkingDir    string            `yaml:"working_dir,omitempty" json:"working_dir,omitempty"`
-	Hostname      string            `yaml:"hostname,omitempty" json:"hostname,omitempty"`
-	ExtraHosts    []string          `yaml:"extra_hosts,omitempty" json:"extra_hosts,omitempty"`
-	Logging       *LoggingConfig    `yaml:"logging,omitempty" json:"logging,omitempty"`
-	StopGracePeriod string          `yaml:"stop_grace_period,omitempty" json:"stop_grace_period,omitempty"`
+	Image           string            `yaml:"image,omitempty" json:"image,omitempty"`
+	Build           *BuildConfig      `yaml:"build,omitempty" json:"build,omitempty"`
+	Command         any               `yaml:"command,omitempty" json:"command,omitempty"`
+	Entrypoint      any               `yaml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
+	Environment     any               `yaml:"environment,omitempty" json:"environment,omitempty"` // map or list
+	EnvFile         any               `yaml:"env_file,omitempty" json:"env_file,omitempty"`
+	Ports           []string          `yaml:"ports,omitempty" json:"ports,omitempty"`
+	Volumes         []string          `yaml:"volumes,omitempty" json:"volumes,omitempty"`
+	DependsOn       any               `yaml:"depends_on,omitempty" json:"depends_on,omitempty"`
+	Networks        any               `yaml:"networks,omitempty" json:"networks,omitempty"`
+	Labels          map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Restart         string            `yaml:"restart,omitempty" json:"restart,omitempty"`
+	HealthCheck     *HealthCheck      `yaml:"healthcheck,omitempty" json:"healthcheck,omitempty"`
+	Deploy          *DeployConfig     `yaml:"deploy,omitempty" json:"deploy,omitempty"`
+	CapAdd          []string          `yaml:"cap_add,omitempty" json:"cap_add,omitempty"`
+	CapDrop         []string          `yaml:"cap_drop,omitempty" json:"cap_drop,omitempty"`
+	Privileged      bool              `yaml:"privileged,omitempty" json:"privileged,omitempty"`
+	User            string            `yaml:"user,omitempty" json:"user,omitempty"`
+	WorkingDir      string            `yaml:"working_dir,omitempty" json:"working_dir,omitempty"`
+	Hostname        string            `yaml:"hostname,omitempty" json:"hostname,omitempty"`
+	ExtraHosts      []string          `yaml:"extra_hosts,omitempty" json:"extra_hosts,omitempty"`
+	Logging         *LoggingConfig    `yaml:"logging,omitempty" json:"logging,omitempty"`
+	StopGracePeriod string            `yaml:"stop_grace_period,omitempty" json:"stop_grace_period,omitempty"`
 
 	// Resolved fields (populated after parsing)
 	ResolvedEnv map[string]string `yaml:"-" json:"resolved_env,omitempty"`
@@ -71,18 +71,18 @@ type VolumeConfig struct {
 
 // HealthCheck configuration.
 type HealthCheck struct {
-	Test     any    `yaml:"test,omitempty" json:"test,omitempty"`
-	Interval string `yaml:"interval,omitempty" json:"interval,omitempty"`
-	Timeout  string `yaml:"timeout,omitempty" json:"timeout,omitempty"`
-	Retries  int    `yaml:"retries,omitempty" json:"retries,omitempty"`
+	Test        any    `yaml:"test,omitempty" json:"test,omitempty"`
+	Interval    string `yaml:"interval,omitempty" json:"interval,omitempty"`
+	Timeout     string `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+	Retries     int    `yaml:"retries,omitempty" json:"retries,omitempty"`
 	StartPeriod string `yaml:"start_period,omitempty" json:"start_period,omitempty"`
 }
 
 // DeployConfig for swarm deploy settings.
 type DeployConfig struct {
-	Replicas int               `yaml:"replicas,omitempty" json:"replicas,omitempty"`
-	Labels   map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Resources *ResourceConfig  `yaml:"resources,omitempty" json:"resources,omitempty"`
+	Replicas  int               `yaml:"replicas,omitempty" json:"replicas,omitempty"`
+	Labels    map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Resources *ResourceConfig   `yaml:"resources,omitempty" json:"resources,omitempty"`
 }
 
 // ResourceConfig for deploy resource limits.

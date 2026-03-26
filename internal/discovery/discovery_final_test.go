@@ -27,20 +27,22 @@ type mockRuntime struct {
 	listErr    error
 }
 
-func (m *mockRuntime) Ping() error                                                      { return nil }
+func (m *mockRuntime) Ping() error { return nil }
 func (m *mockRuntime) CreateAndStart(_ context.Context, _ core.ContainerOpts) (string, error) {
 	return "", nil
 }
-func (m *mockRuntime) Stop(_ context.Context, _ string, _ int) error                    { return nil }
-func (m *mockRuntime) Remove(_ context.Context, _ string, _ bool) error                 { return nil }
-func (m *mockRuntime) Restart(_ context.Context, _ string) error                        { return nil }
-func (m *mockRuntime) Exec(_ context.Context, _ string, _ []string) (string, error)     { return "", nil }
-func (m *mockRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error)  { return nil, nil }
-func (m *mockRuntime) ImagePull(_ context.Context, _ string) error                      { return nil }
-func (m *mockRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error)            { return nil, nil }
-func (m *mockRuntime) ImageRemove(_ context.Context, _ string) error                    { return nil }
-func (m *mockRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error)         { return nil, nil }
-func (m *mockRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error)          { return nil, nil }
+func (m *mockRuntime) Stop(_ context.Context, _ string, _ int) error                { return nil }
+func (m *mockRuntime) Remove(_ context.Context, _ string, _ bool) error             { return nil }
+func (m *mockRuntime) Restart(_ context.Context, _ string) error                    { return nil }
+func (m *mockRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) { return "", nil }
+func (m *mockRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
+	return nil, nil
+}
+func (m *mockRuntime) ImagePull(_ context.Context, _ string) error               { return nil }
+func (m *mockRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error)     { return nil, nil }
+func (m *mockRuntime) ImageRemove(_ context.Context, _ string) error             { return nil }
+func (m *mockRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) { return nil, nil }
+func (m *mockRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error)   { return nil, nil }
 func (m *mockRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
 	return nil, nil
 }
@@ -205,10 +207,10 @@ func TestFinal_Watcher_Start_ContextCancel(t *testing.T) {
 			ID:    "abcdef123456",
 			State: "running",
 			Labels: map[string]string{
-				"monster.enable":                            "true",
-				"monster.app.id":                            "app1",
-				"monster.app.name":                          "myapp",
-				"monster.http.routers.myapp.rule":           "Host(`app.example.com`)",
+				"monster.enable":                  "true",
+				"monster.app.id":                  "app1",
+				"monster.app.name":                "myapp",
+				"monster.http.routers.myapp.rule": "Host(`app.example.com`)",
 				"monster.http.services.myapp.loadbalancer.server.port": "3000",
 			},
 		},

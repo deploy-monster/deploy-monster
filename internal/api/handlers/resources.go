@@ -70,9 +70,9 @@ func (h *ResourceHandler) GetLimits(w http.ResponseWriter, r *http.Request) {
 
 	// Default limits
 	writeJSON(w, http.StatusOK, map[string]any{
-		"app_id":    appID,
-		"cpu_quota": 0,  // 0 = unlimited
-		"memory_mb": 0,  // 0 = unlimited
+		"app_id":     appID,
+		"cpu_quota":  0, // 0 = unlimited
+		"memory_mb":  0, // 0 = unlimited
 		"pids_limit": 0,
 	})
 }

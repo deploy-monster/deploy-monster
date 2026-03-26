@@ -19,11 +19,11 @@ import (
 // Each agent authenticates with a join token, sends its AgentInfo, and then
 // enters a bidirectional JSON message loop.
 type AgentServer struct {
-	agents       map[string]*AgentConn
-	mu           sync.RWMutex
-	events       *core.EventBus
-	logger       *slog.Logger
-	localExec    *LocalExecutor
+	agents        map[string]*AgentConn
+	mu            sync.RWMutex
+	events        *core.EventBus
+	logger        *slog.Logger
+	localExec     *LocalExecutor
 	expectedToken string
 
 	onConnectMu    sync.RWMutex

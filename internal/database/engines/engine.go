@@ -60,11 +60,11 @@ func Provision(ctx context.Context, runtime core.ContainerRuntime, engine Engine
 
 	containerName := fmt.Sprintf("monster-db-%s-%s", opts.Engine, core.GenerateID()[:8])
 	labels := map[string]string{
-		"monster.enable":      "true",
-		"monster.managed":     "database",
-		"monster.db.engine":   opts.Engine,
-		"monster.db.name":     opts.Name,
-		"monster.tenant":      opts.TenantID,
+		"monster.enable":    "true",
+		"monster.managed":   "database",
+		"monster.db.engine": opts.Engine,
+		"monster.db.name":   opts.Name,
+		"monster.tenant":    opts.TenantID,
 	}
 
 	containerID, err := runtime.CreateAndStart(ctx, core.ContainerOpts{

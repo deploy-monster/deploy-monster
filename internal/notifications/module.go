@@ -26,11 +26,11 @@ func New() *Module {
 	return &Module{}
 }
 
-func (m *Module) ID() string                  { return "notifications" }
-func (m *Module) Name() string                { return "Notifications" }
-func (m *Module) Version() string             { return "1.0.0" }
-func (m *Module) Dependencies() []string      { return []string{"core.db"} }
-func (m *Module) Routes() []core.Route        { return nil }
+func (m *Module) ID() string             { return "notifications" }
+func (m *Module) Name() string           { return "Notifications" }
+func (m *Module) Version() string        { return "1.0.0" }
+func (m *Module) Dependencies() []string { return []string{"core.db"} }
+func (m *Module) Routes() []core.Route   { return nil }
 
 func (m *Module) Init(_ context.Context, c *core.Core) error {
 	m.core = c

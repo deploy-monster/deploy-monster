@@ -13,43 +13,57 @@ type mockDNSProvider struct {
 	name string
 }
 
-func (m *mockDNSProvider) Name() string                                            { return m.name }
-func (m *mockDNSProvider) CreateRecord(_ context.Context, _ DNSRecord) error       { return nil }
-func (m *mockDNSProvider) UpdateRecord(_ context.Context, _ DNSRecord) error       { return nil }
-func (m *mockDNSProvider) DeleteRecord(_ context.Context, _ string) error          { return nil }
-func (m *mockDNSProvider) Verify(_ context.Context, _ string) (bool, error)        { return true, nil }
+func (m *mockDNSProvider) Name() string                                      { return m.name }
+func (m *mockDNSProvider) CreateRecord(_ context.Context, _ DNSRecord) error { return nil }
+func (m *mockDNSProvider) UpdateRecord(_ context.Context, _ DNSRecord) error { return nil }
+func (m *mockDNSProvider) DeleteRecord(_ context.Context, _ string) error    { return nil }
+func (m *mockDNSProvider) Verify(_ context.Context, _ string) (bool, error)  { return true, nil }
 
 type mockBackupStorage struct {
 	name string
 }
 
-func (m *mockBackupStorage) Name() string                                                       { return m.name }
-func (m *mockBackupStorage) Upload(_ context.Context, _ string, _ io.Reader, _ int64) error     { return nil }
-func (m *mockBackupStorage) Download(_ context.Context, _ string) (io.ReadCloser, error)        { return nil, nil }
-func (m *mockBackupStorage) Delete(_ context.Context, _ string) error                           { return nil }
-func (m *mockBackupStorage) List(_ context.Context, _ string) ([]BackupEntry, error)            { return nil, nil }
+func (m *mockBackupStorage) Name() string { return m.name }
+func (m *mockBackupStorage) Upload(_ context.Context, _ string, _ io.Reader, _ int64) error {
+	return nil
+}
+func (m *mockBackupStorage) Download(_ context.Context, _ string) (io.ReadCloser, error) {
+	return nil, nil
+}
+func (m *mockBackupStorage) Delete(_ context.Context, _ string) error                { return nil }
+func (m *mockBackupStorage) List(_ context.Context, _ string) ([]BackupEntry, error) { return nil, nil }
 
 type mockVPSProvisioner struct {
 	name string
 }
 
-func (m *mockVPSProvisioner) Name() string                                                   { return m.name }
-func (m *mockVPSProvisioner) ListRegions(_ context.Context) ([]VPSRegion, error)             { return nil, nil }
-func (m *mockVPSProvisioner) ListSizes(_ context.Context, _ string) ([]VPSSize, error)       { return nil, nil }
-func (m *mockVPSProvisioner) Create(_ context.Context, _ VPSCreateOpts) (*VPSInstance, error) { return nil, nil }
-func (m *mockVPSProvisioner) Delete(_ context.Context, _ string) error                       { return nil }
-func (m *mockVPSProvisioner) Status(_ context.Context, _ string) (string, error)             { return "running", nil }
+func (m *mockVPSProvisioner) Name() string                                       { return m.name }
+func (m *mockVPSProvisioner) ListRegions(_ context.Context) ([]VPSRegion, error) { return nil, nil }
+func (m *mockVPSProvisioner) ListSizes(_ context.Context, _ string) ([]VPSSize, error) {
+	return nil, nil
+}
+func (m *mockVPSProvisioner) Create(_ context.Context, _ VPSCreateOpts) (*VPSInstance, error) {
+	return nil, nil
+}
+func (m *mockVPSProvisioner) Delete(_ context.Context, _ string) error { return nil }
+func (m *mockVPSProvisioner) Status(_ context.Context, _ string) (string, error) {
+	return "running", nil
+}
 
 type mockGitProvider struct {
 	name string
 }
 
-func (m *mockGitProvider) Name() string                                                                           { return m.name }
-func (m *mockGitProvider) ListRepos(_ context.Context, _, _ int) ([]GitRepo, error)                               { return nil, nil }
-func (m *mockGitProvider) ListBranches(_ context.Context, _ string) ([]string, error)                             { return nil, nil }
-func (m *mockGitProvider) GetRepoInfo(_ context.Context, _ string) (*GitRepo, error)                              { return nil, nil }
-func (m *mockGitProvider) CreateWebhook(_ context.Context, _, _, _ string, _ []string) (string, error)            { return "", nil }
-func (m *mockGitProvider) DeleteWebhook(_ context.Context, _, _ string) error                                     { return nil }
+func (m *mockGitProvider) Name() string                                             { return m.name }
+func (m *mockGitProvider) ListRepos(_ context.Context, _, _ int) ([]GitRepo, error) { return nil, nil }
+func (m *mockGitProvider) ListBranches(_ context.Context, _ string) ([]string, error) {
+	return nil, nil
+}
+func (m *mockGitProvider) GetRepoInfo(_ context.Context, _ string) (*GitRepo, error) { return nil, nil }
+func (m *mockGitProvider) CreateWebhook(_ context.Context, _, _, _ string, _ []string) (string, error) {
+	return "", nil
+}
+func (m *mockGitProvider) DeleteWebhook(_ context.Context, _, _ string) error { return nil }
 
 // --- Tests ---
 

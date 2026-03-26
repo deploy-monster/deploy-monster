@@ -247,7 +247,7 @@ type mockContainerRuntime struct {
 	pinged bool
 }
 
-func (m *mockContainerRuntime) Ping() error                            { m.pinged = true; return nil }
+func (m *mockContainerRuntime) Ping() error { m.pinged = true; return nil }
 func (m *mockContainerRuntime) CreateAndStart(_ context.Context, _ core.ContainerOpts) (string, error) {
 	return "id-123", nil
 }

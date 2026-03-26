@@ -29,9 +29,9 @@ func (h *MCPHandler) ListTools(w http.ResponseWriter, _ *http.Request) {
 	modules := h.core.Registry.All()
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"tools":       tools,
-		"version":     h.core.Build.Version,
-		"modules":     modules,
+		"tools":        tools,
+		"version":      h.core.Build.Version,
+		"modules":      modules,
 		"module_count": len(modules),
 	})
 }

@@ -10,19 +10,25 @@ import (
 
 // SecretHandler manages encrypted secret storage.
 type SecretHandler struct {
-	store  core.Store
-	vault  interface{ Encrypt(string) (string, error); Decrypt(string) (string, error) }
+	store core.Store
+	vault interface {
+		Encrypt(string) (string, error)
+		Decrypt(string) (string, error)
+	}
 	events *core.EventBus
 }
 
-func NewSecretHandler(store core.Store, vault interface{ Encrypt(string) (string, error); Decrypt(string) (string, error) }, events *core.EventBus) *SecretHandler {
+func NewSecretHandler(store core.Store, vault interface {
+	Encrypt(string) (string, error)
+	Decrypt(string) (string, error)
+}, events *core.EventBus) *SecretHandler {
 	return &SecretHandler{store: store, vault: vault, events: events}
 }
 
 type createSecretRequest struct {
 	Name        string `json:"name"`
 	Value       string `json:"value"`
-	Scope       string `json:"scope"`       // global, tenant, project, app
+	Scope       string `json:"scope"` // global, tenant, project, app
 	Description string `json:"description"`
 	ProjectID   string `json:"project_id,omitempty"`
 	AppID       string `json:"app_id,omitempty"`

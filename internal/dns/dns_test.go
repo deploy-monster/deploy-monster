@@ -17,19 +17,19 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockDNSProvider struct {
-	name          string
-	createCalls   int
-	updateCalls   int
-	deleteCalls   int
-	verifyCalls   int
-	createErr     error
-	updateErr     error
-	deleteErr     error
-	verifyResult  bool
-	verifyErr     error
-	mu            sync.Mutex
-	lastRecord    core.DNSRecord
-	lastDeleteID  string
+	name           string
+	createCalls    int
+	updateCalls    int
+	deleteCalls    int
+	verifyCalls    int
+	createErr      error
+	updateErr      error
+	deleteErr      error
+	verifyResult   bool
+	verifyErr      error
+	mu             sync.Mutex
+	lastRecord     core.DNSRecord
+	lastDeleteID   string
 	lastVerifyFQDN string
 }
 
@@ -73,26 +73,26 @@ func (m *mockDNSProvider) Verify(_ context.Context, fqdn string) (bool, error) {
 
 type mockStore struct{}
 
-func (s *mockStore) CreateTenant(_ context.Context, _ *core.Tenant) error   { return nil }
+func (s *mockStore) CreateTenant(_ context.Context, _ *core.Tenant) error { return nil }
 func (s *mockStore) GetTenant(_ context.Context, _ string) (*core.Tenant, error) {
 	return nil, nil
 }
 func (s *mockStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, error) {
 	return nil, nil
 }
-func (s *mockStore) UpdateTenant(_ context.Context, _ *core.Tenant) error   { return nil }
-func (s *mockStore) DeleteTenant(_ context.Context, _ string) error         { return nil }
-func (s *mockStore) CreateUser(_ context.Context, _ *core.User) error       { return nil }
+func (s *mockStore) UpdateTenant(_ context.Context, _ *core.Tenant) error { return nil }
+func (s *mockStore) DeleteTenant(_ context.Context, _ string) error       { return nil }
+func (s *mockStore) CreateUser(_ context.Context, _ *core.User) error     { return nil }
 func (s *mockStore) GetUser(_ context.Context, _ string) (*core.User, error) {
 	return nil, nil
 }
 func (s *mockStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) {
 	return nil, nil
 }
-func (s *mockStore) UpdateUser(_ context.Context, _ *core.User) error       { return nil }
-func (s *mockStore) UpdatePassword(_ context.Context, _, _ string) error    { return nil }
-func (s *mockStore) UpdateLastLogin(_ context.Context, _ string) error      { return nil }
-func (s *mockStore) CountUsers(_ context.Context) (int, error)              { return 0, nil }
+func (s *mockStore) UpdateUser(_ context.Context, _ *core.User) error    { return nil }
+func (s *mockStore) UpdatePassword(_ context.Context, _, _ string) error { return nil }
+func (s *mockStore) UpdateLastLogin(_ context.Context, _ string) error   { return nil }
+func (s *mockStore) CountUsers(_ context.Context) (int, error)           { return 0, nil }
 func (s *mockStore) CreateUserWithMembership(_ context.Context, _, _, _, _, _, _ string) (string, error) {
 	return "", nil
 }
@@ -107,8 +107,8 @@ func (s *mockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]c
 func (s *mockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
 	return nil, nil
 }
-func (s *mockStore) UpdateAppStatus(_ context.Context, _, _ string) error   { return nil }
-func (s *mockStore) DeleteApp(_ context.Context, _ string) error            { return nil }
+func (s *mockStore) UpdateAppStatus(_ context.Context, _, _ string) error { return nil }
+func (s *mockStore) DeleteApp(_ context.Context, _ string) error          { return nil }
 func (s *mockStore) CreateDeployment(_ context.Context, _ *core.Deployment) error {
 	return nil
 }
@@ -128,7 +128,7 @@ func (s *mockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, 
 func (s *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (s *mockStore) DeleteDomain(_ context.Context, _ string) error       { return nil }
+func (s *mockStore) DeleteDomain(_ context.Context, _ string) error { return nil }
 func (s *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
 	return nil, nil
 }
@@ -139,7 +139,7 @@ func (s *mockStore) GetProject(_ context.Context, _ string) (*core.Project, erro
 func (s *mockStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Project, error) {
 	return nil, nil
 }
-func (s *mockStore) DeleteProject(_ context.Context, _ string) error      { return nil }
+func (s *mockStore) DeleteProject(_ context.Context, _ string) error { return nil }
 func (s *mockStore) CreateTenantWithDefaults(_ context.Context, _, _ string) (string, error) {
 	return "", nil
 }
@@ -176,8 +176,8 @@ func (s *mockStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Inv
 func (s *mockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
 	return nil, 0, nil
 }
-func (s *mockStore) Close() error                    { return nil }
-func (s *mockStore) Ping(_ context.Context) error    { return nil }
+func (s *mockStore) Close() error                 { return nil }
+func (s *mockStore) Ping(_ context.Context) error { return nil }
 
 // ---------------------------------------------------------------------------
 // Helpers

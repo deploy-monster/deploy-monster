@@ -200,9 +200,9 @@ func TestEventBus_EmitWithTenant(t *testing.T) {
 
 func TestEvent_DebugString(t *testing.T) {
 	tests := []struct {
-		name     string
-		event    Event
-		wantSub  []string // substrings expected in the output
+		name    string
+		event   Event
+		wantSub []string // substrings expected in the output
 	}{
 		{
 			name: "full event with all fields",
@@ -214,9 +214,9 @@ func TestEvent_DebugString(t *testing.T) {
 				UserID:   "user-42",
 			},
 			wantSub: []string{
-				"abcdef12",       // first 8 chars of ID
-				"app.deployed",   // event type
-				"deploy-module",  // source
+				"abcdef12",      // first 8 chars of ID
+				"app.deployed",  // event type
+				"deploy-module", // source
 				"tenant=tenant-1",
 				"user=user-42",
 			},

@@ -89,10 +89,10 @@ func (h *DatabaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 	))
 
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"container_id":     containerID,
-		"engine":           req.Engine,
-		"name":             req.Name,
-		"port":             engine.DefaultPort(),
+		"container_id":      containerID,
+		"engine":            req.Engine,
+		"name":              req.Name,
+		"port":              engine.DefaultPort(),
 		"connection_string": connStr,
 		"credentials": map[string]string{
 			"database": creds.Database,

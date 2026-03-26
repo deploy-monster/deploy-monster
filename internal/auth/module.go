@@ -25,11 +25,11 @@ func New() *Module {
 	return &Module{}
 }
 
-func (m *Module) ID() string                    { return "core.auth" }
-func (m *Module) Name() string                  { return "Authentication" }
-func (m *Module) Version() string               { return "1.0.0" }
-func (m *Module) Dependencies() []string        { return []string{"core.db"} }
-func (m *Module) Events() []core.EventHandler   { return nil }
+func (m *Module) ID() string                  { return "core.auth" }
+func (m *Module) Name() string                { return "Authentication" }
+func (m *Module) Version() string             { return "1.0.0" }
+func (m *Module) Dependencies() []string      { return []string{"core.db"} }
+func (m *Module) Events() []core.EventHandler { return nil }
 
 func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	m.core = c

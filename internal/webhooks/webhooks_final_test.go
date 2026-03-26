@@ -501,8 +501,8 @@ func (m *finalMockStore) CreateDeployment(_ context.Context, _ *core.Deployment)
 	return nil
 }
 
-func (m *finalMockStore) Close() error                     { return nil }
-func (m *finalMockStore) Ping(_ context.Context) error     { return nil }
+func (m *finalMockStore) Close() error                 { return nil }
+func (m *finalMockStore) Ping(_ context.Context) error { return nil }
 func (m *finalMockStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) {
 	return nil, core.ErrNotFound
 }
@@ -571,7 +571,7 @@ func (m *finalMockStore) GetProject(_ context.Context, _ string) (*core.Project,
 func (m *finalMockStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Project, error) {
 	return nil, nil
 }
-func (m *finalMockStore) DeleteProject(_ context.Context, _ string) error          { return nil }
+func (m *finalMockStore) DeleteProject(_ context.Context, _ string) error            { return nil }
 func (m *finalMockStore) CreateAuditLog(_ context.Context, _ *core.AuditEntry) error { return nil }
 func (m *finalMockStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core.AuditEntry, int, error) {
 	return nil, 0, nil

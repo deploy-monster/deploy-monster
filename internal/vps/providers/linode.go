@@ -56,11 +56,11 @@ func (l *Linode) ListSizes(ctx context.Context, _ string) ([]core.VPSSize, error
 	}
 	var resp struct {
 		Data []struct {
-			ID     string  `json:"id"`
-			Label  string  `json:"label"`
-			VCPUs  int     `json:"vcpus"`
-			Memory int     `json:"memory"`
-			Disk   int     `json:"disk"`
+			ID     string `json:"id"`
+			Label  string `json:"label"`
+			VCPUs  int    `json:"vcpus"`
+			Memory int    `json:"memory"`
+			Disk   int    `json:"disk"`
 			Price  struct {
 				Hourly float64 `json:"hourly"`
 			} `json:"price"`
@@ -94,10 +94,10 @@ func (l *Linode) Create(ctx context.Context, opts core.VPSCreateOpts) (*core.VPS
 	}
 
 	var resp struct {
-		ID    int      `json:"id"`
-		Label string   `json:"label"`
-		IPv4  []string `json:"ipv4"`
-		Status string  `json:"status"`
+		ID     int      `json:"id"`
+		Label  string   `json:"label"`
+		IPv4   []string `json:"ipv4"`
+		Status string   `json:"status"`
 	}
 	json.Unmarshal(body, &resp)
 
@@ -123,7 +123,9 @@ func (l *Linode) Status(ctx context.Context, instanceID string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	var resp struct{ Status string `json:"status"` }
+	var resp struct {
+		Status string `json:"status"`
+	}
 	json.Unmarshal(body, &resp)
 	return resp.Status, nil
 }

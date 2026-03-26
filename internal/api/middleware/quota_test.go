@@ -13,8 +13,8 @@ import (
 
 // quotaMockStore implements core.Store with controllable app counts for quota tests.
 type quotaMockStore struct {
-	auditMockStore            // embed to satisfy the full interface
-	appCount       int        // total apps returned by ListAppsByTenant
+	auditMockStore     // embed to satisfy the full interface
+	appCount       int // total apps returned by ListAppsByTenant
 }
 
 func (s *quotaMockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {

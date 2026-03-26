@@ -19,10 +19,10 @@ import (
 //  1. GET /api/v1/apps/{id}/terminal — SSE stream for stdout/logs
 //  2. POST /api/v1/apps/{id}/terminal — send stdin commands, get output back
 type Terminal struct {
-	runtime core.ContainerRuntime
-	store   core.Store
-	logger  *slog.Logger
-	mu      sync.RWMutex
+	runtime  core.ContainerRuntime
+	store    core.Store
+	logger   *slog.Logger
+	mu       sync.RWMutex
 	sessions map[string]*termSession
 }
 

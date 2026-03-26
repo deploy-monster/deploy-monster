@@ -20,15 +20,15 @@ func NewAgentStatusHandler(c *core.Core) *AgentStatusHandler {
 
 // AgentNodeStatus represents a connected agent's status.
 type AgentNodeStatus struct {
-	ServerID    string    `json:"server_id"`
-	Hostname    string    `json:"hostname"`
-	IPAddress   string    `json:"ip_address"`
-	Status      string    `json:"status"` // connected, disconnected, unhealthy
-	Version     string    `json:"version"`
-	Containers  int       `json:"containers"`
-	CPUPercent  float64   `json:"cpu_percent"`
-	MemoryMB    int64     `json:"memory_mb"`
-	LastSeen    time.Time `json:"last_seen"`
+	ServerID   string    `json:"server_id"`
+	Hostname   string    `json:"hostname"`
+	IPAddress  string    `json:"ip_address"`
+	Status     string    `json:"status"` // connected, disconnected, unhealthy
+	Version    string    `json:"version"`
+	Containers int       `json:"containers"`
+	CPUPercent float64   `json:"cpu_percent"`
+	MemoryMB   int64     `json:"memory_mb"`
+	LastSeen   time.Time `json:"last_seen"`
 }
 
 // List handles GET /api/v1/agents

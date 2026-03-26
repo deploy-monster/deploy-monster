@@ -31,7 +31,7 @@ func (m *mockContainerRuntime) Ping() error { return nil }
 func (m *mockContainerRuntime) CreateAndStart(_ context.Context, _ core.ContainerOpts) (string, error) {
 	return "", nil
 }
-func (m *mockContainerRuntime) Stop(_ context.Context, _ string, _ int) error   { return nil }
+func (m *mockContainerRuntime) Stop(_ context.Context, _ string, _ int) error    { return nil }
 func (m *mockContainerRuntime) Remove(_ context.Context, _ string, _ bool) error { return nil }
 func (m *mockContainerRuntime) Restart(_ context.Context, _ string) error        { return nil }
 func (m *mockContainerRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
@@ -52,11 +52,17 @@ func (m *mockContainerRuntime) Stats(_ context.Context, _ string) (*core.Contain
 	}
 	return m.stats, nil
 }
-func (m *mockContainerRuntime) ImagePull(_ context.Context, _ string) error                 { return nil }
-func (m *mockContainerRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error)       { return nil, nil }
-func (m *mockContainerRuntime) ImageRemove(_ context.Context, _ string) error               { return nil }
-func (m *mockContainerRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error)    { return nil, nil }
-func (m *mockContainerRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error)      { return nil, nil }
+func (m *mockContainerRuntime) ImagePull(_ context.Context, _ string) error { return nil }
+func (m *mockContainerRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) {
+	return nil, nil
+}
+func (m *mockContainerRuntime) ImageRemove(_ context.Context, _ string) error { return nil }
+func (m *mockContainerRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) {
+	return nil, nil
+}
+func (m *mockContainerRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) {
+	return nil, nil
+}
 
 // =====================================================
 // MODULE TESTS
@@ -385,7 +391,7 @@ func TestCollector_CollectContainers_WithRunningContainers(t *testing.T) {
 		},
 		stats: &core.ContainerStats{
 			CPUPercent:    25.5,
-			MemoryUsage:   256 * 1024 * 1024, // 256 MB
+			MemoryUsage:   256 * 1024 * 1024,  // 256 MB
 			MemoryLimit:   1024 * 1024 * 1024, // 1 GB
 			MemoryPercent: 25.0,
 			NetworkRx:     10 * 1024 * 1024, // 10 MB

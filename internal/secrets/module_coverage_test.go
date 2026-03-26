@@ -11,10 +11,10 @@ import (
 
 // mockSecretStore implements core.Store for secrets testing
 type mockSecretStore struct {
-	secrets         map[string]*core.Secret  // keyed by "scope/name"
-	versions        map[string]*core.SecretVersion // keyed by secretID
-	getSecretErr    error
-	getVersionErr   error
+	secrets       map[string]*core.Secret        // keyed by "scope/name"
+	versions      map[string]*core.SecretVersion // keyed by secretID
+	getSecretErr  error
+	getVersionErr error
 }
 
 func newMockSecretStore() *mockSecretStore {
@@ -47,51 +47,99 @@ func (m *mockSecretStore) GetLatestSecretVersion(_ context.Context, secretID str
 
 // Stub methods to satisfy core.Store
 func (m *mockSecretStore) CreateSecret(_ context.Context, _ *core.Secret) error { return nil }
-func (m *mockSecretStore) CreateSecretVersion(_ context.Context, _ *core.SecretVersion) error { return nil }
-func (m *mockSecretStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) { return nil, nil }
+func (m *mockSecretStore) CreateSecretVersion(_ context.Context, _ *core.SecretVersion) error {
+	return nil
+}
+func (m *mockSecretStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) {
+	return nil, nil
+}
 func (m *mockSecretStore) CreateTenant(_ context.Context, _ *core.Tenant) error { return nil }
-func (m *mockSecretStore) GetTenant(_ context.Context, _ string) (*core.Tenant, error) { return nil, core.ErrNotFound }
-func (m *mockSecretStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, error) { return nil, core.ErrNotFound }
+func (m *mockSecretStore) GetTenant(_ context.Context, _ string) (*core.Tenant, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockSecretStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, error) {
+	return nil, core.ErrNotFound
+}
 func (m *mockSecretStore) UpdateTenant(_ context.Context, _ *core.Tenant) error { return nil }
-func (m *mockSecretStore) DeleteTenant(_ context.Context, _ string) error { return nil }
-func (m *mockSecretStore) CreateTenantWithDefaults(_ context.Context, _, _ string) (string, error) { return "", nil }
+func (m *mockSecretStore) DeleteTenant(_ context.Context, _ string) error       { return nil }
+func (m *mockSecretStore) CreateTenantWithDefaults(_ context.Context, _, _ string) (string, error) {
+	return "", nil
+}
 func (m *mockSecretStore) CreateUser(_ context.Context, _ *core.User) error { return nil }
-func (m *mockSecretStore) GetUser(_ context.Context, _ string) (*core.User, error) { return nil, core.ErrNotFound }
-func (m *mockSecretStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) { return nil, core.ErrNotFound }
-func (m *mockSecretStore) GetUserMembership(_ context.Context, _ string) (*core.TeamMember, error) { return nil, core.ErrNotFound }
-func (m *mockSecretStore) UpdateUser(_ context.Context, _ *core.User) error { return nil }
+func (m *mockSecretStore) GetUser(_ context.Context, _ string) (*core.User, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockSecretStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockSecretStore) GetUserMembership(_ context.Context, _ string) (*core.TeamMember, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockSecretStore) UpdateUser(_ context.Context, _ *core.User) error    { return nil }
 func (m *mockSecretStore) UpdatePassword(_ context.Context, _, _ string) error { return nil }
-func (m *mockSecretStore) UpdateLastLogin(_ context.Context, _ string) error { return nil }
-func (m *mockSecretStore) CountUsers(_ context.Context) (int, error) { return 0, nil }
-func (m *mockSecretStore) CreateUserWithMembership(_ context.Context, _, _, _, _, _, _ string) (string, error) { return "", nil }
+func (m *mockSecretStore) UpdateLastLogin(_ context.Context, _ string) error   { return nil }
+func (m *mockSecretStore) CountUsers(_ context.Context) (int, error)           { return 0, nil }
+func (m *mockSecretStore) CreateUserWithMembership(_ context.Context, _, _, _, _, _, _ string) (string, error) {
+	return "", nil
+}
 func (m *mockSecretStore) CreateApp(_ context.Context, _ *core.Application) error { return nil }
-func (m *mockSecretStore) GetApp(_ context.Context, _ string) (*core.Application, error) { return nil, core.ErrNotFound }
+func (m *mockSecretStore) GetApp(_ context.Context, _ string) (*core.Application, error) {
+	return nil, core.ErrNotFound
+}
 func (m *mockSecretStore) UpdateApp(_ context.Context, _ *core.Application) error { return nil }
-func (m *mockSecretStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) { return nil, 0, nil }
-func (m *mockSecretStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) { return nil, nil }
-func (m *mockSecretStore) UpdateAppStatus(_ context.Context, _, _ string) error { return nil }
-func (m *mockSecretStore) DeleteApp(_ context.Context, _ string) error { return nil }
+func (m *mockSecretStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
+	return nil, 0, nil
+}
+func (m *mockSecretStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
+	return nil, nil
+}
+func (m *mockSecretStore) UpdateAppStatus(_ context.Context, _, _ string) error         { return nil }
+func (m *mockSecretStore) DeleteApp(_ context.Context, _ string) error                  { return nil }
 func (m *mockSecretStore) CreateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
-func (m *mockSecretStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) { return nil, core.ErrNotFound }
-func (m *mockSecretStore) ListDeploymentsByApp(_ context.Context, _ string, _ int) ([]core.Deployment, error) { return nil, nil }
-func (m *mockSecretStore) GetNextDeployVersion(_ context.Context, _ string) (int, error) { return 1, nil }
+func (m *mockSecretStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockSecretStore) ListDeploymentsByApp(_ context.Context, _ string, _ int) ([]core.Deployment, error) {
+	return nil, nil
+}
+func (m *mockSecretStore) GetNextDeployVersion(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
 func (m *mockSecretStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
-func (m *mockSecretStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) { return nil, core.ErrNotFound }
-func (m *mockSecretStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) { return nil, nil }
-func (m *mockSecretStore) DeleteDomain(_ context.Context, _ string) error { return nil }
+func (m *mockSecretStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockSecretStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+	return nil, nil
+}
+func (m *mockSecretStore) DeleteDomain(_ context.Context, _ string) error          { return nil }
 func (m *mockSecretStore) ListAllDomains(_ context.Context) ([]core.Domain, error) { return nil, nil }
-func (m *mockSecretStore) CreateProject(_ context.Context, _ *core.Project) error { return nil }
-func (m *mockSecretStore) GetProject(_ context.Context, _ string) (*core.Project, error) { return nil, core.ErrNotFound }
-func (m *mockSecretStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Project, error) { return nil, nil }
+func (m *mockSecretStore) CreateProject(_ context.Context, _ *core.Project) error  { return nil }
+func (m *mockSecretStore) GetProject(_ context.Context, _ string) (*core.Project, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockSecretStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Project, error) {
+	return nil, nil
+}
 func (m *mockSecretStore) DeleteProject(_ context.Context, _ string) error { return nil }
-func (m *mockSecretStore) GetRole(_ context.Context, _ string) (*core.Role, error) { return nil, core.ErrNotFound }
-func (m *mockSecretStore) ListRoles(_ context.Context, _ string) ([]core.Role, error) { return nil, nil }
+func (m *mockSecretStore) GetRole(_ context.Context, _ string) (*core.Role, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockSecretStore) ListRoles(_ context.Context, _ string) ([]core.Role, error) {
+	return nil, nil
+}
 func (m *mockSecretStore) CreateAuditLog(_ context.Context, _ *core.AuditEntry) error { return nil }
-func (m *mockSecretStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core.AuditEntry, int, error) { return nil, 0, nil }
+func (m *mockSecretStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core.AuditEntry, int, error) {
+	return nil, 0, nil
+}
 func (m *mockSecretStore) CreateInvite(_ context.Context, _ *core.Invitation) error { return nil }
-func (m *mockSecretStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Invitation, error) { return nil, nil }
-func (m *mockSecretStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) { return nil, 0, nil }
-func (m *mockSecretStore) Close() error { return nil }
+func (m *mockSecretStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Invitation, error) {
+	return nil, nil
+}
+func (m *mockSecretStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
+	return nil, 0, nil
+}
+func (m *mockSecretStore) Close() error                 { return nil }
 func (m *mockSecretStore) Ping(_ context.Context) error { return nil }
 
 // =============================================================================

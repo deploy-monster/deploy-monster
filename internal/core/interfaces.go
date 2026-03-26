@@ -126,8 +126,8 @@ type NotificationSender interface {
 
 // Notification represents a message to be sent via a notification channel.
 type Notification struct {
-	Channel   string            // email, slack, discord, telegram, webhook
-	Recipient string            // Email address, webhook URL, channel ID, etc.
+	Channel   string // email, slack, discord, telegram, webhook
+	Recipient string // Email address, webhook URL, channel ID, etc.
 	Subject   string
 	Body      string
 	Format    string            // text, html, markdown
@@ -166,12 +166,12 @@ type DNSProvider interface {
 
 // DNSRecord represents a DNS record.
 type DNSRecord struct {
-	ID       string
-	Type     string // A, AAAA, CNAME, TXT
-	Name     string // Subdomain or FQDN
-	Value    string // IP address, target, etc.
-	TTL      int
-	Proxied  bool   // Cloudflare proxy toggle
+	ID      string
+	Type    string // A, AAAA, CNAME, TXT
+	Name    string // Subdomain or FQDN
+	Value   string // IP address, target, etc.
+	TTL     int
+	Proxied bool // Cloudflare proxy toggle
 }
 
 // --- Backup Storage ---
@@ -257,12 +257,12 @@ type GitProvider interface {
 
 // GitRepo represents a Git repository.
 type GitRepo struct {
-	FullName    string `json:"full_name"`
-	CloneURL    string `json:"clone_url"`
-	SSHURL      string `json:"ssh_url"`
-	Description string `json:"description"`
+	FullName      string `json:"full_name"`
+	CloneURL      string `json:"clone_url"`
+	SSHURL        string `json:"ssh_url"`
+	Description   string `json:"description"`
 	DefaultBranch string `json:"default_branch"`
-	Private     bool   `json:"private"`
+	Private       bool   `json:"private"`
 }
 
 // =====================================================

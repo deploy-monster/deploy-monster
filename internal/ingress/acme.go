@@ -15,12 +15,12 @@ import (
 // ACMEManager handles automatic SSL certificate provisioning via Let's Encrypt.
 // Uses HTTP-01 challenge by default. Certificates are cached in CertStore.
 type ACMEManager struct {
-	mu          sync.Mutex
-	certStore   *CertStore
-	email       string
-	staging     bool // Use Let's Encrypt staging for testing
-	challenges  map[string]string // token -> keyAuth for HTTP-01
-	logger      *slog.Logger
+	mu         sync.Mutex
+	certStore  *CertStore
+	email      string
+	staging    bool              // Use Let's Encrypt staging for testing
+	challenges map[string]string // token -> keyAuth for HTTP-01
+	logger     *slog.Logger
 }
 
 // NewACMEManager creates an ACME certificate manager.

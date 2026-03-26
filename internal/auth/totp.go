@@ -14,8 +14,8 @@ import (
 
 // TOTPConfig holds TOTP 2FA configuration.
 type TOTPConfig struct {
-	Secret   string `json:"secret"`
-	URL      string `json:"url"`      // otpauth:// URI for QR code
+	Secret   string   `json:"secret"`
+	URL      string   `json:"url"`      // otpauth:// URI for QR code
 	Recovery []string `json:"recovery"` // Backup codes
 }
 

@@ -47,7 +47,7 @@ func TestFinal_AdminHandler_SystemInfo(t *testing.T) {
 // =============================================================================
 
 type boltFailOnFirstSet struct {
-	mockBoltStore
+	*mockBoltStore
 }
 
 func (b *boltFailOnFirstSet) Set(bucket, key string, value any, ttl int64) error {
@@ -55,7 +55,7 @@ func (b *boltFailOnFirstSet) Set(bucket, key string, value any, ttl int64) error
 }
 
 func TestFinal_AdminAPIKey_Generate_BoltSetError(t *testing.T) {
-	bolt := &boltFailOnFirstSet{mockBoltStore: *newMockBoltStore()}
+	bolt := &boltFailOnFirstSet{mockBoltStore: newMockBoltStore()}
 	h := NewAdminAPIKeyHandler(newMockStore(), bolt)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys", nil)
@@ -288,7 +288,7 @@ func TestFinal_Certificate_Upload_InvalidPair(t *testing.T) {
 // =============================================================================
 
 func TestFinal_Certificate_Upload_BoltError(t *testing.T) {
-	bolt := &boltFailOnFirstSet{mockBoltStore: *newMockBoltStore()}
+	bolt := &boltFailOnFirstSet{mockBoltStore: newMockBoltStore()}
 	h := NewCertificateHandler(newMockStore(), bolt)
 
 	// Use a valid self-signed cert/key pair is complex; test just the field validation
@@ -682,7 +682,7 @@ func TestFinal_Port_Update_PortTooHigh(t *testing.T) {
 // =============================================================================
 
 func TestFinal_Registry_Add_BoltError(t *testing.T) {
-	bolt := &boltFailOnFirstSet{mockBoltStore: *newMockBoltStore()}
+	bolt := &boltFailOnFirstSet{mockBoltStore: newMockBoltStore()}
 	h := NewRegistryHandler(bolt)
 
 	body := `{"name":"My Registry","url":"registry.example.com","username":"user","password":"pass"}`
@@ -808,7 +808,7 @@ func TestFinal_ServiceMesh_Delete_BoltSetError(t *testing.T) {
 	}, 0)
 
 	// Replace with a failing bolt
-	failBolt := &boltFailOnFirstSet{mockBoltStore: *bolt}
+	failBolt := &boltFailOnFirstSet{mockBoltStore: bolt}
 	h := NewServiceMeshHandler(failBolt)
 
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/links/link-1", nil)
@@ -947,7 +947,7 @@ func TestFinal_Session_ChangePassword_UpdateError(t *testing.T) {
 // =============================================================================
 
 func TestFinal_SSHKey_Generate_BoltError(t *testing.T) {
-	bolt := &boltFailOnFirstSet{mockBoltStore: *newMockBoltStore()}
+	bolt := &boltFailOnFirstSet{mockBoltStore: newMockBoltStore()}
 	h := NewSSHKeyHandler(newMockStore(), bolt)
 
 	body := `{"name":"my-key"}`
@@ -1263,5 +1263,3 @@ func TestFinal_SelfUpdate_CheckUpdate(t *testing.T) {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
 }
-
-

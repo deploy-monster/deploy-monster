@@ -66,7 +66,7 @@ func (h *SaveTemplateHandler) Save(w http.ResponseWriter, r *http.Request) {
 			"branch":     app.Branch,
 			"dockerfile": app.Dockerfile,
 		},
-		"app_type": app.Type,
+		"app_type":   app.Type,
 		"saved_from": appID,
 	}
 

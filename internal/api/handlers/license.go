@@ -21,8 +21,8 @@ func NewLicenseHandler(bolt core.BoltStorer) *LicenseHandler {
 
 // LicenseInfo represents the current license state.
 type LicenseInfo struct {
-	Type       string    `json:"type"`       // community, pro, enterprise
-	Key        string    `json:"key"`        // masked
+	Type       string    `json:"type"` // community, pro, enterprise
+	Key        string    `json:"key"`  // masked
 	ValidUntil time.Time `json:"valid_until"`
 	MaxNodes   int       `json:"max_nodes"`
 	Features   []string  `json:"features"`

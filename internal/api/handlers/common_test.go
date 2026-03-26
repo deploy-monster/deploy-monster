@@ -28,28 +28,28 @@ type mockStore struct {
 	mu sync.Mutex
 
 	// Configurable behaviour per-test.
-	users       map[string]*core.User       // keyed by ID
-	usersByEmail map[string]*core.User      // keyed by email
-	memberships map[string]*core.TeamMember // keyed by userID
-	apps        map[string]*core.Application
-	appList     []core.Application
-	appTotal    int
+	users        map[string]*core.User       // keyed by ID
+	usersByEmail map[string]*core.User       // keyed by email
+	memberships  map[string]*core.TeamMember // keyed by userID
+	apps         map[string]*core.Application
+	appList      []core.Application
+	appTotal     int
 
 	// Tenants
 	tenants map[string]*core.Tenant
 
 	// Domains
-	domains       map[string]*core.Domain // keyed by ID
-	domainsByFQDN map[string]*core.Domain // keyed by FQDN
+	domains       map[string]*core.Domain  // keyed by ID
+	domainsByFQDN map[string]*core.Domain  // keyed by FQDN
 	domainsByApp  map[string][]core.Domain // keyed by appID
 
 	// Projects
-	projects    map[string][]core.Project // keyed by tenantID
-	projectsByID map[string]*core.Project // keyed by project ID
+	projects     map[string][]core.Project // keyed by tenantID
+	projectsByID map[string]*core.Project  // keyed by project ID
 
 	// Deployments
-	latestDeployments map[string]*core.Deployment // keyed by appID
-	nextDeployVersion map[string]int              // keyed by appID
+	latestDeployments map[string]*core.Deployment  // keyed by appID
+	nextDeployVersion map[string]int               // keyed by appID
 	deploymentsByApp  map[string][]core.Deployment // keyed by appID
 
 	// Roles
@@ -67,77 +67,77 @@ type mockStore struct {
 	allTenantsList []core.Tenant
 
 	// Error overrides — if non-nil the corresponding method returns this error.
-	errGetUserByEmail         error
-	errGetUser                error
-	errGetUserMembership      error
-	errUpdateLastLogin        error
+	errGetUserByEmail           error
+	errGetUser                  error
+	errGetUserMembership        error
+	errUpdateLastLogin          error
 	errCreateTenantWithDefaults error
 	errCreateUserWithMembership error
-	errCreateApp              error
-	errGetApp                 error
-	errDeleteApp              error
-	errUpdateAppStatus        error
-	errListAppsByTenant       error
-	errUpdateUser             error
-	errUpdatePassword         error
-	errCreateDomain           error
-	errGetDomainByFQDN        error
-	errListDomainsByApp       error
-	errListAllDomains         error
-	errDeleteDomain           error
-	errListProjectsByTenant   error
-	errListRoles              error
-	errListAuditLogs          error
-	errUpdateApp              error
-	errGetProject             error
-	errGetLatestDeployment    error
-	errGetNextDeployVersion   error
-	errListDeploymentsByApp   error
-	errCreateProject          error
-	errDeleteProject          error
-	errCreateDeployment       error
-	errCreateSecret           error
-	errCreateSecretVersion    error
-	errListSecretsByTenant    error
-	errCreateInvite           error
-	errListInvitesByTenant    error
-	errListAllTenants         error
+	errCreateApp                error
+	errGetApp                   error
+	errDeleteApp                error
+	errUpdateAppStatus          error
+	errListAppsByTenant         error
+	errUpdateUser               error
+	errUpdatePassword           error
+	errCreateDomain             error
+	errGetDomainByFQDN          error
+	errListDomainsByApp         error
+	errListAllDomains           error
+	errDeleteDomain             error
+	errListProjectsByTenant     error
+	errListRoles                error
+	errListAuditLogs            error
+	errUpdateApp                error
+	errGetProject               error
+	errGetLatestDeployment      error
+	errGetNextDeployVersion     error
+	errListDeploymentsByApp     error
+	errCreateProject            error
+	errDeleteProject            error
+	errCreateDeployment         error
+	errCreateSecret             error
+	errCreateSecretVersion      error
+	errListSecretsByTenant      error
+	errCreateInvite             error
+	errListInvitesByTenant      error
+	errListAllTenants           error
 
 	// Capture calls for assertions.
-	lastLoginUserID string
-	deletedAppID    string
-	deletedDomainID string
+	lastLoginUserID  string
+	deletedAppID     string
+	deletedDomainID  string
 	deletedProjectID string
-	createdProject  *core.Project
-	createdApp      *core.Application
-	createdDomain   *core.Domain
-	updatedStatus   map[string]string
-	updatedUser     *core.User
-	updatedPassword string
-	updatedApp      *core.Application
+	createdProject   *core.Project
+	createdApp       *core.Application
+	createdDomain    *core.Domain
+	updatedStatus    map[string]string
+	updatedUser      *core.User
+	updatedPassword  string
+	updatedApp       *core.Application
 }
 
 func newMockStore() *mockStore {
 	return &mockStore{
-		users:          make(map[string]*core.User),
-		usersByEmail:   make(map[string]*core.User),
-		memberships:    make(map[string]*core.TeamMember),
-		apps:           make(map[string]*core.Application),
-		tenants:        make(map[string]*core.Tenant),
-		domains:        make(map[string]*core.Domain),
-		domainsByFQDN:  make(map[string]*core.Domain),
-		domainsByApp:   make(map[string][]core.Domain),
+		users:             make(map[string]*core.User),
+		usersByEmail:      make(map[string]*core.User),
+		memberships:       make(map[string]*core.TeamMember),
+		apps:              make(map[string]*core.Application),
+		tenants:           make(map[string]*core.Tenant),
+		domains:           make(map[string]*core.Domain),
+		domainsByFQDN:     make(map[string]*core.Domain),
+		domainsByApp:      make(map[string][]core.Domain),
 		projects:          make(map[string][]core.Project),
 		projectsByID:      make(map[string]*core.Project),
 		latestDeployments: make(map[string]*core.Deployment),
 		nextDeployVersion: make(map[string]int),
 		deploymentsByApp:  make(map[string][]core.Deployment),
 		roles:             make(map[string][]core.Role),
-		auditLogs:      make(map[string][]core.AuditEntry),
-		auditLogsTotal: make(map[string]int),
-		secrets:        make(map[string][]core.Secret),
-		invitations:    make(map[string][]core.Invitation),
-		updatedStatus:  make(map[string]string),
+		auditLogs:         make(map[string][]core.AuditEntry),
+		auditLogsTotal:    make(map[string]int),
+		secrets:           make(map[string][]core.Secret),
+		invitations:       make(map[string][]core.Invitation),
+		updatedStatus:     make(map[string]string),
 	}
 }
 
@@ -706,8 +706,8 @@ func (m *mockStore) ListAllTenants(_ context.Context, limit, offset int) ([]core
 
 // ─── Store top-level methods ─────────────────────────────────────────────────
 
-func (m *mockStore) Close() error                    { return nil }
-func (m *mockStore) Ping(_ context.Context) error    { return nil }
+func (m *mockStore) Close() error                 { return nil }
+func (m *mockStore) Ping(_ context.Context) error { return nil }
 
 // ─── Test Helpers ────────────────────────────────────────────────────────────
 
