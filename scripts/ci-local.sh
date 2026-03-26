@@ -9,7 +9,7 @@
 #   ./scripts/ci-local.sh --fix     # Auto-fix issues where possible
 #
 
-set -e
+set -o pipefail
 
 # Colors
 RED='\033[0;31m'
@@ -53,7 +53,7 @@ section() {
 
 pass() {
     echo -e "  ${GREEN}✓${NC} $1"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 }
 
 fail() {
@@ -61,12 +61,12 @@ fail() {
     if [ -n "$2" ]; then
         echo -e "    ${YELLOW}→ $2${NC}"
     fi
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 }
 
 skip() {
     echo -e "  ${YELLOW}○${NC} $1"
-    ((SKIPPED++))
+    SKIPPED=$((SKIPPED + 1))
 }
 
 # ============================================
@@ -109,9 +109,9 @@ section "2. Go Vet"
 echo -e "  ${BLUE}Running go vet...${NC}"
 
 if go vet ./... 2>&1; then
-    fail "go vet found issues" "Run: go vet ./..."
-else
     pass "go vet passed"
+else
+    fail "go vet found issues" "Run: go vet ./..."
 fi
 
 # ============================================
@@ -129,15 +129,18 @@ cp go.sum go.sum.bak
 go mod tidy 2>/dev/null
 
 # Check if go.mod changed
-if diff -q go.mod go.mod.bak 2>/dev/null || diff -q go.sum go.sum.bak 2>/dev/null; then
+if ! diff -q go.mod go.mod.bak 2>/dev/null || ! diff -q go.sum go.sum.bak 2>/dev/null; then
     fail "go.mod or go.sum changed after go mod tidy"
     echo -e "    ${YELLOW}Run: go mod tidy${NC}"
+    # Restore originals
+    mv go.mod.bak go.mod 2>/dev/null
+    mv go.sum.bak go.sum 2>/dev/null
+else
+    pass "go mod tidy passed"
 fi
 
 # Cleanup
 rm -f go.mod.bak go.sum.bak
-
-pass "go mod tidy passed"
 
 # ============================================
 # 4. Build Check
@@ -150,10 +153,9 @@ if [[ "$QUICK" == "true" ]]; then
     skip "Build check (quick mode)"
 else
     if go build -o /dev/null ./... 2>&1; then
-        fail "Build failed"
-    else
         pass "Build passed"
-        rm -f /dev/null 2>/dev/null
+    else
+        fail "Build failed"
     fi
 fi
 
@@ -168,9 +170,6 @@ else
     echo -e "  ${BLUE}Running Go tests...${NC}"
 
     if go test -v -race -coverprofile=coverage.out ./... 2>&1; then
-        fail "Go tests failed"
-        echo -e "    ${YELLOW}Run: go test -v ./...${NC}"
-    else
         pass "All Go tests passed"
 
         # Show coverage summary
@@ -179,6 +178,9 @@ else
         go tool cover -func=coverage.out 2>/dev/null | tail -5
 
         rm -f coverage.out
+    else
+        fail "Go tests failed"
+        echo -e "    ${YELLOW}Run: go test -v ./...${NC}"
     fi
 fi
 
@@ -190,7 +192,7 @@ section "6. React Tests"
 if [[ "$QUICK" == "true" ]]; then
     skip "React tests (quick mode)"
 else
-    if [ ! -d "web/package.json" ]; then
+    if [ ! -f "web/package.json" ]; then
         skip "No web/package.json found"
     else
         echo -e "  ${BLUE}Running React tests...${NC}"
@@ -198,13 +200,13 @@ else
         # Check if node_modules exists
         if [ ! -d "web/node_modules" ]; then
             echo -e "  ${YELLOW}Installing npm dependencies...${NC}"
-            cd web && npm install 2>/dev/null
+            (cd web && npm install 2>/dev/null)
         fi
 
-        if cd web && npm test 2>&1; then
-            fail "React tests failed"
-        else
+        if (cd web && npm test 2>&1); then
             pass "React tests passed"
+        else
+            fail "React tests failed"
         fi
     fi
 fi
@@ -218,10 +220,10 @@ if command -v govulncheck &>/dev/null; then
     echo -e "  ${BLUE}Running govulncheck...${NC}"
 
     if govulncheck ./... 2>&1; then
+        pass "No known vulnerabilities"
+    else
         fail "Security vulnerabilities found"
         echo -e "    ${YELLOW}Run: govulncheck ./...${NC}"
-    else
-        pass "No known vulnerabilities"
     fi
 else
     skip "govulncheck not installed (optional)"
@@ -278,7 +280,7 @@ echo -e "  ${BLUE}Simulating GitHub Actions CI steps...${NC}"
 ci_pass=true
 
 # Step 1: Checkout
-if ! git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
+if git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
     pass "Checkout step would succeed"
 else
     fail "Not inside a git repository"
