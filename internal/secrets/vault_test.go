@@ -71,3 +71,40 @@ func TestVault_EmptyString(t *testing.T) {
 		t.Error("expected empty string")
 	}
 }
+
+func TestVault_DecryptInvalidBase64(t *testing.T) {
+	vault := NewVault("test-key")
+
+	_, err := vault.Decrypt("!!invalid-base64!!")
+	if err == nil {
+		t.Error("expected error for invalid base64")
+	}
+}
+
+func TestVault_DecryptCiphertextTooShort(t *testing.T) {
+	vault := NewVault("test-key")
+
+	// Create a valid ciphertext first
+	valid, _ := vault.Encrypt("test")
+
+	// Truncate it to be too short (less than nonce size)
+	short := valid[:12]
+
+	_, err := vault.Decrypt(short)
+	if err == nil {
+		t.Error("expected error for too short ciphertext")
+	}
+}
+
+func TestVault_DecryptCorruptCiphertext(t *testing.T) {
+	vault := NewVault("test-key")
+
+	// Create valid ciphertext and corrupt it
+	valid, _ := vault.Encrypt("test")
+	corrupt := valid[:len(valid)-2] + "XX" // modify last bytes
+
+	_, err := vault.Decrypt(corrupt)
+	if err == nil {
+		t.Error("expected error for corrupt ciphertext")
+	}
+}
