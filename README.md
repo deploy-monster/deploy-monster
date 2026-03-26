@@ -133,7 +133,7 @@ make dev
 cd web && npm install && npm run dev
 
 # Tests
-make test                    # Go: 194 test files, 92.8% avg coverage
+make test                    # Go: 245 test files, 92.8% avg coverage
 cd web && npm test           # React: 6 test files, 50 tests
 
 # Full build (React UI → embed → Go binary)
@@ -143,7 +143,7 @@ make build
 ## Tech Stack
 
 | Component | Technology |
-|-----------|-----------|
+|-----------|------------|
 | Backend | Go 1.26+, 27K source LOC, 47K test LOC |
 | Frontend | React 19, Vite 8, Tailwind CSS 4, shadcn/ui |
 | Database | SQLite + BBolt KV (PostgreSQL planned) |
@@ -151,26 +151,8 @@ make build
 | Auth | JWT + bcrypt + TOTP 2FA + OAuth SSO |
 | Encryption | AES-256-GCM + Argon2id |
 | Proxy | Custom net/http reverse proxy (no Traefik) |
-| Testing | 194 Go test files, ##  Tech Stack
-
- | Component | Technology |
-|-----------|-----------|
-| Backend | Go 1.26+, 27K source LOC | 47K test loc |
-| Frontend | React 19, Vite 8, Tailwind CSS 4. shadcn/ui |
-| Database | SQLite + BBolt (PostgreSQL planned) |
-| Container | Docker SDK (moby/moby) |
-| Auth | JWT + bcrypt + TOTP 2FA + OAuth SSO |
-| Encryption | AES-256-GCM + Argon2id |
-| Proxy | Custom net/http reverse proxy (no Traefik) |
-| Testing | 194 Go test files, 92.8% coverage, 7 fuzz tests |
-| 38 benchmarks |
-|------------|-----------|------------|
-|-----------|
+| Testing | 245 Go test files, 92.8% avg coverage, 7 fuzz tests, 38 benchmarks |
 | Binary | 22MB (16MB stripped) |
-
-## License
-
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
 ## Project Stats
 
@@ -178,7 +160,7 @@ make build
 86K+ total LOC (27K Go source + 47K Go tests + 12K React)
 224 API endpoints · 115 handlers (100% wired to real services)
 20 auto-registered modules · 25 marketplace templates
-194 Go test files · 6 React test files (50 tests)
+245 Go test files · 6 React test files (50 tests)
 92.8% avg Go coverage · 3 packages at 100%
 7 fuzz tests · 38 benchmarks
 22MB single binary with embedded React UI
@@ -186,7 +168,7 @@ make build
 
 ## Documentation
 
-- [Getting Started](docs/getting-started.md) — Install to first deploy in 5 minutes
+- [Getting Started](docs/getting-start.md) — Install to first deploy in 5 minutes
 - [Architecture](docs/architecture.md) — Module system, Store interface, EventBus
 - [API Reference](docs/api-reference.md) — 224 endpoints documented
 - [API Quickstart](docs/examples/api-quickstart.md) — curl examples for common workflows
