@@ -6,7 +6,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -39,7 +38,8 @@ func NewACMEManager(certStore *CertStore, email string, staging bool, logger *sl
 func (a *ACMEManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	domain := hello.ServerName
 	if domain == "" {
-		return nil, fmt.Errorf("no SNI")
+		// Default to localhost for direct IP access or missing SNI
+		domain = "localhost"
 	}
 
 	// Check cache first
@@ -47,8 +47,10 @@ func (a *ACMEManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certifica
 		return cert, nil
 	}
 
-	// Auto-issue in background, return self-signed for now
-	go a.issueCertificate(domain)
+	// Auto-issue in background for real domains (not localhost)
+	if domain != "localhost" && domain != "127.0.0.1" {
+		go a.issueCertificate(domain)
+	}
 
 	// Generate temporary self-signed cert
 	cert, err := GenerateSelfSigned(domain)
