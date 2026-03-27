@@ -76,6 +76,7 @@ func TestModule_Health_WithStores(t *testing.T) {
 
 func TestModule_Health_MissingSQLite(t *testing.T) {
 	m := New()
+	m.driver = "sqlite"
 	m.bolt = testBolt(t)
 
 	if m.Health() != core.HealthDown {

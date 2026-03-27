@@ -14,12 +14,14 @@ func init() {
 }
 
 // Module implements the database module for DeployMonster.
-// It manages SQLite (relational) and BBolt (KV) stores.
+// It manages SQLite/PostgreSQL (relational) and BBolt (KV) stores.
 type Module struct {
-	core   *core.Core
-	sqlite *SQLiteDB
-	bolt   *BoltStore
-	logger *slog.Logger
+	core     *core.Core
+	sqlite   *SQLiteDB
+	postgres *PostgresDB
+	bolt     *BoltStore
+	driver   string
+	logger   *slog.Logger
 }
 
 // New creates a new database module.
@@ -39,12 +41,12 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	m.logger = c.Logger.With("module", m.ID())
 
 	// Initialize relational store based on driver config
-	driver := c.Config.Database.Driver
-	if driver == "" {
-		driver = "sqlite"
+	m.driver = c.Config.Database.Driver
+	if m.driver == "" {
+		m.driver = "sqlite"
 	}
 
-	switch driver {
+	switch m.driver {
 	case "sqlite":
 		sqliteDB, err := NewSQLite(c.Config.Database.Path)
 		if err != nil {
@@ -59,11 +61,12 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 		if err != nil {
 			return fmt.Errorf("postgres: %w", err)
 		}
+		m.postgres = pgDB
 		c.Store = pgDB
 		m.logger.Info("postgres initialized")
 
 	default:
-		return fmt.Errorf("unsupported database driver: %s (supported: sqlite, postgres)", driver)
+		return fmt.Errorf("unsupported database driver: %s (supported: sqlite, postgres)", m.driver)
 	}
 
 	// Initialize BBolt KV store
@@ -97,6 +100,11 @@ func (m *Module) Stop(_ context.Context) error {
 			firstErr = fmt.Errorf("sqlite close: %w", err)
 		}
 	}
+	if m.postgres != nil {
+		if err := m.postgres.Close(); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("postgres close: %w", err)
+		}
+	}
 	if m.bolt != nil {
 		if err := m.bolt.Close(); err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("bbolt close: %w", err)
@@ -106,17 +114,35 @@ func (m *Module) Stop(_ context.Context) error {
 }
 
 func (m *Module) Health() core.HealthStatus {
-	if m.sqlite == nil || m.bolt == nil {
+	if m.bolt == nil {
 		return core.HealthDown
 	}
-	if err := m.sqlite.Ping(context.Background()); err != nil {
-		return core.HealthDown
+
+	ctx := context.Background()
+	switch m.driver {
+	case "sqlite":
+		if m.sqlite == nil {
+			return core.HealthDown
+		}
+		if err := m.sqlite.Ping(ctx); err != nil {
+			return core.HealthDown
+		}
+	case "postgres", "postgresql":
+		if m.postgres == nil {
+			return core.HealthDown
+		}
+		if err := m.postgres.Ping(ctx); err != nil {
+			return core.HealthDown
+		}
 	}
 	return core.HealthOK
 }
 
-// Store returns the SQLiteDB as a core.Store interface.
+// Store returns the underlying Store interface.
 func (m *Module) Store() core.Store {
+	if m.postgres != nil {
+		return m.postgres
+	}
 	return m.sqlite
 }
 

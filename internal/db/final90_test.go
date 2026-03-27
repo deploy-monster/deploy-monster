@@ -393,6 +393,7 @@ func TestModule_Health_ClosedSQLite(t *testing.T) {
 	}
 
 	m := New()
+	m.driver = "sqlite"
 	m.sqlite = sqliteDB
 	m.bolt = boltStore
 
@@ -416,6 +417,7 @@ func TestModule_Health_ClosedSQLite(t *testing.T) {
 
 func TestModule_Health_NilStores(t *testing.T) {
 	m := New()
+	m.driver = "sqlite"
 
 	if m.Health() != core.HealthDown {
 		t.Error("expected HealthDown when stores are nil")
