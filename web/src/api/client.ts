@@ -58,7 +58,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     return undefined as T;
   }
 
-  return response.json();
+  const json = await response.json();
+
+  // Unwrap {data: ...} responses for array types
+  if (json && typeof json === 'object' && 'data' in json && !('error' in json)) {
+    return json.data as T;
+  }
+
+  return json as T;
 }
 
 async function tryRefresh(): Promise<boolean> {
