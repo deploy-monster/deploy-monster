@@ -2,6 +2,7 @@ package webhooks
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -54,6 +55,27 @@ func TestPipeline_Trigger_AppNotFound(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error for missing app")
+	}
+}
+
+// TestPipeline_Trigger_GetAppError covers the store error path
+func TestPipeline_Trigger_GetAppError(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	events := core.NewEventBus(logger)
+	store := &pipelineMockStore{getAppErr: fmt.Errorf("database connection lost")}
+	runtime := &pipelineMockRuntime{}
+
+	p := NewPipeline(store, runtime, events, logger)
+
+	err := p.Trigger(context.Background(), "app-1", &WebhookPayload{
+		Branch:    "main",
+		CommitSHA: "abc123",
+	})
+	if err == nil {
+		t.Fatal("expected error from GetApp")
+	}
+	if !strings.Contains(err.Error(), "get app") {
+		t.Errorf("error should contain 'get app', got: %v", err)
 	}
 }
 
