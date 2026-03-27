@@ -61,12 +61,12 @@ func TestFinal_ACMEManager_GetCertificate_EmptySNI(t *testing.T) {
 		ServerName: "",
 	}
 
-	_, err := am.GetCertificate(hello)
-	if err == nil {
-		t.Fatal("expected error for empty SNI")
+	cert, err := am.GetCertificate(hello)
+	if err != nil {
+		t.Fatalf("expected no error for empty SNI, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "no SNI") {
-		t.Errorf("expected 'no SNI' error, got: %v", err)
+	if cert == nil {
+		t.Fatal("expected self-signed localhost certificate")
 	}
 }
 

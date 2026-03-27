@@ -83,9 +83,12 @@ func TestACMEManager_GetCertificate_NoSNI(t *testing.T) {
 	am := NewACMEManager(cs, "test@example.com", true, slog.Default())
 
 	hello := &tls.ClientHelloInfo{ServerName: ""}
-	_, err := am.GetCertificate(hello)
-	if err == nil {
-		t.Error("expected error for empty SNI")
+	cert, err := am.GetCertificate(hello)
+	if err != nil {
+		t.Errorf("expected no error for empty SNI, got: %v", err)
+	}
+	if cert == nil {
+		t.Error("expected self-signed localhost certificate")
 	}
 }
 
