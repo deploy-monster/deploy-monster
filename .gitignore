@@ -13,7 +13,7 @@ web/node_modules/
 *.bolt
 
 # Test coverage
-coverage.out
+*.out
 coverage.html
 
 # IDE
@@ -36,13 +36,11 @@ monster.yaml
 # Go
 vendor/
 
-# Binary
+# Binaries
 deploymonster
 deploymonster.exe
-
-# GoReleaser
-dist/
-*.out
+*.test
+*.test.exe
 
 # Playwright MCP logs
 .playwright-mcp/
@@ -50,7 +48,7 @@ dist/
 # Screenshots (development only)
 screenshots/
 
-# Database files
-*.db
-*.bolt
-*.test.exe
+# Temporary files
+*.tmp
+*.log
+*.bak
