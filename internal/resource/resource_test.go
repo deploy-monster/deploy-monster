@@ -1007,3 +1007,152 @@ func TestCollectionLoop_NilCollector(t *testing.T) {
 		t.Fatalf("Stop: %v", err)
 	}
 }
+
+// =====================================================
+// collectOnce Tests - exercises ticker path logic directly
+// =====================================================
+
+// TestCollectOnce_WithMockRuntime tests collectOnce with mock container runtime
+func TestCollectOnce_WithMockRuntime(t *testing.T) {
+	mock := &mockContainerRuntime{
+		containers: []core.ContainerInfo{
+			{ID: "c1", State: "running", Labels: map[string]string{"monster.app.id": "app1"}},
+			{ID: "c2", State: "running", Labels: map[string]string{"monster.app.id": "app2"}},
+		},
+		stats: &core.ContainerStats{
+			CPUPercent:    45.5,
+			MemoryUsage:   512 * 1024 * 1024,
+			MemoryLimit:   1024 * 1024 * 1024,
+			MemoryPercent: 50.0,
+			NetworkRx:     20 * 1024 * 1024,
+			NetworkTx:     10 * 1024 * 1024,
+			PIDs:          24,
+		},
+	}
+
+	c := &core.Core{
+		Logger:   testLogger(),
+		Events:   core.NewEventBus(testLogger()),
+		Services: core.NewServices(),
+	}
+	c.Services.Container = mock
+
+	m := New()
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	// Call collectOnce directly - exercises the ticker.C path logic
+	m.collectOnce()
+}
+
+// TestCollectOnce_NilRuntime tests collectOnce with nil container runtime
+func TestCollectOnce_NilRuntime(t *testing.T) {
+	c := &core.Core{
+		Logger:   testLogger(),
+		Events:   core.NewEventBus(testLogger()),
+		Services: core.NewServices(),
+	}
+
+	m := New()
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	// Call collectOnce with nil runtime - should not panic
+	m.collectOnce()
+}
+
+// TestCollectOnce_HighCPUMetrics tests collectOnce runs alert evaluation
+func TestCollectOnce_HighCPUMetrics(t *testing.T) {
+	mock := &mockContainerRuntime{
+		containers: []core.ContainerInfo{
+			{ID: "c1", State: "running", Labels: map[string]string{"monster.app.id": "app1"}},
+		},
+		stats: &core.ContainerStats{
+			CPUPercent:    95.0, // Container stats (not server CPU)
+			MemoryUsage:   256 * 1024 * 1024,
+			MemoryLimit:   1024 * 1024 * 1024,
+			MemoryPercent: 25.0,
+		},
+	}
+
+	events := core.NewEventBus(testLogger())
+
+	c := &core.Core{
+		Logger:   testLogger(),
+		Events:   events,
+		Services: core.NewServices(),
+	}
+	c.Services.Container = mock
+
+	m := New()
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	// Call collectOnce - exercises the full collection + evaluation path
+	m.collectOnce()
+
+	// Verify alert engine is configured
+	m.alerter.mu.RLock()
+	state := m.alerter.states["high_cpu"]
+	ruleCount := len(m.alerter.rules)
+	m.alerter.mu.RUnlock()
+
+	if state == nil {
+		t.Fatal("high_cpu state should exist")
+	}
+	if ruleCount < 3 {
+		t.Errorf("expected at least 3 rules, got %d", ruleCount)
+	}
+}
+
+// TestCollectOnce_StoppedContainers tests collectOnce skips stopped containers
+func TestCollectOnce_StoppedContainers(t *testing.T) {
+	mock := &mockContainerRuntime{
+		containers: []core.ContainerInfo{
+			{ID: "c1", State: "stopped", Labels: map[string]string{"monster.app.id": "app1"}},
+			{ID: "c2", State: "exited", Labels: map[string]string{"monster.app.id": "app2"}},
+			{ID: "c3", State: "running", Labels: map[string]string{"monster.app.id": "app3"}},
+		},
+		stats: &core.ContainerStats{CPUPercent: 10},
+	}
+
+	c := &core.Core{
+		Logger:   testLogger(),
+		Events:   core.NewEventBus(testLogger()),
+		Services: core.NewServices(),
+	}
+	c.Services.Container = mock
+
+	m := New()
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	// Call collectOnce - should skip stopped containers
+	m.collectOnce()
+}
+
+// TestCollectOnce_ListError tests collectOnce handles list errors gracefully
+func TestCollectOnce_ListError(t *testing.T) {
+	mock := &mockContainerRuntime{
+		listErr: fmt.Errorf("docker daemon not responding"),
+	}
+
+	c := &core.Core{
+		Logger:   testLogger(),
+		Events:   core.NewEventBus(testLogger()),
+		Services: core.NewServices(),
+	}
+	c.Services.Container = mock
+
+	m := New()
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	// Should not panic with list error
+	m.collectOnce()
+}

@@ -61,6 +61,19 @@ func (m *Module) Health() core.HealthStatus {
 	return core.HealthOK
 }
 
+// collectOnce performs a single collection cycle.
+// Extracted from collectionLoop for testability.
+func (m *Module) collectOnce() {
+	ctx := context.Background()
+	metrics := m.collector.CollectServer(ctx)
+	if metrics != nil {
+		m.alerter.Evaluate(ctx, metrics)
+	}
+
+	containerMetrics := m.collector.CollectContainers(ctx)
+	_ = containerMetrics // Store in DB in future phase
+}
+
 func (m *Module) collectionLoop() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -68,14 +81,7 @@ func (m *Module) collectionLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			ctx := context.Background()
-			metrics := m.collector.CollectServer(ctx)
-			if metrics != nil {
-				m.alerter.Evaluate(ctx, metrics)
-			}
-
-			containerMetrics := m.collector.CollectContainers(ctx)
-			_ = containerMetrics // Store in DB in future phase
+			m.collectOnce()
 		case <-m.stopCh:
 			return
 		}

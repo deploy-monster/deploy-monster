@@ -577,3 +577,47 @@ func TestGenerateSelfSigned_WildcardDomain(t *testing.T) {
 		t.Fatal("expected non-nil cert")
 	}
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// checkRenewals — exercises the ticker.C path logic directly
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestACMEManager_CheckRenewals(t *testing.T) {
+	cs := NewCertStore()
+	am := NewACMEManager(cs, "test@example.com", true, slog.Default())
+
+	// Call checkRenewals directly - exercises the ticker.C path logic
+	am.checkRenewals()
+}
+
+func TestACMEManager_CheckRenewals_WithCachedCerts(t *testing.T) {
+	cs := NewCertStore()
+
+	// Add a certificate to the store
+	cert, _ := GenerateSelfSigned("test.example.com")
+	cs.Put("test.example.com", cert)
+
+	am := NewACMEManager(cs, "test@example.com", true, slog.Default())
+
+	// Call checkRenewals with cached cert
+	am.checkRenewals()
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// issueCertificate — direct invocation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestACMEManager_IssueCertificate(t *testing.T) {
+	cs := NewCertStore()
+	am := NewACMEManager(cs, "test@example.com", true, slog.Default())
+
+	// Call issueCertificate directly
+	am.issueCertificate("test.example.com")
+}
+
+func TestACMEManager_IssueCertificate_StagingMode(t *testing.T) {
+	cs := NewCertStore()
+	am := NewACMEManager(cs, "test@example.com", false, slog.Default()) // production mode
+
+	am.issueCertificate("prod.example.com")
+}
