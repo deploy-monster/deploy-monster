@@ -87,6 +87,6 @@ func (p *PrometheusExporter) Handler() http.HandlerFunc {
 			}
 		}
 
-		w.Write([]byte(b.String()))
+		_, _ = w.Write([]byte(b.String()))
 	}
 }

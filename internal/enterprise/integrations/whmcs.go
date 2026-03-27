@@ -81,7 +81,7 @@ func (w *WHMCSBridge) SyncModuleCommand(ctx context.Context, action string, serv
 		Result  string `json:"result"`
 		Message string `json:"message"`
 	}
-	json.Unmarshal(body, &result)
+	_ = json.Unmarshal(body, &result)
 
 	if result.Result != "success" {
 		return fmt.Errorf("WHMCS: %s", result.Message)
@@ -115,6 +115,6 @@ func (w *WHMCSBridge) GetClientDetails(ctx context.Context, clientID int) (map[s
 
 	body, _ := io.ReadAll(resp.Body)
 	var result map[string]any
-	json.Unmarshal(body, &result)
+	_ = json.Unmarshal(body, &result)
 	return result, nil
 }

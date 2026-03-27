@@ -55,7 +55,7 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 		"monster.app.id": appID,
 	})
 	if err != nil || len(containers) == 0 {
-		w.Write([]byte("event: error\ndata: no container found\n\n"))
+		_, _ = w.Write([]byte("event: error\ndata: no container found\n\n"))
 		flusher.Flush()
 		return
 	}
@@ -68,7 +68,7 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 
 	logReader, err := ls.runtime.Logs(ctx, containerID, tail, true)
 	if err != nil {
-		w.Write([]byte("event: error\ndata: " + err.Error() + "\n\n"))
+		_, _ = w.Write([]byte("event: error\ndata: " + err.Error() + "\n\n"))
 		flusher.Flush()
 		return
 	}
@@ -77,7 +77,7 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	scanner := bufio.NewScanner(logReader)
 	for scanner.Scan() {
 		line := scanner.Text()
-		w.Write([]byte("data: " + line + "\n\n"))
+		_, _ = w.Write([]byte("data: " + line + "\n\n"))
 		flusher.Flush()
 	}
 }
@@ -133,11 +133,11 @@ func (es *EventStreamer) StreamEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		case event := <-ch:
 			data := event.DebugString()
-			w.Write([]byte("event: " + event.Type + "\ndata: " + data + "\n\n"))
+			_, _ = w.Write([]byte("event: " + event.Type + "\ndata: " + data + "\n\n"))
 			flusher.Flush()
 		case <-time.After(30 * time.Second):
 			// Keepalive ping
-			w.Write([]byte(": keepalive\n\n"))
+			_, _ = w.Write([]byte(": keepalive\n\n"))
 			flusher.Flush()
 		}
 	}

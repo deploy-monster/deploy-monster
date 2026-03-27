@@ -97,7 +97,7 @@ func (r *Route53) changeRecord(ctx context.Context, action string, record core.D
 		return fmt.Errorf("route53 API: %w", err)
 	}
 	defer resp.Body.Close()
-	io.ReadAll(resp.Body)
+	_, _ = io.ReadAll(resp.Body)
 
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("route53: HTTP %d", resp.StatusCode)
@@ -128,7 +128,7 @@ func (r *Route53) findHostedZone(ctx context.Context, domain string) (string, er
 			} `xml:"HostedZone"`
 		} `xml:"HostedZones"`
 	}
-	xml.Unmarshal(body, &result)
+	_ = xml.Unmarshal(body, &result)
 
 	for _, zone := range result.HostedZones.Zones {
 		if len(domain) >= len(zone.Name) && domain[len(domain)-len(zone.Name):] == zone.Name {

@@ -77,7 +77,7 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 
 	logReader, err := t.runtime.Logs(ctx, containers[0].ID, "20", true)
 	if err != nil {
-		w.Write([]byte("event: error\ndata: " + err.Error() + "\n\n"))
+		_, _ = w.Write([]byte("event: error\ndata: " + err.Error() + "\n\n"))
 		flusher.Flush()
 		return
 	}
@@ -85,7 +85,7 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 
 	// Send session ID so the client can correlate POST commands
 	sessionID := core.GenerateID()
-	w.Write([]byte("event: session\ndata: " + sessionID + "\n\n"))
+	_, _ = w.Write([]byte("event: session\ndata: " + sessionID + "\n\n"))
 	flusher.Flush()
 
 	// Send connection confirmation with container info
@@ -94,13 +94,13 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 		"image":        containers[0].Image,
 		"status":       containers[0].State,
 	})
-	w.Write([]byte("event: connected\ndata: " + string(connData) + "\n\n"))
+	_, _ = w.Write([]byte("event: connected\ndata: " + string(connData) + "\n\n"))
 	flusher.Flush()
 
 	scanner := bufio.NewScanner(logReader)
 	for scanner.Scan() {
 		line := scanner.Text()
-		w.Write([]byte("data: " + line + "\n\n"))
+		_, _ = w.Write([]byte("data: " + line + "\n\n"))
 		flusher.Flush()
 	}
 }
@@ -190,5 +190,5 @@ func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data)
 }

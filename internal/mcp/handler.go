@@ -86,7 +86,7 @@ func (h *Handler) getAppStatus(ctx context.Context, input json.RawMessage) (*MCP
 	var params struct {
 		AppID string `json:"app_id"`
 	}
-	json.Unmarshal(input, &params)
+	_ = json.Unmarshal(input, &params)
 
 	app, err := h.store.GetApp(ctx, params.AppID)
 	if err != nil {
@@ -103,7 +103,7 @@ func (h *Handler) deployApp(ctx context.Context, input json.RawMessage) (*MCPRes
 		SourceType string `json:"source_type"`
 		SourceURL  string `json:"source_url"`
 	}
-	json.Unmarshal(input, &params)
+	_ = json.Unmarshal(input, &params)
 
 	return h.textResponse(fmt.Sprintf("Deploying %s from %s (%s) — pipeline initiated",
 		params.Name, params.SourceURL, params.SourceType))
@@ -114,7 +114,7 @@ func (h *Handler) viewLogs(ctx context.Context, input json.RawMessage) (*MCPResp
 		AppID string `json:"app_id"`
 		Lines int    `json:"lines"`
 	}
-	json.Unmarshal(input, &params)
+	_ = json.Unmarshal(input, &params)
 
 	if h.runtime == nil {
 		return h.errorResponse("Container runtime not available")

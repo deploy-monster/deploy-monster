@@ -41,7 +41,11 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	if ingressMod == nil {
 		return core.NewAppError(500, "ingress module not found", nil)
 	}
-	m.routeTable = ingressMod.(*ingress.Module).Router()
+	ingress, ok := ingressMod.(*ingress.Module)
+	if !ok {
+		return core.NewAppError(500, "ingress module has wrong type", nil)
+	}
+	m.routeTable = ingress.Router()
 
 	return nil
 }

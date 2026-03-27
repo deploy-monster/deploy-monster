@@ -153,7 +153,16 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 // PublishAsync emits an event asynchronously. All handlers run in goroutines.
 // Useful when the publisher doesn't care about handler results.
 func (eb *EventBus) PublishAsync(ctx context.Context, event Event) {
-	go eb.Publish(ctx, event)
+	go func() {
+		if err := eb.Publish(ctx, event); err != nil {
+			eb.mu.RLock()
+			logger := eb.logger
+			eb.mu.RUnlock()
+			if logger != nil {
+				logger.Error("async publish failed", "error", err, "event", event.Type)
+			}
+		}
+	}()
 }
 
 // matchSubscriptions returns all subscriptions matching the given event type.

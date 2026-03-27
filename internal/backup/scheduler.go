@@ -68,7 +68,7 @@ func (s *Scheduler) runBackups() {
 	ctx := context.Background()
 	s.logger.Info("running scheduled backups")
 
-	s.events.Publish(ctx, core.NewEvent(core.EventBackupStarted, "backup", nil))
+	_ = s.events.Publish(ctx, core.NewEvent(core.EventBackupStarted, "backup", nil))
 
 	// In production, this would:
 	// 1. List all apps with backup enabled
@@ -77,7 +77,7 @@ func (s *Scheduler) runBackups() {
 	// 4. Upload to configured storage target
 	// 5. Apply retention policy (delete old backups)
 
-	s.events.Publish(ctx, core.NewEvent(core.EventBackupCompleted, "backup",
+	_ = s.events.Publish(ctx, core.NewEvent(core.EventBackupCompleted, "backup",
 		map[string]string{"type": "scheduled"}))
 
 	s.logger.Info("scheduled backups complete")

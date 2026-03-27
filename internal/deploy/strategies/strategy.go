@@ -47,7 +47,7 @@ func (r *Recreate) Execute(ctx context.Context, plan *DeployPlan) error {
 		if err := plan.Runtime.Stop(ctx, plan.OldContainerID, 30); err != nil {
 			// Non-fatal — old container might already be stopped
 		}
-		plan.Runtime.Remove(ctx, plan.OldContainerID, true)
+		_ = plan.Runtime.Remove(ctx, plan.OldContainerID, true)
 	}
 
 	// 2. Start new container
@@ -110,8 +110,8 @@ func (r *Rolling) Execute(ctx context.Context, plan *DeployPlan) error {
 
 	// 3. Stop old container
 	if plan.OldContainerID != "" {
-		plan.Runtime.Stop(ctx, plan.OldContainerID, 30)
-		plan.Runtime.Remove(ctx, plan.OldContainerID, true)
+		_ = plan.Runtime.Stop(ctx, plan.OldContainerID, 30)
+		_ = plan.Runtime.Remove(ctx, plan.OldContainerID, true)
 	}
 
 	return nil

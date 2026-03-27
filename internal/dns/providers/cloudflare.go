@@ -94,7 +94,7 @@ func (c *Cloudflare) findZone(ctx context.Context, name string) (string, error) 
 			Name string `json:"name"`
 		} `json:"result"`
 	}
-	json.Unmarshal(body, &resp)
+	_ = json.Unmarshal(body, &resp)
 
 	// Find the zone that matches the domain
 	for _, zone := range resp.Result {

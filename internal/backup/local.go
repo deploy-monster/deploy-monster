@@ -21,7 +21,7 @@ type LocalStorage struct {
 
 // NewLocalStorage creates a local backup storage target.
 func NewLocalStorage(basePath string) *LocalStorage {
-	os.MkdirAll(basePath, 0750)
+	_ = os.MkdirAll(basePath, 0750)
 	return &LocalStorage{basePath: basePath}
 }
 
@@ -29,7 +29,7 @@ func (l *LocalStorage) Name() string { return "local" }
 
 func (l *LocalStorage) Upload(_ context.Context, key string, reader io.Reader, _ int64) error {
 	path := filepath.Join(l.basePath, key)
-	os.MkdirAll(filepath.Dir(path), 0750)
+	_ = os.MkdirAll(filepath.Dir(path), 0750)
 
 	f, err := os.Create(path)
 	if err != nil {
