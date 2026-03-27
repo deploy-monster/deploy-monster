@@ -1,0 +1,28 @@
+# CODEOWNERS - DeployMonster
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything
+* @ersinkoc
+
+# Core architecture
+/internal/core/ @ersinkoc
+
+# API layer
+/internal/api/ @ersinkoc
+
+# Database layer
+/internal/db/ @ersinkoc
+
+# Deployment engine
+/internal/deploy/ @ersinkoc
+
+# Build system
+/internal/build/ @ersinkoc
+
+# Ingress/proxy
+/internal/ingress/ @ersinkoc
+
+# Documentation
+/docs/ @ersinkoc
+/README.md @ersinkoc
+/ARCHITECTURE.md @ersinkoc
