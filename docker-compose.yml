@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   deploymonster:
-    image: deploymonster/deploymonster:latest
+    image: ghcr.io/deploy-monster/deploymonster:latest
     build:
       context: .
       dockerfile: Dockerfile

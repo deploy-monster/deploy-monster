@@ -54,8 +54,8 @@ changelog:
 
 dockers:
   - image_templates:
-      - "ghcr.io/ersinkoc/deploymonster:{{ .Version }}"
-      - "ghcr.io/ersinkoc/deploymonster:latest"
+      - "ghcr.io/deploy-monster/deploymonster:{{ .Version }}"
+      - "ghcr.io/deploy-monster/deploymonster:latest"
     dockerfile: Dockerfile
     build_flag_templates:
       - "--build-arg=VERSION={{.Version}}"
@@ -63,7 +63,7 @@ dockers:
 
 release:
   github:
-    owner: ersinkoc
+    owner: deploy-monster
     name: DeployMonster_GO
   draft: false
   prerelease: auto
