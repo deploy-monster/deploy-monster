@@ -1,25 +1,26 @@
 openapi: 3.0.3
 info:
   title: DeployMonster API
-  version: 1.0.0
+  version: 1.4.0
   description: |
     Self-hosted PaaS API for managing applications, deployments, domains,
     secrets, teams, and infrastructure. Single binary, modular monolith
     with event-driven architecture.
   contact:
     name: DeployMonster
-    url: https://deploymonster.io
+    url: https://deploy.monster
   license:
-    name: Proprietary
+    name: AGPL-3.0
+    url: https://www.gnu.org/licenses/agpl-3.0.html
 
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:8443
     description: Local development server
   - url: https://{host}
     description: Production server
     variables:
       host:
-        default: app.deploymonster.io
+        default: deploy.monster
 
 security:
   - BearerAuth: []
