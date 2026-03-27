@@ -2,6 +2,29 @@
 
 All notable changes to DeployMonster will be documented in this file.
 
+## [1.4.0] - 2026-03-27
+
+### Highlights
+- **97% avg test coverage** across 34 packages (up from 92.8%)
+- **Comprehensive ARCHITECTURE.md** with ASCII diagrams
+- **247 Go test files** (up from 194)
+
+### Added
+- ARCHITECTURE.md with system diagrams, module dependencies, event taxonomy
+- Resource module `collectOnce()` method for testability
+- Webhooks Trigger error path test coverage
+- Ingress ACME manager checkRenewals/issueCertificate tests
+
+### Changed
+- Updated README with ECOSTACK TECHNOLOGY OÜ branding
+- Added creator info (Ersin KOÇ) with TR/EE context
+- Updated Docker image paths to deploy-monster org
+- Consolidated .gitignore patterns
+
+### Fixed
+- Resource collectionLoop coverage via extracted method
+- Gitignore now properly ignores *.test, *.tmp, *.log files
+
 ## [1.3.0] - 2026-03-25
 
 ### Highlights
