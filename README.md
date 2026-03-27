@@ -1,16 +1,29 @@
 # DeployMonster
 
-**Tame Your Deployments** — Self-hosted PaaS that transforms any VPS into a full deployment platform. Single binary, zero configuration, production-ready in under 60 seconds.
+<div align="center">
 
+**Tame Your Deployments**
+
+Self-hosted PaaS that transforms any VPS into a full deployment platform.
+
+Single binary · Zero dependencies · Production-ready in 60 seconds
+
+[![GitHub Repo](https://img.shields.io/badge/GitHub-deploy--monster/DeployMonster_GO-181717?logo=github)](https://github.com/deploy-monster/DeployMonster_GO)
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Coverage](https://img.shields.io/badge/Coverage-92.8%25-brightgreen)](.)
+[![Coverage](https://img.shields.io/badge/Coverage-97%25-brightgreen)](.)
+
+[🌐 deploy.monster](https://deploy.monster) · [📚 Documentation](docs/) · [🎮 Demo](https://deploy.monster/demo) · [💬 Discord](https://discord.gg/deploymonster)
+
+</div>
+
+---
 
 ## Quick Start
 
 ```bash
-# Download and run
+# One-line install
 curl -fsSL https://get.deploy.monster | bash
 deploymonster
 
@@ -18,92 +31,94 @@ deploymonster
 docker run -d -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  ghcr.io/ersinkoc/deploymonster:latest
+  ghcr.io/deploy-monster/deploymonster:latest
 ```
 
 Open `http://localhost:8443` — admin credentials are printed on first run.
 
+---
+
 ## Why DeployMonster?
 
-| Problem | DeployMonster Solution |
-|---------|----------------------|
-| Coolify needs 5 Docker containers | **Single 22MB binary** |
+| Problem | DeployMonster |
+|---------|---------------|
+| Coolify needs 5+ containers | **Single 22MB binary** |
 | Dokploy has no billing/teams | **Built-in billing, RBAC, teams** |
-| CapRover has outdated UI | **Modern React 19 + Tailwind 4 + shadcn/ui** |
+| CapRover has outdated UI | **React 19 + Tailwind 4 + shadcn/ui** |
 | Vercel/Netlify lock you in | **Self-hosted, zero vendor lock-in** |
 | Traefik needs separate config | **Built-in reverse proxy + auto-SSL** |
 | No AI integration anywhere | **MCP server for LLM-driven infra** |
 
+---
+
 ## Features
 
-### Deploy Anything
+### 🚀 Deploy Anything
 - **Git-to-Deploy** — Push to GitHub/GitLab/Gitea/Bitbucket, auto-build and deploy
-- **14 Language Support** — Auto-detects Node.js, Next.js, Go, Python, Rust, PHP, Java, .NET, Ruby, and more
-- **Docker Image** — Deploy any image from any registry
-- **Docker Compose** — Upload YAML, get a running multi-service stack
-- **Marketplace** — One-click deploy 25+ apps (WordPress, Ghost, n8n, Ollama, Grafana, etc.)
+- **14 Languages** — Node.js, Next.js, Go, Python, Rust, PHP, Java, .NET, Ruby, and more
+- **Docker Images** — Deploy from any registry (GHCR, Docker Hub, private)
+- **Docker Compose** — Upload YAML, get running multi-service stack
+- **Marketplace** — One-click deploy 25+ apps (WordPress, Ghost, n8n, Ollama, Grafana...)
 
-### Platform
+### 🏗️ Platform
 - **224 REST API Endpoints** — Complete platform API with OpenAPI 3.0 spec
-- **Custom Reverse Proxy** — No Traefik/Nginx. Auto-SSL via Let's Encrypt
+- **Custom Reverse Proxy** — No Traefik/Nginx dependency. Auto-SSL via Let's Encrypt
 - **5 Load Balancer Strategies** — Round-robin, least-conn, IP-hash, random, weighted
 - **Secret Vault** — AES-256-GCM encryption with `${SECRET:name}` resolution
 - **Managed Databases** — PostgreSQL, MySQL, MariaDB, Redis, MongoDB
 - **Backup Engine** — Local + S3 storage, cron scheduler, retention policies
-- **Monitoring** — CPU/RAM/disk/network metrics, threshold alerts, Prometheus `/metrics`
-- **DNS Sync** — Cloudflare with auto-subdomain generation
-- **Container Exec** — Run commands inside containers via API
+- **Monitoring** — CPU/RAM/disk metrics, threshold alerts, Prometheus `/metrics`
 
-### Infrastructure
+### 🌍 Infrastructure
 - **VPS Provisioning** — Hetzner, DigitalOcean, Vultr, Linode, or any server via SSH
-- **Master/Agent** — Same binary runs as master (full platform) or agent (worker node)
-- **SSH Key Management** — Generate Ed25519 keys, manage per-server access
+- **Master/Agent Architecture** — Same binary, two modes (control plane / worker node)
+- **SSH Key Management** — Ed25519 keys, per-server access control
 - **Server Bootstrap** — Cloud-init scripts, Docker install, agent deployment
 
-### Team & Business
-- **Team Management** — RBAC with 6 built-in roles + custom roles
+### 👥 Team & Business
+- **RBAC** — 6 built-in roles + custom roles
 - **2FA & SSO** — TOTP, Google OAuth, GitHub OAuth
-- **Billing** — Plans (Free/Pro/Business/Enterprise), Stripe integration, usage metering
-- **White-Label** — Custom branding, reseller support, WHMCS integration
-- **GDPR** — Data export and right to erasure compliance
-- **Audit Log** — Every state-changing action recorded with IP tracking
+- **Billing** — Plans (Free/Pro/Business/Enterprise), Stripe integration
+- **White-Label** — Custom branding, reseller support
+- **GDPR Compliance** — Data export, right to erasure
+- **Audit Log** — Every action recorded with IP tracking
 
-### AI-Native
-- **MCP Server** — 9 AI-callable tools for LLM-driven infrastructure management
+### 🤖 AI-Native
+- **MCP Server** — 9 AI-callable tools for LLM-driven infrastructure
 - **HTTP Transport** — `GET /mcp/v1/tools` + `POST /mcp/v1/tools/{name}`
+
+---
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                   DeployMonster Binary (22MB)                 │
-├────────┬────────┬────────┬────────┬──────────┬──────────────┤
-│ Web UI │  API   │  SSE   │Webhooks│ Ingress  │  MCP Server  │
-│shadcn  │224 eps │Stream  │In+Out  │:80/:443  │  9 AI Tools  │
-├────────┴────────┴────────┴────────┴──────────┴──────────────┤
-│                    20 Auto-Registered Modules                │
-│ auth│deploy│build│ingress│discovery│dns│secrets│billing│mcp  │
-│ db│backup│vps│swarm│marketplace│notifications│resource│...   │
-├──────────────────────────────────────────────────────────────┤
-│  SQLite + BBolt │ Docker SDK │ SSH Pool │ EventBus │ Store   │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    DeployMonster Binary (22MB)                   │
+├─────────┬─────────┬─────────┬──────────┬─────────┬──────────────┤
+│ Web UI  │   API   │   SSE   │ Webhooks │ Ingress │  MCP Server  │
+│ shadcn  │ 224 eps │ Stream  │  In+Out  │ :80/443 │  9 AI Tools  │
+├─────────┴─────────┴─────────┴──────────┴─────────┴──────────────┤
+│                   20 Auto-Registered Modules                     │
+│  auth │ deploy │ build │ ingress │ dns │ secrets │ billing │    │
+│  db │ backup │ vps │ swarm │ marketplace │ notifications │ ...   │
+├─────────────────────────────────────────────────────────────────┤
+│    SQLite + BBolt   │   Docker SDK   │   EventBus   │   Store   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Screenshots
-
-| Login | Dashboard | Marketplace |
-|-------|-----------|-------------|
-| Split-screen with gradient branding | Stat cards, quick actions, activity feed | 25 templates with category colors |
+---
 
 ## CLI
 
 ```bash
-deploymonster                      # Start server (default)
-deploymonster serve --agent        # Start as agent/worker node
-deploymonster init                 # Generate monster.yaml config
-deploymonster version              # Show version info
-deploymonster config               # Validate configuration
+deploymonster                  # Start server (default)
+deploymonster serve --agent    # Start as agent/worker node
+deploymonster init             # Generate monster.yaml config
+deploymonster version          # Show version info
+deploymonster config           # Validate configuration
 ```
+
+---
 
 ## Configuration
 
@@ -117,9 +132,11 @@ Or use environment variables:
 export MONSTER_PORT=8443
 export MONSTER_DOMAIN=deploy.example.com
 export MONSTER_ADMIN_EMAIL=admin@example.com
-export MONSTER_ADMIN_PASSWORD=your-secure-password
+export MONSTER_ADMIN_PASSWORD=secure-password
 export MONSTER_ACME_EMAIL=ssl@example.com
 ```
+
+---
 
 ## Development
 
@@ -133,54 +150,94 @@ make dev
 cd web && npm install && npm run dev
 
 # Tests
-make test                    # Go: 245 test files, 92.8% avg coverage
-cd web && npm test           # React: 6 test files, 50 tests
+make test                  # Go tests (97% coverage)
+cd web && npm test         # React tests
 
-# Full build (React UI → embed → Go binary)
+# Build (React UI → embed → Go binary)
 make build
 ```
+
+---
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|------------|
-| Backend | Go 1.26+, 27K source LOC, 47K test LOC |
-| Frontend | React 19, Vite 8, Tailwind CSS 4, shadcn/ui |
-| Database | SQLite + BBolt KV (PostgreSQL planned) |
+| Backend | Go 1.26+ (27K LOC source, 47K LOC tests) |
+| Frontend | React 19 + Vite 8 + Tailwind CSS 4 + shadcn/ui |
+| Database | SQLite + BBolt KV (PostgreSQL ready) |
 | Container | Docker SDK (moby/moby) |
 | Auth | JWT + bcrypt + TOTP 2FA + OAuth SSO |
 | Encryption | AES-256-GCM + Argon2id |
-| Proxy | Custom net/http reverse proxy (no Traefik) |
-| Testing | 245 Go test files, 92.8% avg coverage, 7 fuzz tests, 38 benchmarks |
-| Binary | 22MB (16MB stripped) |
+| Proxy | Custom net/http reverse proxy |
+| Testing | 97% Go coverage, 7 fuzz tests, 38 benchmarks |
+
+---
 
 ## Project Stats
 
 ```
-86K+ total LOC (27K Go source + 47K Go tests + 12K React)
-224 API endpoints · 115 handlers (100% wired to real services)
-20 auto-registered modules · 25 marketplace templates
-245 Go test files · 6 React test files (50 tests)
-92.8% avg Go coverage · 3 packages at 100%
-7 fuzz tests · 38 benchmarks
-22MB single binary with embedded React UI
+86K+ total LOC
+├── 27K Go source
+├── 47K Go tests
+└── 12K React
+
+224 API endpoints · 115 handlers
+20 modules · 25 marketplace templates
+97% test coverage · 7 fuzz tests · 38 benchmarks
+22MB single binary with embedded UI
 ```
-
-## Documentation
-
-- [Getting Started](docs/getting-start.md) — Install to first deploy in 5 minutes
-- [Architecture](docs/architecture.md) — Module system, Store interface, EventBus
-- [API Reference](docs/api-reference.md) — 224 endpoints documented
-- [API Quickstart](docs/examples/api-quickstart.md) — curl examples for common workflows
-- [Deployment Guide](docs/deployment-guide.md) — Production deployment, domains, backups
-- [OpenAPI Spec](docs/openapi.yaml) — OpenAPI 3.0.3 specification
-
-## License
-
-AGPL-3.0 — See [LICENSE](LICENSE) for details.
-
-Commercial license available for enterprise features.
 
 ---
 
-**Built by [ECOSTACK TECHNOLOGY OÜ](https://ecostack.ee)** | [deploy.monster](https://deploy.monster)
+## Documentation
+
+- [Getting Started](docs/getting-started.md)
+- [Architecture](ARCHITECTURE.md)
+- [API Reference](docs/api-reference.md)
+- [OpenAPI Spec](docs/openapi.yaml)
+
+---
+
+## License
+
+**AGPL-3.0** — See [LICENSE](LICENSE) for details.
+
+Commercial licensing available for enterprise use.
+
+---
+
+<div align="center">
+
+## Built by
+
+<table>
+<tr>
+<td align="center">
+
+**ECOSTACK TECHNOLOGY OÜ**
+
+🇪🇪 Tallinn, Estonia
+
+[ecostack.ee](https://ecostack.ee)
+
+</td>
+<td align="center">
+
+**Created by**
+
+🇹🇷 🇪🇪 Ersin KOÇ
+
+[𝕏 @ersinkoc](https://x.com/ersinkoc) · [GitHub](https://github.com/ersinkoc)
+
+</td>
+</tr>
+</table>
+
+---
+
+**[deploy.monster](https://deploy.monster)** · **[deploymonster.com](https://deploymonster.com)**
+
+[GitHub](https://github.com/deploy-monster/DeployMonster_GO) · [Discord](https://discord.gg/deploymonster)
+
+</div>
