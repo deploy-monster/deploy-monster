@@ -64,7 +64,7 @@ dockers:
 release:
   github:
     owner: deploy-monster
-    name: DeployMonster_GO
+    name: deploy-monster
   draft: false
   prerelease: auto
   name_template: "DeployMonster v{{.Version}}"
@@ -73,7 +73,7 @@ release:
 
     Self-hosted PaaS — single binary, zero configuration, production-ready.
   footer: |
-    **Full Changelog**: https://github.com/ersinkoc/DeployMonster_GO/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/deploy-monster/deploy-monster/compare/{{ .PreviousTag }}...{{ .Tag }}
 
     ---
     Built by [ECOSTACK TECHNOLOGY OÜ](https://ecostack.ee)
