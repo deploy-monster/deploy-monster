@@ -2,7 +2,7 @@
 
 > **Date**: 2026-03-25
 > **Version**: v1.3.0
-> **Repository**: github.com/Deploy-Monster/DeployMonster_GO
+> **Repository**: github.com/Deploy-Monster/deploy-monster
 
 ---
 
