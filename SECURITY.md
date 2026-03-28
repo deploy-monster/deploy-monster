@@ -13,7 +13,7 @@
 
 Instead, please report them via:
 - Email: security@ecostack.ee
-- GitHub Security Advisory: [Create advisory](https://github.com/deploy-monster/DeployMonster_GO/security/advisories/new)
+- GitHub Security Advisory: [Create advisory](https://github.com/Deploy-Monster/DeployMonster_GO/security/advisories/new)
 
 You should receive a response within 48 hours. If you don't, please follow up via email.
 
