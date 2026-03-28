@@ -3,7 +3,7 @@
 # Usage: curl -fsSL https://get.deploy.monster | bash
 set -euo pipefail
 
-REPO="ersinkoc/DeployMonster_GO"
+REPO="deploy-monster/DeployMonster_GO"
 INSTALL_DIR="/usr/local/bin"
 DATA_DIR="/var/lib/deploymonster"
 
