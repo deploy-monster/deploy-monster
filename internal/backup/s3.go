@@ -2,10 +2,13 @@ package backup
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -47,7 +50,10 @@ type S3Config struct {
 func NewS3Storage(cfg S3Config, logger *slog.Logger) *S3Storage {
 	endpoint := cfg.Endpoint
 	if endpoint == "" {
-		endpoint = fmt.Sprintf("https://s3.%s.amazonaws.com", cfg.Region)
+		endpoint = fmt.Sprintf("s3.%s.amazonaws.com", cfg.Region)
+	} else {
+		// Strip scheme for consistent URL building
+		endpoint = stripScheme(endpoint)
 	}
 
 	maxRetries := cfg.MaxRetries
@@ -79,6 +85,17 @@ func NewS3Storage(cfg S3Config, logger *slog.Logger) *S3Storage {
 }
 
 func (s *S3Storage) Name() string { return "s3" }
+
+// stripScheme removes http:// or https:// prefix from a URL.
+func stripScheme(endpoint string) string {
+	if strings.HasPrefix(endpoint, "https://") {
+		return strings.TrimPrefix(endpoint, "https://")
+	}
+	if strings.HasPrefix(endpoint, "http://") {
+		return strings.TrimPrefix(endpoint, "http://")
+	}
+	return endpoint
+}
 
 // retry executes an operation with exponential backoff.
 func (s *S3Storage) retry(ctx context.Context, op func() error) error {
@@ -203,14 +220,98 @@ func (s *S3Storage) Delete(ctx context.Context, key string) error {
 	})
 }
 
-func (s *S3Storage) List(_ context.Context, _ string) ([]core.BackupEntry, error) {
-	// S3 ListObjects would be implemented here with XML parsing
-	return nil, fmt.Errorf("S3 list not yet implemented")
+func (s *S3Storage) List(ctx context.Context, prefix string) ([]core.BackupEntry, error) {
+	var entries []core.BackupEntry
+
+	err := s.retry(ctx, func() error {
+		// Build ListObjects URL with query parameters
+		listURL := s.bucketURL()
+		if prefix != "" {
+			listURL = fmt.Sprintf("%s?prefix=%s&list-type=2", s.bucketURL(), url.QueryEscape(prefix))
+		} else {
+			listURL = fmt.Sprintf("%s?list-type=2", s.bucketURL())
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
+		if err != nil {
+			return fmt.Errorf("create list request: %w", err)
+		}
+
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("S3 list: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			return fmt.Errorf("S3 list failed: HTTP %d", resp.StatusCode)
+		}
+
+		// Parse S3 ListObjectsV2 XML response
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("read list response: %w", err)
+		}
+
+		var listResult s3ListResult
+		if err := xml.Unmarshal(body, &listResult); err != nil {
+			return fmt.Errorf("parse list response: %w", err)
+		}
+
+		for _, content := range listResult.Contents {
+			// Parse timestamp
+			modTime, _ := time.Parse(time.RFC3339, content.LastModified)
+
+			entries = append(entries, core.BackupEntry{
+				Key:       content.Key,
+				Size:      content.Size,
+				CreatedAt: modTime.Unix(),
+			})
+		}
+
+		if s.logger != nil {
+			s.logger.Debug("S3 list complete", "count", len(entries), "prefix", prefix)
+		}
+		return nil
+	})
+
+	return entries, err
+}
+
+// s3ListResult represents the S3 ListObjectsV2 XML response.
+type s3ListResult struct {
+	Name     string `xml:"Name"`
+	Prefix   string `xml:"Prefix"`
+	KeyCount int    `xml:"KeyCount"`
+	Contents []struct {
+		Key          string `xml:"Key"`
+		LastModified string `xml:"LastModified"`
+		Size         int64  `xml:"Size"`
+		ETag         string `xml:"ETag"`
+	} `xml:"Contents"`
+}
+
+// bucketURL returns the base URL for bucket operations (listing).
+func (s *S3Storage) bucketURL() string {
+	host := stripScheme(s.endpoint)
+	scheme := "https"
+	if strings.HasPrefix(s.endpoint, "http://") {
+		scheme = "http"
+	}
+	if s.pathStyle {
+		return fmt.Sprintf("%s://%s/%s", scheme, host, s.bucket)
+	}
+	return fmt.Sprintf("%s://%s.%s", scheme, s.bucket, host)
 }
 
 func (s *S3Storage) objectURL(key string) string {
-	if s.pathStyle {
-		return fmt.Sprintf("%s/%s/%s", s.endpoint, s.bucket, key)
+	host := stripScheme(s.endpoint)
+	scheme := "https"
+	if strings.HasPrefix(s.endpoint, "http://") {
+		scheme = "http"
 	}
-	return fmt.Sprintf("https://%s.%s/%s", s.bucket, s.endpoint, key)
+	if s.pathStyle {
+		return fmt.Sprintf("%s://%s/%s/%s", scheme, host, s.bucket, key)
+	}
+	return fmt.Sprintf("%s://%s.%s/%s", scheme, s.bucket, host, key)
 }

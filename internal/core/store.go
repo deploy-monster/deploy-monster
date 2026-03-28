@@ -167,6 +167,7 @@ type Application struct {
 	EnvVarsEnc string    `json:"-"`
 	LabelsJSON string    `json:"labels_json,omitempty"`
 	Replicas   int       `json:"replicas"`
+	Port       int       `json:"port"`
 	Status     string    `json:"status"`
 	ServerID   string    `json:"server_id,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`

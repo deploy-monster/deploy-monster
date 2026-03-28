@@ -81,20 +81,37 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 		r.runtime.Remove(ctx, oldContainerID, true)
 	}
 
+	// Get domains for routing labels
+	domains, _ := r.store.ListDomainsByApp(ctx, appID)
+	port := app.Port
+	if port <= 0 {
+		port = 80
+	}
+
+	// Build labels including routing labels
+	labels := map[string]string{
+		"monster.enable":         "true",
+		"monster.app.id":         appID,
+		"monster.app.name":       app.Name,
+		"monster.tenant":         app.TenantID,
+		"monster.deploy.version": fmt.Sprintf("%d", newVersion),
+		"monster.rollback.from":  fmt.Sprintf("%d", targetVersion),
+	}
+
+	// Add HTTP routing labels for each domain
+	for i, domain := range domains {
+		routerName := fmt.Sprintf("%s-%d", app.Name, i)
+		labels[fmt.Sprintf("monster.http.routers.%s.rule", routerName)] = fmt.Sprintf("Host(`%s`)", domain.FQDN)
+		labels[fmt.Sprintf("monster.http.services.%s.loadbalancer.server.port", routerName)] = fmt.Sprintf("%d", port)
+	}
+
 	// Start new container with old image
 	if r.runtime != nil {
 		containerName := fmt.Sprintf("monster-%s-%d", app.Name, newVersion)
 		containerID, err := r.runtime.CreateAndStart(ctx, core.ContainerOpts{
-			Name:  containerName,
-			Image: targetDeploy.Image,
-			Labels: map[string]string{
-				"monster.enable":         "true",
-				"monster.app.id":         appID,
-				"monster.app.name":       app.Name,
-				"monster.tenant":         app.TenantID,
-				"monster.deploy.version": fmt.Sprintf("%d", newVersion),
-				"monster.rollback.from":  fmt.Sprintf("%d", targetVersion),
-			},
+			Name:          containerName,
+			Image:         targetDeploy.Image,
+			Labels:        labels,
 			Network:       "monster-network",
 			RestartPolicy: "unless-stopped",
 		})

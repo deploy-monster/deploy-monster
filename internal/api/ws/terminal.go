@@ -4,10 +4,8 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
-	"sync"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -19,26 +17,17 @@ import (
 //  1. GET /api/v1/apps/{id}/terminal — SSE stream for stdout/logs
 //  2. POST /api/v1/apps/{id}/terminal — send stdin commands, get output back
 type Terminal struct {
-	runtime  core.ContainerRuntime
-	store    core.Store
-	logger   *slog.Logger
-	mu       sync.RWMutex
-	sessions map[string]*termSession
-}
-
-type termSession struct {
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	cancel context.CancelFunc
+	runtime core.ContainerRuntime
+	store   core.Store
+	logger  *slog.Logger
 }
 
 // NewTerminal creates a container terminal handler.
 func NewTerminal(runtime core.ContainerRuntime, store core.Store, logger *slog.Logger) *Terminal {
 	return &Terminal{
-		runtime:  runtime,
-		store:    store,
-		logger:   logger,
-		sessions: make(map[string]*termSession),
+		runtime: runtime,
+		store:   store,
+		logger:  logger,
 	}
 }
 

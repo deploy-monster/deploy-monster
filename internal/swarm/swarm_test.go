@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -1183,7 +1184,31 @@ func TestNewManager(t *testing.T) {
 	}
 }
 
+// skipIfNoDocker skips the test if Docker is not available.
+func skipIfNoDocker(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skip("docker not available")
+	}
+}
+
+// skipIfNoSwarm skips the test if Docker Swarm is not available.
+func skipIfNoSwarm(t *testing.T) {
+	t.Helper()
+	skipIfNoDocker(t)
+	// Check if swarm is available
+	output, err := exec.Command("docker", "info", "--format", "{{.Swarm.LocalNodeState}}").CombinedOutput()
+	if err != nil {
+		t.Skip("docker info failed")
+	}
+	state := strings.TrimSpace(string(output))
+	if state != "active" {
+		t.Skip("Docker Swarm is not active")
+	}
+}
+
 func TestManager_Init(t *testing.T) {
+	skipIfNoSwarm(t)
 	rt := &mockRuntime{}
 	m := NewManager(rt, nil, nil, testLogger())
 
@@ -1212,6 +1237,7 @@ func TestManager_Init_NoRuntime(t *testing.T) {
 }
 
 func TestManager_Join(t *testing.T) {
+	skipIfNoSwarm(t)
 	rt := &mockRuntime{}
 	m := NewManager(rt, nil, nil, testLogger())
 
@@ -1222,6 +1248,7 @@ func TestManager_Join(t *testing.T) {
 }
 
 func TestManager_Leave(t *testing.T) {
+	skipIfNoSwarm(t)
 	rt := &mockRuntime{}
 	m := NewManager(rt, nil, nil, testLogger())
 
@@ -1234,6 +1261,7 @@ func TestManager_Leave(t *testing.T) {
 }
 
 func TestManager_DeployService(t *testing.T) {
+	skipIfNoSwarm(t)
 	rt := &mockRuntime{}
 	m := NewManager(rt, nil, nil, testLogger())
 
@@ -1244,6 +1272,7 @@ func TestManager_DeployService(t *testing.T) {
 }
 
 func TestManager_ScaleService(t *testing.T) {
+	skipIfNoSwarm(t)
 	rt := &mockRuntime{}
 	m := NewManager(rt, nil, nil, testLogger())
 
@@ -1253,6 +1282,7 @@ func TestManager_ScaleService(t *testing.T) {
 }
 
 func TestManager_CreateOverlayNetwork(t *testing.T) {
+	skipIfNoSwarm(t)
 	rt := &mockRuntime{}
 	m := NewManager(rt, nil, nil, testLogger())
 

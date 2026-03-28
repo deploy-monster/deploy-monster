@@ -80,7 +80,7 @@ func (s *SQLiteDB) Tx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	}
 
 	if err := fn(tx); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return err
 	}
 	return tx.Commit()
@@ -117,7 +117,9 @@ func (s *SQLiteDB) migrate() error {
 
 		// Extract version number from filename: 0001_init.sql -> 1
 		var version int
-		fmt.Sscanf(entry.Name(), "%04d", &version)
+		if _, err := fmt.Sscanf(entry.Name(), "%04d", &version); err != nil {
+			continue
+		}
 
 		// Check if already applied
 		var count int

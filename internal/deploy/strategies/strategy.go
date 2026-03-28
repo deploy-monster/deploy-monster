@@ -35,6 +35,40 @@ func New(name string) Strategy {
 	}
 }
 
+// buildLabels creates container labels including HTTP routing labels from domains.
+func buildLabels(ctx context.Context, plan *DeployPlan) map[string]string {
+	labels := map[string]string{
+		"monster.enable":         "true",
+		"monster.app.id":         plan.App.ID,
+		"monster.app.name":       plan.App.Name,
+		"monster.tenant":         plan.App.TenantID,
+		"monster.deploy.version": fmt.Sprintf("%d", plan.Deployment.Version),
+	}
+
+	// Fetch domains for this app and add HTTP routing labels
+	if plan.Store != nil {
+		domains, err := plan.Store.ListDomainsByApp(ctx, plan.App.ID)
+		if err == nil && len(domains) > 0 {
+			// Get port from app or default to 80
+			port := plan.App.Port
+			if port <= 0 {
+				port = 80
+			}
+
+			// Add routing labels for each domain
+			for i, domain := range domains {
+				routerName := fmt.Sprintf("%s-%d", plan.App.Name, i)
+				// Host rule for routing
+				labels[fmt.Sprintf("monster.http.routers.%s.rule", routerName)] = fmt.Sprintf("Host(`%s`)", domain.FQDN)
+				// Backend port
+				labels[fmt.Sprintf("monster.http.services.%s.loadbalancer.server.port", routerName)] = fmt.Sprintf("%d", port)
+			}
+		}
+	}
+
+	return labels
+}
+
 // Recreate stops the old container, then starts the new one.
 // Simple but causes brief downtime.
 type Recreate struct{}
@@ -50,14 +84,8 @@ func (r *Recreate) Execute(ctx context.Context, plan *DeployPlan) error {
 		_ = plan.Runtime.Remove(ctx, plan.OldContainerID, true)
 	}
 
-	// 2. Start new container
-	labels := map[string]string{
-		"monster.enable":         "true",
-		"monster.app.id":         plan.App.ID,
-		"monster.app.name":       plan.App.Name,
-		"monster.tenant":         plan.App.TenantID,
-		"monster.deploy.version": fmt.Sprintf("%d", plan.Deployment.Version),
-	}
+	// 2. Start new container with routing labels
+	labels := buildLabels(ctx, plan)
 
 	containerName := fmt.Sprintf("monster-%s-%d", plan.App.Name, plan.Deployment.Version)
 	containerID, err := plan.Runtime.CreateAndStart(ctx, core.ContainerOpts{
@@ -82,14 +110,8 @@ type Rolling struct{}
 func (r *Rolling) Name() string { return "rolling" }
 
 func (r *Rolling) Execute(ctx context.Context, plan *DeployPlan) error {
-	// 1. Start new container (alongside old)
-	labels := map[string]string{
-		"monster.enable":         "true",
-		"monster.app.id":         plan.App.ID,
-		"monster.app.name":       plan.App.Name,
-		"monster.tenant":         plan.App.TenantID,
-		"monster.deploy.version": fmt.Sprintf("%d", plan.Deployment.Version),
-	}
+	// 1. Start new container (alongside old) with routing labels
+	labels := buildLabels(ctx, plan)
 
 	containerName := fmt.Sprintf("monster-%s-%d", plan.App.Name, plan.Deployment.Version)
 	containerID, err := plan.Runtime.CreateAndStart(ctx, core.ContainerOpts{

@@ -14,6 +14,7 @@ func TestNewAccessLogger(t *testing.T) {
 	if al == nil {
 		t.Fatal("expected non-nil AccessLogger")
 	}
+	// al is guaranteed non-nil after the Fatal check above
 	if al.logger != logger {
 		t.Error("expected logger to be set")
 	}

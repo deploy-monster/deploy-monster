@@ -23,7 +23,11 @@ func Compress(next http.Handler) http.Handler {
 			return
 		}
 
-		gz := gzPool.Get().(*gzip.Writer)
+		gz, ok := gzPool.Get().(*gzip.Writer)
+		if !ok || gz == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
 		defer gzPool.Put(gz)
 
 		gz.Reset(w)

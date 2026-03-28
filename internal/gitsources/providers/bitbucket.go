@@ -50,7 +50,7 @@ func (b *Bitbucket) ListRepos(ctx context.Context, page, perPage int) ([]core.Gi
 			IsPrivate bool `json:"is_private"`
 		} `json:"values"`
 	}
-	json.Unmarshal(body, &resp)
+	_ = json.Unmarshal(body, &resp)
 
 	repos := make([]core.GitRepo, len(resp.Values))
 	for i, r := range resp.Values {
@@ -81,7 +81,7 @@ func (b *Bitbucket) ListBranches(ctx context.Context, repoFullName string) ([]st
 			Name string `json:"name"`
 		} `json:"values"`
 	}
-	json.Unmarshal(body, &resp)
+	_ = json.Unmarshal(body, &resp)
 
 	branches := make([]string, len(resp.Values))
 	for i, br := range resp.Values {
@@ -140,7 +140,7 @@ func (b *Bitbucket) CreateWebhook(ctx context.Context, repoFullName, url, secret
 	var resp struct {
 		UUID string `json:"uuid"`
 	}
-	json.Unmarshal(body, &resp)
+	_ = json.Unmarshal(body, &resp)
 	return resp.UUID, nil
 }
 

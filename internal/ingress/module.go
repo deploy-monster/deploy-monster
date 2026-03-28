@@ -115,7 +115,7 @@ func (m *Module) Start(_ context.Context) error {
 func (m *Module) Stop(ctx context.Context) error {
 	var firstErr error
 	if m.httpServer != nil {
-		if err := m.httpServer.Shutdown(ctx); err != nil && firstErr == nil {
+		if err := m.httpServer.Shutdown(ctx); err != nil {
 			firstErr = err
 		}
 	}

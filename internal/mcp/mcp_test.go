@@ -45,6 +45,14 @@ func (m *mockStore) GetApp(_ context.Context, id string) (*core.Application, err
 	return nil, fmt.Errorf("app %q not found", id)
 }
 
+func (m *mockStore) CreateDomain(_ context.Context, _ *core.Domain) error {
+	return nil
+}
+
+func (m *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+	return nil, nil
+}
+
 // mockRuntime implements core.ContainerRuntime with only what's needed.
 type mockRuntime struct {
 	containers []core.ContainerInfo
@@ -458,29 +466,38 @@ func TestHandleToolCall_ViewLogs_LogsError(t *testing.T) {
 // =========================================================================
 
 func TestHandleToolCall_ComingSoonTools(t *testing.T) {
-	h := NewHandler(&mockStore{}, &mockRuntime{}, core.NewEventBus(discardLogger()), discardLogger())
+	// Set up mock store with an app for add_domain test
+	store := &mockStore{
+		app: &core.Application{ID: "app-123", Name: "test-app"},
+	}
+	h := NewHandler(store, &mockRuntime{}, core.NewEventBus(discardLogger()), discardLogger())
 
+	// These tools now provide guidance instead of "coming soon" placeholders
+	// They require valid input parameters
 	tests := []struct {
 		tool    string
+		input   string
 		keyword string
 	}{
-		{"create_database", "coming soon"},
-		{"add_domain", "coming soon"},
-		{"marketplace_deploy", "coming soon"},
-		{"provision_server", "coming soon"},
+		{"create_database", `{"engine":"postgres","name":"mydb"}`, "database"},
+		{"add_domain", `{"app_id":"app-123","fqdn":"example.com"}`, "domain"},
+		{"marketplace_deploy", `{"template_slug":"nginx","name":"my-nginx"}`, "marketplace"},
+		{"provision_server", `{"provider":"hetzner","name":"my-server"}`, "server"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.tool, func(t *testing.T) {
-			resp, err := h.HandleToolCall(context.Background(), tt.tool, nil)
+			resp, err := h.HandleToolCall(context.Background(), tt.tool, json.RawMessage(tt.input))
 			if err != nil {
 				t.Fatalf("HandleToolCall(%s) error = %v", tt.tool, err)
 			}
+			// These tools should not return errors with valid input
 			if resp.IsError {
-				t.Error("coming soon tools should not be error responses")
+				t.Errorf("tool %s returned error: %s", tt.tool, resp.Content[0].Text)
 			}
+			// Check that response contains expected keyword
 			if !strings.Contains(strings.ToLower(resp.Content[0].Text), tt.keyword) {
-				t.Errorf("response = %q, want %q", resp.Content[0].Text, tt.keyword)
+				t.Errorf("response = %q, want keyword %q", resp.Content[0].Text, tt.keyword)
 			}
 		})
 	}

@@ -528,7 +528,8 @@ func TestNewS3Storage_CustomEndpoint(t *testing.T) {
 		PathStyle: true,
 	}, testLogger())
 
-	if s.endpoint != "https://minio.local:9000" {
+	// Endpoint is stored without scheme for consistent URL building
+	if s.endpoint != "minio.local:9000" {
 		t.Errorf("endpoint = %q, want custom endpoint", s.endpoint)
 	}
 	if s.bucket != "backups" {
@@ -548,7 +549,8 @@ func TestNewS3Storage_DefaultEndpoint(t *testing.T) {
 		SecretKey: "sk",
 	}, testLogger())
 
-	expected := "https://s3.eu-west-1.amazonaws.com"
+	// Endpoint is stored without scheme for consistent URL building
+	expected := "s3.eu-west-1.amazonaws.com"
 	if s.endpoint != expected {
 		t.Errorf("endpoint = %q, want %q", s.endpoint, expected)
 	}
@@ -764,9 +766,10 @@ func TestS3Storage_List_ReturnsError(t *testing.T) {
 	s := NewS3Storage(S3Config{Bucket: "b", Region: "r"}, testLogger())
 	_, err := s.List(context.Background(), "prefix")
 	if err == nil {
-		t.Fatal("List() expected error (not yet implemented)")
+		t.Fatal("List() expected error (no S3 server available)")
 	}
-	if !strings.Contains(err.Error(), "not yet implemented") {
+	// Should get a network/connection error since no real S3 endpoint exists
+	if !strings.Contains(err.Error(), "S3") && !strings.Contains(err.Error(), "connection") && !strings.Contains(err.Error(), "lookup") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }

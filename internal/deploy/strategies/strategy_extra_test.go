@@ -81,6 +81,231 @@ func (m *mockRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error)
 
 func (m *mockRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) { return nil, nil }
 
+// mockStore implements core.Store for testing
+type mockStore struct {
+    domains []core.Domain
+}
+
+func (m *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+    return m.domains, nil
+}
+
+func (m *mockStore) CreateApp(_ context.Context, _ *core.Application) error {
+    return nil
+}
+
+func (m *mockStore) GetApp(_ context.Context, _ string) (*core.Application, error) {
+    return nil, nil
+}
+
+func (m *mockStore) UpdateApp(_ context.Context, _ *core.Application) error {
+    return nil
+}
+
+func (m *mockStore) DeleteApp(_ context.Context, _ string) error {
+    return nil
+}
+
+func (m *mockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
+    return nil, nil
+}
+
+func (m *mockStore) ListAppsByTenant(_ context.Context, _ string, _ int, _ int) ([]core.Application, int, error) {
+    return nil, 0, nil
+}
+
+func (m *mockStore) ListAllApps(_ context.Context) ([]core.Application, error) {
+    return nil, nil
+}
+
+func (m *mockStore) UpdateAppStatus(_ context.Context, _, _ string) error {
+    return nil
+}
+
+func (m *mockStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
+    return nil, nil
+}
+
+func (m *mockStore) CreateDeployment(_ context.Context, _ *core.Deployment) error {
+    return nil
+}
+
+func (m *mockStore) GetDeployment(_ context.Context, _ string) (*core.Deployment, error) {
+    return nil, nil
+}
+
+func (m *mockStore) UpdateDeployment(_ context.Context, _ *core.Deployment) error {
+    return nil
+}
+
+func (m *mockStore) ListDeploymentsByApp(_ context.Context, _ string, _ int) ([]core.Deployment, error) {
+    return nil, nil
+}
+
+func (m *mockStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) {
+    return nil, nil
+}
+
+func (m *mockStore) GetNextDeployVersion(_ context.Context, _ string) (int, error) {
+    return 1, nil
+}
+
+func (m *mockStore) CreateProject(_ context.Context, _ *core.Project) error {
+    return nil
+}
+
+func (m *mockStore) GetProject(_ context.Context, _ string) (*core.Project, error) {
+    return nil, nil
+}
+
+func (m *mockStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Project, error) {
+    return nil, nil
+}
+
+func (m *mockStore) DeleteProject(_ context.Context, _ string) error {
+    return nil
+}
+
+func (m *mockStore) CreateTenantWithDefaults(_ context.Context, _ string, _ string) (string, error) {
+    return "", nil
+}
+
+func (m *mockStore) CreateTenant(_ context.Context, _ *core.Tenant) error {
+    return nil
+}
+
+func (m *mockStore) GetTenant(_ context.Context, _ string) (*core.Tenant, error) {
+    return nil, nil
+}
+
+func (m *mockStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, error) {
+    return nil, nil
+}
+
+func (m *mockStore) UpdateTenant(_ context.Context, _ *core.Tenant) error {
+    return nil
+}
+
+func (m *mockStore) DeleteTenant(_ context.Context, _ string) error {
+    return nil
+}
+
+func (m *mockStore) ListAllTenants(_ context.Context, _ int, _ int) ([]core.Tenant, int, error) {
+    return nil, 0, nil
+}
+
+func (m *mockStore) CreateDomain(_ context.Context, _ *core.Domain) error {
+    return nil
+}
+
+func (m *mockStore) GetDomain(_ context.Context, _ string) (*core.Domain, error) {
+    return nil, nil
+}
+
+func (m *mockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
+    return nil, nil
+}
+
+func (m *mockStore) UpdateDomain(_ context.Context, _ *core.Domain) error {
+    return nil
+}
+
+func (m *mockStore) DeleteDomain(_ context.Context, _ string) error {
+    return nil
+}
+
+func (m *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
+    return nil, nil
+}
+
+func (m *mockStore) CreateSecret(_ context.Context, _ *core.Secret) error {
+    return nil
+}
+
+func (m *mockStore) CreateSecretVersion(_ context.Context, _ *core.SecretVersion) error {
+    return nil
+}
+
+func (m *mockStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) {
+    return nil, nil
+}
+
+func (m *mockStore) GetSecretByScopeAndName(_ context.Context, _, _ string) (*core.Secret, error) {
+    return nil, nil
+}
+
+func (m *mockStore) GetLatestSecretVersion(_ context.Context, _ string) (*core.SecretVersion, error) {
+    return nil, nil
+}
+
+func (m *mockStore) CreateUser(_ context.Context, _ *core.User) error {
+    return nil
+}
+
+func (m *mockStore) GetUser(_ context.Context, _ string) (*core.User, error) {
+    return nil, nil
+}
+
+func (m *mockStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) {
+    return nil, nil
+}
+
+func (m *mockStore) UpdateUser(_ context.Context, _ *core.User) error {
+    return nil
+}
+
+func (m *mockStore) UpdatePassword(_ context.Context, _, _ string) error {
+    return nil
+}
+
+func (m *mockStore) UpdateLastLogin(_ context.Context, _ string) error {
+    return nil
+}
+
+func (m *mockStore) CountUsers(_ context.Context) (int, error) {
+    return 0, nil
+}
+
+func (m *mockStore) CreateUserWithMembership(_ context.Context, _, _, _, _, _, _ string) (string, error) {
+    return "", nil
+}
+
+func (m *mockStore) GetUserMembership(_ context.Context, _ string) (*core.TeamMember, error) {
+    return nil, nil
+}
+
+func (m *mockStore) ListRoles(_ context.Context, _ string) ([]core.Role, error) {
+    return nil, nil
+}
+
+func (m *mockStore) GetRole(_ context.Context, _ string) (*core.Role, error) {
+    return nil, nil
+}
+
+func (m *mockStore) CreateAuditLog(_ context.Context, _ *core.AuditEntry) error {
+    return nil
+}
+
+func (m *mockStore) ListAuditLogs(_ context.Context, _ string, _ int, _ int) ([]core.AuditEntry, int, error) {
+    return nil, 0, nil
+}
+
+func (m *mockStore) CreateInvite(_ context.Context, _ *core.Invitation) error {
+    return nil
+}
+
+func (m *mockStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Invitation, error) {
+    return nil, nil
+}
+
+func (m *mockStore) Close() error {
+    return nil
+}
+
+func (m *mockStore) Ping(_ context.Context) error {
+    return nil
+}
+
 func TestRecreate_Name(t *testing.T) {
 	r := &Recreate{}
 	if got := r.Name(); got != "recreate" {
@@ -154,6 +379,7 @@ func TestRecreate_Execute_NoOldContainer(t *testing.T) {
 		NewImage:       "nginx:latest",
 		OldContainerID: "",
 		Runtime:        runtime,
+		Store:          &mockStore{},
 	}
 
 	recreate := &Recreate{}

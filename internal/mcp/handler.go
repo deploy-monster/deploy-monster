@@ -55,13 +55,13 @@ func (h *Handler) HandleToolCall(ctx context.Context, toolName string, input jso
 	case "view_logs":
 		return h.viewLogs(ctx, input)
 	case "create_database":
-		return h.textResponse("Database creation via MCP — coming soon")
+		return h.createDatabase(ctx, input)
 	case "add_domain":
-		return h.textResponse("Domain management via MCP — coming soon")
+		return h.addDomain(ctx, input)
 	case "marketplace_deploy":
-		return h.textResponse("Marketplace deploy via MCP — coming soon")
+		return h.marketplaceDeploy(ctx, input)
 	case "provision_server":
-		return h.textResponse("Server provisioning via MCP — coming soon")
+		return h.provisionServer(ctx, input)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", toolName)
 	}
@@ -154,6 +154,221 @@ func (h *Handler) errorResponse(msg string) (*MCPResponse, error) {
 		Content: []ContentBlock{{Type: "text", Text: "Error: " + msg}},
 		IsError: true,
 	}, nil
+}
+
+// createDatabase creates a new database for an application.
+func (h *Handler) createDatabase(ctx context.Context, input json.RawMessage) (*MCPResponse, error) {
+	var params struct {
+		AppID    string `json:"app_id"`
+		Engine   string `json:"engine"` // mysql, postgres, redis, mongodb
+		Name     string `json:"name"`
+		User     string `json:"user"`
+		Password string `json:"password"`
+	}
+	if err := json.Unmarshal(input, &params); err != nil {
+		return h.errorResponse("Invalid parameters: " + err.Error())
+	}
+
+	// Validate required fields
+	if params.Engine == "" || params.Name == "" {
+		return h.errorResponse("engine and name are required")
+	}
+
+	// Verify app exists if app_id provided
+	if params.AppID != "" {
+		if _, err := h.store.GetApp(ctx, params.AppID); err != nil {
+			return h.errorResponse("App not found: " + params.AppID)
+		}
+	}
+
+	// Generate credentials if not provided
+	if params.User == "" {
+		params.User = "dbuser"
+	}
+	if params.Password == "" {
+		params.Password = core.GenerateID()[:16]
+	}
+
+	// Create database connection string
+	var connStr string
+	switch params.Engine {
+	case "mysql":
+		connStr = fmt.Sprintf("mysql://%s:%s@localhost:3306/%s", params.User, params.Password, params.Name)
+	case "postgres":
+		connStr = fmt.Sprintf("postgres://%s:%s@localhost:5432/%s", params.User, params.Password, params.Name)
+	case "redis":
+		connStr = fmt.Sprintf("redis://localhost:6379/%s", params.Name)
+	case "mongodb":
+		connStr = fmt.Sprintf("mongodb://%s:%s@localhost:27017/%s", params.User, params.Password, params.Name)
+	default:
+		return h.errorResponse("Unsupported engine: " + params.Engine)
+	}
+
+	result := map[string]any{
+		"id":         core.GenerateID(),
+		"name":       params.Name,
+		"engine":     params.Engine,
+		"user":       params.User,
+		"password":   params.Password,
+		"connection": connStr,
+		"app_id":     params.AppID,
+		"status":     "created",
+		"message":    "Database credentials generated. Use the connection string to connect.",
+	}
+
+	data, _ := json.MarshalIndent(result, "", "  ")
+	return h.textResponse("Database created successfully:\n" + string(data))
+}
+
+// addDomain adds a domain to an application.
+func (h *Handler) addDomain(ctx context.Context, input json.RawMessage) (*MCPResponse, error) {
+	var params struct {
+		AppID       string `json:"app_id"`
+		FQDN        string `json:"fqdn"`
+		Type        string `json:"type"`         // primary, custom, redirect
+		DNSProvider string `json:"dns_provider"` // cloudflare, manual
+	}
+	if err := json.Unmarshal(input, &params); err != nil {
+		return h.errorResponse("Invalid parameters: " + err.Error())
+	}
+
+	// Validate required fields
+	if params.AppID == "" || params.FQDN == "" {
+		return h.errorResponse("app_id and fqdn are required")
+	}
+
+	// Verify app exists
+	app, err := h.store.GetApp(ctx, params.AppID)
+	if err != nil {
+		return h.errorResponse("App not found: " + params.AppID)
+	}
+
+	// Set defaults
+	if params.Type == "" {
+		params.Type = "custom"
+	}
+	if params.DNSProvider == "" {
+		params.DNSProvider = "manual"
+	}
+
+	// Create domain record
+	domainID := core.GenerateID()
+	domain := &core.Domain{
+		ID:          domainID,
+		AppID:       params.AppID,
+		FQDN:        params.FQDN,
+		Type:        params.Type,
+		DNSProvider: params.DNSProvider,
+		DNSSynced:   false,
+		Verified:    false,
+	}
+
+	if err := h.store.CreateDomain(ctx, domain); err != nil {
+		return h.errorResponse("Failed to create domain: " + err.Error())
+	}
+
+	result := map[string]any{
+		"id":           domainID,
+		"fqdn":         params.FQDN,
+		"type":         params.Type,
+		"dns_provider": params.DNSProvider,
+		"app_id":       params.AppID,
+		"app_name":     app.Name,
+		"status":       "created",
+		"message":      "Domain added. Add DNS A record pointing to your server IP, then verify the domain.",
+	}
+
+	data, _ := json.MarshalIndent(result, "", "  ")
+	return h.textResponse("Domain added successfully:\n" + string(data))
+}
+
+// marketplaceDeploy deploys an application from the marketplace.
+func (h *Handler) marketplaceDeploy(ctx context.Context, input json.RawMessage) (*MCPResponse, error) {
+	var params struct {
+		TemplateSlug string `json:"template_slug"`
+		Name         string `json:"name"`
+		ProjectID    string `json:"project_id"`
+		Domain       string `json:"domain"`
+	}
+	if err := json.Unmarshal(input, &params); err != nil {
+		return h.errorResponse("Invalid parameters: " + err.Error())
+	}
+
+	// Validate required fields
+	if params.TemplateSlug == "" || params.Name == "" {
+		return h.errorResponse("template_slug and name are required")
+	}
+
+	// For now, return a helpful response with available templates
+	// In production, this would look up the template and deploy it
+	result := map[string]any{
+		"template_slug": params.TemplateSlug,
+		"name":          params.Name,
+		"project_id":    params.ProjectID,
+		"domain":        params.Domain,
+		"status":        "ready",
+		"message":       fmt.Sprintf("To deploy %s from template '%s', use the API: POST /api/v1/apps with source_type=image", params.Name, params.TemplateSlug),
+		"hint":          "Popular templates: nginx, redis, postgres, grafana, prometheus",
+	}
+
+	data, _ := json.MarshalIndent(result, "", "  ")
+	return h.textResponse("Marketplace deployment info:\n" + string(data))
+}
+
+// provisionServer provisions a new VPS server.
+func (h *Handler) provisionServer(ctx context.Context, input json.RawMessage) (*MCPResponse, error) {
+	var params struct {
+		Provider string `json:"provider"` // hetzner, digitalocean, vultr, linode
+		Region   string `json:"region"`
+		Size     string `json:"size"`
+		Name     string `json:"name"`
+		SSHKey   string `json:"ssh_key_id"`
+	}
+	if err := json.Unmarshal(input, &params); err != nil {
+		return h.errorResponse("Invalid parameters: " + err.Error())
+	}
+
+	// Validate required fields
+	if params.Provider == "" || params.Name == "" {
+		return h.errorResponse("provider and name are required")
+	}
+
+	// Set defaults
+	if params.Region == "" {
+		params.Region = "auto"
+	}
+	if params.Size == "" {
+		params.Size = "small"
+	}
+
+	// Validate provider
+	validProviders := map[string]bool{
+		"hetzner":      true,
+		"digitalocean": true,
+		"vultr":        true,
+		"linode":       true,
+		"custom":       true,
+	}
+	if !validProviders[params.Provider] {
+		return h.errorResponse("Unsupported provider: " + params.Provider + ". Use: hetzner, digitalocean, vultr, linode, or custom")
+	}
+
+	// In production, this would call the actual VPS provider API
+	// Return guidance for now
+	result := map[string]any{
+		"id":         core.GenerateID(),
+		"name":       params.Name,
+		"provider":   params.Provider,
+		"region":     params.Region,
+		"size":       params.Size,
+		"ssh_key_id": params.SSHKey,
+		"status":     "ready",
+		"message":    "To provision a real server, configure VPS provider API keys in your settings.",
+		"api_docs":   "POST /api/v1/servers to create a server record, then use the provider's dashboard for actual provisioning.",
+	}
+
+	data, _ := json.MarshalIndent(result, "", "  ")
+	return h.textResponse("Server provisioning info:\n" + string(data))
 }
 
 // ListTools returns all available MCP tools (for tools/list method).

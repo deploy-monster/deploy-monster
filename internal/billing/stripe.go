@@ -150,7 +150,7 @@ func (s *StripeClient) post(ctx context.Context, path string, params url.Values,
 				Message string `json:"message"`
 			} `json:"error"`
 		}
-		json.Unmarshal(body, &errResp)
+		_ = json.Unmarshal(body, &errResp)
 		return fmt.Errorf("stripe %s: %s", path, errResp.Error.Message)
 	}
 

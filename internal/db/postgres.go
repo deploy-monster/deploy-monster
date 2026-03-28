@@ -356,7 +356,7 @@ func (p *PostgresDB) CreateUserWithMembership(ctx context.Context, email, passwo
 	if err != nil {
 		return "", fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO users (id, email, password_hash, name, status) VALUES ($1, $2, $3, $4, $5)`,
@@ -709,7 +709,7 @@ func (p *PostgresDB) CreateTenantWithDefaults(ctx context.Context, name, slug st
 	if err != nil {
 		return "", fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO tenants (id, name, slug, status) VALUES ($1, $2, $3, 'active')`,

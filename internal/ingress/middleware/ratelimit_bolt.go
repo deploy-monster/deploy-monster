@@ -55,7 +55,7 @@ func (rl *PersistentRateLimiter) Middleware(next http.Handler) http.Handler {
 				Count:   1,
 				ResetAt: now + int64(rl.window.Seconds()),
 			}
-			rl.bolt.Set(rl.bucket, key, entry, int64(rl.window.Seconds()))
+			_ = rl.bolt.Set(rl.bucket, key, entry, int64(rl.window.Seconds()))
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -70,7 +70,7 @@ func (rl *PersistentRateLimiter) Middleware(next http.Handler) http.Handler {
 		}
 
 		entry.Count++
-		rl.bolt.Set(rl.bucket, key, entry, int64(rl.window.Seconds()))
+		_ = rl.bolt.Set(rl.bucket, key, entry, int64(rl.window.Seconds()))
 
 		next.ServeHTTP(w, r)
 	})

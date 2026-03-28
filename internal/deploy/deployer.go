@@ -54,15 +54,8 @@ func (d *Deployer) DeployImage(ctx context.Context, app *core.Application, image
 	// Update app status
 	d.store.UpdateAppStatus(ctx, app.ID, "deploying")
 
-	// Build container labels
-	labels := map[string]string{
-		"monster.enable":         "true",
-		"monster.app.id":         app.ID,
-		"monster.app.name":       app.Name,
-		"monster.project":        app.ProjectID,
-		"monster.tenant":         app.TenantID,
-		"monster.deploy.version": fmt.Sprintf("%d", version),
-	}
+	// Build container labels with HTTP routing labels from domains
+	labels := d.buildLabels(ctx, app, version)
 
 	// Create and start container via core.ContainerRuntime interface
 	containerName := fmt.Sprintf("monster-%s-%d", app.Name, version)
@@ -101,4 +94,37 @@ func (d *Deployer) DeployImage(ctx context.Context, app *core.Application, image
 	))
 
 	return deployment, nil
+}
+
+// buildLabels creates container labels including HTTP routing labels from domains.
+func (d *Deployer) buildLabels(ctx context.Context, app *core.Application, version int) map[string]string {
+	labels := map[string]string{
+		"monster.enable":         "true",
+		"monster.app.id":         app.ID,
+		"monster.app.name":       app.Name,
+		"monster.project":        app.ProjectID,
+		"monster.tenant":         app.TenantID,
+		"monster.deploy.version": fmt.Sprintf("%d", version),
+	}
+
+	// Fetch domains for this app and add HTTP routing labels
+	domains, err := d.store.ListDomainsByApp(ctx, app.ID)
+	if err == nil && len(domains) > 0 {
+		// Get port from app or default to 80
+		port := app.Port
+		if port <= 0 {
+			port = 80
+		}
+
+		// Add routing labels for each domain
+		for i, domain := range domains {
+			routerName := fmt.Sprintf("%s-%d", app.Name, i)
+			// Host rule for routing
+			labels[fmt.Sprintf("monster.http.routers.%s.rule", routerName)] = fmt.Sprintf("Host(`%s`)", domain.FQDN)
+			// Backend port
+			labels[fmt.Sprintf("monster.http.services.%s.loadbalancer.server.port", routerName)] = fmt.Sprintf("%d", port)
+		}
+	}
+
+	return labels
 }

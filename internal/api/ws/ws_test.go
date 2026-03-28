@@ -101,6 +101,7 @@ func TestNewLogStreamer(t *testing.T) {
 	if ls == nil {
 		t.Fatal("NewLogStreamer() returned nil")
 	}
+	// ls is guaranteed non-nil after Fatal
 	if ls.runtime == nil {
 		t.Error("runtime not set")
 	}
@@ -281,6 +282,7 @@ func TestNewEventStreamer(t *testing.T) {
 	if es == nil {
 		t.Fatal("NewEventStreamer() returned nil")
 	}
+	// es is guaranteed non-nil after Fatal
 	if es.events == nil {
 		t.Error("events not set")
 	}
@@ -444,6 +446,7 @@ func TestNewTerminal(t *testing.T) {
 	if term == nil {
 		t.Fatal("NewTerminal() returned nil")
 	}
+	// term is guaranteed non-nil after Fatal
 	if term.runtime == nil {
 		t.Error("runtime not set")
 	}
@@ -452,9 +455,6 @@ func TestNewTerminal(t *testing.T) {
 	}
 	if term.logger == nil {
 		t.Error("logger not set")
-	}
-	if term.sessions == nil {
-		t.Error("sessions map not initialized")
 	}
 }
 

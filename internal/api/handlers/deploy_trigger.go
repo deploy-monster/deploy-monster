@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -18,6 +19,39 @@ type DeployTriggerHandler struct {
 
 func NewDeployTriggerHandler(store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *DeployTriggerHandler {
 	return &DeployTriggerHandler{store: store, runtime: runtime, events: events}
+}
+
+// buildDeployLabels creates container labels including HTTP routing labels from domains.
+func (h *DeployTriggerHandler) buildDeployLabels(ctx context.Context, app *core.Application, version int) map[string]string {
+	labels := map[string]string{
+		"monster.enable":         "true",
+		"monster.app.id":         app.ID,
+		"monster.app.name":       app.Name,
+		"monster.project":        app.ProjectID,
+		"monster.tenant":         app.TenantID,
+		"monster.deploy.version": fmt.Sprintf("%d", version),
+	}
+
+	// Fetch domains for this app and add HTTP routing labels
+	domains, err := h.store.ListDomainsByApp(ctx, app.ID)
+	if err == nil && len(domains) > 0 {
+		// Get port from app or default to 80
+		port := app.Port
+		if port <= 0 {
+			port = 80
+		}
+
+		// Add routing labels for each domain
+		for i, domain := range domains {
+			routerName := fmt.Sprintf("%s-%d", app.Name, i)
+			// Host rule for routing
+			labels[fmt.Sprintf("monster.http.routers.%s.rule", routerName)] = fmt.Sprintf("Host(`%s`)", domain.FQDN)
+			// Backend port
+			labels[fmt.Sprintf("monster.http.services.%s.loadbalancer.server.port", routerName)] = fmt.Sprintf("%d", port)
+		}
+	}
+
+	return labels
 }
 
 // TriggerDeploy handles POST /api/v1/apps/{id}/deploy
@@ -47,16 +81,14 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 		h.store.CreateDeployment(r.Context(), dep)
 
 		if h.runtime != nil {
-			containerName := app.Name + "-" + core.GenerateID()[:6]
+			// Build labels with HTTP routing from domains
+			labels := h.buildDeployLabels(r.Context(), app, version)
+
+			containerName := fmt.Sprintf("monster-%s-%d", app.Name, version)
 			containerID, err := h.runtime.CreateAndStart(r.Context(), core.ContainerOpts{
-				Name:  containerName,
-				Image: app.SourceURL,
-				Labels: map[string]string{
-					"monster.enable":   "true",
-					"monster.app.id":   appID,
-					"monster.app.name": app.Name,
-					"monster.tenant":   app.TenantID,
-				},
+				Name:          containerName,
+				Image:         app.SourceURL,
+				Labels:        labels,
 				Network:       "monster-network",
 				RestartPolicy: "unless-stopped",
 			})

@@ -150,13 +150,17 @@ func parseMemory(s string) int64 {
 	if strings.HasSuffix(s, "g") || strings.HasSuffix(s, "gb") {
 		s = strings.TrimRight(s, "gb")
 		var val float64
-		fmt.Sscanf(s, "%f", &val)
+		if _, err := fmt.Sscanf(s, "%f", &val); err != nil {
+			return 0
+		}
 		return int64(val * 1024)
 	}
 	if strings.HasSuffix(s, "m") || strings.HasSuffix(s, "mb") {
 		s = strings.TrimRight(s, "mb")
 		var val int64
-		fmt.Sscanf(s, "%d", &val)
+		if _, err := fmt.Sscanf(s, "%d", &val); err != nil {
+			return 0
+		}
 		return val
 	}
 	return 0
