@@ -37,6 +37,11 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	m.registry = NewTemplateRegistry()
 	m.registry.LoadBuiltins()
 
+	// Load additional templates for 100+ total
+	for _, t := range GetMoreTemplates100() {
+		m.registry.Add(t)
+	}
+
 	return nil
 }
 
