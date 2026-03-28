@@ -2,6 +2,45 @@
 
 All notable changes to DeployMonster will be documented in this file.
 
+## [1.5.0] - 2026-03-29
+
+### Highlights
+- **116 marketplace templates** — 60+ new apps added (Grafana, Keycloak, Home Assistant, etc.)
+- **Repository migrated** to `github.com/deploy-monster/deploy-monster`
+- **Competitive positioning** — Full comparison table vs Coolify, Dokploy, CapRover, Railway
+- **Admin roles documentation** — System Admin vs Client Admin clarified
+
+### Added
+- 60+ marketplace templates across 15 categories
+- Competitive comparison table in README
+- Multi-tenancy documentation with admin role examples
+- System Admin vs Client Admin role distinction
+
+### Changed
+- Repository URL: `github.com/deploy-monster/deploy-monster`
+- GoReleaser config updated for new org
+- Docker image: `ghcr.io/deploy-monster/deploymonster`
+- All documentation URLs updated
+
+### Categories (New Templates)
+- **CMS**: Drupal, Strapi, Payload CMS
+- **E-commerce**: Medusa, PrestaShop, Sylius
+- **Monitoring**: Grafana, Prometheus, Loki, Tempo, Jaeger, cAdvisor
+- **Communication**: Matrix Synapse, Rocket.Chat, Mattermost, Zulip
+- **Media**: Jellyfin, Immich, Navidrome, PhotoPrism, Audiobookshelf
+- **Productivity**: Paperless-NGX, BookStack, Wiki.js, Outline, NocoDB, Baserow
+- **Security**: Keycloak, Authentik, Authelia, Portainer
+- **AI/ML**: Open WebUI, LocalAI, Stable Diffusion
+- **Automation**: Node-RED, ActivePieces, Huginn, Trigger.dev
+- **DevTools**: GitLab CE, Gogs, Drone CI, Woodpecker CI, IT Tools
+- **Storage**: Seafile, File Browser, ProjectSend
+- **Analytics**: Umami, Matomo
+- **Finance**: Actual Budget, Ghostfolio
+- **IoT**: Home Assistant
+- **Design**: Penpot
+
+---
+
 ## [1.4.0] - 2026-03-27
 
 ### Highlights
