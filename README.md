@@ -8,7 +8,7 @@ Self-hosted PaaS that transforms any VPS into a full deployment platform.
 
 Single binary · Zero dependencies · Production-ready in 60 seconds
 
-[![GitHub Repo](https://img.shields.io/badge/GitHub-Deploy--Monster/DeployMonster_GO-181717?logo=github)](https://github.com/Deploy-Monster/DeployMonster_GO)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-deploy--monster%2Fdeploy--monster-181717?logo=github)](https://github.com/deploy-monster/deploy-monster)
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
@@ -238,6 +238,6 @@ Commercial licensing available for enterprise use.
 
 **[deploy.monster](https://deploy.monster)** · **[deploymonster.com](https://deploymonster.com)**
 
-[GitHub](https://github.com/Deploy-Monster/DeployMonster_GO) · [Discord](https://discord.gg/deploymonster)
+[GitHub](https://github.com/deploy-monster/deploy-monster) · [Discord](https://discord.gg/deploymonster)
 
 </div>

@@ -20,7 +20,7 @@ curl -fsSL https://get.deploy.monster | bash
 
 ```bash
 # Linux (amd64)
-wget https://github.com/Deploy-Monster/DeployMonster_GO/releases/latest/download/deploymonster_linux_amd64.tar.gz
+wget https://github.com/deploy-monster/deploy-monster/releases/latest/download/deploymonster_linux_amd64.tar.gz
 tar xzf deploymonster_linux_amd64.tar.gz
 sudo mv deploymonster /usr/local/bin/
 ```
@@ -39,7 +39,7 @@ docker run -d \
 ### Option 4: Build from Source
 
 ```bash
-git clone https://github.com/Deploy-Monster/DeployMonster_GO.git
+git clone https://github.com/deploy-monster/deploy-monster.git
 cd deploy-monster
 bash scripts/build.sh
 ./bin/deploymonster

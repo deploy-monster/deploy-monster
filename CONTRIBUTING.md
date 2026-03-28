@@ -13,7 +13,7 @@ Thank you for your interest in contributing!
 
 ```bash
 # Clone the repository
-git clone https://github.com/Deploy-Monster/DeployMonster_GO.git
+git clone https://github.com/deploy-monster/deploy-monster.git
 cd DeployMonster_GO
 
 # Install Go dependencies
