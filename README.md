@@ -2,21 +2,43 @@
 
 <div align="center">
 
-**Tame Your Deployments**
+**Self-Hosted PaaS — Beyond Coolify, Dokploy, CapRover**
 
-Self-hosted PaaS that transforms any VPS into a full deployment platform.
+Transform any VPS into a production-ready deployment platform in 60 seconds.
 
-Single binary · Zero dependencies · Production-ready in 60 seconds
+Single binary · Zero dependencies · 97% test coverage
 
-[![GitHub Repo](https://img.shields.io/badge/GitHub-deploy--monster%2Fdeploy--monster-181717?logo=github)](https://github.com/deploy-monster/deploy-monster)
-[![Go 1.26+](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
-[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-deploy--monster%2Fdeploy--monster-181717?logo=github)](https://github.com/deploy-monster/deploy-monster)
+[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Coverage](https://img.shields.io/badge/Coverage-97%25-brightgreen)](.)
 
-[🌐 deploy.monster](https://deploy.monster) · [📚 Documentation](docs/) · [🎮 Demo](https://deploy.monster/demo) · [💬 Discord](https://discord.gg/deploymonster)
+[🌐 Website](https://deploy.monster) · [📚 Docs](docs/) · [💬 Discord](https://discord.gg/deploymonster)
 
 </div>
+
+---
+
+## DeployMonster vs Competitors
+
+| Feature | DeployMonster | Coolify | Dokploy | CapRover | Railway |
+|---------|:-------------:|:-------:|:-------:|:--------:|:-------:|
+| **Single Binary** | ✅ 22MB | ❌ 5+ containers | ❌ Docker Compose | ❌ Docker stack | ❌ SaaS only |
+| **Resource Usage** | ~100MB RAM | ~500MB+ RAM | ~400MB+ RAM | ~300MB+ RAM | N/A |
+| **Setup Time** | 60 seconds | 5-10 minutes | 3-5 minutes | 5-10 minutes | N/A |
+| **Billing System** | ✅ Built-in | ❌ None | ❌ None | ❌ None | ✅ |
+| **Multi-Tenancy** | ✅ Full RBAC | ❌ Single user | ⚠️ Basic | ⚠️ Basic | ✅ |
+| **AI Integration** | ✅ MCP Server | ❌ None | ❌ None | ❌ None | ❌ None |
+| **Modern UI** | ✅ React 19 | ⚠️ Livewire | ⚠️ Next.js 14 | ❌ AngularJS | ✅ |
+| **Auto SSL** | ✅ Built-in | ✅ Traefik | ✅ Traefik | ✅ Nginx | ✅ |
+| **Git Integration** | ✅ 4 providers | ✅ 3 providers | ✅ 3 providers | ✅ 2 providers | ✅ |
+| **Database Managed** | ✅ 5 engines | ✅ 3 engines | ✅ 3 engines | ⚠️ Manual | ✅ |
+| **VPS Provisioning** | ✅ 4 providers | ❌ None | ❌ None | ❌ None | ❌ None |
+| **Master/Agent** | ✅ Same binary | ❌ None | ❌ None | ⚠️ Separate | ❌ None |
+| **Self-Hosted** | ✅ Forever | ✅ | ✅ | ✅ | ❌ |
+
+**Bottom line:** DeployMonster is the only self-hosted PaaS with built-in billing, multi-tenancy, AI integration, and VPS provisioning — all in a single binary.
 
 ---
 
@@ -34,57 +56,57 @@ docker run -d -p 8443:8443 -p 80:80 -p 443:443 \
   ghcr.io/deploy-monster/deploymonster:latest
 ```
 
-Open `http://localhost:8443` — admin credentials are printed on first run.
+Open `http://localhost:8443` — **System Admin** credentials are printed on first run.
 
 ---
 
-## Why DeployMonster?
+## Two Admin Levels
 
-| Problem | DeployMonster |
-|---------|---------------|
-| Coolify needs 5+ containers | **Single 22MB binary** |
-| Dokploy has no billing/teams | **Built-in billing, RBAC, teams** |
-| CapRover has outdated UI | **React 19 + Tailwind 4 + shadcn/ui** |
-| Vercel/Netlify lock you in | **Self-hosted, zero vendor lock-in** |
-| Traefik needs separate config | **Built-in reverse proxy + auto-SSL** |
-| No AI integration anywhere | **MCP server for LLM-driven infra** |
+DeployMonster distinguishes between platform and tenant administration:
+
+| Role | Scope | Capabilities |
+|------|-------|--------------|
+| **System Admin** | Platform-wide | Create tenants, manage servers, configure providers, view all resources |
+| **Client Admin** | Tenant-level | Manage own projects, apps, databases, domains, team members |
+
+This separation enables **true multi-tenancy** — each client gets isolated access to their resources while the system admin maintains platform control.
 
 ---
 
 ## Features
 
 ### 🚀 Deploy Anything
-- **Git-to-Deploy** — Push to GitHub/GitLab/Gitea/Bitbucket, auto-build and deploy
-- **14 Languages** — Node.js, Next.js, Go, Python, Rust, PHP, Java, .NET, Ruby, and more
-- **Docker Images** — Deploy from any registry (GHCR, Docker Hub, private)
-- **Docker Compose** — Upload YAML, get running multi-service stack
-- **Marketplace** — One-click deploy 25+ apps (WordPress, Ghost, n8n, Ollama, Grafana...)
+- **Git-to-Deploy** — GitHub, GitLab, Gitea, Bitbucket webhooks
+- **14 Languages** — Auto-detected build packs (Node.js, Go, Python, Rust, PHP, Java, .NET, Ruby...)
+- **Docker Images** — Deploy from GHCR, Docker Hub, or private registries
+- **Docker Compose** — Multi-service stacks from YAML
+- **Marketplace** — 25+ one-click apps (WordPress, Ghost, n8n, Grafana, Ollama...)
 
 ### 🏗️ Platform
-- **224 REST API Endpoints** — Complete platform API with OpenAPI 3.0 spec
-- **Custom Reverse Proxy** — No Traefik/Nginx dependency. Auto-SSL via Let's Encrypt
+- **224 REST API Endpoints** — OpenAPI 3.0 specification
+- **Custom Reverse Proxy** — No Traefik/Nginx dependency, built-in Let's Encrypt
 - **5 Load Balancer Strategies** — Round-robin, least-conn, IP-hash, random, weighted
-- **Secret Vault** — AES-256-GCM encryption with `${SECRET:name}` resolution
+- **Secret Vault** — AES-256-GCM encryption with `${SECRET:name}` syntax
 - **Managed Databases** — PostgreSQL, MySQL, MariaDB, Redis, MongoDB
-- **Backup Engine** — Local + S3 storage, cron scheduler, retention policies
-- **Monitoring** — CPU/RAM/disk metrics, threshold alerts, Prometheus `/metrics`
+- **Backup Engine** — Local + S3/MinIO/R2, cron schedules, retention policies
+- **Monitoring** — CPU/RAM/disk metrics, alerts, Prometheus `/metrics` endpoint
 
 ### 🌍 Infrastructure
-- **VPS Provisioning** — Hetzner, DigitalOcean, Vultr, Linode, or any server via SSH
+- **VPS Provisioning** — Hetzner, DigitalOcean, Vultr, Linode, or any SSH server
 - **Master/Agent Architecture** — Same binary, two modes (control plane / worker node)
 - **SSH Key Management** — Ed25519 keys, per-server access control
-- **Server Bootstrap** — Cloud-init scripts, Docker install, agent deployment
+- **Server Bootstrap** — Cloud-init, Docker install, agent deployment
 
-### 👥 Team & Business
-- **RBAC** — 6 built-in roles + custom roles
+### 👥 Multi-Tenancy & Business
+- **RBAC** — 6 built-in roles + custom role creation
 - **2FA & SSO** — TOTP, Google OAuth, GitHub OAuth
 - **Billing** — Plans (Free/Pro/Business/Enterprise), Stripe integration
 - **White-Label** — Custom branding, reseller support
 - **GDPR Compliance** — Data export, right to erasure
-- **Audit Log** — Every action recorded with IP tracking
+- **Audit Log** — Every action logged with IP, timestamp, actor
 
 ### 🤖 AI-Native
-- **MCP Server** — 9 AI-callable tools for LLM-driven infrastructure
+- **MCP Server** — 9 AI-callable tools for LLM-driven infrastructure management
 - **HTTP Transport** — `GET /mcp/v1/tools` + `POST /mcp/v1/tools/{name}`
 
 ---
@@ -123,38 +145,15 @@ deploymonster config           # Validate configuration
 ## Configuration
 
 ```bash
-deploymonster init  # Creates monster.yaml
-```
-
-Or use environment variables:
-
-```bash
+# Environment variables
 export MONSTER_PORT=8443
 export MONSTER_DOMAIN=deploy.example.com
 export MONSTER_ADMIN_EMAIL=admin@example.com
 export MONSTER_ADMIN_PASSWORD=secure-password
 export MONSTER_ACME_EMAIL=ssl@example.com
-```
 
----
-
-## Development
-
-```bash
-# Prerequisites: Go 1.26+, Node.js 22+, Docker
-
-# Backend
-make dev
-
-# Frontend
-cd web && npm install && npm run dev
-
-# Tests
-make test                  # Go tests (97% coverage)
-cd web && npm test         # React tests
-
-# Build (React UI → embed → Go binary)
-make build
+# Or use config file
+deploymonster init  # Creates monster.yaml
 ```
 
 ---
@@ -170,7 +169,28 @@ make build
 | Auth | JWT + bcrypt + TOTP 2FA + OAuth SSO |
 | Encryption | AES-256-GCM + Argon2id |
 | Proxy | Custom net/http reverse proxy |
-| Testing | 97% Go coverage, 7 fuzz tests, 38 benchmarks |
+| Testing | 97% coverage, 7 fuzz tests, 38 benchmarks |
+
+---
+
+## Development
+
+```bash
+# Prerequisites: Go 1.26+, Node.js 22+, Docker
+
+# Backend
+go run ./cmd/deploymonster
+
+# Frontend
+cd web && npm install && npm run dev
+
+# Tests
+go test ./...              # Go tests (97% coverage)
+cd web && npm test         # React tests
+
+# Build
+bash scripts/build.sh      # React → embed → Go binary
+```
 
 ---
 

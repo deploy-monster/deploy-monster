@@ -1,14 +1,14 @@
 # DeployMonster — Project Status Report
 
-> **Date**: 2026-03-25
-> **Version**: v1.3.0
+> **Date**: 2026-03-28
+> **Version**: v1.4.0
 > **Repository**: github.com/deploy-monster/deploy-monster
 
 ---
 
 ## Executive Summary
 
-DeployMonster v1.3.0 is a production-ready, self-hosted PaaS built as a single Go binary with an embedded React UI. All 251 planned tasks are complete. The system runs, serves its UI, authenticates users, and provides a fully functional API with 224 endpoints — all backed by real services.
+DeployMonster v1.4.0 is a production-ready, self-hosted PaaS built as a single Go binary with an embedded React UI. All 251 planned tasks are complete. The system runs, serves its UI, authenticates users, and provides a fully functional API with 224 endpoints — all backed by real services.
 
 ## Key Metrics
 
@@ -21,10 +21,9 @@ DeployMonster v1.3.0 is a production-ready, self-hosted PaaS built as a single G
 | API Endpoints | 224 |
 | API Handlers | 115 (100% real) |
 | Modules | 20 |
-| Test Coverage | 92.8% avg |
-| Binary Size | 22MB (16MB stripped) |
-| Commits | 97 |
-| Tags | 15 |
+| Test Coverage | 95%+ avg |
+| Binary Size | 23MB (16MB stripped) |
+| Repository | github.com/deploy-monster/deploy-monster |
 
 ## Test Results
 

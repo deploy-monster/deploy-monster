@@ -33,7 +33,7 @@ docker run -d \
   -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  deploymonster/deploymonster:latest
+  ghcr.io/deploy-monster/deploymonster:latest
 ```
 
 ### Option 4: Build from Source
@@ -53,55 +53,46 @@ bash scripts/build.sh
 deploymonster
 ```
 
-2. On first startup, DeployMonster will:
-   - Create a SQLite database
-   - Run all migrations (25+ tables)
-   - Seed RBAC roles (Super Admin, Owner, Admin, Developer, Operator, Viewer)
-   - Auto-generate a super admin account
-   - Print credentials to the console
+2. Open `http://localhost:8443` in your browser
 
-3. Open your browser: `https://localhost:8443`
+3. **System Admin** credentials are printed in the console on first run:
 
-4. Log in with the printed credentials.
-
-## Configuration
-
-Generate a config file:
-
-```bash
-deploymonster init
+```
+═══════════════════════════════════════════════════════════
+  DeployMonster started
+  System Admin: admin@local.host
+  Password: <random-password>
+═══════════════════════════════════════════════════════════
 ```
 
-This creates `monster.yaml` with all available settings. Key options:
+## Understanding Admin Roles
 
-```yaml
-server:
-  port: 8443
-  domain: deploy.example.com
+DeployMonster has **two levels of administration**:
 
-database:
-  driver: sqlite        # or "postgres" for enterprise
-  path: deploymonster.db
+| Role | Access Level | What They Manage |
+|------|--------------|------------------|
+| **System Admin** | Platform-wide | Tenants, servers, VPS providers, system settings, all resources |
+| **Client Admin** | Tenant-level | Own projects, apps, databases, domains, team members, billing |
 
-ingress:
-  http_port: 80
-  https_port: 443
+### System Admin (Platform Owner)
 
-acme:
-  email: admin@example.com  # For Let's Encrypt SSL
+The first login is always a **System Admin**. They can:
+- Create and manage tenants (organizations)
+- Provision VPS servers from Hetzner, DigitalOcean, Vultr, Linode
+- Configure DNS providers (Cloudflare)
+- Set up system-wide backups
+- View all resources across all tenants
+- Manage system settings and security
 
-registration:
-  mode: open  # open, invite_only, approval, disabled
-```
+### Client Admin (Tenant Owner)
 
-Or use environment variables:
-
-```bash
-export MONSTER_PORT=8443
-export MONSTER_DOMAIN=deploy.example.com
-export MONSTER_ADMIN_EMAIL=admin@example.com
-export MONSTER_ADMIN_PASSWORD=your-secure-password
-```
+When a System Admin creates a tenant, they can assign a **Client Admin** who can:
+- Create and manage projects
+- Deploy applications from Git, Docker images, or marketplace
+- Manage databases (PostgreSQL, MySQL, Redis, MongoDB)
+- Configure custom domains with SSL
+- Invite team members with role-based access
+- View billing and upgrade plans
 
 ## Deploy Your First App
 
@@ -109,11 +100,10 @@ export MONSTER_ADMIN_PASSWORD=your-secure-password
 
 1. Go to **Applications** → **Deploy New App**
 2. Select **Docker Image**
-3. Enter: `nginx:alpine`
-4. Name it: `my-first-app`
-5. Click **Deploy**
+3. Enter image: `nginx:alpine`
+4. Click **Deploy**
 
-Your app is live at `https://my-first-app.deploy.example.com` (if domain is configured).
+Your app is live at `https://<app-name>.<tenant>.deploy.example.com`
 
 ### From Git Repository
 
@@ -130,6 +120,30 @@ Your app is live at `https://my-first-app.deploy.example.com` (if domain is conf
 3. Configure variables (database password, etc.)
 4. One click — your stack is running
 
+## Multi-Tenancy Example
+
+```bash
+# As System Admin:
+
+# 1. Create a tenant for your client
+POST /api/v1/tenants
+{
+  "name": "Acme Corp",
+  "slug": "acme",
+  "plan": "pro"
+}
+
+# 2. Create a Client Admin for the tenant
+POST /api/v1/tenants/acme/users
+{
+  "email": "admin@acme.com",
+  "role": "admin"
+}
+
+# 3. Client Admin logs in and sees only their resources
+# They can create projects, deploy apps, invite team members
+```
+
 ## Next Steps
 
 - [Add a custom domain](./deployment-guide.md#custom-domains)
@@ -137,3 +151,4 @@ Your app is live at `https://my-first-app.deploy.example.com` (if domain is conf
 - [Set up backups](./deployment-guide.md#backups)
 - [Invite team members](./deployment-guide.md#team-management)
 - [Configure notifications](./deployment-guide.md#notifications) (Slack, Discord, Telegram)
+- [Provision a VPS](./deployment-guide.md#vps-provisioning) from Hetzner, DigitalOcean, or others
