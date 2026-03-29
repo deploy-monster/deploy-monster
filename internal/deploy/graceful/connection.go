@@ -55,6 +55,18 @@ func (ct *ConnectionTracker) Active(containerID string) int64 {
 	return 0
 }
 
+// Total returns the total number of active connections across all containers.
+func (ct *ConnectionTracker) Total() int64 {
+	ct.mu.RLock()
+	defer ct.mu.RUnlock()
+
+	var total int64
+	for _, ptr := range ct.conns {
+		total += atomic.LoadInt64(ptr)
+	}
+	return total
+}
+
 // DrainState tracks the draining state of a container.
 type DrainState struct {
 	ContainerID string

@@ -140,10 +140,19 @@ func (m *Module) Router() *RouteTable {
 }
 
 // httpHandler handles HTTP (:80) requests.
+// - Health check endpoints (for external load balancers)
 // - ACME HTTP-01 challenge responses
 // - Redirect everything else to HTTPS
 func (m *Module) httpHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+
+	// Health check endpoints (no HTTPS redirect)
+	mux.HandleFunc("/health", m.healthHandler())
+	mux.HandleFunc("/ready", m.readyHandler())
+	mux.HandleFunc("/live", m.liveHandler())
+
+	// ACME challenge and HTTPS redirect
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// ACME HTTP-01 challenge (handled by ACME module later)
 		if len(r.URL.Path) > len("/.well-known/acme-challenge/") &&
 			r.URL.Path[:len("/.well-known/acme-challenge/")] == "/.well-known/acme-challenge/" {
@@ -156,6 +165,8 @@ func (m *Module) httpHandler() http.Handler {
 		target := "https://" + r.Host + r.URL.RequestURI()
 		http.Redirect(w, r, target, http.StatusMovedPermanently)
 	})
+
+	return mux
 }
 
 // tlsConfig creates the TLS configuration with dynamic certificate loading.
