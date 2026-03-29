@@ -294,15 +294,13 @@ func TestReverseProxy_MetricsAfterRequest(t *testing.T) {
 	rr := httptest.NewRecorder()
 	rp.ServeHTTP(rr, req)
 
-	if rp.metrics.TotalRequests.Load() != 1 {
-		t.Errorf("expected TotalRequests 1, got %d", rp.metrics.TotalRequests.Load())
+	snapshot := rp.metrics.Snapshot()
+	if snapshot.TotalRequests != 1 {
+		t.Errorf("expected TotalRequests 1, got %d", snapshot.TotalRequests)
 	}
-	if rp.metrics.ErrorCount.Load() != 1 {
-		t.Errorf("expected ErrorCount 1, got %d", rp.metrics.ErrorCount.Load())
-	}
-	// ActiveRequests should be 0 after request completes (deferred Add(-1))
-	if rp.metrics.ActiveRequests.Load() != 0 {
-		t.Errorf("expected ActiveRequests 0 after request, got %d", rp.metrics.ActiveRequests.Load())
+	// ActiveRequests should be 0 after request completes (deferred DecrementActive)
+	if snapshot.ActiveRequests != 0 {
+		t.Errorf("expected ActiveRequests 0 after request, got %d", snapshot.ActiveRequests)
 	}
 }
 

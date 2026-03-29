@@ -20,7 +20,7 @@ import (
 type ReverseProxy struct {
 	router  *RouteTable
 	logger  *slog.Logger
-	metrics *ProxyMetrics
+	metrics *MetricsCollector
 	tracker *graceful.ConnectionTracker     // Track active connections
 	drainer *graceful.DrainManager          // Manage draining backends
 	circuit *graceful.CircuitBreakerManager // Circuit breaker for failing backends
@@ -42,7 +42,7 @@ func NewReverseProxy(router *RouteTable, logger *slog.Logger) *ReverseProxy {
 	return &ReverseProxy{
 		router:  router,
 		logger:  logger,
-		metrics: &ProxyMetrics{},
+		metrics: NewMetricsCollector(),
 		tracker: tracker,
 		drainer: graceful.NewDrainManager(tracker),
 		circuit: graceful.NewCircuitBreakerManager(graceful.DefaultCircuitConfig()),
@@ -128,9 +128,8 @@ func pickBackend(route *RouteEntry) string {
 // ServeHTTP implements http.Handler — the main request processing pipeline.
 // Flow: Match route → Filter backends → Load balance → Reverse proxy
 func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	rp.metrics.TotalRequests.Add(1)
-	rp.metrics.ActiveRequests.Add(1)
-	defer rp.metrics.ActiveRequests.Add(-1)
+	rp.metrics.IncrementActive()
+	defer rp.metrics.DecrementActive()
 
 	start := time.Now()
 
@@ -141,7 +140,7 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if route == nil {
 		rp.logger.Debug("no route matched", "host", host, "path", r.URL.Path)
 		http.Error(w, "502 Bad Gateway — no upstream configured", http.StatusBadGateway)
-		rp.metrics.ErrorCount.Add(1)
+		rp.metrics.RecordRequest(host, 502, time.Since(start).Microseconds(), 0, 0)
 		return
 	}
 
@@ -149,7 +148,7 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	healthyBackends := rp.filterHealthyBackends(route.Backends)
 	if len(healthyBackends) == 0 {
 		http.Error(w, "503 Service Unavailable — no healthy backends", http.StatusServiceUnavailable)
-		rp.metrics.ErrorCount.Add(1)
+		rp.metrics.RecordRequest(host, 503, time.Since(start).Microseconds(), 0, 0)
 		return
 	}
 
@@ -164,7 +163,7 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	targetURL, err := url.Parse("http://" + backend)
 	if err != nil {
 		http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
-		rp.metrics.ErrorCount.Add(1)
+		rp.circuit.RecordFailure(backend)
 		return
 	}
 
@@ -206,7 +205,6 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"backend", backend,
 				"error", err,
 			)
-			rp.metrics.ErrorCount.Add(1)
 			// Record failure for circuit breaker
 			rp.circuit.RecordFailure(backend)
 			http.Error(w, "502 Bad Gateway", http.StatusBadGateway)

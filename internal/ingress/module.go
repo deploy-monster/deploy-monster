@@ -141,6 +141,7 @@ func (m *Module) Router() *RouteTable {
 
 // httpHandler handles HTTP (:80) requests.
 // - Health check endpoints (for external load balancers)
+// - Metrics endpoint (Prometheus format)
 // - ACME HTTP-01 challenge responses
 // - Redirect everything else to HTTPS
 func (m *Module) httpHandler() http.Handler {
@@ -150,6 +151,9 @@ func (m *Module) httpHandler() http.Handler {
 	mux.HandleFunc("/health", m.healthHandler())
 	mux.HandleFunc("/ready", m.readyHandler())
 	mux.HandleFunc("/live", m.liveHandler())
+
+	// Metrics endpoint (Prometheus format)
+	mux.HandleFunc("/metrics", m.PrometheusHandler())
 
 	// ACME challenge and HTTPS redirect
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
