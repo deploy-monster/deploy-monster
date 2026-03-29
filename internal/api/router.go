@@ -521,7 +521,10 @@ func (r *Router) registerRoutes() {
 	// ── Topology Editor ───────────────────────────────────────
 	topologyH := handlers.NewTopologyHandler(r.store, r.core)
 	r.mux.Handle("POST /api/v1/topology", protected(http.HandlerFunc(topologyH.Save)))
+	r.mux.Handle("POST /api/v1/topology/compile", protected(http.HandlerFunc(topologyH.Compile)))
+	r.mux.Handle("POST /api/v1/topology/validate", protected(http.HandlerFunc(topologyH.Validate)))
 	r.mux.Handle("POST /api/v1/topology/deploy", protected(http.HandlerFunc(topologyH.Deploy)))
+	r.mux.Handle("GET /api/v1/topology/templates", protected(http.HandlerFunc(topologyH.Templates)))
 
 	// ── Outbound Event Webhooks ───────────────────────
 	evtWhH := handlers.NewEventWebhookHandler(r.store, r.core.Events, r.core.DB.Bolt)
@@ -577,6 +580,16 @@ func (r *Router) registerRoutes() {
 	eventStreamer := ws.NewEventStreamer(r.core.Events, r.core.Logger)
 	r.mux.Handle("GET /api/v1/apps/{id}/logs/stream", protected(http.HandlerFunc(logStreamer.StreamLogs)))
 	r.mux.Handle("GET /api/v1/events/stream", protected(http.HandlerFunc(eventStreamer.StreamEvents)))
+
+	// ── Deployment Progress (WebSocket) ──────────────────
+	r.mux.Handle("GET /api/v1/topology/deploy/{projectId}/progress", protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		projectID := r.PathValue("projectId")
+		if projectID == "" {
+			http.Error(w, "project ID required", http.StatusBadRequest)
+			return
+		}
+		ws.GetDeployHub().ServeWS(w, r, projectID)
+	})))
 
 	// ── Announcements ─────────────────────────────────
 	announcH := handlers.NewAnnouncementHandler(r.core.DB.Bolt)

@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { HardDrive, Folder, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { VolumeNodeData } from '@/types/topology';
+import { useTopologyStore } from '@/stores/topologyStore';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-gray-400',
@@ -12,16 +13,25 @@ const statusColors: Record<string, string> = {
 
 type VolumeNodeProps = NodeProps;
 
-function VolumeNodeComponent({ data, selected }: VolumeNodeProps) {
+function VolumeNodeComponent({ data, selected, id }: VolumeNodeProps) {
   const nodeData = data as VolumeNodeData;
   const status = nodeData.status || 'pending';
+  const { nodes } = useTopologyStore();
+
+  // Check if this volume is mounted to any container
+  const mountedToContainer = nodes.find((n) => {
+    if (n.type !== 'app') return false;
+    const appData = n.data as { volumeMounts?: { volumeId: string }[] };
+    return (appData.volumeMounts || []).some((vm) => vm.volumeId === id);
+  });
 
   return (
     <div
       className={cn(
         'min-w-[150px] rounded-lg border-2 bg-card shadow-md transition-all',
         selected ? 'border-orange-500 ring-2 ring-orange-500/20' : 'border-orange-500/50',
-        'hover:border-orange-500 hover:shadow-lg'
+        'hover:border-orange-500 hover:shadow-lg',
+        mountedToContainer && 'opacity-60 scale-95' // Dimmed when mounted
       )}
     >
       <Handle
@@ -55,6 +65,13 @@ function VolumeNodeComponent({ data, selected }: VolumeNodeProps) {
           <div className="flex items-center gap-1 text-muted-foreground">
             <Folder className="h-3 w-3" />
             <span className="truncate font-mono">{nodeData.mountPath}</span>
+          </div>
+        )}
+        {mountedToContainer && (
+          <div className="mt-1 flex items-center gap-1 border-t border-dashed pt-1 text-muted-foreground">
+            <span className="text-[10px] italic">
+              Mounted in {(mountedToContainer.data as { name: string }).name}
+            </span>
           </div>
         )}
       </div>

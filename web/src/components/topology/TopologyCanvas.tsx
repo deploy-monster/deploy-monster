@@ -43,12 +43,28 @@ export function TopologyCanvas() {
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (connection.source && connection.target) {
-        const newEdge = createEdge(connection.source, connection.target);
+        // Determine edge type based on source and target node types
+        const sourceNode = storeNodes.find(n => n.id === connection.source);
+        const targetNode = storeNodes.find(n => n.id === connection.target);
+
+        let edgeType: 'dependency' | 'mount' | 'dns' = 'dependency';
+
+        if (sourceNode?.type === 'domain' && targetNode?.type === 'app') {
+          edgeType = 'dns';
+        } else if (sourceNode?.type === 'app' && targetNode?.type === 'database') {
+          edgeType = 'dependency';
+        } else if ((sourceNode?.type === 'app' || sourceNode?.type === 'worker') && targetNode?.type === 'volume') {
+          edgeType = 'mount';
+        } else if (sourceNode?.type === 'app' && targetNode?.type === 'app') {
+          edgeType = 'dependency';
+        }
+
+        const newEdge = createEdge(connection.source, connection.target, edgeType);
         addStoreEdge(newEdge as TopologyEdge);
-        setLocalEdges((eds) => addEdge(connection, eds));
+        setLocalEdges((eds) => addEdge({ ...connection, data: { type: edgeType } }, eds));
       }
     },
-    [addStoreEdge, setLocalEdges]
+    [addStoreEdge, setLocalEdges, storeNodes]
   );
 
   const onNodeClick = useCallback(

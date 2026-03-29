@@ -81,12 +81,17 @@ export const useTopologyStore = create<TopologyStore>((set, get) => ({
     })),
 
   removeNode: (id) =>
-    set((state) => ({
-      nodes: state.nodes.filter((node) => node.id !== id),
-      edges: state.edges.filter((edge) => edge.source !== id && edge.target !== id),
-      selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
-      isDirty: true,
-    })),
+    set((state) => {
+      // Simply remove the node - volumes remain independent
+      // When a container is deleted, its volumeMounts are deleted with it,
+      // but the volume nodes themselves remain in the topology
+      return {
+        nodes: state.nodes.filter((node) => node.id !== id),
+        edges: state.edges.filter((edge) => edge.source !== id && edge.target !== id),
+        selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+        isDirty: true,
+      };
+    }),
 
   addEdge: (edge) =>
     set((state) => ({
@@ -156,6 +161,7 @@ export const createNode = (
           port: 3000,
           replicas: 1,
           envVars: {},
+          volumeMounts: [],
         },
       };
     case 'database':

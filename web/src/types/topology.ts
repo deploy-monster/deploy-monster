@@ -1,5 +1,11 @@
 import type { Node, Edge } from '@xyflow/react';
 
+// Volume mount configuration (stored on the container)
+export interface VolumeMount {
+  volumeId: string;
+  mountPath: string;
+}
+
 // Node data types for each component type
 export interface AppNodeData {
   name: string;
@@ -10,6 +16,7 @@ export interface AppNodeData {
   port?: number;
   replicas?: number;
   envVars?: Record<string, string>;
+  volumeMounts?: VolumeMount[]; // Volumes mounted inside this container with their paths
   [key: string]: unknown;
 }
 
@@ -34,7 +41,7 @@ export interface VolumeNodeData {
   name: string;
   status?: 'pending' | 'attached' | 'error';
   sizeGB?: number;
-  mountPath?: string;
+  mountPath?: string; // Default mount path (can be overridden per-container)
   [key: string]: unknown;
 }
 
@@ -118,12 +125,20 @@ export interface TopologyDeployRequest {
 export interface TopologyDeployResponse {
   success: boolean;
   message: string;
-  createdResources?: {
-    apps: string[];
-    databases: string[];
-    domains: string[];
-    volumes: string[];
-  };
+  duration?: string;
+  containers?: string[];
+  networks?: string[];
+  volumes?: string[];
+  errors?: string[];
+}
+
+// Compile result from topology compiler
+export interface CompileResult {
+  success: boolean;
+  message: string;
+  composeYaml?: string;
+  caddyfile?: string;
+  envFile?: string;
   errors?: string[];
 }
 

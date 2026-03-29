@@ -116,14 +116,15 @@ func TestTopologyHandler_Deploy(t *testing.T) {
 				Type:   "dependency",
 			},
 			{
-				ID:     "edge-app-domain",
-				Source: "app-1",
-				Target: "domain-1",
+				ID:     "edge-domain-app",
+				Source: "domain-1",
+				Target: "app-1",
 				Type:   "dns",
 			},
 		},
 		ProjectID:   "proj-1",
 		Environment: "production",
+		DryRun:      true, // Don't actually deploy, just validate and generate
 	}
 
 	body, _ := json.Marshal(req)
@@ -154,19 +155,12 @@ func TestTopologyHandler_Deploy(t *testing.T) {
 		t.Errorf("expected success=true, got false: %s", resp.Message)
 	}
 
-	if resp.CreatedResources == nil {
-		t.Fatal("expected createdResources to be set")
+	// In dry-run mode, we should get generated files
+	if resp.ComposeYAML == "" {
+		t.Error("expected composeYAML to be generated")
 	}
-
-	// Check that resources were created
-	if len(resp.CreatedResources.Databases) != 1 {
-		t.Errorf("expected 1 database, got %d", len(resp.CreatedResources.Databases))
-	}
-	if len(resp.CreatedResources.Apps) != 1 {
-		t.Errorf("expected 1 app, got %d", len(resp.CreatedResources.Apps))
-	}
-	if len(resp.CreatedResources.Domains) != 1 {
-		t.Errorf("expected 1 domain, got %d", len(resp.CreatedResources.Domains))
+	if resp.Caddyfile == "" {
+		t.Error("expected caddyfile to be generated (domain was specified)")
 	}
 }
 
@@ -225,6 +219,7 @@ func TestTopologyHandler_DeployWorkerNode(t *testing.T) {
 		Edges:       []TopologyEdge{},
 		ProjectID:   "proj-1",
 		Environment: "production",
+		DryRun:      true, // Don't actually deploy, just validate and generate
 	}
 
 	body, _ := json.Marshal(req)
@@ -250,8 +245,8 @@ func TestTopologyHandler_DeployWorkerNode(t *testing.T) {
 		t.Fatalf("failed to parse response: %v", err)
 	}
 
-	// Workers should be tracked as apps
-	if len(resp.CreatedResources.Apps) != 1 {
-		t.Errorf("expected 1 app (worker), got %d", len(resp.CreatedResources.Apps))
+	// In dry-run mode, we should get generated files
+	if resp.ComposeYAML == "" {
+		t.Error("expected composeYAML to be generated")
 	}
 }

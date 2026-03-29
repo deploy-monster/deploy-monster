@@ -1,20 +1,20 @@
-import { useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router';
-import { Save, Rocket, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Save, Rocket, Loader2, FileCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { ComponentPalette } from '@/components/topology/ComponentPalette';
 import { TopologyCanvas } from '@/components/topology/TopologyCanvas';
 import { ConfigPanel } from '@/components/topology/ConfigPanel';
+import { CompileModal } from '@/components/topology/CompileModal';
+import { DeployModal, type DeployStatus } from '@/components/topology/DeployModal';
 import { useTopologyStore } from '@/stores/topologyStore';
-import type { TopologyNodeType } from '@/types/topology';
+import type { TopologyNodeType, CompileResult, TopologyDeployResponse } from '@/types/topology';
 import { useMutation } from '@/hooks';
+import { useDeployProgress } from '@/hooks/useDeployProgress';
 
 const ENVIRONMENTS = ['production', 'staging', 'development'];
 
 export default function TopologyPage() {
-  const navigate = useNavigate();
-
   const {
     nodes,
     edges,
@@ -29,8 +29,42 @@ export default function TopologyPage() {
     projectId,
   } = useTopologyStore();
 
+  const [compileModalOpen, setCompileModalOpen] = useState(false);
+  const [compileResult, setCompileResult] = useState<CompileResult | null>(null);
+  const [isCompiling, setIsCompiling] = useState(false);
+  const [deployModalOpen, setDeployModalOpen] = useState(false);
+  const [deployResult, setDeployResult] = useState<TopologyDeployResponse | null>(null);
+  const [wsDeployStatus, setWsDeployStatus] = useState<DeployStatus>('idle');
+  const [wsEnabled, setWsEnabled] = useState(false);
+  const wsCompletedRef = useRef(false);
+
   const saveMutation = useMutation('post', '/topology');
   const deployMutation = useMutation('post', '/topology/deploy');
+  const compileMutation = useMutation('post', '/topology/compile');
+
+  // WebSocket for real-time deploy progress
+  const { status: wsStatus } = useDeployProgress({
+    projectId,
+    enabled: wsEnabled,
+    onComplete: (result) => {
+      wsCompletedRef.current = true;
+      setDeployResult(result);
+      setDeploying(false);
+      setWsEnabled(false);
+      if (result.success) {
+        markClean();
+      }
+    },
+  });
+
+  // Update status from WebSocket
+  useEffect(() => {
+    if (wsEnabled && wsStatus !== 'idle') {
+      setWsDeployStatus(wsStatus);
+    }
+  }, [wsStatus, wsEnabled]);
+
+  const deployStatus = wsEnabled ? wsDeployStatus : 'idle';
 
   const selectedNode = useMemo(() => {
     if (!selectedNodeId) return null;
@@ -56,8 +90,15 @@ export default function TopologyPage() {
   const handleDeploy = useCallback(async () => {
     if (nodes.length === 0) return;
 
+    wsCompletedRef.current = false;
+    setDeployModalOpen(true);
+    setDeployResult(null);
+    setWsDeployStatus('idle');
     setDeploying(true);
+    setWsEnabled(true);
+
     try {
+      // Trigger deployment - WebSocket will provide real-time progress
       const result = await deployMutation.mutate({
         nodes,
         edges,
@@ -65,16 +106,58 @@ export default function TopologyPage() {
         environment,
       });
 
-      if (result && typeof result === 'object' && 'success' in result && result.success) {
-        markClean();
-        navigate('/apps');
+      // If WebSocket didn't complete, use the API response as fallback
+      if (!wsCompletedRef.current) {
+        setDeployResult(result as TopologyDeployResponse);
+
+        if (result && typeof result === 'object' && 'success' in result && result.success) {
+          setWsDeployStatus('success');
+          markClean();
+        } else {
+          setWsDeployStatus('error');
+        }
+        setDeploying(false);
+        setWsEnabled(false);
       }
     } catch (error) {
       console.error('Failed to deploy topology:', error);
-    } finally {
-      setDeploying(false);
+      if (!wsCompletedRef.current) {
+        setWsDeployStatus('error');
+        setDeployResult({
+          success: false,
+          message: error instanceof Error ? error.message : 'Deployment failed',
+        });
+        setDeploying(false);
+        setWsEnabled(false);
+      }
     }
-  }, [nodes, edges, projectId, environment, deployMutation, setDeploying, markClean, navigate]);
+  }, [nodes, edges, projectId, environment, deployMutation, setDeploying, markClean]);
+
+  const handleCompile = useCallback(async () => {
+    if (nodes.length === 0) return;
+
+    setIsCompiling(true);
+    setCompileResult(null);
+    setCompileModalOpen(true);
+
+    try {
+      const result = await compileMutation.mutate({
+        nodes,
+        edges,
+        projectId,
+        environment,
+      });
+      setCompileResult(result as CompileResult);
+    } catch (error) {
+      console.error('Failed to compile topology:', error);
+      setCompileResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Compilation failed',
+      });
+    } finally {
+      setIsCompiling(false);
+    }
+  }, [nodes, edges, projectId, environment, compileMutation]);
 
   const handleCloseConfig = useCallback(() => {
     selectNode(null);
@@ -117,6 +200,15 @@ export default function TopologyPage() {
             Save
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCompile}
+            disabled={nodes.length === 0}
+          >
+            <FileCode className="mr-2 h-4 w-4" />
+            Compile
+          </Button>
+          <Button
             size="sm"
             onClick={handleDeploy}
             disabled={!canDeploy}
@@ -139,6 +231,21 @@ export default function TopologyPage() {
         </div>
         <ConfigPanel selectedNode={selectedNode} onClose={handleCloseConfig} />
       </div>
+
+      <CompileModal
+        open={compileModalOpen}
+        onClose={() => setCompileModalOpen(false)}
+        result={compileResult}
+        isCompiling={isCompiling}
+      />
+
+      <DeployModal
+        open={deployModalOpen}
+        onClose={() => setDeployModalOpen(false)}
+        result={deployResult}
+        isDeploying={isDeploying}
+        status={deployStatus}
+      />
     </div>
   );
 }
