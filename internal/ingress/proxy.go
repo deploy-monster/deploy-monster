@@ -10,6 +10,9 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/deploy/graceful"
+	"github.com/deploy-monster/deploy-monster/internal/ingress/lb"
 )
 
 // ReverseProxy is the core HTTP handler that routes incoming requests
@@ -18,6 +21,9 @@ type ReverseProxy struct {
 	router  *RouteTable
 	logger  *slog.Logger
 	metrics *ProxyMetrics
+	tracker *graceful.ConnectionTracker // Track active connections
+	drainer *graceful.DrainManager      // Manage draining backends
+	lb      lb.Strategy
 }
 
 // ProxyMetrics tracks ingress proxy statistics.
@@ -31,11 +37,75 @@ type ProxyMetrics struct {
 
 // NewReverseProxy creates a new reverse proxy handler.
 func NewReverseProxy(router *RouteTable, logger *slog.Logger) *ReverseProxy {
+	tracker := graceful.NewConnectionTracker()
 	return &ReverseProxy{
 		router:  router,
 		logger:  logger,
 		metrics: &ProxyMetrics{},
+		tracker: tracker,
+		drainer: graceful.NewDrainManager(tracker),
+		lb:      lb.New("round-robin"),
 	}
+}
+
+// DrainBackend marks a backend as draining and waits for connections to complete.
+// During draining, the backend is excluded from load balancing while existing
+// connections are allowed to complete.
+func (rp *ReverseProxy) DrainBackend(backend string, timeout time.Duration) error {
+	return rp.drainer.WaitForDrain(backend, timeout)
+}
+
+// StartDrain marks a backend as draining (no new connections will be routed).
+// Returns active connection count and draining status.
+func (rp *ReverseProxy) StartDrain(backend string) (int64, bool) {
+	done := rp.drainer.StartDrain(backend)
+	if done == nil {
+		return 0, false // Already draining
+	}
+	return rp.tracker.Active(backend), true
+}
+
+// CompleteDrain signals that draining is complete for a backend.
+func (rp *ReverseProxy) CompleteDrain(backend string) {
+	rp.drainer.CompleteDrain(backend)
+}
+
+// IsDraining returns true if a backend is currently being drained.
+func (rp *ReverseProxy) IsDraining(backend string) bool {
+	return rp.drainer.IsDraining(backend)
+}
+
+// ErrorPage generates an HTML error page for display.
+func ErrorPage(status int, title, message string) []byte {
+	return []byte(fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+    <title>%d %s</title>
+    <style>
+        body { font-family: system-ui, sans-serif; text-align: center; padding: 50px; }
+        h1 { color: #333; }
+        p { color: #666; }
+        .footer { margin-top: 30px; color: #999; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>%d %s</h1>
+    <p>%s</p>
+    <div class="footer">DeployMonster Ingress</div>
+</body>
+</html>`, status, title, status, title, message))
+}
+
+// pickBackend selects a backend using round-robin from the route entry.
+// This is a helper function for tests and simple use cases.
+var pickBackendCounter atomic.Uint64
+
+func pickBackend(route *RouteEntry) string {
+	if len(route.Backends) == 0 {
+		return ""
+	}
+	idx := pickBackendCounter.Add(1) - 1
+	return route.Backends[idx%uint64(len(route.Backends))]
 }
 
 // ServeHTTP implements http.Handler — the main request processing pipeline.
@@ -58,16 +128,22 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Pick backend using load balancer strategy
-	if len(route.Backends) == 0 {
+	// 2. Filter out draining backends
+	healthyBackends := rp.filterHealthyBackends(route.Backends)
+	if len(healthyBackends) == 0 {
 		http.Error(w, "503 Service Unavailable — no healthy backends", http.StatusServiceUnavailable)
 		rp.metrics.ErrorCount.Add(1)
 		return
 	}
 
-	backend := pickBackend(route)
+	// 3. Pick backend using load balancer strategy
+	backend := rp.lb.Next(healthyBackends, r)
 
-	// 3. Build reverse proxy for this backend
+	// 4. Track connection
+	rp.tracker.Increment(backend)
+	defer rp.tracker.Decrement(backend)
+
+	// 5. Build reverse proxy for this backend
 	targetURL, err := url.Parse("http://" + backend)
 	if err != nil {
 		http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
@@ -134,13 +210,15 @@ func (rp *ReverseProxy) Metrics() ProxyMetrics {
 	}
 }
 
-// pickBackend selects a backend from the route's backend pool.
-// For now uses simple round-robin; will be replaced by LB module.
-var rrCounter atomic.Uint64
-
-func pickBackend(route *RouteEntry) string {
-	idx := rrCounter.Add(1) - 1
-	return route.Backends[idx%uint64(len(route.Backends))]
+// filterHealthyBackends removes backends that are currently draining.
+func (rp *ReverseProxy) filterHealthyBackends(backends []string) []string {
+	healthy := make([]string, 0, len(backends))
+	for _, backend := range backends {
+		if !rp.drainer.IsDraining(backend) {
+			healthy = append(healthy, backend)
+		}
+	}
+	return healthy
 }
 
 // extractHost strips the port from the Host header.
@@ -174,14 +252,4 @@ func scheme(r *http.Request) string {
 		return proto
 	}
 	return "http"
-}
-
-// ErrorPage returns a styled error page.
-func ErrorPage(status int, title, message string) []byte {
-	return []byte(fmt.Sprintf(`<!DOCTYPE html>
-<html><head><title>%d %s</title>
-<style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f8fafc;color:#0f172a}
-.box{text-align:center;padding:2rem}.code{font-size:4rem;font-weight:700;color:#10b981}p{color:#64748b;margin-top:.5rem}</style>
-</head><body><div class="box"><div class="code">%d</div><h1>%s</h1><p>%s</p><p style="margin-top:2rem;font-size:.75rem;color:#94a3b8">DeployMonster Ingress</p></div></body></html>`,
-		status, title, status, title, message))
 }

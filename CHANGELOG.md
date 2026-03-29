@@ -2,6 +2,26 @@
 
 All notable changes to DeployMonster will be documented in this file.
 
+## [1.6.0] - 2026-03-29
+
+### Highlights
+- **Visual Topology Editor** — Railway-style drag-and-drop infrastructure designer with React Flow
+- **5 component types** — Apps, Databases, Domains, Volumes, Workers
+- **Wire connections** — Connect components visually with dependency tracking
+- **One-click deploy** — Deploy entire topology from canvas
+
+### Added
+- Topology Editor page with React Flow canvas (`/topology`)
+- Custom node components: AppNode, DatabaseNode, DomainNode, VolumeNode, WorkerNode
+- Component palette for drag-and-drop infrastructure design
+- Configuration panel for selected node properties
+- Topology deployment API (`POST /api/v1/topology/deploy`)
+- Auto-layout feature using dagre algorithm
+- Environment selector (production, staging, development)
+- `@xyflow/react` and `dagre` npm dependencies
+
+---
+
 ## [1.5.0] - 2026-03-29
 
 ### Highlights
@@ -37,7 +57,12 @@ All notable changes to DeployMonster will be documented in this file.
 - **Analytics**: Umami, Matomo
 - **Finance**: Actual Budget, Ghostfolio
 - **IoT**: Home Assistant
-- **Design**: Penpot
+## [0.1.0] - 2026-03-24
+
+### Highlights
+- **97% avg test coverage** across 34 packages (up from 92.8%)
+- **Comprehensive ARCHITECTURE.md** with ASCII diagrams
+- **247 Go test files** (up from 194)
 
 ---
 

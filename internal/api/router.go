@@ -518,6 +518,11 @@ func (r *Router) registerRoutes() {
 		r.mux.Handle("POST /api/v1/marketplace/deploy", protected(http.HandlerFunc(mpDeployH.Deploy)))
 	}
 
+	// ── Topology Editor ───────────────────────────────────────
+	topologyH := handlers.NewTopologyHandler(r.store, r.core)
+	r.mux.Handle("POST /api/v1/topology", protected(http.HandlerFunc(topologyH.Save)))
+	r.mux.Handle("POST /api/v1/topology/deploy", protected(http.HandlerFunc(topologyH.Deploy)))
+
 	// ── Outbound Event Webhooks ───────────────────────
 	evtWhH := handlers.NewEventWebhookHandler(r.store, r.core.Events, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/webhooks/outbound", protected(http.HandlerFunc(evtWhH.List)))

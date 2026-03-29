@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**Self-Hosted PaaS — Beyond Coolify, Dokploy, CapRover**
+**Self-Hosted PaaS — Single Binary, Zero Dependencies**
 
 Transform any VPS into a production-ready deployment platform in 60 seconds.
 
@@ -17,28 +17,6 @@ Single binary · Zero dependencies · 97% test coverage
 [🌐 Website](https://deploy.monster) · [📚 Docs](docs/) · [💬 Discord](https://discord.gg/deploymonster)
 
 </div>
-
----
-
-## DeployMonster vs Competitors
-
-| Feature | DeployMonster | Coolify | Dokploy | CapRover | Railway |
-|---------|:-------------:|:-------:|:-------:|:--------:|:-------:|
-| **Single Binary** | ✅ 22MB | ❌ 5+ containers | ❌ Docker Compose | ❌ Docker stack | ❌ SaaS only |
-| **Resource Usage** | ~100MB RAM | ~500MB+ RAM | ~400MB+ RAM | ~300MB+ RAM | N/A |
-| **Setup Time** | 60 seconds | 5-10 minutes | 3-5 minutes | 5-10 minutes | N/A |
-| **Billing System** | ✅ Built-in | ❌ None | ❌ None | ❌ None | ✅ |
-| **Multi-Tenancy** | ✅ Full RBAC | ❌ Single user | ⚠️ Basic | ⚠️ Basic | ✅ |
-| **AI Integration** | ✅ MCP Server | ❌ None | ❌ None | ❌ None | ❌ None |
-| **Modern UI** | ✅ React 19 | ⚠️ Livewire | ⚠️ Next.js 14 | ❌ AngularJS | ✅ |
-| **Auto SSL** | ✅ Built-in | ✅ Traefik | ✅ Traefik | ✅ Nginx | ✅ |
-| **Git Integration** | ✅ 4 providers | ✅ 3 providers | ✅ 3 providers | ✅ 2 providers | ✅ |
-| **Database Managed** | ✅ 5 engines | ✅ 3 engines | ✅ 3 engines | ⚠️ Manual | ✅ |
-| **VPS Provisioning** | ✅ 4 providers | ❌ None | ❌ None | ❌ None | ❌ None |
-| **Master/Agent** | ✅ Same binary | ❌ None | ❌ None | ⚠️ Separate | ❌ None |
-| **Self-Hosted** | ✅ Forever | ✅ | ✅ | ✅ | ❌ |
-
-**Bottom line:** DeployMonster is the only self-hosted PaaS with built-in billing, multi-tenancy, AI integration, and VPS provisioning — all in a single binary.
 
 ---
 

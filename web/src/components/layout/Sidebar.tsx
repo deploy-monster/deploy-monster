@@ -37,6 +37,7 @@ import {
   Settings,
   LogOut,
   MoreVertical,
+  Share2,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { useThemeStore } from '../../stores/theme';
@@ -71,6 +72,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/apps', icon: Rocket, label: 'Applications', badge: 'apps' },
+      { to: '/topology', icon: Share2, label: 'Topology' },
       { to: '/marketplace', icon: Store, label: 'Marketplace' },
     ],
   },

@@ -251,6 +251,17 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 		}
 	}
 
+	// Get container health and running status via inspect
+	health := ""
+	running := false
+	inspect, err := d.cli.ContainerInspect(ctx, containerID)
+	if err == nil {
+		running = inspect.State != nil && inspect.State.Running
+		if inspect.State != nil && inspect.State.Health != nil {
+			health = inspect.State.Health.Status
+		}
+	}
+
 	return &core.ContainerStats{
 		CPUPercent:    cpuPercent,
 		MemoryUsage:   int64(stats.MemoryStats.Usage),
@@ -261,6 +272,8 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 		BlockRead:     blockRead,
 		BlockWrite:    blockWrite,
 		PIDs:          int(stats.PidsStats.Current),
+		Health:        health,
+		Running:       running,
 	}, nil
 }
 

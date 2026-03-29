@@ -73,6 +73,10 @@ type ContainerStats struct {
 	BlockRead     int64
 	BlockWrite    int64
 	PIDs          int
+	// Health status from Docker healthcheck: "healthy", "unhealthy", "starting", or "" if no healthcheck
+	Health string
+	// Running indicates if the container is currently running
+	Running bool
 }
 
 // ImageInfo holds basic Docker image information.

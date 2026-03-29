@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -13,6 +14,34 @@ import (
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
+
+// failingModule is a module that can fail on Init or Start for testing.
+type failingModule struct {
+	id     string
+	failOn string // "init" or "start"
+}
+
+func (f *failingModule) ID() string             { return f.id }
+func (f *failingModule) Name() string           { return f.id }
+func (f *failingModule) Version() string        { return "1.0.0" }
+func (f *failingModule) Dependencies() []string { return nil }
+func (f *failingModule) Health() HealthStatus   { return HealthOK }
+func (f *failingModule) Routes() []Route        { return nil }
+func (f *failingModule) Events() []EventHandler { return nil }
+
+func (f *failingModule) Init(_ context.Context, _ *Core) error {
+	if f.failOn == "init" {
+		return fmt.Errorf("init failed for %s", f.id)
+	}
+	return nil
+}
+func (f *failingModule) Start(_ context.Context) error {
+	if f.failOn == "start" {
+		return fmt.Errorf("start failed for %s", f.id)
+	}
+	return nil
+}
+func (f *failingModule) Stop(_ context.Context) error { return nil }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // NewApp — covers app.go:47

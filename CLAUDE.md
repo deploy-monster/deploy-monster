@@ -1,7 +1,7 @@
 # DeployMonster - Development Guidelines
 
 ## Project Overview
-DeployMonster is a self-hosted PaaS (Platform as a Service) — single binary, modular monolith, event-driven architecture with embedded React UI. Replaces Coolify/Dokploy/CapRover with enterprise-grade features.
+DeployMonster is a self-hosted PaaS (Platform as a Service) — single binary, modular monolith, event-driven architecture with embedded React UI.
 
 ## Architecture
 - **Backend**: Go 1.26+ modular monolith, 20 modules auto-registered via `init()`
