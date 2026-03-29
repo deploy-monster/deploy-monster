@@ -26,6 +26,9 @@ func TestNewReverseProxy(t *testing.T) {
 	if rp.metrics == nil {
 		t.Error("expected metrics to be initialized")
 	}
+	if rp.circuit == nil {
+		t.Error("expected circuit breaker manager to be initialized")
+	}
 }
 
 func TestReverseProxy_ServeHTTP_NoRoute(t *testing.T) {
@@ -104,6 +107,162 @@ func TestReverseProxy_ServeHTTP_WithBackend(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "hello from backend") {
 		t.Error("expected response from backend")
+	}
+}
+
+func TestReverseProxy_CircuitBreaker_FiltersOpenCircuit(t *testing.T) {
+	// Create a healthy backend
+	healthyBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("healthy"))
+	}))
+	defer healthyBackend.Close()
+
+	healthyAddr := strings.TrimPrefix(healthyBackend.URL, "http://")
+	failingAddr := "127.0.0.1:1" // Will fail to connect
+
+	rt := NewRouteTable()
+	rt.Upsert(&RouteEntry{
+		Host:       "app.example.com",
+		PathPrefix: "/",
+		Backends:   []string{failingAddr, healthyAddr},
+	})
+
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Manually open the circuit for the failing backend
+	// Record 5 failures to trigger open state (default threshold)
+	for i := 0; i < 5; i++ {
+		rp.circuit.RecordFailure(failingAddr)
+	}
+
+	// Verify circuit is open
+	if !rp.circuit.IsOpen(failingAddr) {
+		t.Fatal("circuit should be open for failing backend")
+	}
+
+	// Make request - should route to healthy backend only
+	req := httptest.NewRequest("GET", "http://app.example.com/", nil)
+	req.Host = "app.example.com"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	// Should succeed because healthy backend is available
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestReverseProxy_CircuitBreaker_AllBackendsOpen(t *testing.T) {
+	failingAddr := "127.0.0.1:1"
+
+	rt := NewRouteTable()
+	rt.Upsert(&RouteEntry{
+		Host:       "app.example.com",
+		PathPrefix: "/",
+		Backends:   []string{failingAddr},
+	})
+
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Open the circuit
+	for i := 0; i < 5; i++ {
+		rp.circuit.RecordFailure(failingAddr)
+	}
+
+	req := httptest.NewRequest("GET", "http://app.example.com/", nil)
+	req.Host = "app.example.com"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	// Should return 503 because all backends have open circuits
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503, got %d", rr.Code)
+	}
+}
+
+func TestReverseProxy_CircuitBreaker_RecordsSuccess(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+	defer backend.Close()
+
+	backendAddr := strings.TrimPrefix(backend.URL, "http://")
+
+	rt := NewRouteTable()
+	rt.Upsert(&RouteEntry{
+		Host:       "app.example.com",
+		PathPrefix: "/",
+		Backends:   []string{backendAddr},
+	})
+
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// First, create a circuit breaker by recording a failure
+	rp.circuit.RecordFailure(backendAddr)
+
+	// Now make a successful request - should record success and reset failure count
+	req := httptest.NewRequest("GET", "http://app.example.com/", nil)
+	req.Host = "app.example.com"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	// Check circuit breaker stats - should have recorded success (failure count reset)
+	stats, ok := rp.circuit.Stats(backendAddr)
+	if !ok {
+		t.Fatal("expected circuit breaker stats for backend")
+	}
+	if stats.FailureCount != 0 {
+		t.Errorf("failure count = %d, want 0 (should be reset after success)", stats.FailureCount)
+	}
+	if stats.State.String() != "closed" {
+		t.Errorf("circuit state = %s, want closed", stats.State)
+	}
+}
+
+func TestReverseProxy_CircuitBreaker_RecordsFailure(t *testing.T) {
+	failingAddr := "127.0.0.1:1" // Will fail to connect
+
+	rt := NewRouteTable()
+	rt.Upsert(&RouteEntry{
+		Host:       "app.example.com",
+		PathPrefix: "/",
+		Backends:   []string{failingAddr},
+	})
+
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Make a request that will fail
+	req := httptest.NewRequest("GET", "http://app.example.com/", nil)
+	req.Host = "app.example.com"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	// Should get 502
+	if rr.Code != http.StatusBadGateway {
+		t.Errorf("expected 502, got %d", rr.Code)
+	}
+
+	// Check circuit breaker stats - should have recorded failure
+	stats, ok := rp.circuit.Stats(failingAddr)
+	if !ok {
+		t.Fatal("expected circuit breaker stats for backend")
+	}
+	if stats.FailureCount < 1 {
+		t.Errorf("expected at least 1 failure, got %d", stats.FailureCount)
 	}
 }
 

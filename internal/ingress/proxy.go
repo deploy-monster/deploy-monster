@@ -21,8 +21,9 @@ type ReverseProxy struct {
 	router  *RouteTable
 	logger  *slog.Logger
 	metrics *ProxyMetrics
-	tracker *graceful.ConnectionTracker // Track active connections
-	drainer *graceful.DrainManager      // Manage draining backends
+	tracker *graceful.ConnectionTracker     // Track active connections
+	drainer *graceful.DrainManager          // Manage draining backends
+	circuit *graceful.CircuitBreakerManager // Circuit breaker for failing backends
 	lb      lb.Strategy
 }
 
@@ -44,6 +45,7 @@ func NewReverseProxy(router *RouteTable, logger *slog.Logger) *ReverseProxy {
 		metrics: &ProxyMetrics{},
 		tracker: tracker,
 		drainer: graceful.NewDrainManager(tracker),
+		circuit: graceful.NewCircuitBreakerManager(graceful.DefaultCircuitConfig()),
 		lb:      lb.New("round-robin"),
 	}
 }
@@ -73,6 +75,21 @@ func (rp *ReverseProxy) CompleteDrain(backend string) {
 // IsDraining returns true if a backend is currently being drained.
 func (rp *ReverseProxy) IsDraining(backend string) bool {
 	return rp.drainer.IsDraining(backend)
+}
+
+// CircuitStats returns circuit breaker stats for a backend.
+func (rp *ReverseProxy) CircuitStats(backend string) (graceful.CircuitStats, bool) {
+	return rp.circuit.Stats(backend)
+}
+
+// AllCircuitStats returns circuit breaker stats for all backends.
+func (rp *ReverseProxy) AllCircuitStats() map[string]graceful.CircuitStats {
+	return rp.circuit.AllStats()
+}
+
+// ResetCircuit resets the circuit breaker for a backend.
+func (rp *ReverseProxy) ResetCircuit(backend string) {
+	rp.circuit.Reset(backend)
 }
 
 // ErrorPage generates an HTML error page for display.
@@ -109,7 +126,7 @@ func pickBackend(route *RouteEntry) string {
 }
 
 // ServeHTTP implements http.Handler — the main request processing pipeline.
-// Flow: Match route → Apply middleware → Load balance → Reverse proxy
+// Flow: Match route → Filter backends → Load balance → Reverse proxy
 func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rp.metrics.TotalRequests.Add(1)
 	rp.metrics.ActiveRequests.Add(1)
@@ -128,7 +145,7 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Filter out draining backends
+	// 2. Filter out draining backends and backends with open circuits
 	healthyBackends := rp.filterHealthyBackends(route.Backends)
 	if len(healthyBackends) == 0 {
 		http.Error(w, "503 Service Unavailable — no healthy backends", http.StatusServiceUnavailable)
@@ -150,6 +167,9 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rp.metrics.ErrorCount.Add(1)
 		return
 	}
+
+	// Wrap response writer to track success/failure for circuit breaker
+	rw := &responseTracker{ResponseWriter: w, backend: backend, circuit: rp.circuit}
 
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
@@ -187,18 +207,54 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"error", err,
 			)
 			rp.metrics.ErrorCount.Add(1)
+			// Record failure for circuit breaker
+			rp.circuit.RecordFailure(backend)
 			http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
 		},
 	}
 
-	proxy.ServeHTTP(w, r)
+	proxy.ServeHTTP(rw, r)
 
 	rp.logger.Debug("proxy request",
 		"host", host,
 		"path", r.URL.Path,
 		"backend", backend,
+		"status", rw.status,
 		"duration", time.Since(start).String(),
 	)
+}
+
+// responseTracker wraps http.ResponseWriter to track response status for circuit breaker.
+type responseTracker struct {
+	http.ResponseWriter
+	backend string
+	circuit *graceful.CircuitBreakerManager
+	status  int
+	written bool
+}
+
+func (rt *responseTracker) WriteHeader(status int) {
+	if !rt.written {
+		rt.status = status
+		rt.written = true
+		// Record success/failure based on status code
+		if status >= 500 {
+			rt.circuit.RecordFailure(rt.backend)
+		} else {
+			rt.circuit.RecordSuccess(rt.backend)
+		}
+	}
+	rt.ResponseWriter.WriteHeader(status)
+}
+
+func (rt *responseTracker) Write(b []byte) (int, error) {
+	if !rt.written {
+		// WriteHeader wasn't called, status is 200
+		rt.status = 200
+		rt.circuit.RecordSuccess(rt.backend)
+		rt.written = true
+	}
+	return rt.ResponseWriter.Write(b)
 }
 
 // Metrics returns the current proxy metrics.
@@ -210,13 +266,19 @@ func (rp *ReverseProxy) Metrics() ProxyMetrics {
 	}
 }
 
-// filterHealthyBackends removes backends that are currently draining.
+// filterHealthyBackends removes backends that are draining or have open circuits.
 func (rp *ReverseProxy) filterHealthyBackends(backends []string) []string {
 	healthy := make([]string, 0, len(backends))
 	for _, backend := range backends {
-		if !rp.drainer.IsDraining(backend) {
-			healthy = append(healthy, backend)
+		// Skip draining backends
+		if rp.drainer.IsDraining(backend) {
+			continue
 		}
+		// Skip backends with open circuits (failing fast)
+		if rp.circuit.IsOpen(backend) {
+			continue
+		}
+		healthy = append(healthy, backend)
 	}
 	return healthy
 }
