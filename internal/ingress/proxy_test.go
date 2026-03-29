@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewReverseProxy(t *testing.T) {
@@ -509,5 +510,329 @@ func TestReverseProxy_ServeHTTP_ForwardHeaders(t *testing.T) {
 	}
 	if got := gotHeaders.Get("X-Real-IP"); got != "192.168.1.50" {
 		t.Errorf("X-Real-IP = %q, want %q", got, "192.168.1.50")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Drain Manager Tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestReverseProxy_DrainBackend(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Test draining with no active connections
+	err := rp.DrainBackend("127.0.0.1:3000", 100*time.Millisecond)
+	if err != nil {
+		t.Errorf("DrainBackend with no connections should succeed, got: %v", err)
+	}
+}
+
+func TestReverseProxy_StartDrain(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// First drain should start
+	active, ok := rp.StartDrain("127.0.0.1:3000")
+	if !ok {
+		t.Error("StartDrain should return ok=true for first drain")
+	}
+	if active != 0 {
+		t.Errorf("active = %d, want 0", active)
+	}
+
+	// Second drain should return not ok (already draining)
+	active, ok = rp.StartDrain("127.0.0.1:3000")
+	if ok {
+		t.Error("StartDrain should return ok=false for already draining backend")
+	}
+	if active != 0 {
+		t.Errorf("active = %d, want 0", active)
+	}
+}
+
+func TestReverseProxy_CompleteDrain(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Start drain
+	rp.StartDrain("127.0.0.1:3000")
+
+	// Complete drain
+	rp.CompleteDrain("127.0.0.1:3000")
+
+	// Should no longer be draining
+	if rp.IsDraining("127.0.0.1:3000") {
+		t.Error("backend should not be draining after CompleteDrain")
+	}
+}
+
+func TestReverseProxy_IsDraining(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Initially not draining
+	if rp.IsDraining("127.0.0.1:3000") {
+		t.Error("backend should not be draining initially")
+	}
+
+	// Start drain
+	rp.StartDrain("127.0.0.1:3000")
+
+	// Now draining
+	if !rp.IsDraining("127.0.0.1:3000") {
+		t.Error("backend should be draining after StartDrain")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Circuit Breaker Tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestReverseProxy_CircuitStats(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// No stats for unknown backend
+	_, ok := rp.CircuitStats("127.0.0.1:3000")
+	if ok {
+		t.Error("CircuitStats should return ok=false for unknown backend")
+	}
+
+	// Record a failure to create circuit breaker
+	rp.circuit.RecordFailure("127.0.0.1:3000")
+
+	// Now should have stats
+	stats, ok := rp.CircuitStats("127.0.0.1:3000")
+	if !ok {
+		t.Fatal("CircuitStats should return ok=true for known backend")
+	}
+	if stats.FailureCount != 1 {
+		t.Errorf("FailureCount = %d, want 1", stats.FailureCount)
+	}
+}
+
+func TestReverseProxy_AllCircuitStats(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Empty initially
+	allStats := rp.AllCircuitStats()
+	if len(allStats) != 0 {
+		t.Errorf("AllCircuitStats should be empty initially, got %d entries", len(allStats))
+	}
+
+	// Add some backends
+	rp.circuit.RecordFailure("127.0.0.1:3000")
+	rp.circuit.RecordFailure("127.0.0.1:3001")
+
+	allStats = rp.AllCircuitStats()
+	if len(allStats) != 2 {
+		t.Errorf("AllCircuitStats should have 2 entries, got %d", len(allStats))
+	}
+}
+
+func TestReverseProxy_ResetCircuit(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Create circuit and record failures
+	rp.circuit.RecordFailure("127.0.0.1:3000")
+	rp.circuit.RecordFailure("127.0.0.1:3000")
+	rp.circuit.RecordFailure("127.0.0.1:3000")
+	rp.circuit.RecordFailure("127.0.0.1:3000")
+	rp.circuit.RecordFailure("127.0.0.1:3000") // 5 failures = open
+
+	stats, _ := rp.CircuitStats("127.0.0.1:3000")
+	if stats.State.String() != "open" {
+		t.Errorf("circuit should be open after 5 failures, got %s", stats.State)
+	}
+
+	// Reset
+	rp.ResetCircuit("127.0.0.1:3000")
+
+	stats, _ = rp.CircuitStats("127.0.0.1:3000")
+	if stats.State.String() != "closed" {
+		t.Errorf("circuit should be closed after reset, got %s", stats.State)
+	}
+}
+
+func TestReverseProxy_filterHealthyBackends(t *testing.T) {
+	rt := NewRouteTable()
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	backends := []string{"127.0.0.1:3000", "127.0.0.1:3001", "127.0.0.1:3002"}
+
+	// All healthy
+	healthy := rp.filterHealthyBackends(backends)
+	if len(healthy) != 3 {
+		t.Errorf("expected 3 healthy backends, got %d", len(healthy))
+	}
+
+	// Drain one
+	rp.StartDrain("127.0.0.1:3000")
+	healthy = rp.filterHealthyBackends(backends)
+	if len(healthy) != 2 {
+		t.Errorf("expected 2 healthy backends after draining one, got %d", len(healthy))
+	}
+
+	// Open circuit for another
+	for i := 0; i < 5; i++ {
+		rp.circuit.RecordFailure("127.0.0.1:3001")
+	}
+	healthy = rp.filterHealthyBackends(backends)
+	if len(healthy) != 1 {
+		t.Errorf("expected 1 healthy backend after one drain and one open circuit, got %d", len(healthy))
+	}
+	if healthy[0] != "127.0.0.1:3002" {
+		t.Errorf("expected healthy backend to be 127.0.0.1:3002, got %s", healthy[0])
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ResponseTracker Tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestResponseTracker_Write_WithoutWriteHeader(t *testing.T) {
+	// Backend that writes body without calling WriteHeader (implicit 200)
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Don't call WriteHeader, just write body directly
+		w.Write([]byte("implicit 200"))
+	}))
+	defer backend.Close()
+
+	backendAddr := strings.TrimPrefix(backend.URL, "http://")
+
+	rt := NewRouteTable()
+	rt.Upsert(&RouteEntry{
+		Host:       "app.example.com",
+		PathPrefix: "/",
+		Backends:   []string{backendAddr},
+	})
+
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Create circuit breaker entry first
+	rp.circuit.RecordFailure(backendAddr)
+
+	req := httptest.NewRequest("GET", "http://app.example.com/", nil)
+	req.Host = "app.example.com"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	// Should get 200 (implicit)
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rr.Code)
+	}
+
+	// Check that success was recorded (circuit should be closed)
+	stats, ok := rp.CircuitStats(backendAddr)
+	if !ok {
+		t.Fatal("expected circuit stats")
+	}
+	// After success, failure count should be 0
+	if stats.FailureCount != 0 {
+		t.Errorf("failure count = %d, want 0 (success should reset failures)", stats.FailureCount)
+	}
+}
+
+func TestResponseTracker_WriteHeader_MultipleCalls(t *testing.T) {
+	// Backend that calls WriteHeader multiple times
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError) // First call - counts
+		w.WriteHeader(http.StatusOK)                  // Second call - ignored
+		w.Write([]byte("error"))
+	}))
+	defer backend.Close()
+
+	backendAddr := strings.TrimPrefix(backend.URL, "http://")
+
+	rt := NewRouteTable()
+	rt.Upsert(&RouteEntry{
+		Host:       "app.example.com",
+		PathPrefix: "/",
+		Backends:   []string{backendAddr},
+	})
+
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	req := httptest.NewRequest("GET", "http://app.example.com/", nil)
+	req.Host = "app.example.com"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	// Should get 500 (first WriteHeader)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
+	}
+
+	// Check that failure was recorded (500 = server error)
+	stats, ok := rp.CircuitStats(backendAddr)
+	if !ok {
+		t.Fatal("expected circuit stats")
+	}
+	if stats.FailureCount != 1 {
+		t.Errorf("failure count = %d, want 1 (500 should record failure)", stats.FailureCount)
+	}
+}
+
+func TestResponseTracker_WriteHeader_4xxNotError(t *testing.T) {
+	// Backend returns 404 - client error, not server error
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("not found"))
+	}))
+	defer backend.Close()
+
+	backendAddr := strings.TrimPrefix(backend.URL, "http://")
+
+	rt := NewRouteTable()
+	rt.Upsert(&RouteEntry{
+		Host:       "app.example.com",
+		PathPrefix: "/",
+		Backends:   []string{backendAddr},
+	})
+
+	logger := slog.Default()
+	rp := NewReverseProxy(rt, logger)
+
+	// Create circuit breaker entry first (it's created lazily on failure)
+	rp.circuit.RecordFailure(backendAddr)
+	stats, _ := rp.CircuitStats(backendAddr)
+	if stats.FailureCount != 1 {
+		t.Fatalf("setup: failure count = %d, want 1", stats.FailureCount)
+	}
+
+	req := httptest.NewRequest("GET", "http://app.example.com/", nil)
+	req.Host = "app.example.com"
+	rr := httptest.NewRecorder()
+
+	rp.ServeHTTP(rr, req)
+
+	// Should get 404
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rr.Code)
+	}
+
+	// Check that success was recorded (4xx is NOT a server error, so success is recorded)
+	stats, ok := rp.CircuitStats(backendAddr)
+	if !ok {
+		t.Fatal("expected circuit stats")
+	}
+	// Success resets failure count to 0
+	if stats.FailureCount != 0 {
+		t.Errorf("failure count = %d, want 0 (4xx should record success, resetting failures)", stats.FailureCount)
 	}
 }

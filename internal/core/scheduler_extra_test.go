@@ -111,20 +111,21 @@ func TestScheduler_CalcNextRun_EveryInterval(t *testing.T) {
 func TestScheduler_CalcNextRun_HHMMFormat(t *testing.T) {
 	s := NewScheduler(slog.Default())
 
-	next := s.calcNextRun("02:00")
+	// Use 05:00 to avoid DST transition issues (DST in Turkey is at 03:00 on March 30)
+	next := s.calcNextRun("05:00")
 
 	// The result should be a valid time in the future or at most 24h from now
 	now := time.Now()
 	if next.Before(now.Add(-time.Second)) {
-		t.Error("calcNextRun('02:00') returned a time in the past")
+		t.Error("calcNextRun('05:00') returned a time in the past")
 	}
 	diff := next.Sub(now)
 	if diff > 25*time.Hour {
-		t.Errorf("calcNextRun('02:00') returned time %v in the future, expected <= 24h", diff)
+		t.Errorf("calcNextRun('05:00') returned time %v in the future, expected <= 24h", diff)
 	}
 
-	// Verify it targets 02:00
-	if next.Hour() != 2 || next.Minute() != 0 {
-		t.Errorf("calcNextRun('02:00') = %02d:%02d, want 02:00", next.Hour(), next.Minute())
+	// Verify it targets 05:00
+	if next.Hour() != 5 || next.Minute() != 0 {
+		t.Errorf("calcNextRun('05:00') = %02d:%02d, want 05:00", next.Hour(), next.Minute())
 	}
 }

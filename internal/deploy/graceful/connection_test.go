@@ -243,6 +243,32 @@ func TestDrainManager_WaitForDrain_Timeout(t *testing.T) {
 	}
 }
 
+func TestDrainManager_WaitForDrain_AlreadyDraining(t *testing.T) {
+	ct := NewConnectionTracker()
+	dm := NewDrainManager(ct)
+
+	// Start draining first
+	dm.StartDrain("container-1")
+
+	// Second call should return nil (already draining)
+	done := dm.StartDrain("container-1")
+	if done != nil {
+		t.Error("StartDrain on already draining container should return nil channel")
+	}
+
+	// WaitForDrain on already draining container should return nil (not draining)
+	// Actually, since StartDrain returns nil when already draining,
+	// WaitForDrain will start a new drain, not see the existing one
+	// Let me test the case where we call WaitForDrain when already draining
+	dm2 := NewDrainManager(ct)
+	dm2.StartDrain("container-2")
+	// Now call WaitForDrain - it should return nil since StartDrain returns nil
+	err := dm2.WaitForDrain("container-2", 100*time.Millisecond)
+	if err != nil {
+		t.Errorf("WaitForDrain on already draining container should return nil, got: %v", err)
+	}
+}
+
 func TestDrainState(t *testing.T) {
 	ct := NewConnectionTracker()
 	ct.Increment("container-1")
@@ -273,5 +299,30 @@ func TestDrainState(t *testing.T) {
 
 	if state.StartTime.IsZero() {
 		t.Error("StartTime should be set")
+	}
+}
+
+func TestConnectionTracker_Total(t *testing.T) {
+	ct := NewConnectionTracker()
+
+	// Empty tracker
+	if ct.Total() != 0 {
+		t.Errorf("Total() = %d, want 0", ct.Total())
+	}
+
+	// Add connections to multiple containers
+	ct.Increment("container-1")
+	ct.Increment("container-1")
+	ct.Increment("container-2")
+	ct.Increment("container-3")
+
+	if ct.Total() != 4 {
+		t.Errorf("Total() = %d, want 4", ct.Total())
+	}
+
+	// Decrement one
+	ct.Decrement("container-1")
+	if ct.Total() != 3 {
+		t.Errorf("Total() = %d, want 3", ct.Total())
 	}
 }

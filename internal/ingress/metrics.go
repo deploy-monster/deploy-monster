@@ -65,7 +65,8 @@ func (m *MetricsCollector) RecordRequest(host string, statusCode int, latencyMic
 	m.requestsByHost.Inc(host)
 	m.requestsByStatus.Inc(fmt.Sprintf("%d", statusCode))
 
-	if statusCode >= 400 {
+	// Only 5xx are server errors (4xx are client errors)
+	if statusCode >= 500 {
 		m.errorCount.Add(1)
 	}
 }

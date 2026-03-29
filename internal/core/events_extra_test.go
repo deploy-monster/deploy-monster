@@ -265,3 +265,104 @@ func TestEvent_DebugString(t *testing.T) {
 		t.Errorf("DebugString() = %q, want %q", got, expected)
 	}
 }
+
+func TestNewEventBus_NilLogger(t *testing.T) {
+	// Passing nil logger should use slog.Default()
+	eb := NewEventBus(nil)
+	if eb == nil {
+		t.Fatal("NewEventBus(nil) returned nil")
+	}
+	if eb.logger == nil {
+		t.Error("logger should be set to default, not nil")
+	}
+}
+
+func TestEventBus_PublishAsync_WithSyncError(t *testing.T) {
+	// Test that PublishAsync logs errors from synchronous handlers
+	eb := NewEventBus(slog.Default())
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	eb.SubscribeNamed("test.sync.error", "failing-sync", false, func(_ context.Context, _ Event) error {
+		defer wg.Done()
+		return errors.New("sync handler error in async publish")
+	})
+
+	// PublishAsync should not block on error
+	eb.PublishAsync(context.Background(), Event{Type: "test.sync.error", Source: "test"})
+
+	// Wait for the handler to be called
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Good - handler was called
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler")
+	}
+
+	// Verify error count was incremented
+	stats := eb.Stats()
+	if stats.ErrorCount != 1 {
+		t.Errorf("expected ErrorCount 1, got %d", stats.ErrorCount)
+	}
+}
+
+func TestEventBus_PublishAsync_WithPresetID(t *testing.T) {
+	eb := NewEventBus(slog.Default())
+
+	var receivedID string
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	eb.Subscribe("test.preset.id", func(_ context.Context, e Event) error {
+		receivedID = e.ID
+		wg.Done()
+		return nil
+	})
+
+	presetID := "preset-id-12345"
+	eb.PublishAsync(context.Background(), Event{
+		ID:   presetID,
+		Type: "test.preset.id",
+	})
+
+	wg.Wait()
+
+	// Should use the preset ID, not generate a new one
+	if receivedID != presetID {
+		t.Errorf("ID = %q, want %q", receivedID, presetID)
+	}
+}
+
+func TestEventBus_PublishAsync_WithPresetTimestamp(t *testing.T) {
+	eb := NewEventBus(slog.Default())
+
+	presetTime := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
+	var receivedTime time.Time
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	eb.Subscribe("test.preset.time", func(_ context.Context, e Event) error {
+		receivedTime = e.Timestamp
+		wg.Done()
+		return nil
+	})
+
+	eb.PublishAsync(context.Background(), Event{
+		Type:      "test.preset.time",
+		Timestamp: presetTime,
+	})
+
+	wg.Wait()
+
+	// Should use the preset timestamp, not generate a new one
+	if !receivedTime.Equal(presetTime) {
+		t.Errorf("Timestamp = %v, want %v", receivedTime, presetTime)
+	}
+}
