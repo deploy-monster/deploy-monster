@@ -32,6 +32,18 @@ var _ = testLogger()
 // mockStore implements core.Store minimally for scheduler tests.
 type mockStore struct{ core.Store }
 
+func (m *mockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
+	return []core.Tenant{{ID: "t1", Name: "test"}}, 1, nil
+}
+func (m *mockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
+	return nil, 0, nil
+}
+func (m *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
+func (m *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
+	return nil, 0, nil
+}
+func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+
 // mockBackupStorage implements core.BackupStorage for cleanup tests.
 type mockBackupStorage struct {
 	entries []core.BackupEntry
@@ -975,7 +987,8 @@ func TestScheduler_RunBackups(t *testing.T) {
 		"local": &mockBackupStorage{},
 	}
 
-	s := NewScheduler(nil, storages, events, "02:00", testLogger())
+	store := &mockStore{}
+	s := NewScheduler(store, storages, events, "02:00", testLogger())
 	s.runBackups()
 
 	// Should have published backup.started and backup.completed

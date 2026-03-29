@@ -52,6 +52,12 @@ func (m *mockStore) CreateDomain(_ context.Context, _ *core.Domain) error {
 func (m *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
+func (m *mockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
+	return []core.Tenant{{ID: "tenant-1", Name: "Default"}}, 1, nil
+}
+func (m *mockStore) CreateApp(_ context.Context, _ *core.Application) error {
+	return nil
+}
 
 // mockRuntime implements core.ContainerRuntime with only what's needed.
 type mockRuntime struct {

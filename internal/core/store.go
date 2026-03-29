@@ -26,6 +26,8 @@ type Store interface {
 	AuditStore
 	SecretStore
 	InviteStore
+	UsageRecordStore
+	BackupStore
 	Close() error
 	Ping(ctx context.Context) error
 }
@@ -287,4 +289,46 @@ type Invitation struct {
 	AcceptedAt *time.Time `json:"accepted_at,omitempty"`
 	Status     string     `json:"status"`
 	CreatedAt  time.Time  `json:"created_at"`
+}
+
+// UsageRecord tracks resource usage for billing.
+type UsageRecord struct {
+	ID         int64     `json:"id"`
+	TenantID   string    `json:"tenant_id"`
+	AppID      string    `json:"app_id,omitempty"`
+	MetricType string    `json:"metric_type"`
+	Value      float64   `json:"value"`
+	HourBucket time.Time `json:"hour_bucket"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// UsageRecordStore persists resource usage metrics.
+type UsageRecordStore interface {
+	CreateUsageRecord(ctx context.Context, record *UsageRecord) error
+	ListUsageRecordsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]UsageRecord, int, error)
+}
+
+// Backup represents a backup record.
+type Backup struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	SourceType    string     `json:"source_type"`
+	SourceID      string     `json:"source_id"`
+	StorageTarget string     `json:"storage_target"`
+	FilePath      string     `json:"file_path"`
+	SizeBytes     int64      `json:"size_bytes"`
+	Encryption    string     `json:"encryption"`
+	Status        string     `json:"status"`
+	Scheduled     bool       `json:"scheduled"`
+	RetentionDays int        `json:"retention_days"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
+	CompletedAt   *time.Time `json:"completed_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+// BackupStore persists backup metadata.
+type BackupStore interface {
+	CreateBackup(ctx context.Context, backup *Backup) error
+	ListBackupsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]Backup, int, error)
+	UpdateBackupStatus(ctx context.Context, id, status string, sizeBytes int64) error
 }

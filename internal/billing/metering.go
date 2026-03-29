@@ -80,6 +80,19 @@ func (m *Meter) collect() {
 		usage.AppIDs = append(usage.AppIDs, c.Labels["monster.app.id"])
 	}
 
+	now := time.Now().UTC().Truncate(time.Hour)
+	for tenantID, usage := range tenantUsage {
+		record := &core.UsageRecord{
+			TenantID:   tenantID,
+			MetricType: "containers",
+			Value:      float64(usage.Containers),
+			HourBucket: now,
+		}
+		if err := m.store.CreateUsageRecord(ctx, record); err != nil {
+			m.logger.Debug("metering: failed to save usage record", "tenant", tenantID, "error", err)
+		}
+	}
+
 	m.logger.Debug("metering collected", "tenants", len(tenantUsage), "containers", len(containers))
 }
 

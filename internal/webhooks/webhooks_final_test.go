@@ -596,6 +596,11 @@ func (m *finalMockStore) ListInvitesByTenant(_ context.Context, _ string) ([]cor
 func (m *finalMockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
 	return nil, 0, nil
 }
+func (m *finalMockStore) CreateUsageRecord(_ context.Context, _ *core.UsageRecord) error { return nil }
+func (m *finalMockStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ int) ([]core.UsageRecord, int, error) { return nil, 0, nil }
+func (m *finalMockStore) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
+func (m *finalMockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) { return nil, 0, nil }
+func (m *finalMockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
 
 // finalMockRuntime implements core.ContainerRuntime.
 type finalMockRuntime struct{}

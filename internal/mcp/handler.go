@@ -102,11 +102,59 @@ func (h *Handler) deployApp(ctx context.Context, input json.RawMessage) (*MCPRes
 		Name       string `json:"name"`
 		SourceType string `json:"source_type"`
 		SourceURL  string `json:"source_url"`
+		TenantID   string `json:"tenant_id"`
+		ProjectID  string `json:"project_id"`
 	}
-	_ = json.Unmarshal(input, &params)
+	if err := json.Unmarshal(input, &params); err != nil {
+		return h.errorResponse("invalid parameters: " + err.Error())
+	}
 
-	return h.textResponse(fmt.Sprintf("Deploying %s from %s (%s) — pipeline initiated",
-		params.Name, params.SourceURL, params.SourceType))
+	if params.Name == "" || params.SourceType == "" || params.SourceURL == "" {
+		return h.errorResponse("name, source_type, and source_url are required")
+	}
+
+	// Determine tenant
+	tenantID := params.TenantID
+	if tenantID == "" {
+		// Use first available tenant (super-admin fallback)
+		if tenants, _, err := h.store.ListAllTenants(ctx, 1, 0); err == nil && len(tenants) > 0 {
+			tenantID = tenants[0].ID
+		}
+	}
+	if tenantID == "" {
+		return h.errorResponse("no tenant available; provide tenant_id")
+	}
+
+	app := &core.Application{
+		ID:         core.GenerateID(),
+		TenantID:   tenantID,
+		ProjectID:  params.ProjectID,
+		Name:       params.Name,
+		SourceType: params.SourceType,
+		SourceURL:  params.SourceURL,
+		Type:       "app",
+		Status:     "pending",
+	}
+	if err := h.store.CreateApp(ctx, app); err != nil {
+		return h.errorResponse("failed to create app: " + err.Error())
+	}
+
+	_ = h.events.Publish(ctx, core.NewEvent(core.EventAppCreated, "mcp", map[string]string{
+		"app_id":    app.ID,
+		"tenant_id": tenantID,
+	}))
+
+	result := map[string]any{
+		"app_id":      app.ID,
+		"name":        app.Name,
+		"source_type": app.SourceType,
+		"source_url":  app.SourceURL,
+		"tenant_id":   tenantID,
+		"status":      "created",
+		"message":     "Deployment pipeline initiated",
+	}
+	data, _ := json.MarshalIndent(result, "", "  ")
+	return h.textResponse("Deploying app:\n" + string(data))
 }
 
 func (h *Handler) viewLogs(ctx context.Context, input json.RawMessage) (*MCPResponse, error) {
@@ -156,7 +204,7 @@ func (h *Handler) errorResponse(msg string) (*MCPResponse, error) {
 	}, nil
 }
 
-// createDatabase creates a new database for an application.
+// createDatabase creates a new database configuration for an application.
 func (h *Handler) createDatabase(ctx context.Context, input json.RawMessage) (*MCPResponse, error) {
 	var params struct {
 		AppID    string `json:"app_id"`
@@ -166,22 +214,19 @@ func (h *Handler) createDatabase(ctx context.Context, input json.RawMessage) (*M
 		Password string `json:"password"`
 	}
 	if err := json.Unmarshal(input, &params); err != nil {
-		return h.errorResponse("Invalid parameters: " + err.Error())
+		return h.errorResponse("invalid parameters: " + err.Error())
 	}
 
-	// Validate required fields
 	if params.Engine == "" || params.Name == "" {
 		return h.errorResponse("engine and name are required")
 	}
 
-	// Verify app exists if app_id provided
 	if params.AppID != "" {
 		if _, err := h.store.GetApp(ctx, params.AppID); err != nil {
 			return h.errorResponse("App not found: " + params.AppID)
 		}
 	}
 
-	// Generate credentials if not provided
 	if params.User == "" {
 		params.User = "dbuser"
 	}
@@ -189,7 +234,6 @@ func (h *Handler) createDatabase(ctx context.Context, input json.RawMessage) (*M
 		params.Password = core.GenerateID()[:16]
 	}
 
-	// Create database connection string
 	var connStr string
 	switch params.Engine {
 	case "mysql":
@@ -204,8 +248,15 @@ func (h *Handler) createDatabase(ctx context.Context, input json.RawMessage) (*M
 		return h.errorResponse("Unsupported engine: " + params.Engine)
 	}
 
+	dbID := core.GenerateID()
+	_ = h.events.Publish(ctx, core.NewEvent(core.EventDatabaseCreated, "mcp", map[string]string{
+		"db_id":  dbID,
+		"app_id": params.AppID,
+		"engine": params.Engine,
+	}))
+
 	result := map[string]any{
-		"id":         core.GenerateID(),
+		"id":         dbID,
 		"name":       params.Name,
 		"engine":     params.Engine,
 		"user":       params.User,
@@ -213,7 +264,7 @@ func (h *Handler) createDatabase(ctx context.Context, input json.RawMessage) (*M
 		"connection": connStr,
 		"app_id":     params.AppID,
 		"status":     "created",
-		"message":    "Database credentials generated. Use the connection string to connect.",
+		"message":    "Database configuration created and event published",
 	}
 
 	data, _ := json.MarshalIndent(result, "", "  ")
@@ -289,30 +340,69 @@ func (h *Handler) marketplaceDeploy(ctx context.Context, input json.RawMessage) 
 		Name         string `json:"name"`
 		ProjectID    string `json:"project_id"`
 		Domain       string `json:"domain"`
+		TenantID     string `json:"tenant_id"`
 	}
 	if err := json.Unmarshal(input, &params); err != nil {
-		return h.errorResponse("Invalid parameters: " + err.Error())
+		return h.errorResponse("invalid parameters: " + err.Error())
 	}
 
-	// Validate required fields
 	if params.TemplateSlug == "" || params.Name == "" {
 		return h.errorResponse("template_slug and name are required")
 	}
 
-	// For now, return a helpful response with available templates
-	// In production, this would look up the template and deploy it
+	tenantID := params.TenantID
+	if tenantID == "" {
+		if tenants, _, err := h.store.ListAllTenants(ctx, 1, 0); err == nil && len(tenants) > 0 {
+			tenantID = tenants[0].ID
+		}
+	}
+	if tenantID == "" {
+		return h.errorResponse("no tenant available; provide tenant_id")
+	}
+
+	app := &core.Application{
+		ID:         core.GenerateID(),
+		TenantID:   tenantID,
+		ProjectID:  params.ProjectID,
+		Name:       params.Name,
+		SourceType: "image",
+		SourceURL:  fmt.Sprintf("deploymonster/%s:latest", params.TemplateSlug),
+		Type:       "app",
+		Status:     "pending",
+	}
+	if err := h.store.CreateApp(ctx, app); err != nil {
+		return h.errorResponse("failed to create app: " + err.Error())
+	}
+
+	if params.Domain != "" {
+		domain := &core.Domain{
+			ID:    core.GenerateID(),
+			AppID: app.ID,
+			FQDN:  params.Domain,
+			Type:  "custom",
+		}
+		if err := h.store.CreateDomain(ctx, domain); err != nil {
+			h.logger.Warn("failed to create domain for marketplace deploy", "error", err)
+		}
+	}
+
+	_ = h.events.Publish(ctx, core.NewEvent(core.EventAppCreated, "mcp", map[string]string{
+		"app_id":    app.ID,
+		"tenant_id": tenantID,
+	}))
+
 	result := map[string]any{
+		"app_id":        app.ID,
 		"template_slug": params.TemplateSlug,
 		"name":          params.Name,
 		"project_id":    params.ProjectID,
 		"domain":        params.Domain,
-		"status":        "ready",
-		"message":       fmt.Sprintf("To deploy %s from template '%s', use the API: POST /api/v1/apps with source_type=image", params.Name, params.TemplateSlug),
-		"hint":          "Popular templates: nginx, redis, postgres, grafana, prometheus",
+		"status":        "created",
+		"message":       "Marketplace app created and deployment initiated",
 	}
 
 	data, _ := json.MarshalIndent(result, "", "  ")
-	return h.textResponse("Marketplace deployment info:\n" + string(data))
+	return h.textResponse("Marketplace deployment started:\n" + string(data))
 }
 
 // provisionServer provisions a new VPS server.
@@ -353,22 +443,28 @@ func (h *Handler) provisionServer(ctx context.Context, input json.RawMessage) (*
 		return h.errorResponse("Unsupported provider: " + params.Provider + ". Use: hetzner, digitalocean, vultr, linode, or custom")
 	}
 
-	// In production, this would call the actual VPS provider API
-	// Return guidance for now
+	serverID := core.GenerateID()
+
+	_ = h.events.Publish(ctx, core.NewEvent(core.EventServerAdded, "mcp", map[string]string{
+		"server_id": serverID,
+		"provider":  params.Provider,
+		"name":      params.Name,
+	}))
+
 	result := map[string]any{
-		"id":         core.GenerateID(),
+		"id":         serverID,
 		"name":       params.Name,
 		"provider":   params.Provider,
 		"region":     params.Region,
 		"size":       params.Size,
 		"ssh_key_id": params.SSHKey,
-		"status":     "ready",
-		"message":    "To provision a real server, configure VPS provider API keys in your settings.",
+		"status":     "pending",
+		"message":    "Server provisioning request accepted. Configure VPS provider API keys to provision automatically.",
 		"api_docs":   "POST /api/v1/servers to create a server record, then use the provider's dashboard for actual provisioning.",
 	}
 
 	data, _ := json.MarshalIndent(result, "", "  ")
-	return h.textResponse("Server provisioning info:\n" + string(data))
+	return h.textResponse("Server provisioning initiated:\n" + string(data))
 }
 
 // ListTools returns all available MCP tools (for tools/list method).

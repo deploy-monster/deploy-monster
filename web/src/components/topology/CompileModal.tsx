@@ -26,8 +26,11 @@ export function CompileModal({ open, onClose, result, isCompiling }: CompileModa
 
   useEffect(() => {
     if (!open) {
-      setCopied(null);
-      setActiveTab('compose');
+      const id = requestAnimationFrame(() => {
+        setCopied(null);
+        setActiveTab('compose');
+      });
+      return () => cancelAnimationFrame(id);
     }
   }, [open]);
 

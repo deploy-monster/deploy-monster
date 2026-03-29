@@ -139,6 +139,12 @@ func (m *mockSecretStore) ListInvitesByTenant(_ context.Context, _ string) ([]co
 func (m *mockSecretStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
 	return nil, 0, nil
 }
+func (m *mockSecretStore) CreateUsageRecord(_ context.Context, _ *core.UsageRecord) error { return nil }
+func (m *mockSecretStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ int) ([]core.UsageRecord, int, error) { return nil, 0, nil }
+func (m *mockSecretStore) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
+func (m *mockSecretStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) { return nil, 0, nil }
+func (m *mockSecretStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+
 func (m *mockSecretStore) Close() error                 { return nil }
 func (m *mockSecretStore) Ping(_ context.Context) error { return nil }
 

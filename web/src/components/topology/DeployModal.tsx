@@ -43,14 +43,15 @@ export function DeployModal({ open, onClose, result, isDeploying, status }: Depl
 
   useEffect(() => {
     if (!open) {
-      setCurrentStageIndex(0);
-      return;
+      const id = requestAnimationFrame(() => setCurrentStageIndex(0));
+      return () => cancelAnimationFrame(id);
     }
 
     // Update stage index based on status
     const stageIndex = STAGES.findIndex(s => s.key === status);
     if (stageIndex >= 0) {
-      setCurrentStageIndex(stageIndex);
+      const id = requestAnimationFrame(() => setCurrentStageIndex(stageIndex));
+      return () => cancelAnimationFrame(id);
     }
   }, [open, status]);
 

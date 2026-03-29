@@ -137,7 +137,7 @@ func TestDNSRecordHandler_Delete_Success(t *testing.T) {
 	services.RegisterDNSProvider("cloudflare", &mockDNS{})
 	h := NewDNSRecordHandler(services)
 
-	req := httptest.NewRequest("DELETE", "/api/v1/dns/records/rec-1?provider=cloudflare", nil)
+	req := httptest.NewRequest("DELETE", "/api/v1/dns/records/rec-1?provider=cloudflare&name=example.com", nil)
 	req.SetPathValue("id", "rec-1")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
@@ -152,7 +152,7 @@ func TestDNSRecordHandler_Delete_Error(t *testing.T) {
 	services.RegisterDNSProvider("cloudflare", &mockDNS{deleteErr: fmt.Errorf("not found")})
 	h := NewDNSRecordHandler(services)
 
-	req := httptest.NewRequest("DELETE", "/api/v1/dns/records/rec-1?provider=cloudflare", nil)
+	req := httptest.NewRequest("DELETE", "/api/v1/dns/records/rec-1?provider=cloudflare&name=example.com", nil)
 	req.SetPathValue("id", "rec-1")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
@@ -555,7 +555,7 @@ type mockDNS struct {
 func (m *mockDNS) Name() string                                           { return "mock" }
 func (m *mockDNS) CreateRecord(_ context.Context, _ core.DNSRecord) error { return m.createErr }
 func (m *mockDNS) UpdateRecord(_ context.Context, _ core.DNSRecord) error { return nil }
-func (m *mockDNS) DeleteRecord(_ context.Context, _ string) error         { return m.deleteErr }
+func (m *mockDNS) DeleteRecord(_ context.Context, _ core.DNSRecord) error { return m.deleteErr }
 func (m *mockDNS) Verify(_ context.Context, _ string) (bool, error) {
 	return m.verified, m.verifyErr
 }

@@ -125,7 +125,8 @@ func TestScheduler_RunBackups_EmitsCorrectEvents(t *testing.T) {
 		"local": &mockBackupStorage{},
 	}
 
-	s := NewScheduler(nil, storages, events, "02:00", testLogger())
+	store := &mockStore{}
+	s := NewScheduler(store, storages, events, "02:00", testLogger())
 	s.runBackups()
 
 	if len(published) != 2 {

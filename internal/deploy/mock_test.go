@@ -329,6 +329,12 @@ func (s *mockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, 
 }
 
 // Store methods
+func (s *mockStore) CreateUsageRecord(_ context.Context, _ *core.UsageRecord) error { return nil }
+func (s *mockStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ int) ([]core.UsageRecord, int, error) { return nil, 0, nil }
+func (s *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
+func (s *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) { return nil, 0, nil }
+func (s *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+
 func (s *mockStore) Close() error                 { return nil }
 func (s *mockStore) Ping(_ context.Context) error { return nil }
 

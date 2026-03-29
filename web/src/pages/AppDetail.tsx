@@ -127,7 +127,7 @@ export function AppDetail() {
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
   const [showSecrets, setShowSecrets] = useState(false);
-  const [_editingEnv, setEditingEnv] = useState<string | null>(null);
+  const [, setEditingEnv] = useState<string | null>(null);
 
   /* -- Actions ---------------------------------------------------- */
 
@@ -862,7 +862,10 @@ function LogsPanel({ appId }: { appId: string }) {
     if (!appId) return;
 
     const eventSource = new EventSource(`/api/v1/apps/${appId}/logs/stream`);
-    setConnected(true);
+
+    eventSource.onopen = () => {
+      setConnected(true);
+    };
 
     eventSource.onmessage = (e) => {
       setLogs((prev) => [...prev.slice(-500), e.data]);

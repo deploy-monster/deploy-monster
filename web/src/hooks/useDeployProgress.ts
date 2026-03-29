@@ -64,63 +64,63 @@ export function useDeployProgress({
     setResult(null);
   }, []);
 
-  const connect = useCallback(() => {
-    if (!enabled || !projectId) return;
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/v1/topology/deploy/${projectId}/progress`;
-
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setIsConnected(true);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data: DeployWSMessage = JSON.parse(event.data);
-
-        if (data.type === 'deploy_progress') {
-          setStatus(data.stage);
-          setProgress(data.progress);
-          setMessage(data.message);
-          onProgress?.(data);
-        } else if (data.type === 'deploy_complete') {
-          setStatus(data.success ? 'success' : 'error');
-          setProgress(100);
-          setMessage(data.message);
-          const response: TopologyDeployResponse = {
-            success: data.success,
-            message: data.message,
-            duration: data.duration,
-            containers: data.containers,
-            networks: data.networks,
-            volumes: data.volumes,
-            errors: data.errors,
-          };
-          setResult(response);
-          onComplete?.(response);
-        }
-      } catch (err) {
-        console.error('Failed to parse deploy progress message:', err);
-      }
-    };
-
-    ws.onclose = () => {
-      setIsConnected(false);
-      // Auto-reconnect after 3 seconds if still enabled
-      if (enabled) {
-        reconnectTimeoutRef.current = setTimeout(connect, 3000);
-      }
-    };
-
-    ws.onerror = () => {
-      ws.close();
-    };
-  }, [enabled, projectId, onComplete, onProgress]);
-
   useEffect(() => {
+    const connect = () => {
+      if (!enabled || !projectId) return;
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/api/v1/topology/deploy/${projectId}/progress`;
+
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setIsConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data: DeployWSMessage = JSON.parse(event.data);
+
+          if (data.type === 'deploy_progress') {
+            setStatus(data.stage);
+            setProgress(data.progress);
+            setMessage(data.message);
+            onProgress?.(data);
+          } else if (data.type === 'deploy_complete') {
+            setStatus(data.success ? 'success' : 'error');
+            setProgress(100);
+            setMessage(data.message);
+            const response: TopologyDeployResponse = {
+              success: data.success,
+              message: data.message,
+              duration: data.duration,
+              containers: data.containers,
+              networks: data.networks,
+              volumes: data.volumes,
+              errors: data.errors,
+            };
+            setResult(response);
+            onComplete?.(response);
+          }
+        } catch (err) {
+          console.error('Failed to parse deploy progress message:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        // Auto-reconnect after 3 seconds if still enabled
+        if (enabled) {
+          reconnectTimeoutRef.current = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    };
+
     connect();
 
     return () => {
@@ -131,7 +131,7 @@ export function useDeployProgress({
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [connect]);
+  }, [enabled, projectId, onComplete, onProgress]);
 
   return {
     status,

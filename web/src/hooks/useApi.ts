@@ -34,7 +34,9 @@ export function useApi<T>(path: string, options: UseApiOptions = {}) {
   }, [path]);
 
   useEffect(() => {
-    if (immediate) fetch();
+    if (!immediate) return;
+    const id = setTimeout(fetch, 0);
+    return () => clearTimeout(id);
   }, [fetch, immediate]);
 
   useEffect(() => {

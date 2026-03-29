@@ -24,7 +24,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@/components/Toast';
+import { toast } from '@/stores/toastStore';
 
 // ---------------------------------------------------------------------------
 // Types

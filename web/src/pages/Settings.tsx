@@ -23,7 +23,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/theme';
 import { cn } from '@/lib/utils';
 import { api } from '@/api/client';
-import { toast } from '@/components/Toast';
+import { toast } from '@/stores/toastStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

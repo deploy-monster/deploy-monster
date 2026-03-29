@@ -8,9 +8,10 @@ import { ConfigPanel } from '@/components/topology/ConfigPanel';
 import { CompileModal } from '@/components/topology/CompileModal';
 import { DeployModal, type DeployStatus } from '@/components/topology/DeployModal';
 import { useTopologyStore } from '@/stores/topologyStore';
-import type { TopologyNodeType, CompileResult, TopologyDeployResponse } from '@/types/topology';
-import { useMutation } from '@/hooks';
+import type { CompileResult, TopologyDeployResponse } from '@/types/topology';
+import { useApi, useMutation } from '@/hooks';
 import { useDeployProgress } from '@/hooks/useDeployProgress';
+import type { TopologyState } from '@/types/topology';
 
 const ENVIRONMENTS = ['production', 'staging', 'development'];
 
@@ -65,17 +66,25 @@ export default function TopologyPage() {
     }
   }, [wsStatus, wsEnabled]);
 
-  // Load topology on mount and const { data: topologyData, isLoading: isTopologyLoading } = useApi<TopologyState>(
+  // Load topology on mount
+  const { data: topologyData, refetch: fetchTopology } = useApi<TopologyState>(
     `/topology/${projectId}/${environment}`,
     { immediate: false }
   );
+
+  useEffect(() => {
+    if (topologyData && topologyData.nodes && topologyData.edges) {
+      loadTopology(topologyData);
+    }
+  }, [topologyData, loadTopology]);
 
   // Reload topology when environment changes
   useEffect(() => {
     if (projectId && environment) {
       fetchTopology();
     }
-  }, [projectId, environment, fetchTopology]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, environment]);
 
   const deployStatus = wsEnabled ? wsDeployStatus : 'idle';
 
@@ -176,7 +185,7 @@ export default function TopologyPage() {
     selectNode(null);
   }, [selectNode]);
 
-  const handleDragStart = (_type: TopologyNodeType) => {
+  const handleDragStart = () => {
     // Could be used to show visual feedback
   };
 

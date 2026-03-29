@@ -106,10 +106,9 @@ export interface TopologyActions {
   setEnvironment: (env: string) => void;
   markDirty: () => void;
   markClean: () => void;
-  loadTopology: (state: Partial<TopologyState>) => void;
+  loadTopology: (topology: { nodes: TopologyNode[]; edges: TopologyEdge[] }) => void;
   setDeploying: (deploying: boolean) => void;
   clearTopology: () => void;
-  loadTopology: (topology: { nodes: TopologyNode[]; edges: TopologyEdge[] }) => void;
   autoLayout: () => void;
 }
 

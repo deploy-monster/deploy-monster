@@ -1,7 +1,9 @@
 package topology
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"sort"
 	"strings"
 )
@@ -382,12 +384,19 @@ func (c *Compiler) componentExists(id string) bool {
 	return false
 }
 
-// randomString generates a random string of given length
+// randomString generates a cryptographically secure random string of given length
 func randomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, length)
+	max := big.NewInt(int64(len(charset)))
 	for i := range b {
-		b[i] = charset[i%len(charset)]
+		n, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			// Fallback to a deterministic but consistent char on entropy failure
+			b[i] = charset[i%len(charset)]
+			continue
+		}
+		b[i] = charset[n.Int64()]
 	}
 	return string(b)
 }

@@ -166,7 +166,7 @@ type DNSProvider interface {
 	Name() string
 	CreateRecord(ctx context.Context, record DNSRecord) error
 	UpdateRecord(ctx context.Context, record DNSRecord) error
-	DeleteRecord(ctx context.Context, recordID string) error
+	DeleteRecord(ctx context.Context, record DNSRecord) error
 	Verify(ctx context.Context, fqdn string) (bool, error)
 }
 

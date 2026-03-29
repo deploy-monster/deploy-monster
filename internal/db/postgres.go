@@ -990,3 +990,107 @@ func (p *PostgresDB) GetLatestSecretVersion(ctx context.Context, secretID string
 	}
 	return &version, nil
 }
+
+// CreateUsageRecord inserts a new usage record.
+func (p *PostgresDB) CreateUsageRecord(ctx context.Context, record *core.UsageRecord) error {
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO usage_records (tenant_id, app_id, metric_type, value, hour_bucket, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		record.TenantID, record.AppID, record.MetricType, record.Value, record.HourBucket.UTC(), time.Now().UTC())
+	return err
+}
+
+// ListUsageRecordsByTenant lists usage records for a tenant with pagination.
+func (p *PostgresDB) ListUsageRecordsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]core.UsageRecord, int, error) {
+	var total int
+	if err := p.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM usage_records WHERE tenant_id = $1`, tenantID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, tenant_id, app_id, metric_type, value, hour_bucket, created_at
+		 FROM usage_records
+		 WHERE tenant_id = $1
+		 ORDER BY hour_bucket DESC
+		 LIMIT $2 OFFSET $3`,
+		tenantID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var records []core.UsageRecord
+	for rows.Next() {
+		var r core.UsageRecord
+		if err := rows.Scan(&r.ID, &r.TenantID, &r.AppID, &r.MetricType, &r.Value, &r.HourBucket, &r.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		records = append(records, r)
+	}
+	return records, total, rows.Err()
+}
+
+// CreateBackup inserts a new backup record.
+func (p *PostgresDB) CreateBackup(ctx context.Context, backup *core.Backup) error {
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO backups (id, tenant_id, source_type, source_id, storage_target, file_path, size_bytes, encryption, status, scheduled, retention_days, started_at, completed_at, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+		backup.ID, backup.TenantID, backup.SourceType, backup.SourceID, backup.StorageTarget,
+		backup.FilePath, backup.SizeBytes, backup.Encryption, backup.Status, backup.Scheduled,
+		backup.RetentionDays, nil, nil, time.Now().UTC())
+	return err
+}
+
+// ListBackupsByTenant lists backups for a tenant with pagination.
+func (p *PostgresDB) ListBackupsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]core.Backup, int, error) {
+	var total int
+	if err := p.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM backups WHERE tenant_id = $1`, tenantID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, tenant_id, source_type, source_id, storage_target, file_path, size_bytes, encryption, status, scheduled, retention_days, started_at, completed_at, created_at
+		 FROM backups
+		 WHERE tenant_id = $1
+		 ORDER BY created_at DESC
+		 LIMIT $2 OFFSET $3`,
+		tenantID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var backups []core.Backup
+	for rows.Next() {
+		var b core.Backup
+		var startedAt, completedAt *time.Time
+		if err := rows.Scan(
+			&b.ID, &b.TenantID, &b.SourceType, &b.SourceID, &b.StorageTarget,
+			&b.FilePath, &b.SizeBytes, &b.Encryption, &b.Status, &b.Scheduled,
+			&b.RetentionDays, &startedAt, &completedAt, &b.CreatedAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		b.StartedAt = startedAt
+		b.CompletedAt = completedAt
+		backups = append(backups, b)
+	}
+	return backups, total, rows.Err()
+}
+
+// UpdateBackupStatus updates a backup's status and size.
+func (p *PostgresDB) UpdateBackupStatus(ctx context.Context, id, status string, sizeBytes int64) error {
+	var completedAt *time.Time
+	if status == "completed" || status == "failed" {
+		now := time.Now().UTC()
+		completedAt = &now
+	}
+	_, err := p.db.ExecContext(ctx,
+		`UPDATE backups SET status = $1, size_bytes = $2, completed_at = $3 WHERE id = $4`,
+		status, sizeBytes, completedAt, id)
+	return err
+}

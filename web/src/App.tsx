@@ -52,7 +52,7 @@ export default function App() {
   useEffect(() => {
     initAuth();
     initTheme();
-  }, []);
+  }, [initAuth, initTheme]);
 
   return (
     <ErrorBoundary>

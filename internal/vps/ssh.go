@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"sync"
 	"time"
 
@@ -12,9 +13,10 @@ import (
 
 // SSHPool manages persistent SSH connections to remote servers.
 type SSHPool struct {
-	mu      sync.RWMutex
-	clients map[string]*sshConn
-	logger  *slog.Logger
+	mu         sync.RWMutex
+	clients    map[string]*sshConn
+	knownHosts map[string]ssh.PublicKey
+	logger     *slog.Logger
 }
 
 type sshConn struct {
@@ -25,14 +27,22 @@ type sshConn struct {
 // NewSSHPool creates a new SSH connection pool.
 func NewSSHPool(logger *slog.Logger) *SSHPool {
 	pool := &SSHPool{
-		clients: make(map[string]*sshConn),
-		logger:  logger,
+		clients:    make(map[string]*sshConn),
+		knownHosts: make(map[string]ssh.PublicKey),
+		logger:     logger,
 	}
 
 	// Cleanup idle connections every 5 minutes
 	go pool.cleanupLoop()
 
 	return pool
+}
+
+// AddKnownHost registers a trusted host public key for SSH verification.
+func (p *SSHPool) AddKnownHost(host string, key ssh.PublicKey) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.knownHosts[host] = key
 }
 
 // Execute runs a command on a remote server via SSH.
@@ -122,10 +132,30 @@ func (p *SSHPool) getOrCreate(host string, port int, user string, key []byte) (*
 		return nil, fmt.Errorf("parse ssh key: %w", err)
 	}
 
+	p.mu.Lock()
+	if p.knownHosts == nil {
+		p.knownHosts = make(map[string]ssh.PublicKey)
+	}
+	knownKey, hasKnownKey := p.knownHosts[host]
+	p.mu.Unlock()
+
+	var hostKeyCallback ssh.HostKeyCallback
+	if hasKnownKey {
+		hostKeyCallback = ssh.FixedHostKey(knownKey)
+	} else {
+		hostKeyCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			p.mu.Lock()
+			p.knownHosts[host] = key
+			p.mu.Unlock()
+			p.logger.Warn("trusted new SSH host key on first use", "host", host, "fingerprint", ssh.FingerprintSHA256(key))
+			return nil
+		}
+	}
+
 	config := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // host key verification planned for v2
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         10 * time.Second,
 	}
 

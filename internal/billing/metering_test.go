@@ -67,6 +67,22 @@ func (m *mockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]c
 	return m.apps, m.total, m.err
 }
 
+func (m *mockStore) CreateUsageRecord(_ context.Context, _ *core.UsageRecord) error {
+	return m.err
+}
+
+func (m *mockStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ int) ([]core.UsageRecord, int, error) {
+	return nil, 0, m.err
+}
+
+func (m *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error   { return m.err }
+func (m *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
+	return nil, 0, m.err
+}
+func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+	return m.err
+}
+
 func TestNewMeter(t *testing.T) {
 	logger := slog.Default()
 	runtime := &mockContainerRuntime{}

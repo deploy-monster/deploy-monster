@@ -314,6 +314,11 @@ func (m *pipelineMockStore) ListInvitesByTenant(_ context.Context, _ string) ([]
 func (m *pipelineMockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
 	return nil, 0, nil
 }
+func (m *pipelineMockStore) CreateUsageRecord(_ context.Context, _ *core.UsageRecord) error { return nil }
+func (m *pipelineMockStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ int) ([]core.UsageRecord, int, error) { return nil, 0, nil }
+func (m *pipelineMockStore) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
+func (m *pipelineMockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) { return nil, 0, nil }
+func (m *pipelineMockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
 
 // pipelineMockRuntime implements core.ContainerRuntime.
 type pipelineMockRuntime struct{}

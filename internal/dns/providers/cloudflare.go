@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -69,14 +70,21 @@ func (c *Cloudflare) UpdateRecord(ctx context.Context, record core.DNSRecord) er
 	return err
 }
 
-func (c *Cloudflare) DeleteRecord(ctx context.Context, recordID string) error {
-	// Would need zone ID — simplified for now
-	return fmt.Errorf("delete requires zone context — use full record management API")
+func (c *Cloudflare) DeleteRecord(ctx context.Context, record core.DNSRecord) error {
+	zoneID, err := c.findZone(ctx, record.Name)
+	if err != nil {
+		return err
+	}
+	_, err = c.do(ctx, http.MethodDelete, fmt.Sprintf("/zones/%s/dns_records/%s", zoneID, record.ID), nil)
+	return err
 }
 
 func (c *Cloudflare) Verify(ctx context.Context, fqdn string) (bool, error) {
-	// Simple DNS lookup verification
-	// In production, would do actual DNS query via net.Resolver
+	resolver := &net.Resolver{}
+	_, err := resolver.LookupHost(ctx, fqdn)
+	if err != nil {
+		return false, nil
+	}
 	return true, nil
 }
 

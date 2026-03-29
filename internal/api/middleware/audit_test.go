@@ -153,6 +153,12 @@ func (s *auditMockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Ten
 	return nil, 0, nil
 }
 
+func (s *auditMockStore) CreateUsageRecord(_ context.Context, _ *core.UsageRecord) error { return nil }
+func (s *auditMockStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ int) ([]core.UsageRecord, int, error) { return nil, 0, nil }
+func (s *auditMockStore) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
+func (s *auditMockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) { return nil, 0, nil }
+func (s *auditMockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+
 func (s *auditMockStore) Close() error                 { return nil }
 func (s *auditMockStore) Ping(_ context.Context) error { return nil }
 

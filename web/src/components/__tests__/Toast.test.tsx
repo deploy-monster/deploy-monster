@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
-import { ToastContainer, useToast, toast } from '../Toast'
+import { ToastContainer } from '../Toast';
+import { useToast, toast } from '@/stores/toastStore';
 
 describe('ToastContainer', () => {
   beforeEach(() => {

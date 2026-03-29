@@ -67,7 +67,7 @@ const NODE_CONFIG: Record<TopologyNodeType, {
 };
 
 export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
-  const { updateNode, removeNode } = useTopologyStore();
+  const { updateNode, removeNode, nodes } = useTopologyStore();
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -144,7 +144,6 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
   const renderAppConfig = () => {
     const data = selectedNode.data as Partial<AppNodeData>;
     const envVars = (data.envVars as Record<string, string>) || {};
-    const { nodes } = useTopologyStore();
 
     // Get volume mounts for this container
     const volumeMounts = (data.volumeMounts as VolumeMount[]) || [];

@@ -1,7 +1,9 @@
 package backup
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -70,17 +72,93 @@ func (s *Scheduler) runBackups() {
 
 	_ = s.events.Publish(ctx, core.NewEvent(core.EventBackupStarted, "backup", nil))
 
-	// In production, this would:
-	// 1. List all apps with backup enabled
-	// 2. For each app, snapshot volumes
-	// 3. For each managed DB, run pg_dump/mysqldump
-	// 4. Upload to configured storage target
-	// 5. Apply retention policy (delete old backups)
+	// Pick first available storage target
+	var storage core.BackupStorage
+	var storageName string
+	for name, st := range s.storages {
+		if st != nil {
+			storage = st
+			storageName = name
+			break
+		}
+	}
+	if storage == nil {
+		s.logger.Error("no backup storage configured")
+		return
+	}
+
+	// Iterate all tenants and their apps
+	_, totalTenants, err := s.store.ListAllTenants(ctx, 10000, 0)
+	if err != nil {
+		s.logger.Error("failed to list tenants for backup", "error", err)
+		return
+	}
+	tenants, _, err := s.store.ListAllTenants(ctx, totalTenants, 0)
+	if err != nil {
+		s.logger.Error("failed to list tenants for backup", "error", err)
+		return
+	}
+
+	backedUp := 0
+	failed := 0
+	for _, tenant := range tenants {
+		apps, _, err := s.store.ListAppsByTenant(ctx, tenant.ID, 10000, 0)
+		if err != nil {
+			s.logger.Error("failed to list apps for backup", "tenant", tenant.ID, "error", err)
+			continue
+		}
+
+		for _, app := range apps {
+			backupID := core.GenerateID()
+			backup := &core.Backup{
+				ID:            backupID,
+				TenantID:      tenant.ID,
+				SourceType:    "config",
+				SourceID:      app.ID,
+				StorageTarget: storageName,
+				Status:        "pending",
+				Scheduled:     true,
+				RetentionDays: 30,
+			}
+			if err := s.store.CreateBackup(ctx, backup); err != nil {
+				s.logger.Error("failed to create backup record", "app", app.ID, "error", err)
+				failed++
+				continue
+			}
+
+			// Serialize app config as backup payload
+			payload, err := json.MarshalIndent(app, "", "  ")
+			if err != nil {
+				_ = s.store.UpdateBackupStatus(ctx, backupID, "failed", 0)
+				failed++
+				continue
+			}
+
+			key := fmt.Sprintf("%s/%s/%s.json", tenant.ID, app.ID, backupID)
+			if err := storage.Upload(ctx, key, bytes.NewReader(payload), int64(len(payload))); err != nil {
+				s.logger.Error("failed to upload backup", "app", app.ID, "error", err)
+				_ = s.store.UpdateBackupStatus(ctx, backupID, "failed", 0)
+				failed++
+				continue
+			}
+
+			if err := s.store.UpdateBackupStatus(ctx, backupID, "completed", int64(len(payload))); err != nil {
+				s.logger.Error("failed to update backup status", "app", app.ID, "error", err)
+			}
+			backedUp++
+		}
+
+		// Apply retention policy for this tenant
+		prefix := fmt.Sprintf("%s/", tenant.ID)
+		if deleted, err := CleanupOldBackups(ctx, storage, prefix, 30); err == nil && deleted > 0 {
+			s.logger.Info("cleaned up old backups", "tenant", tenant.ID, "deleted", deleted)
+		}
+	}
 
 	_ = s.events.Publish(ctx, core.NewEvent(core.EventBackupCompleted, "backup",
-		map[string]string{"type": "scheduled"}))
+		map[string]string{"type": "scheduled", "backed_up": strconv.Itoa(backedUp), "failed": strconv.Itoa(failed)}))
 
-	s.logger.Info("scheduled backups complete")
+	s.logger.Info("scheduled backups complete", "backedUp", backedUp, "failed", failed)
 }
 
 // CleanupOldBackups removes backups older than retention days.

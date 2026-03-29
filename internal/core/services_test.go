@@ -16,7 +16,7 @@ type mockDNSProvider struct {
 func (m *mockDNSProvider) Name() string                                      { return m.name }
 func (m *mockDNSProvider) CreateRecord(_ context.Context, _ DNSRecord) error { return nil }
 func (m *mockDNSProvider) UpdateRecord(_ context.Context, _ DNSRecord) error { return nil }
-func (m *mockDNSProvider) DeleteRecord(_ context.Context, _ string) error    { return nil }
+func (m *mockDNSProvider) DeleteRecord(_ context.Context, _ DNSRecord) error { return nil }
 func (m *mockDNSProvider) Verify(_ context.Context, _ string) (bool, error)  { return true, nil }
 
 type mockBackupStorage struct {

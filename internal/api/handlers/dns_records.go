@@ -83,12 +83,18 @@ func (h *DNSRecordHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, record)
 }
 
-// Delete handles DELETE /api/v1/dns/records/{id}
+// Delete handles DELETE /api/v1/dns/records/{id}?name=...
 func (h *DNSRecordHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	recordID := r.PathValue("id")
+	name := r.URL.Query().Get("name")
 	provider := r.URL.Query().Get("provider")
 	if provider == "" {
 		provider = "cloudflare"
+	}
+
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "name query param required")
+		return
 	}
 
 	p := h.services.DNSProvider(provider)
@@ -97,7 +103,8 @@ func (h *DNSRecordHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := p.DeleteRecord(r.Context(), recordID); err != nil {
+	record := core.DNSRecord{ID: recordID, Name: name}
+	if err := p.DeleteRecord(r.Context(), record); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed: "+err.Error())
 		return
 	}

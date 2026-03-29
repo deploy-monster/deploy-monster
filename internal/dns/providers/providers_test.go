@@ -216,23 +216,25 @@ func TestCloudflare_UpdateRecord_ZoneNotFound(t *testing.T) {
 
 func TestCloudflare_DeleteRecord(t *testing.T) {
 	cf := NewCloudflare("test-token")
-	err := cf.DeleteRecord(context.Background(), "rec-123")
+	err := cf.DeleteRecord(context.Background(), core.DNSRecord{ID: "rec-123", Name: "nonexistent.example.com"})
 	if err == nil {
-		t.Fatal("expected error from DeleteRecord (stub)")
-	}
-	if !strings.Contains(err.Error(), "delete requires zone context") {
-		t.Errorf("unexpected error message: %v", err)
+		t.Fatal("expected error from DeleteRecord (zone not found)")
 	}
 }
 
 func TestCloudflare_Verify(t *testing.T) {
 	cf := NewCloudflare("test-token")
-	ok, err := cf.Verify(context.Background(), "app.example.com")
+	ok, err := cf.Verify(context.Background(), "example.com")
 	if err != nil {
 		t.Fatalf("Verify() error: %v", err)
 	}
 	if !ok {
-		t.Error("Verify() should return true")
+		t.Error("Verify() should return true for resolvable domain")
+	}
+	// Non-existent domain should return false
+	ok2, _ := cf.Verify(context.Background(), "this-should-not-exist-12345.invalid")
+	if ok2 {
+		t.Error("Verify() should return false for non-existent domain")
 	}
 }
 
@@ -533,23 +535,25 @@ func TestRoute53_UpdateRecord_ZeroTTL(t *testing.T) {
 
 func TestRoute53_DeleteRecord(t *testing.T) {
 	r := NewRoute53("ak", "sk", "us-east-1")
-	err := r.DeleteRecord(context.Background(), "rec-123")
+	err := r.DeleteRecord(context.Background(), core.DNSRecord{ID: "rec-123", Name: "nonexistent.example.com", Type: "A", Value: "1.2.3.4"})
 	if err == nil {
-		t.Fatal("expected error from DeleteRecord (stub)")
-	}
-	if !strings.Contains(err.Error(), "Route53 delete requires full record context") {
-		t.Errorf("unexpected error message: %v", err)
+		t.Fatal("expected error from DeleteRecord (hosted zone not found)")
 	}
 }
 
 func TestRoute53_Verify(t *testing.T) {
 	r := NewRoute53("ak", "sk", "us-east-1")
-	ok, err := r.Verify(context.Background(), "app.example.com")
+	ok, err := r.Verify(context.Background(), "example.com")
 	if err != nil {
 		t.Fatalf("Verify() error: %v", err)
 	}
 	if !ok {
-		t.Error("Verify() should return true")
+		t.Error("Verify() should return true for resolvable domain")
+	}
+	// Non-existent domain should return false
+	ok2, _ := r.Verify(context.Background(), "this-should-not-exist-12345.invalid")
+	if ok2 {
+		t.Error("Verify() should return false for non-existent domain")
 	}
 }
 

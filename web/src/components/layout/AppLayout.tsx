@@ -119,7 +119,8 @@ export function AppLayout() {
 
   // Close mobile sidebar on route change
   useEffect(() => {
-    setSidebarOpen(false);
+    const id = requestAnimationFrame(() => setSidebarOpen(false));
+    return () => cancelAnimationFrame(id);
   }, [location.pathname]);
 
   return (

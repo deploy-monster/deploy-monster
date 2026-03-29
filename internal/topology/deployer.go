@@ -32,14 +32,14 @@ func (d *Deployer) Deploy(ctx context.Context, compose *ComposeConfig, caddyfile
 	}
 
 	// Create work directory
-	if err := os.MkdirAll(d.workDir, 0755); err != nil {
+	if err := os.MkdirAll(d.workDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create work directory: %w", err)
 	}
 
 	// Write compose file
 	composeYAML := compose.ToYAML()
 	result.ComposeYAML = composeYAML
-	if err := os.WriteFile(d.composePath, []byte(composeYAML), 0644); err != nil {
+	if err := os.WriteFile(d.composePath, []byte(composeYAML), 0640); err != nil {
 		return nil, fmt.Errorf("failed to write compose file: %w", err)
 	}
 
@@ -47,7 +47,7 @@ func (d *Deployer) Deploy(ctx context.Context, compose *ComposeConfig, caddyfile
 	if caddyfile != "" {
 		result.Caddyfile = caddyfile
 		caddyPath := filepath.Join(d.workDir, "Caddyfile")
-		if err := os.WriteFile(caddyPath, []byte(caddyfile), 0644); err != nil {
+		if err := os.WriteFile(caddyPath, []byte(caddyfile), 0640); err != nil {
 			return nil, fmt.Errorf("failed to write Caddyfile: %w", err)
 		}
 	}

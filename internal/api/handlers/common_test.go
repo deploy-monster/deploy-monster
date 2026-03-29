@@ -707,6 +707,12 @@ func (m *mockStore) ListAllTenants(_ context.Context, limit, offset int) ([]core
 
 // ─── Store top-level methods ─────────────────────────────────────────────────
 
+func (m *mockStore) CreateUsageRecord(_ context.Context, _ *core.UsageRecord) error { return nil }
+func (m *mockStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ int) ([]core.UsageRecord, int, error) { return nil, 0, nil }
+func (m *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
+func (m *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) { return nil, 0, nil }
+func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+
 func (m *mockStore) Close() error                 { return nil }
 func (m *mockStore) Ping(_ context.Context) error { return nil }
 

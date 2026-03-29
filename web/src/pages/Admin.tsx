@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@/components/Toast';
+import { toast } from '@/stores/toastStore';
 
 // ---------------------------------------------------------------------------
 // Types

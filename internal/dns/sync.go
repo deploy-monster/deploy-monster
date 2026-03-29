@@ -95,7 +95,7 @@ func (q *SyncQueue) process(job *SyncJob) {
 	case "update":
 		err = provider.UpdateRecord(ctx, job.Record)
 	case "delete":
-		err = provider.DeleteRecord(ctx, job.Record.ID)
+		err = provider.DeleteRecord(ctx, job.Record)
 	default:
 		q.logger.Error("unknown DNS action", "action", job.Action)
 		return

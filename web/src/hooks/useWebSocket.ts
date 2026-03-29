@@ -41,51 +41,54 @@ export function useWebSocket(
   const wsRef = useRef<WebSocket | null>(null);
   const retriesRef = useRef(0);
   const onMessageRef = useRef(onMessage);
-  onMessageRef.current = onMessage;
-
-  const connect = useCallback(() => {
-    const token = localStorage.getItem('access_token');
-    const wsUrl = token ? `${url}?token=${token}` : url;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setReadyState(WebSocket.OPEN);
-      retriesRef.current = 0;
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        setLastMessage(data);
-        onMessageRef.current?.(data);
-      } catch {
-        setLastMessage(event.data);
-        onMessageRef.current?.(event.data);
-      }
-    };
-
-    ws.onclose = () => {
-      setReadyState(WebSocket.CLOSED);
-      if (reconnect && retriesRef.current < maxRetries) {
-        retriesRef.current++;
-        setTimeout(connect, reconnectDelay);
-      }
-    };
-
-    ws.onerror = () => {
-      ws.close();
-    };
-  }, [url, reconnect, reconnectDelay, maxRetries]);
 
   useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
+
+  useEffect(() => {
+    const connect = () => {
+      const token = localStorage.getItem('access_token');
+      const wsUrl = token ? `${url}?token=${token}` : url;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setReadyState(WebSocket.OPEN);
+        retriesRef.current = 0;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setLastMessage(data);
+          onMessageRef.current?.(data);
+        } catch {
+          setLastMessage(event.data);
+          onMessageRef.current?.(event.data);
+        }
+      };
+
+      ws.onclose = () => {
+        setReadyState(WebSocket.CLOSED);
+        if (reconnect && retriesRef.current < maxRetries) {
+          retriesRef.current++;
+          setTimeout(connect, reconnectDelay);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    };
+
     connect();
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
       }
     };
-  }, [connect]);
+  }, [url, reconnect, reconnectDelay, maxRetries, onMessage]);
 
   const send = useCallback((data: unknown) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

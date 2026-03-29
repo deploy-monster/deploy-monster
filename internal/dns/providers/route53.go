@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -43,12 +44,16 @@ func (r *Route53) UpdateRecord(ctx context.Context, record core.DNSRecord) error
 	return r.changeRecord(ctx, "UPSERT", record)
 }
 
-func (r *Route53) DeleteRecord(ctx context.Context, recordID string) error {
-	// Route53 delete requires the full record, not just ID
-	return fmt.Errorf("Route53 delete requires full record context")
+func (r *Route53) DeleteRecord(ctx context.Context, record core.DNSRecord) error {
+	return r.changeRecord(ctx, "DELETE", record)
 }
 
 func (r *Route53) Verify(ctx context.Context, fqdn string) (bool, error) {
+	resolver := &net.Resolver{}
+	_, err := resolver.LookupHost(ctx, fqdn)
+	if err != nil {
+		return false, nil
+	}
 	return true, nil
 }
 
