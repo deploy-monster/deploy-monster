@@ -13,7 +13,8 @@ import (
 
 func TestTopologyHandler_Save(t *testing.T) {
 	store := newMockStore()
-	c := &core.Core{}
+	bolt := newMockBoltStore()
+	c := &core.Core{DB: &core.Database{Bolt: bolt}}
 	h := NewTopologyHandler(store, c)
 
 	// Create valid request
@@ -68,15 +69,16 @@ func TestTopologyHandler_Save(t *testing.T) {
 
 func TestTopologyHandler_Deploy(t *testing.T) {
 	store := newMockStore()
-	c := &core.Core{}
+	bolt := newMockBoltStore()
+	c := &core.Core{DB: &core.Database{Bolt: bolt}}
 	h := NewTopologyHandler(store, c)
 
 	// Create deploy request with multiple node types
 	req := TopologyDeployRequest{
 		Nodes: []TopologyNode{
 			{
-				ID:   "db-1",
-				Type: "database",
+				ID:       "db-1",
+				Type:     "database",
 				Position: Position{X: 100, Y: 100},
 				Data: map[string]interface{}{
 					"name":    "postgres-main",
@@ -86,8 +88,8 @@ func TestTopologyHandler_Deploy(t *testing.T) {
 				},
 			},
 			{
-				ID:   "app-1",
-				Type: "app",
+				ID:       "app-1",
+				Type:     "app",
 				Position: Position{X: 350, Y: 100},
 				Data: map[string]interface{}{
 					"name":     "api-server",
@@ -98,13 +100,13 @@ func TestTopologyHandler_Deploy(t *testing.T) {
 				},
 			},
 			{
-				ID:   "domain-1",
-				Type: "domain",
+				ID:       "domain-1",
+				Type:     "domain",
 				Position: Position{X: 600, Y: 100},
 				Data: map[string]interface{}{
-					"name":        "api.example.com",
-					"fqdn":        "api.example.com",
-					"sslEnabled":  true,
+					"name":       "api.example.com",
+					"fqdn":       "api.example.com",
+					"sslEnabled": true,
 				},
 			},
 		},
@@ -166,7 +168,8 @@ func TestTopologyHandler_Deploy(t *testing.T) {
 
 func TestTopologyHandler_DeployEmptyNodes(t *testing.T) {
 	store := newMockStore()
-	c := &core.Core{}
+	bolt := newMockBoltStore()
+	c := &core.Core{DB: &core.Database{Bolt: bolt}}
 	h := NewTopologyHandler(store, c)
 
 	req := TopologyDeployRequest{
@@ -198,14 +201,15 @@ func TestTopologyHandler_DeployEmptyNodes(t *testing.T) {
 
 func TestTopologyHandler_DeployWorkerNode(t *testing.T) {
 	store := newMockStore()
-	c := &core.Core{}
+	bolt := newMockBoltStore()
+	c := &core.Core{DB: &core.Database{Bolt: bolt}}
 	h := NewTopologyHandler(store, c)
 
 	req := TopologyDeployRequest{
 		Nodes: []TopologyNode{
 			{
-				ID:   "worker-1",
-				Type: "worker",
+				ID:       "worker-1",
+				Type:     "worker",
 				Position: Position{X: 100, Y: 100},
 				Data: map[string]interface{}{
 					"name":     "background-worker",

@@ -15,7 +15,7 @@ import { useDeployProgress } from '@/hooks/useDeployProgress';
 const ENVIRONMENTS = ['production', 'staging', 'development'];
 
 export default function TopologyPage() {
-  const {
+   const {
     nodes,
     edges,
     selectedNodeId,
@@ -27,6 +27,7 @@ export default function TopologyPage() {
     setDeploying,
     markClean,
     projectId,
+    loadTopology,
   } = useTopologyStore();
 
   const [compileModalOpen, setCompileModalOpen] = useState(false);
@@ -63,6 +64,18 @@ export default function TopologyPage() {
       setWsDeployStatus(wsStatus);
     }
   }, [wsStatus, wsEnabled]);
+
+  // Load topology on mount and const { data: topologyData, isLoading: isTopologyLoading } = useApi<TopologyState>(
+    `/topology/${projectId}/${environment}`,
+    { immediate: false }
+  );
+
+  // Reload topology when environment changes
+  useEffect(() => {
+    if (projectId && environment) {
+      fetchTopology();
+    }
+  }, [projectId, environment, fetchTopology]);
 
   const deployStatus = wsEnabled ? wsDeployStatus : 'idle';
 

@@ -122,10 +122,61 @@ func (h *TopologyHandler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For now, just return success - actual persistence would use BBolt KV store
+	// Persist topology to BBolt KV store
+	// Key format: topology:{tenantID}:{projectID}:{environment}
+	key := fmt.Sprintf("topology:%s:%s:%s", claims.TenantID, req.ProjectID, req.Environment)
+
+	// Store the entire request as JSON
+	if err := h.core.DB.Bolt.Set("topologies", key, req, 0); err != nil {
+		h.logger.Error("Failed to save topology", "error", err, "key", key)
+		writeError(w, http.StatusInternalServerError, "failed to save topology")
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
 		"message": "Topology saved successfully",
+	})
+}
+
+// Load handles GET /api/v1/topology/{projectId}/{environment} - loads saved topology
+func (h *TopologyHandler) Load(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	projectID := r.PathValue("projectId")
+	environment := r.PathValue("environment")
+
+	if projectID == "" || environment == "" {
+		writeError(w, http.StatusBadRequest, "projectId and environment are required")
+		return
+	}
+
+	// Load topology from BBolt KV store
+	key := fmt.Sprintf("topology:%s:%s:%s", claims.TenantID, projectID, environment)
+
+	var req TopologyDeployRequest
+	if err := h.core.DB.Bolt.Get("topologies", key, &req); err != nil {
+		// No saved topology found - return empty state
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": true,
+			"message": "No saved topology found",
+			"nodes":   []TopologyNode{},
+			"edges":   []TopologyEdge{},
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success":     true,
+		"message":     "Topology loaded successfully",
+		"nodes":       req.Nodes,
+		"edges":       req.Edges,
+		"projectId":   req.ProjectID,
+		"environment": req.Environment,
 	})
 }
 

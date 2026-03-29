@@ -521,6 +521,7 @@ func (r *Router) registerRoutes() {
 	// ── Topology Editor ───────────────────────────────────────
 	topologyH := handlers.NewTopologyHandler(r.store, r.core)
 	r.mux.Handle("POST /api/v1/topology", protected(http.HandlerFunc(topologyH.Save)))
+	r.mux.Handle("GET /api/v1/topology/{projectId}/{environment}", protected(http.HandlerFunc(topologyH.Load)))
 	r.mux.Handle("POST /api/v1/topology/compile", protected(http.HandlerFunc(topologyH.Compile)))
 	r.mux.Handle("POST /api/v1/topology/validate", protected(http.HandlerFunc(topologyH.Validate)))
 	r.mux.Handle("POST /api/v1/topology/deploy", protected(http.HandlerFunc(topologyH.Deploy)))
