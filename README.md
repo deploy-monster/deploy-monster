@@ -8,15 +8,16 @@ Transform any VPS into a production-ready deployment platform in 60 seconds.
 
 Single binary · Zero dependencies · 97% test coverage
 
-[![GitHub](https://img.shields.io/badge/GitHub-deploy--monster%2Fdeploy--monster-181717?logo=github)](https://github.com/deploy-monster/deploy-monster)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Coverage](https://img.shields.io/badge/Coverage-97%25-brightgreen)](.)
 
-[🌐 Website](https://deploy.monster) · [📚 Docs](docs/) · [💬 Discord](https://discord.gg/deploymonster)
+[🌐 Website](https://deploy.monster) · [📚 Docs](docs/)
 
 </div>
+
+> **Note:** This project is currently in development and not yet ready for production use.
 
 ---
 
