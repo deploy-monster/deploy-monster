@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -140,18 +143,84 @@ func (b *Builder) emitFailed(ctx context.Context, appID string, err error) {
 		core.BuildEventData{AppID: appID, Error: err.Error()}))
 }
 
+// shellMetaChars matches characters that could enable shell injection if a URL
+// were ever interpolated into a shell command. exec.Command doesn't use a shell
+// but we defend in depth. Backslash is excluded because Windows paths use it.
+var shellMetaChars = regexp.MustCompile("[;|&$`!><(){}\\[\\]\n\r]")
+
+// sshLikeURL matches git@host:org/repo patterns (valid SSH URLs).
+var sshLikeURL = regexp.MustCompile(`^[\w.-]+@[\w.-]+:[\w./-]+$`)
+
+// ValidateGitURL checks that a git repository URL is safe to pass to git clone.
+// It rejects shell metacharacters, non-standard schemes, and suspicious patterns.
+// Local absolute paths (e.g. /home/user/repo) are allowed for development use.
+func ValidateGitURL(raw string) error {
+	if raw == "" {
+		return fmt.Errorf("git URL is empty")
+	}
+	if shellMetaChars.MatchString(raw) {
+		return fmt.Errorf("git URL contains disallowed characters")
+	}
+	if strings.HasPrefix(raw, "-") {
+		return fmt.Errorf("git URL must not start with a dash")
+	}
+
+	// Local absolute path (Unix: /path, Windows: C:\path or C:/path)
+	// git clone supports bare paths as local repos.
+	if isAbsPath(raw) {
+		return nil
+	}
+
+	// SSH shorthand: git@github.com:org/repo.git
+	if sshLikeURL.MatchString(raw) {
+		return nil
+	}
+
+	// Standard URL: https://, http://, ssh://, git://, file://
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("git URL is malformed: %w", err)
+	}
+	switch parsed.Scheme {
+	case "https", "http", "ssh", "git", "file":
+		// allowed
+	default:
+		return fmt.Errorf("git URL scheme %q is not allowed", parsed.Scheme)
+	}
+	if parsed.Scheme != "file" && parsed.Host == "" {
+		return fmt.Errorf("git URL has no host")
+	}
+	return nil
+}
+
+// isAbsPath checks if a string looks like an absolute filesystem path.
+func isAbsPath(s string) bool {
+	if strings.HasPrefix(s, "/") {
+		return true
+	}
+	// Windows: C:\ or C:/
+	if len(s) >= 3 && s[1] == ':' && (s[2] == '/' || s[2] == '\\') {
+		return (s[0] >= 'A' && s[0] <= 'Z') || (s[0] >= 'a' && s[0] <= 'z')
+	}
+	return false
+}
+
 // gitClone clones a git repository with depth=1.
-func gitClone(ctx context.Context, url, branch, token, dir string, logWriter io.Writer) (string, error) {
+func gitClone(ctx context.Context, repoURL, branch, token, dir string, logWriter io.Writer) (string, error) {
+	if err := ValidateGitURL(repoURL); err != nil {
+		return "", fmt.Errorf("invalid git URL: %w", err)
+	}
+
 	// Inject token into HTTPS URL if provided
 	if token != "" {
-		url = injectToken(url, token)
+		repoURL = injectToken(repoURL, token)
 	}
 
 	args := []string{"clone", "--depth=1"}
 	if branch != "" {
 		args = append(args, "--branch", branch)
 	}
-	args = append(args, url, dir)
+	args = append(args, repoURL, dir)
 
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Stdout = logWriter
@@ -176,11 +245,11 @@ func gitClone(ctx context.Context, url, branch, token, dir string, logWriter io.
 }
 
 // injectToken adds an auth token to an HTTPS git URL.
-func injectToken(url, token string) string {
-	if len(url) > 8 && url[:8] == "https://" {
-		return "https://" + token + "@" + url[8:]
+func injectToken(gitURL, token string) string {
+	if len(gitURL) > 8 && gitURL[:8] == "https://" {
+		return "https://" + token + "@" + gitURL[8:]
 	}
-	return url
+	return gitURL
 }
 
 // dockerBuild runs `docker build` as a subprocess.

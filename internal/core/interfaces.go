@@ -3,7 +3,10 @@ package core
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"io"
+	"path/filepath"
+	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
@@ -49,6 +52,24 @@ type ContainerOpts struct {
 	CPUQuota      int64
 	MemoryMB      int64
 	RestartPolicy string
+}
+
+// ValidateVolumePaths checks volume mount host paths for path traversal attacks.
+// It rejects paths containing "..", relative paths, and null bytes.
+func (o *ContainerOpts) ValidateVolumePaths() error {
+	for hostPath := range o.Volumes {
+		if strings.Contains(hostPath, "\x00") {
+			return fmt.Errorf("volume host path contains null byte")
+		}
+		cleaned := filepath.Clean(hostPath)
+		if strings.Contains(cleaned, "..") {
+			return fmt.Errorf("volume host path %q contains path traversal", hostPath)
+		}
+		if !filepath.IsAbs(cleaned) {
+			return fmt.Errorf("volume host path %q must be absolute", hostPath)
+		}
+	}
+	return nil
 }
 
 // ContainerInfo holds basic container information.

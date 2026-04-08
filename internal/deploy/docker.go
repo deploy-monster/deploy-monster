@@ -62,6 +62,11 @@ func (d *DockerManager) Close() error {
 // CreateAndStart implements core.ContainerRuntime.
 // It pulls the image, creates the container, and starts it.
 func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerOpts) (string, error) {
+	// Validate volume paths before doing anything
+	if err := opts.ValidateVolumePaths(); err != nil {
+		return "", fmt.Errorf("invalid container opts: %w", err)
+	}
+
 	// Pull image
 	reader, err := d.cli.ImagePull(ctx, opts.Image, image.PullOptions{})
 	if err != nil {

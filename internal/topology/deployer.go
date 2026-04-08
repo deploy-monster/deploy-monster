@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/build"
 )
 
 // Deployer handles the actual deployment of a topology
@@ -238,8 +240,13 @@ func (d *Deployer) Build(ctx context.Context, compose *ComposeConfig, noCache bo
 	return nil
 }
 
-// CloneGitRepo clones a git repository for building
+// CloneGitRepo clones a git repository for building.
+// The URL is validated to prevent command injection before being passed to git.
 func CloneGitRepo(ctx context.Context, gitURL, branch, destDir string) error {
+	if err := build.ValidateGitURL(gitURL); err != nil {
+		return fmt.Errorf("invalid git URL: %w", err)
+	}
+
 	// Clone the repository
 	args := []string{"clone", "--depth", "1", "--branch", branch, gitURL, destDir}
 	cmd := exec.CommandContext(ctx, "git", args...)

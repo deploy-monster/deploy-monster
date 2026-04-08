@@ -290,6 +290,56 @@ func TestInjectToken_HttpsWithHost(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ValidateGitURL — command injection protection
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestValidateGitURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		url     string
+		wantErr bool
+	}{
+		// Valid URLs
+		{"https", "https://github.com/org/repo.git", false},
+		{"http", "http://gitlab.com/org/repo.git", false},
+		{"ssh scheme", "ssh://git@github.com/org/repo.git", false},
+		{"git scheme", "git://github.com/org/repo.git", false},
+		{"ssh shorthand", "git@github.com:org/repo.git", false},
+		{"https no .git", "https://github.com/org/repo", false},
+		{"file scheme", "file:///home/user/repo", false},
+		{"local abs unix", "/home/user/repo", false},
+		{"local abs windows", "C:/Users/dev/repo", false},
+
+		// Invalid URLs — shell injection
+		{"semicolon injection", "https://github.com/org/repo;rm -rf /", true},
+		{"pipe injection", "https://github.com/org/repo|cat /etc/passwd", true},
+		{"ampersand injection", "https://github.com/org/repo&whoami", true},
+		{"backtick injection", "https://github.com/org/repo`id`", true},
+		{"dollar injection", "https://github.com/org/repo$(id)", true},
+		{"newline injection", "https://github.com/org/repo\nwhoami", true},
+
+		// Invalid URLs — bad scheme
+		{"ftp scheme", "ftp://example.com/repo", true},
+		{"no scheme no ssh", "not-a-url", true},
+
+		// Invalid URLs — dash argument injection
+		{"dash prefix", "--upload-pack=evil", true},
+
+		// Invalid — empty
+		{"empty", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateGitURL(tt.url)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateGitURL(%q) error = %v, wantErr %v", tt.url, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Detector — additional edge cases for more coverage
 // ═══════════════════════════════════════════════════════════════════════════════
 
