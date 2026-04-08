@@ -211,3 +211,75 @@ func TestSQLite_DatabasePath_Created(t *testing.T) {
 		t.Fatalf("Ping: %v", err)
 	}
 }
+
+func TestSQLite_Rollback(t *testing.T) {
+	db := testDB(t)
+
+	// Verify tables exist after migration
+	var count int
+	err := db.DB().QueryRow("SELECT COUNT(*) FROM _migrations").Scan(&count)
+	if err != nil {
+		t.Fatalf("query _migrations: %v", err)
+	}
+	if count == 0 {
+		t.Fatal("expected at least 1 migration applied")
+	}
+
+	// Rollback 1 step
+	if err := db.Rollback(1); err != nil {
+		t.Fatalf("Rollback(1): %v", err)
+	}
+
+	// Tables should be gone
+	_, err = db.DB().Query("SELECT 1 FROM tenants LIMIT 1")
+	if err == nil {
+		t.Error("expected tenants table to be dropped after rollback")
+	}
+
+	// Migration record should be removed
+	err = db.DB().QueryRow("SELECT COUNT(*) FROM _migrations").Scan(&count)
+	if err != nil {
+		t.Fatalf("query _migrations after rollback: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected 0 migrations after rollback, got %d", count)
+	}
+}
+
+func TestSQLite_Rollback_ReApply(t *testing.T) {
+	db := testDB(t)
+
+	// Rollback everything
+	if err := db.Rollback(0); err != nil {
+		t.Fatalf("Rollback(0): %v", err)
+	}
+
+	// Re-apply migrations
+	if err := db.migrate(); err != nil {
+		t.Fatalf("re-migrate: %v", err)
+	}
+
+	// Tables should be back
+	var count int
+	err := db.DB().QueryRow("SELECT COUNT(*) FROM roles WHERE is_builtin = 1").Scan(&count)
+	if err != nil {
+		t.Fatalf("query roles after re-migrate: %v", err)
+	}
+	if count != 6 {
+		t.Errorf("expected 6 built-in roles after re-migrate, got %d", count)
+	}
+}
+
+func TestSQLite_Rollback_NothingToRollback(t *testing.T) {
+	db := testDB(t)
+
+	// Rollback all
+	if err := db.Rollback(0); err != nil {
+		t.Fatalf("Rollback(0): %v", err)
+	}
+
+	// Rollback again should be a no-op
+	if err := db.Rollback(1); err != nil {
+		t.Fatalf("Rollback on empty should be no-op: %v", err)
+	}
+}

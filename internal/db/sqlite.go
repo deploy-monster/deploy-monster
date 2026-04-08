@@ -111,13 +111,15 @@ func (s *SQLiteDB) migrate() error {
 	})
 
 	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name(), ".sql") {
+		name := entry.Name()
+		// Skip down migrations and non-SQL files
+		if !strings.HasSuffix(name, ".sql") || strings.HasSuffix(name, ".down.sql") {
 			continue
 		}
 
 		// Extract version number from filename: 0001_init.sql -> 1
 		var version int
-		if _, err := fmt.Sscanf(entry.Name(), "%04d", &version); err != nil {
+		if _, err := fmt.Sscanf(name, "%04d", &version); err != nil {
 			continue
 		}
 
@@ -129,16 +131,69 @@ func (s *SQLiteDB) migrate() error {
 		}
 
 		// Apply migration
-		data, err := migrationsFS.ReadFile("migrations/" + entry.Name())
+		data, err := migrationsFS.ReadFile("migrations/" + name)
 		if err != nil {
-			return fmt.Errorf("read migration %s: %w", entry.Name(), err)
+			return fmt.Errorf("read migration %s: %w", name, err)
 		}
 
 		if _, err := s.db.Exec(string(data)); err != nil {
-			return fmt.Errorf("apply migration %s: %w", entry.Name(), err)
+			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
 
-		s.db.Exec("INSERT INTO _migrations (version, name) VALUES (?, ?)", version, entry.Name())
+		s.db.Exec("INSERT INTO _migrations (version, name) VALUES (?, ?)", version, name)
+	}
+
+	return nil
+}
+
+// Rollback reverts the last n applied migrations by executing their .down.sql counterparts.
+// If steps <= 0, it rolls back all migrations.
+func (s *SQLiteDB) Rollback(steps int) error {
+	// Get applied migrations in reverse order
+	rows, err := s.db.Query("SELECT version, name FROM _migrations ORDER BY version DESC")
+	if err != nil {
+		return fmt.Errorf("list applied migrations: %w", err)
+	}
+	defer rows.Close()
+
+	type migration struct {
+		version int
+		name    string
+	}
+	var applied []migration
+	for rows.Next() {
+		var m migration
+		if err := rows.Scan(&m.version, &m.name); err != nil {
+			return fmt.Errorf("scan migration: %w", err)
+		}
+		applied = append(applied, m)
+	}
+
+	if len(applied) == 0 {
+		return nil
+	}
+
+	if steps <= 0 || steps > len(applied) {
+		steps = len(applied)
+	}
+
+	for i := 0; i < steps; i++ {
+		m := applied[i]
+		// Derive down filename: 0001_init.sql -> 0001_init.down.sql
+		downName := strings.TrimSuffix(m.name, ".sql") + ".down.sql"
+
+		data, err := migrationsFS.ReadFile("migrations/" + downName)
+		if err != nil {
+			return fmt.Errorf("down migration %s not found: %w", downName, err)
+		}
+
+		if _, err := s.db.Exec(string(data)); err != nil {
+			return fmt.Errorf("rollback migration %s: %w", downName, err)
+		}
+
+		if _, err := s.db.Exec("DELETE FROM _migrations WHERE version = ?", m.version); err != nil {
+			return fmt.Errorf("remove migration record %d: %w", m.version, err)
+		}
 	}
 
 	return nil
