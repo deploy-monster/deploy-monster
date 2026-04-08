@@ -97,19 +97,32 @@ func (j *JWTService) ValidateAccessToken(tokenStr string) (*Claims, error) {
 	return claims, nil
 }
 
+// RefreshTokenClaims holds the validated claims from a refresh token.
+type RefreshTokenClaims struct {
+	UserID string
+	JTI    string
+}
+
+// RefreshTokenTTLSeconds is the refresh token lifetime used for revocation entry TTL.
+const RefreshTokenTTLSeconds = 7 * 24 * 60 * 60 // 7 days
+
 // ValidateRefreshToken parses and validates a refresh token.
-func (j *JWTService) ValidateRefreshToken(tokenStr string) (string, error) {
+// Returns the user ID (Subject) and the token ID (JTI) for revocation tracking.
+func (j *JWTService) ValidateRefreshToken(tokenStr string) (*RefreshTokenClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
 		return j.secretKey, nil
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok || !token.Valid {
-		return "", jwt.ErrTokenInvalidClaims
+		return nil, jwt.ErrTokenInvalidClaims
 	}
-	return claims.Subject, nil
+	return &RefreshTokenClaims{
+		UserID: claims.Subject,
+		JTI:    claims.ID,
+	}, nil
 }
 
 func generateTokenID() string {

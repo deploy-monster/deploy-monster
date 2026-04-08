@@ -32,10 +32,11 @@ type Config struct {
 
 // ServerConfig holds the HTTP server configuration.
 type ServerConfig struct {
-	Host      string `yaml:"host"`
-	Port      int    `yaml:"port"`
-	Domain    string `yaml:"domain"`
-	SecretKey string `yaml:"secret_key"`
+	Host        string `yaml:"host"`
+	Port        int    `yaml:"port"`
+	Domain      string `yaml:"domain"`
+	SecretKey   string `yaml:"secret_key"`
+	CORSOrigins string `yaml:"cors_origins"` // comma-separated allowed origins; empty = derive from domain
 }
 
 // DatabaseConfig holds database configuration.
@@ -181,6 +182,15 @@ func LoadConfig() (*Config, error) {
 		cfg.Server.SecretKey = GenerateSecret(32)
 	}
 
+	// Derive CORS origins from server domain if not explicitly set
+	if cfg.Server.CORSOrigins == "" && cfg.Server.Domain != "" {
+		origin := "https://" + cfg.Server.Domain
+		if cfg.Server.Port != 443 && cfg.Server.Port != 80 {
+			origin = fmt.Sprintf("https://%s:%d", cfg.Server.Domain, cfg.Server.Port)
+		}
+		cfg.Server.CORSOrigins = origin
+	}
+
 	return cfg, nil
 }
 
@@ -239,5 +249,8 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("MONSTER_REGISTRATION_MODE"); v != "" {
 		cfg.Registration.Mode = v
+	}
+	if v := os.Getenv("MONSTER_CORS_ORIGINS"); v != "" {
+		cfg.Server.CORSOrigins = v
 	}
 }

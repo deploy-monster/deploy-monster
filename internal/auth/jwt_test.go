@@ -73,12 +73,12 @@ func TestJWT_RefreshToken(t *testing.T) {
 
 	pair, _ := svc.GenerateTokenPair("user-1", "tenant-1", "role_admin", "test@example.com")
 
-	userID, err := svc.ValidateRefreshToken(pair.RefreshToken)
+	rtClaims, err := svc.ValidateRefreshToken(pair.RefreshToken)
 	if err != nil {
 		t.Fatalf("ValidateRefreshToken: %v", err)
 	}
-	if userID != "user-1" {
-		t.Errorf("expected user-1, got %q", userID)
+	if rtClaims.UserID != "user-1" {
+		t.Errorf("expected user-1, got %q", rtClaims.UserID)
 	}
 }
 

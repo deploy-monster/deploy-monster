@@ -44,7 +44,7 @@ func (r *Router) Handler() http.Handler {
 		middleware.Timeout(30*time.Second), // 30s request timeout
 		middleware.Recovery(r.core.Logger),
 		middleware.RequestLogger(r.core.Logger),
-		middleware.CORS("*"),
+		middleware.CORS(r.core.Config.Server.CORSOrigins),
 		middleware.AuditLog(r.store, r.core.Logger),
 	)
 }
@@ -62,11 +62,15 @@ func (r *Router) registerRoutes() {
 	openAPIH := handlers.NewOpenAPIHandler(r.core.Build.Version)
 	r.mux.HandleFunc("GET /api/v1/openapi.json", openAPIH.Spec)
 
-	// ── Auth (public) ──────────────────────────────────
-	authH := handlers.NewAuthHandler(r.authMod, r.store)
-	r.mux.HandleFunc("POST /api/v1/auth/login", authH.Login)
-	r.mux.HandleFunc("POST /api/v1/auth/register", authH.Register)
-	r.mux.HandleFunc("POST /api/v1/auth/refresh", authH.Refresh)
+	// ── Auth (public, rate-limited) ────────────────────
+	loginRL := middleware.NewAuthRateLimiter(r.core.DB.Bolt, 5, time.Minute, "login")
+	registerRL := middleware.NewAuthRateLimiter(r.core.DB.Bolt, 3, time.Minute, "register")
+	refreshRL := middleware.NewAuthRateLimiter(r.core.DB.Bolt, 5, time.Minute, "refresh")
+	authH := handlers.NewAuthHandler(r.authMod, r.store, r.core.DB.Bolt)
+	r.mux.HandleFunc("POST /api/v1/auth/login", loginRL.Wrap(authH.Login))
+	r.mux.HandleFunc("POST /api/v1/auth/register", registerRL.Wrap(authH.Register))
+	r.mux.HandleFunc("POST /api/v1/auth/refresh", refreshRL.Wrap(authH.Refresh))
+	r.mux.HandleFunc("POST /api/v1/auth/logout", authH.Logout)
 
 	// ── Session / Profile ─────────────────────────────
 	sessionH := handlers.NewSessionHandler(r.store)

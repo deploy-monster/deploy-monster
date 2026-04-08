@@ -76,7 +76,7 @@ func TestFinal_Auth_Login_InternalError(t *testing.T) {
 	store := newMockStore()
 	store.errGetUserByEmail = fmt.Errorf("database connection lost")
 	authMod := testAuthModule(store)
-	h := NewAuthHandler(authMod, store)
+	h := NewAuthHandler(authMod, store, nil)
 
 	body := `{"email":"test@test.com","password":"secret123"}`
 	req := httptest.NewRequest("POST", "/api/v1/auth/login", strings.NewReader(body))
@@ -97,7 +97,7 @@ func TestFinal_Auth_Login_MembershipError(t *testing.T) {
 	seedTestUser(store, "u1", "test@test.com", "Password123!", "t1", "role_owner")
 	store.errGetUserMembership = fmt.Errorf("membership query failed")
 	authMod := testAuthModule(store)
-	h := NewAuthHandler(authMod, store)
+	h := NewAuthHandler(authMod, store, nil)
 
 	body := `{"email":"test@test.com","password":"Password123!"}`
 	req := httptest.NewRequest("POST", "/api/v1/auth/login", strings.NewReader(body))
@@ -117,7 +117,7 @@ func TestFinal_Auth_Register_CreateTenantError(t *testing.T) {
 	store := newMockStore()
 	store.errCreateTenantWithDefaults = fmt.Errorf("tenant creation failed")
 	authMod := testAuthModule(store)
-	h := NewAuthHandler(authMod, store)
+	h := NewAuthHandler(authMod, store, nil)
 
 	body := `{"email":"new@test.com","password":"Password123!","name":"New User"}`
 	req := httptest.NewRequest("POST", "/api/v1/auth/register", strings.NewReader(body))
@@ -137,7 +137,7 @@ func TestFinal_Auth_Register_CreateUserError(t *testing.T) {
 	store := newMockStore()
 	store.errCreateUserWithMembership = fmt.Errorf("user creation failed")
 	authMod := testAuthModule(store)
-	h := NewAuthHandler(authMod, store)
+	h := NewAuthHandler(authMod, store, nil)
 
 	body := `{"email":"new@test.com","password":"Password123!","name":"New User"}`
 	req := httptest.NewRequest("POST", "/api/v1/auth/register", strings.NewReader(body))
@@ -158,7 +158,7 @@ func TestFinal_Auth_Refresh_GetUserError(t *testing.T) {
 	seedTestUser(store, "u1", "test@test.com", "Password123!", "t1", "role_owner")
 	store.errGetUser = fmt.Errorf("user not found")
 	authMod := testAuthModule(store)
-	h := NewAuthHandler(authMod, store)
+	h := NewAuthHandler(authMod, store, nil)
 
 	refreshToken := generateTestRefreshToken("u1", "t1", "role_owner", "test@test.com")
 	body := fmt.Sprintf(`{"refresh_token":"%s"}`, refreshToken)
@@ -180,7 +180,7 @@ func TestFinal_Auth_Refresh_MembershipError(t *testing.T) {
 	seedTestUser(store, "u1", "test@test.com", "Password123!", "t1", "role_owner")
 	store.errGetUserMembership = fmt.Errorf("membership error")
 	authMod := testAuthModule(store)
-	h := NewAuthHandler(authMod, store)
+	h := NewAuthHandler(authMod, store, nil)
 
 	refreshToken := generateTestRefreshToken("u1", "t1", "role_owner", "test@test.com")
 	body := fmt.Sprintf(`{"refresh_token":"%s"}`, refreshToken)

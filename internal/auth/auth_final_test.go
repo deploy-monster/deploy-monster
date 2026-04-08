@@ -119,12 +119,12 @@ func TestValidateRefreshToken_ValidToken_ReturnsUserID(t *testing.T) {
 		t.Fatalf("GenerateTokenPair: %v", err)
 	}
 
-	userID, err := svc.ValidateRefreshToken(pair.RefreshToken)
+	rtClaims, err := svc.ValidateRefreshToken(pair.RefreshToken)
 	if err != nil {
 		t.Fatalf("ValidateRefreshToken: %v", err)
 	}
-	if userID != "user-42" {
-		t.Errorf("userID = %q, want user-42", userID)
+	if rtClaims.UserID != "user-42" {
+		t.Errorf("userID = %q, want user-42", rtClaims.UserID)
 	}
 }
 

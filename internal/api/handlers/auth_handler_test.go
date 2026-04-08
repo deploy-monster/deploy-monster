@@ -19,7 +19,7 @@ func TestLogin_Success(t *testing.T) {
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(loginRequest{Email: "user@example.com", Password: "Password1"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
@@ -57,7 +57,7 @@ func TestLogin_Success(t *testing.T) {
 func TestLogin_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader([]byte("not json")))
 	rr := httptest.NewRecorder()
@@ -73,7 +73,7 @@ func TestLogin_InvalidJSON(t *testing.T) {
 func TestLogin_MissingFields(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	tests := []struct {
 		name string
@@ -103,7 +103,7 @@ func TestLogin_MissingFields(t *testing.T) {
 func TestLogin_UserNotFound(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(loginRequest{Email: "nobody@example.com", Password: "Password1"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
@@ -122,7 +122,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(loginRequest{Email: "user@example.com", Password: "WrongPass1"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
@@ -141,7 +141,7 @@ func TestLogin_StoreError(t *testing.T) {
 	store.errGetUserByEmail = errors.New("db connection lost")
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(loginRequest{Email: "user@example.com", Password: "Password1"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
@@ -161,7 +161,7 @@ func TestLogin_MembershipError(t *testing.T) {
 	store.errGetUserMembership = errors.New("membership lookup failed")
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(loginRequest{Email: "user@example.com", Password: "Password1"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
@@ -180,7 +180,7 @@ func TestLogin_MembershipError(t *testing.T) {
 func TestRegister_Success(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "new@example.com",
@@ -211,7 +211,7 @@ func TestRegister_Success(t *testing.T) {
 func TestRegister_DefaultsNameToEmail(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "noname@example.com",
@@ -231,7 +231,7 @@ func TestRegister_DefaultsNameToEmail(t *testing.T) {
 func TestRegister_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader([]byte("{{{")))
 	rr := httptest.NewRecorder()
@@ -246,7 +246,7 @@ func TestRegister_InvalidJSON(t *testing.T) {
 func TestRegister_MissingFields(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	tests := []struct {
 		name string
@@ -275,7 +275,7 @@ func TestRegister_MissingFields(t *testing.T) {
 func TestRegister_WeakPassword(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	tests := []struct {
 		name     string
@@ -307,7 +307,7 @@ func TestRegister_DuplicateEmail(t *testing.T) {
 	seedTestUser(store, "user1", "taken@example.com", "Password1", "t1", "role_owner")
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(registerRequest{Email: "taken@example.com", Password: "StrongPass1", Name: "Dup"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
@@ -326,7 +326,7 @@ func TestRegister_TenantCreationError(t *testing.T) {
 	store.errCreateTenantWithDefaults = errors.New("db error")
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
@@ -344,7 +344,7 @@ func TestRegister_UserCreationError(t *testing.T) {
 	store.errCreateUserWithMembership = errors.New("constraint violation")
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
@@ -364,7 +364,7 @@ func TestRefresh_Success(t *testing.T) {
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	// Generate a valid refresh token.
 	refreshToken := generateTestRefreshToken("user1", "tenant1", "role_owner", "user@example.com")
@@ -391,7 +391,7 @@ func TestRefresh_Success(t *testing.T) {
 func TestRefresh_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewReader([]byte("bad")))
 	rr := httptest.NewRecorder()
@@ -406,7 +406,7 @@ func TestRefresh_InvalidJSON(t *testing.T) {
 func TestRefresh_MissingToken(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(refreshRequest{RefreshToken: ""})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewReader(body))
@@ -423,7 +423,7 @@ func TestRefresh_MissingToken(t *testing.T) {
 func TestRefresh_InvalidToken(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	body, _ := json.Marshal(refreshRequest{RefreshToken: "invalid.token.here"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewReader(body))
@@ -441,7 +441,7 @@ func TestRefresh_UserNotFound(t *testing.T) {
 	store := newMockStore()
 	// User not seeded — the refresh token refers to a non-existent user.
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	refreshToken := generateTestRefreshToken("ghost", "t1", "role_owner", "ghost@example.com")
 
@@ -465,7 +465,7 @@ func TestRefresh_MembershipError(t *testing.T) {
 	store.errGetUserMembership = errors.New("db error")
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store)
+	handler := NewAuthHandler(authMod, store, nil)
 
 	refreshToken := generateTestRefreshToken("user1", "t1", "role_owner", "user@example.com")
 

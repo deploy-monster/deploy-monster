@@ -13,13 +13,15 @@ import (
 type AuthHandler struct {
 	authMod *internalAuth.Module
 	store   core.Store
+	bolt    core.BoltStorer
 }
 
 // NewAuthHandler creates a new auth handler.
-func NewAuthHandler(authMod *internalAuth.Module, store core.Store) *AuthHandler {
+func NewAuthHandler(authMod *internalAuth.Module, store core.Store, bolt core.BoltStorer) *AuthHandler {
 	return &AuthHandler{
 		authMod: authMod,
 		store:   store,
+		bolt:    bolt,
 	}
 }
 
@@ -162,14 +164,23 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate refresh token
-	userID, err := h.authMod.JWT().ValidateRefreshToken(req.RefreshToken)
+	rtClaims, err := h.authMod.JWT().ValidateRefreshToken(req.RefreshToken)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
 
+	// Check if token has been revoked
+	if h.bolt != nil && rtClaims.JTI != "" {
+		var revoked bool
+		if err := h.bolt.Get("revoked_tokens", rtClaims.JTI, &revoked); err == nil && revoked {
+			writeError(w, http.StatusUnauthorized, "token has been revoked")
+			return
+		}
+	}
+
 	// Get user
-	user, err := h.store.GetUser(r.Context(), userID)
+	user, err := h.store.GetUser(r.Context(), rtClaims.UserID)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "user not found")
 		return
@@ -182,6 +193,11 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Revoke the old refresh token (rotation)
+	if h.bolt != nil && rtClaims.JTI != "" {
+		_ = h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds)
+	}
+
 	// Generate new token pair
 	tokens, err := h.authMod.JWT().GenerateTokenPair(user.ID, membership.TenantID, membership.RoleID, user.Email)
 	if err != nil {
@@ -190,6 +206,39 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, tokens)
+}
+
+type logoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+// Logout handles POST /api/v1/auth/logout
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	var req logoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.RefreshToken == "" {
+		writeError(w, http.StatusBadRequest, "refresh_token required")
+		return
+	}
+
+	// Validate the refresh token to extract JTI
+	rtClaims, err := h.authMod.JWT().ValidateRefreshToken(req.RefreshToken)
+	if err != nil {
+		// Token is invalid/expired — effectively already "logged out"
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		return
+	}
+
+	// Revoke the token
+	if h.bolt != nil && rtClaims.JTI != "" {
+		_ = h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func generateSlug(name string) string {
