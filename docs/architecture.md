@@ -778,7 +778,7 @@ AES-256-GCM encrypted secrets with scope-based resolution.
 │                                                                         │
 │   Layer 2: Authentication                                               │
 │   ┌─────────────────────────────────────────────────────────────────┐  │
-│   │ JWT tokens (RS256) with 15min expiry                             │  │
+│   │ JWT tokens (HS256, key rotation) with 15min expiry               │  │
 │   │ bcrypt password hashing (cost 12)                                │  │
 │   │ TOTP 2FA (RFC 6238)                                              │  │
 │   │ OAuth 2.0 (Google, GitHub)                                       │  │

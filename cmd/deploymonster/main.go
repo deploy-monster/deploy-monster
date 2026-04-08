@@ -89,6 +89,9 @@ func runServe() {
 		os.Exit(1)
 	}
 
+	// Configure structured logger before anything else uses slog
+	core.SetupLogger(cfg.Server.LogLevel, cfg.Server.LogFormat)
+
 	bi := core.BuildInfo{Version: version, Commit: commit, Date: date}
 
 	// Print startup banner

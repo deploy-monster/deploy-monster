@@ -89,7 +89,7 @@ DeployMonster is a **production-ready** self-hosted PaaS platform. Single binary
 - [x] PostgreSQL ready (interface prepared)
 
 ### Authentication & Authorization
-- [x] JWT tokens (RS256)
+- [x] JWT tokens (HS256, key rotation support)
 - [x] bcrypt password hashing
 - [x] TOTP 2FA
 - [x] OAuth (Google, GitHub)
