@@ -7,7 +7,7 @@
 
 ## Overall Verdict & Score
 
-**Production Readiness Score: 92/100** _(was 62/100 before fixes)_
+**Production Readiness Score: 94/100** _(was 62/100 before fixes)_
 
 | Category | Score | Weight | Weighted Score |
 |---|---|---|---|
@@ -16,10 +16,10 @@
 | Security | 9/10 | 20% | 18.0 |
 | Performance | 8/10 | 10% | 8.0 |
 | Testing | 9/10 | 15% | 13.5 |
-| Observability | 8/10 | 10% | 8.0 |
-| Documentation | 8/10 | 5% | 4.0 |
+| Observability | 9/10 | 10% | 9.0 |
+| Documentation | 9/10 | 5% | 4.5 |
 | Deployment Readiness | 9/10 | 5% | 4.5 |
-| **TOTAL** | | **100%** | **92/100** (was 62) |
+| **TOTAL** | | **100%** | **94/100** (was 62) |
 
 ---
 
@@ -257,7 +257,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] Mock pattern is consistent (function-field + call tracking)
 - [x] CI runs tests on every push
 - [x] Race detection in Makefile `test` target
-- [ ] **CONCERN:** No coverage threshold enforcement in CI
+- [x] ~~**CONCERN:**~~ Coverage threshold enforcement (80% minimum) in CI — **FIXED**
 - [ ] **CONCERN:** No test result trend tracking
 
 ---
@@ -344,9 +344,9 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] Deployment guide (`docs/deployment-guide.md`)
 - [x] OpenAPI 3.0 specification (`docs/openapi.yaml`)
 - [x] API examples with curl (`docs/examples/api-quickstart.md`)
-- [ ] **CONCERN:** Documentation inconsistency (RS256 vs HS256 in PROJECT_STATUS.md)
+- [x] ~~**CONCERN:**~~ Documentation inconsistency (RS256 vs HS256) corrected to HS256 in PROJECT_STATUS.md and architecture.md — **FIXED**
 - [x] ~~**MISSING:**~~ Configuration reference (`docs/configuration.md` — all YAML sections, env vars, defaults, validation rules) — **FIXED**
-- [ ] **MISSING:** Troubleshooting guide
+- [x] ~~**MISSING:**~~ Troubleshooting guide (`docs/troubleshooting.md` — startup, DB, Docker, auth, SSL, performance, logging) — **FIXED**
 
 ---
 
@@ -393,6 +393,12 @@ Items fixed in `4dd47df`:
 - ~~HTTP caching~~ — **FIXED**: ETag middleware on marketplace and OpenAPI endpoints, CacheControl helper
 - ~~Load testing suite~~ — **FIXED**: `tests/loadtest/` tool with `make loadtest` target, JSON output for CI
 
+Items fixed in `7a47a6b`:
+- ~~Log level configuration~~ — **FIXED**: `SetupLogger()` wired in main.go, `MONSTER_LOG_LEVEL`/`MONSTER_LOG_FORMAT` env vars and YAML config work
+- ~~Coverage threshold in CI~~ — **FIXED**: 80% minimum coverage enforcement in GitHub Actions
+- ~~Documentation inconsistency~~ — **FIXED**: RS256→HS256 corrected in PROJECT_STATUS.md and architecture.md
+- ~~Troubleshooting guide~~ — **FIXED**: `docs/troubleshooting.md` covering startup, DB, Docker, auth, SSL, performance, logging
+
 Remaining:
 1. Integration tests with real Docker in CI
 2. OpenTelemetry distributed tracing
@@ -403,7 +409,7 @@ Remaining:
 
 **GO — Ready for single-node production deployment.**
 
-All 4 production blockers, all 5 high-priority items, and all actionable recommendations have been resolved across 8 commits:
+All 4 production blockers, all 5 high-priority items, and all actionable recommendations have been resolved across 9 commits:
 - `ffbb230` — 4 critical security blockers (credentials, CORS, token revocation, rate limiting)
 - `8dbb777` — 5 high-priority issues (request ID, --config, security headers, error swallowing, rand.Read)
 - `dde01b4` — JWT key rotation + httpOnly cookie auth + CSRF protection
@@ -411,8 +417,9 @@ All 4 production blockers, all 5 high-priority items, and all actionable recomme
 - `f83db2c` — Operational improvements (pprof, retry/backoff, config validation)
 - `20508c0` — Migration rollback + frontend test coverage boost
 - `4dd47df` — Business metrics, HTTP caching, load test harness
+- `7a47a6b` — Log level config, coverage threshold, troubleshooting guide, doc fixes
 
-The platform is production-ready for single-node deployment serving teams of any size. Security posture: httpOnly cookie auth + CSRF, JWT key rotation, token revocation, rate limiting, full security headers, input validation, config validation. Operational readiness: pprof profiling, business + API metrics with Prometheus, retry/backoff for external calls, migration rollback, ETag caching, load test harness.
+The platform is production-ready for single-node deployment serving teams of any size. Security posture: httpOnly cookie auth + CSRF, JWT key rotation, token revocation, rate limiting, full security headers, input validation, config validation. Operational readiness: pprof profiling, business + API metrics with Prometheus, retry/backoff for external calls, migration rollback, ETag caching, load test harness, configurable log levels, CI coverage enforcement.
 
 The remaining 4 items (Docker integration tests, OpenTelemetry, PostgreSQL, Playwright) are large infrastructure efforts that don't block production deployment — they improve scalability, observability depth, and test confidence for multi-tenant hosting at scale.
 
