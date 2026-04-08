@@ -48,9 +48,8 @@ export function useWebSocket(
 
   useEffect(() => {
     const connect = () => {
-      const token = localStorage.getItem('access_token');
-      const wsUrl = token ? `${url}?token=${token}` : url;
-      const ws = new WebSocket(wsUrl);
+      // Cookies are auto-sent on same-origin WebSocket handshake
+      const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.onopen = () => {

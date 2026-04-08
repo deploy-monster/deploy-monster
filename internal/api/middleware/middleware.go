@@ -93,8 +93,8 @@ func CORS(allowedOrigins string) func(http.Handler) http.Handler {
 	}
 }
 
-// RequireAuth returns middleware that validates JWT from the Authorization header.
-// It also validates API keys using BoltStorer for lookup.
+// RequireAuth returns middleware that validates JWT from the Authorization header,
+// dm_access cookie, or X-API-Key header (in that priority order).
 func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +103,18 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 			if strings.HasPrefix(header, "Bearer ") {
 				tokenStr := strings.TrimPrefix(header, "Bearer ")
 				claims, err := jwtSvc.ValidateAccessToken(tokenStr)
+				if err != nil {
+					http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+					return
+				}
+				ctx := auth.ContextWithClaims(r.Context(), claims)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			// Try JWT from httpOnly cookie
+			if c, err := r.Cookie("dm_access"); err == nil && c.Value != "" {
+				claims, err := jwtSvc.ValidateAccessToken(c.Value)
 				if err != nil {
 					http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
 					return

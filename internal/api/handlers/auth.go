@@ -6,8 +6,14 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/deploy-monster/deploy-monster/internal/api/middleware"
 	internalAuth "github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
+)
+
+const (
+	cookieAccess  = "dm_access"
+	cookieRefresh = "dm_refresh"
 )
 
 // AuthHandler handles authentication endpoints.
@@ -15,6 +21,50 @@ type AuthHandler struct {
 	authMod *internalAuth.Module
 	store   core.Store
 	bolt    core.BoltStorer
+}
+
+// setTokenCookies sets httpOnly cookies for both access and refresh tokens.
+func setTokenCookies(w http.ResponseWriter, tokens *internalAuth.TokenPair) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieAccess,
+		Value:    tokens.AccessToken,
+		Path:     "/api",
+		MaxAge:   tokens.ExpiresIn,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieRefresh,
+		Value:    tokens.RefreshToken,
+		Path:     "/api/v1/auth",
+		MaxAge:   internalAuth.RefreshTokenTTLSeconds,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// clearTokenCookies removes both token cookies.
+func clearTokenCookies(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieAccess,
+		Value:    "",
+		Path:     "/api",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieRefresh,
+		Value:    "",
+		Path:     "/api/v1/auth",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 // NewAuthHandler creates a new auth handler.
@@ -90,6 +140,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("failed to update last login", "user_id", user.ID, "error", err)
 	}
 
+	setTokenCookies(w, tokens)
+	middleware.SetCSRFCookie(w)
 	writeJSON(w, http.StatusOK, tokens)
 }
 
@@ -150,15 +202,22 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setTokenCookies(w, tokens)
+	middleware.SetCSRFCookie(w)
 	writeJSON(w, http.StatusCreated, tokens)
 }
 
 // Refresh handles POST /api/v1/auth/refresh
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
+	// Allow empty body — refresh token may come from httpOnly cookie
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	// Fall back to cookie if body didn't include refresh_token
+	if req.RefreshToken == "" {
+		if c, err := r.Cookie(cookieRefresh); err == nil {
+			req.RefreshToken = c.Value
+		}
 	}
 
 	if req.RefreshToken == "" {
@@ -208,6 +267,8 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setTokenCookies(w, tokens)
+	middleware.SetCSRFCookie(w)
 	writeJSON(w, http.StatusOK, tokens)
 }
 
@@ -218,13 +279,19 @@ type logoutRequest struct {
 // Logout handles POST /api/v1/auth/logout
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req logoutRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	// Fall back to cookie if body didn't include refresh_token
+	if req.RefreshToken == "" {
+		if c, err := r.Cookie(cookieRefresh); err == nil {
+			req.RefreshToken = c.Value
+		}
 	}
 
+	// If we still have no token, just clear cookies and return OK
 	if req.RefreshToken == "" {
-		writeError(w, http.StatusBadRequest, "refresh_token required")
+		clearTokenCookies(w)
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 
@@ -232,6 +299,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	rtClaims, err := h.authMod.JWT().ValidateRefreshToken(req.RefreshToken)
 	if err != nil {
 		// Token is invalid/expired — effectively already "logged out"
+		clearTokenCookies(w)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
@@ -241,7 +309,24 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		_ = h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds)
 	}
 
+	clearTokenCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// Me handles GET /api/v1/auth/me — returns the current user from JWT claims.
+func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	claims := internalAuth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"id":        claims.UserID,
+		"email":     claims.Email,
+		"role":      claims.RoleID,
+		"tenant_id": claims.TenantID,
+	})
 }
 
 func generateSlug(name string) string {

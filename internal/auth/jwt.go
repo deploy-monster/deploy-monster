@@ -28,14 +28,24 @@ type TokenPair struct {
 // JWTService handles JWT token generation and validation.
 type JWTService struct {
 	secretKey     []byte
+	previousKeys  [][]byte
 	accessExpiry  time.Duration
 	refreshExpiry time.Duration
 }
 
-// NewJWTService creates a new JWT service.
-func NewJWTService(secret string) *JWTService {
+// NewJWTService creates a new JWT service. previousSecrets are old keys kept
+// for graceful rotation — tokens signed with them are still accepted for
+// validation but new tokens are always signed with the primary secret.
+func NewJWTService(secret string, previousSecrets ...string) *JWTService {
+	prev := make([][]byte, 0, len(previousSecrets))
+	for _, s := range previousSecrets {
+		if s != "" {
+			prev = append(prev, []byte(s))
+		}
+	}
 	return &JWTService{
 		secretKey:     []byte(secret),
+		previousKeys:  prev,
 		accessExpiry:  15 * time.Minute,
 		refreshExpiry: 7 * 24 * time.Hour,
 	}
@@ -83,18 +93,22 @@ func (j *JWTService) GenerateTokenPair(userID, tenantID, roleID, email string) (
 }
 
 // ValidateAccessToken parses and validates an access token.
+// Tries the active key first, then falls back to previous keys for graceful rotation.
 func (j *JWTService) ValidateAccessToken(tokenStr string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
-		return j.secretKey, nil
-	})
-	if err != nil {
-		return nil, err
+	for _, key := range j.allKeys() {
+		token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
+			return key, nil
+		})
+		if err != nil {
+			continue
+		}
+		claims, ok := token.Claims.(*Claims)
+		if !ok || !token.Valid {
+			continue
+		}
+		return claims, nil
 	}
-	claims, ok := token.Claims.(*Claims)
-	if !ok || !token.Valid {
-		return nil, jwt.ErrTokenInvalidClaims
-	}
-	return claims, nil
+	return nil, jwt.ErrTokenSignatureInvalid
 }
 
 // RefreshTokenClaims holds the validated claims from a refresh token.
@@ -108,21 +122,33 @@ const RefreshTokenTTLSeconds = 7 * 24 * 60 * 60 // 7 days
 
 // ValidateRefreshToken parses and validates a refresh token.
 // Returns the user ID (Subject) and the token ID (JTI) for revocation tracking.
+// Tries the active key first, then falls back to previous keys for graceful rotation.
 func (j *JWTService) ValidateRefreshToken(tokenStr string) (*RefreshTokenClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
-		return j.secretKey, nil
-	})
-	if err != nil {
-		return nil, err
+	for _, key := range j.allKeys() {
+		token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
+			return key, nil
+		})
+		if err != nil {
+			continue
+		}
+		claims, ok := token.Claims.(*jwt.RegisteredClaims)
+		if !ok || !token.Valid {
+			continue
+		}
+		return &RefreshTokenClaims{
+			UserID: claims.Subject,
+			JTI:    claims.ID,
+		}, nil
 	}
-	claims, ok := token.Claims.(*jwt.RegisteredClaims)
-	if !ok || !token.Valid {
-		return nil, jwt.ErrTokenInvalidClaims
-	}
-	return &RefreshTokenClaims{
-		UserID: claims.Subject,
-		JTI:    claims.ID,
-	}, nil
+	return nil, jwt.ErrTokenSignatureInvalid
+}
+
+// allKeys returns the active key followed by any previous keys.
+func (j *JWTService) allKeys() [][]byte {
+	keys := make([][]byte, 0, 1+len(j.previousKeys))
+	keys = append(keys, j.secretKey)
+	keys = append(keys, j.previousKeys...)
+	return keys
 }
 
 func generateTokenID() string {

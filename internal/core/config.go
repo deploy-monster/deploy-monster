@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -32,11 +33,12 @@ type Config struct {
 
 // ServerConfig holds the HTTP server configuration.
 type ServerConfig struct {
-	Host        string `yaml:"host"`
-	Port        int    `yaml:"port"`
-	Domain      string `yaml:"domain"`
-	SecretKey   string `yaml:"secret_key"`
-	CORSOrigins string `yaml:"cors_origins"` // comma-separated allowed origins; empty = derive from domain
+	Host               string   `yaml:"host"`
+	Port               int      `yaml:"port"`
+	Domain             string   `yaml:"domain"`
+	SecretKey          string   `yaml:"secret_key"`
+	PreviousSecretKeys []string `yaml:"previous_secret_keys"` // old keys kept for graceful JWT rotation
+	CORSOrigins        string   `yaml:"cors_origins"`         // comma-separated allowed origins; empty = derive from domain
 }
 
 // DatabaseConfig holds database configuration.
@@ -241,6 +243,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("MONSTER_SECRET"); v != "" {
 		cfg.Server.SecretKey = v
+	}
+	if v := os.Getenv("MONSTER_PREVIOUS_SECRET_KEYS"); v != "" {
+		cfg.Server.PreviousSecretKeys = strings.Split(v, ",")
 	}
 	if v := os.Getenv("MONSTER_DB_PATH"); v != "" {
 		cfg.Database.Path = v

@@ -22,11 +22,8 @@ export function useEventSource<T = string>(
     const connect = () => {
       if (!url) return;
 
-      const token = localStorage.getItem('access_token');
-      const separator = url.includes('?') ? '&' : '?';
-      const fullUrl = token ? `${url}${separator}token=${token}` : url;
-
-      const es = new EventSource(fullUrl);
+      // withCredentials sends cookies for same-origin SSE connections
+      const es = new EventSource(url, { withCredentials: true });
       esRef.current = es;
 
       es.onopen = () => {

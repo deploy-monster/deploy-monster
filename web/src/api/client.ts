@@ -15,16 +15,25 @@ class APIError extends Error {
   }
 }
 
+function getCSRFToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)dm_csrf=([^;]*)/);
+  return match ? match[1] : '';
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {} } = options;
 
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  // Add CSRF token for mutating requests
+  if (method !== 'GET' && method !== 'HEAD') {
+    const csrf = getCSRFToken();
+    if (csrf) {
+      headers['X-CSRF-Token'] = csrf;
+    }
   }
 
   const config: RequestInit = {
     method,
+    credentials: 'include', // send httpOnly cookies
     headers: {
       'Content-Type': 'application/json',
       ...headers,
@@ -38,13 +47,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const response = await fetch(`${API_BASE}${path}`, config);
 
   // Handle 401 - try refresh
-  if (response.status === 401 && token) {
+  if (response.status === 401) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       return request<T>(path, options);
     }
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
     window.location.href = '/login';
     throw new APIError(401, 'Session expired');
   }
@@ -69,21 +76,16 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 async function tryRefresh(): Promise<boolean> {
-  const refreshToken = localStorage.getItem('refresh_token');
-  if (!refreshToken) return false;
-
   try {
     const response = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
+      credentials: 'include', // sends dm_refresh cookie
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      body: JSON.stringify({}),
     });
 
     if (!response.ok) return false;
-
-    const data = await response.json();
-    localStorage.setItem('access_token', data.access_token);
-    localStorage.setItem('refresh_token', data.refresh_token);
+    // Cookies are set by the server — nothing to store client-side
     return true;
   } catch {
     return false;

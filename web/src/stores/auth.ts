@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authAPI, type TokenPair } from '../api/auth';
+import { api } from '../api/client';
 
 interface User {
   id: string;
@@ -10,7 +11,6 @@ interface User {
 }
 
 interface AuthState {
-  token: string | null;
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -18,69 +18,60 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
-  initialize: () => void;
+  initialize: () => Promise<void>;
 }
 
-function parseJWT(token: string): Record<string, unknown> | null {
+function userFromTokenResponse(pair: TokenPair): User | null {
+  // Parse the access token payload for display info
   try {
-    const payload = token.split('.')[1];
-    return JSON.parse(atob(payload));
+    const payload = pair.access_token.split('.')[1];
+    const decoded = JSON.parse(atob(payload));
+    return {
+      id: decoded.uid as string,
+      email: decoded.email as string,
+      name: (decoded.name as string) || (decoded.email as string),
+      role: decoded.rid as string,
+      tenant_id: decoded.tid as string,
+    };
   } catch {
     return null;
   }
 }
 
-function userFromToken(token: string): User | null {
-  const payload = parseJWT(token);
-  if (!payload) return null;
-  return {
-    id: payload.uid as string,
-    email: payload.email as string,
-    name: (payload.name as string) || (payload.email as string),
-    role: payload.rid as string,
-    tenant_id: payload.tid as string,
-  };
-}
-
-function saveTokens(pair: TokenPair) {
-  localStorage.setItem('access_token', pair.access_token);
-  localStorage.setItem('refresh_token', pair.refresh_token);
-}
-
 export const useAuthStore = create<AuthState>((set) => ({
-  token: null,
   user: null,
   isAuthenticated: false,
   isLoading: true,
 
   login: async (email, password) => {
     const pair = await authAPI.login({ email, password });
-    saveTokens(pair);
-    const user = userFromToken(pair.access_token);
-    set({ token: pair.access_token, user, isAuthenticated: true });
+    // Cookies are set by the server — we only use the response body for user info
+    const user = userFromTokenResponse(pair);
+    set({ user, isAuthenticated: true });
   },
 
   register: async (email, password, name) => {
     const pair = await authAPI.register({ email, password, name });
-    saveTokens(pair);
-    const user = userFromToken(pair.access_token);
-    set({ token: pair.access_token, user, isAuthenticated: true });
+    const user = userFromTokenResponse(pair);
+    set({ user, isAuthenticated: true });
   },
 
   logout: () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    set({ token: null, user: null, isAuthenticated: false });
+    // POST to logout endpoint (clears server-side cookies)
+    api.post('/auth/logout', {}).catch(() => {});
+    set({ user: null, isAuthenticated: false });
   },
 
-  initialize: () => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      const user = userFromToken(token);
-      if (user) {
-        set({ token, user, isAuthenticated: true, isLoading: false });
+  initialize: async () => {
+    try {
+      // Try to fetch current user — if cookies are valid, this succeeds
+      const user = await api.get<User>('/auth/me');
+      if (user && user.id) {
+        set({ user, isAuthenticated: true, isLoading: false });
         return;
       }
+    } catch {
+      // Not authenticated or cookies expired
     }
     set({ isLoading: false });
   },

@@ -46,6 +46,7 @@ func (r *Router) Handler() http.Handler {
 		middleware.Recovery(r.core.Logger),
 		middleware.RequestLogger(r.core.Logger),
 		middleware.CORS(r.core.Config.Server.CORSOrigins),
+		middleware.CSRFProtect,
 		middleware.AuditLog(r.store, r.core.Logger),
 	)
 }

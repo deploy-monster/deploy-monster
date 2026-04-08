@@ -43,8 +43,8 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	}
 	m.store = c.Store
 
-	// Create JWT service
-	m.jwt = NewJWTService(c.Config.Server.SecretKey)
+	// Create JWT service with key rotation support
+	m.jwt = NewJWTService(c.Config.Server.SecretKey, c.Config.Server.PreviousSecretKeys...)
 
 	// First-run setup: create super admin if no users exist
 	if err := m.firstRunSetup(ctx); err != nil {
