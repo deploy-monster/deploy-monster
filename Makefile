@@ -59,6 +59,11 @@ test-cover:
 	@echo "Running tests with coverage..."
 	$(GOTEST) -cover ./... | sort -t':' -k2 -n
 
+## test-integration: Run integration tests (requires Docker)
+test-integration:
+	@echo "Running integration tests..."
+	$(GOTEST) -tags integration -v ./...
+
 ## bench: Run all benchmarks
 bench:
 	@echo "Running benchmarks..."

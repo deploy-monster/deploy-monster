@@ -1,0 +1,233 @@
+# Configuration Reference
+
+DeployMonster is configured via a YAML file (`monster.yaml`) with environment variable overrides.
+
+**Priority order:** Environment variables > YAML file > Defaults
+
+**Config file locations** (checked in order):
+1. Path given via `--config` CLI flag
+2. `./monster.yaml` (current directory)
+3. `/etc/deploymonster/monster.yaml`
+4. `/var/lib/deploymonster/monster.yaml`
+
+## Environment Variables
+
+All environment variables use the `MONSTER_` prefix.
+
+| Variable | YAML Path | Default | Description |
+|----------|-----------|---------|-------------|
+| `MONSTER_HOST` | `server.host` | `0.0.0.0` | HTTP server bind address |
+| `MONSTER_PORT` | `server.port` | `8443` | HTTP server port (1-65535) |
+| `MONSTER_DOMAIN` | `server.domain` | _(empty)_ | Public domain (used for CORS, cookies) |
+| `MONSTER_SECRET` | `server.secret_key` | _(auto-generated)_ | JWT signing key (min 16 chars) |
+| `MONSTER_PREVIOUS_SECRET_KEYS` | `server.previous_secret_keys` | _(empty)_ | Comma-separated old keys for JWT rotation |
+| `MONSTER_CORS_ORIGINS` | `server.cors_origins` | _(derived from domain)_ | Comma-separated allowed CORS origins |
+| `MONSTER_ENABLE_PPROF` | `server.enable_pprof` | `false` | Enable `/debug/pprof/*` endpoints (auth-protected) |
+| `MONSTER_DB_PATH` | `database.path` | `deploymonster.db` | SQLite database file path |
+| `MONSTER_DB_URL` | `database.url` | _(empty)_ | PostgreSQL connection URL (switches driver to postgres) |
+| `MONSTER_DOCKER_HOST` | `docker.host` | `unix:///var/run/docker.sock` | Docker daemon socket/host |
+| `MONSTER_ACME_EMAIL` | `acme.email` | _(empty)_ | Email for Let's Encrypt certificate registration |
+| `MONSTER_REGISTRATION_MODE` | `registration.mode` | `open` | User registration mode (see below) |
+| `MONSTER_LOG_LEVEL` | — | `info` | Log level (debug, info, warn, error) |
+| `MONSTER_ADMIN_EMAIL` | — | `admin@deploymonster.local` | Initial admin email (first-run setup only) |
+| `MONSTER_ADMIN_PASSWORD` | — | _(auto-generated)_ | Initial admin password (first-run setup only) |
+
+## YAML Configuration Sections
+
+### server
+
+```yaml
+server:
+  host: "0.0.0.0"           # Bind address
+  port: 8443                 # HTTP port (validated: 1-65535)
+  domain: "deploy.example.com" # Public domain
+  secret_key: ""             # JWT signing key (auto-generated if empty, min 16 chars)
+  previous_secret_keys: []   # Old signing keys for graceful JWT rotation
+  cors_origins: ""           # Comma-separated origins (auto-derived from domain if empty)
+  enable_pprof: false        # Enable Go pprof profiling endpoints
+```
+
+### database
+
+```yaml
+database:
+  driver: "sqlite"           # Database driver: "sqlite" or "postgres"
+  path: "deploymonster.db"   # SQLite file path (required when driver=sqlite)
+  url: ""                    # PostgreSQL URL (required when driver=postgres)
+```
+
+### ingress
+
+```yaml
+ingress:
+  http_port: 80              # Ingress HTTP port (validated: 1-65535)
+  https_port: 443            # Ingress HTTPS port (validated: 1-65535)
+  enable_https: true         # Enable HTTPS with auto-cert
+```
+
+### acme
+
+```yaml
+acme:
+  email: ""                  # Let's Encrypt registration email
+  staging: false             # Use Let's Encrypt staging environment
+  cert_dir: ""               # Certificate storage directory
+  provider: "http-01"        # Challenge provider: "http-01" or "dns-01"
+```
+
+### dns
+
+```yaml
+dns:
+  provider: ""               # DNS provider: "cloudflare", "route53", "manual"
+  cloudflare_token: ""       # Cloudflare API token
+  auto_subdomain: ""         # Auto-subdomain base (e.g., "deploy.monster")
+```
+
+### docker
+
+```yaml
+docker:
+  host: "unix:///var/run/docker.sock"  # Docker socket or TCP host
+  api_version: ""            # Docker API version override
+  tls_verify: false          # Verify TLS for TCP connections
+```
+
+### backup
+
+```yaml
+backup:
+  schedule: ""               # Cron schedule for automated backups
+  retention_days: 30         # Days to keep backups
+  storage_path: "/var/lib/deploymonster/backups"  # Local backup storage
+  encryption: true           # Encrypt backups at rest
+```
+
+### notifications
+
+```yaml
+notifications:
+  email_smtp: ""             # SMTP connection string for email notifications
+  slack_webhook: ""          # Slack webhook URL
+  discord_webhook: ""        # Discord webhook URL
+  telegram_token: ""         # Telegram bot token
+```
+
+### swarm
+
+```yaml
+swarm:
+  enabled: false             # Enable Docker Swarm mode
+  manager_ip: ""             # Swarm manager IP address
+  join_token: ""             # Swarm join token for workers
+```
+
+### vps_providers
+
+```yaml
+vps_providers:
+  enabled: false             # Enable VPS provisioning
+```
+
+### git_sources
+
+```yaml
+git_sources:
+  github_client_id: ""       # GitHub OAuth app client ID
+  github_client_secret: ""   # GitHub OAuth app client secret
+  gitlab_client_id: ""       # GitLab OAuth app client ID
+  gitlab_client_secret: ""   # GitLab OAuth app client secret
+```
+
+### marketplace
+
+```yaml
+marketplace:
+  enabled: true              # Enable built-in marketplace templates
+  templates_dir: "marketplace/templates"  # Template directory
+  community_sync: false      # Sync community templates
+```
+
+### registration
+
+```yaml
+registration:
+  mode: "open"               # Registration mode (validated)
+```
+
+**Valid registration modes:**
+- `open` — Anyone can register
+- `invite_only` — Registration requires an invitation
+- `approval` — Registration requires admin approval
+- `disabled` — Registration is disabled
+- `sso_only` — Only SSO authentication is allowed
+
+### sso
+
+```yaml
+sso:
+  google_client_id: ""       # Google OAuth client ID
+  google_client_secret: ""   # Google OAuth client secret
+```
+
+### secrets
+
+```yaml
+secrets:
+  encryption_key: ""         # AES-256-GCM encryption key for secret vault
+```
+
+### billing
+
+```yaml
+billing:
+  enabled: false             # Enable billing/subscription features
+  stripe_secret_key: ""      # Stripe API secret key
+  stripe_webhook_key: ""     # Stripe webhook signing secret
+```
+
+### limits
+
+```yaml
+limits:
+  max_apps_per_tenant: 100   # Max apps per tenant (validated: >= 0)
+  max_build_minutes: 30      # Max build duration in minutes
+  max_concurrent_builds: 5   # Max concurrent builds (validated: >= 1)
+```
+
+### enterprise
+
+```yaml
+enterprise:
+  enabled: false             # Enable enterprise features
+  license_key: ""            # Enterprise license key
+```
+
+## Startup Validation
+
+The configuration is validated during `LoadConfig()`. The following rules are enforced:
+
+| Rule | Error |
+|------|-------|
+| Port must be 1-65535 | `config: server.port N out of range` |
+| Secret key must be >= 16 chars | `config: server.secret_key must be at least 16 characters` |
+| Database driver must be `sqlite` or `postgres` | `config: unsupported database.driver` |
+| SQLite requires `database.path` | `config: database.path is required for sqlite driver` |
+| PostgreSQL requires `database.url` | `config: database.url is required for postgres driver` |
+| Ingress ports must be 1-65535 | `config: ingress.http_port N out of range` |
+| Registration mode must be valid | `config: registration.mode not recognized` |
+| Max apps per tenant must be >= 0 | `config: limits.max_apps_per_tenant must be non-negative` |
+| Max concurrent builds must be >= 1 | `config: limits.max_concurrent_builds must be at least 1` |
+
+## Minimal Production Configuration
+
+```yaml
+server:
+  domain: "deploy.example.com"
+  secret_key: "your-secret-key-at-least-16-chars"
+
+acme:
+  email: "admin@example.com"
+```
+
+Everything else uses sensible defaults. The secret key is auto-generated on first run if not specified.

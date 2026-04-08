@@ -39,8 +39,13 @@ vendor/
 # Binaries
 deploymonster
 deploymonster.exe
+loadtest
+loadtest.exe
 *.test
 *.test.exe
+
+# Load test output
+loadtest-results.json
 
 # Playwright MCP logs
 .playwright-mcp/
