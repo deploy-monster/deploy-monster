@@ -33,6 +33,7 @@ func NewRouter(c *core.Core, authMod *auth.Module, store core.Store) *Router {
 		store:      store,
 		apiMetrics: middleware.NewAPIMetrics(),
 	}
+	r.apiMetrics.SubscribeEvents(c.Events)
 	r.registerRoutes()
 	return r
 }
@@ -64,9 +65,9 @@ func (r *Router) registerRoutes() {
 	detailedH := handlers.NewDetailedHealthHandler(r.core)
 	r.mux.HandleFunc("GET /health/detailed", detailedH.DetailedHealth)
 
-	// ── OpenAPI Spec ──────────────────────────────────
+	// ── OpenAPI Spec (cacheable) ──────────────────────
 	openAPIH := handlers.NewOpenAPIHandler(r.core.Build.Version)
-	r.mux.HandleFunc("GET /api/v1/openapi.json", openAPIH.Spec)
+	r.mux.HandleFunc("GET /api/v1/openapi.json", middleware.ETag(openAPIH.Spec))
 
 	// ── Auth (public, rate-limited) ────────────────────
 	loginRL := middleware.NewAuthRateLimiter(r.core.DB.Bolt, 5, time.Minute, "login")
@@ -522,8 +523,8 @@ func (r *Router) registerRoutes() {
 			reg = marketplace.NewTemplateRegistry()
 		}
 		mpH := handlers.NewMarketplaceHandler(reg)
-		r.mux.HandleFunc("GET /api/v1/marketplace", mpH.List)
-		r.mux.HandleFunc("GET /api/v1/marketplace/{slug}", mpH.Get)
+		r.mux.HandleFunc("GET /api/v1/marketplace", middleware.ETag(mpH.List))
+		r.mux.HandleFunc("GET /api/v1/marketplace/{slug}", middleware.ETag(mpH.Get))
 		mpDeployH := handlers.NewMarketplaceDeployHandler(reg, r.core.Services.Container, r.store, r.core.Events)
 		r.mux.Handle("POST /api/v1/marketplace/deploy", protected(http.HandlerFunc(mpDeployH.Deploy)))
 	}

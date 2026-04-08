@@ -1,12 +1,15 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // APIMetrics collects HTTP request metrics for the management API.
@@ -17,11 +20,51 @@ type APIMetrics struct {
 	totalLatencyUS atomic.Int64 // microseconds cumulative
 	statusCounts   sync.Map     // status code string -> *atomic.Int64
 	endpointCounts sync.Map     // "METHOD /path" -> *atomic.Int64
+
+	// Business metrics (incremented via event subscriptions)
+	deploysTotal  atomic.Int64
+	deploysFailed atomic.Int64
+	buildsTotal   atomic.Int64
+	buildsFailed  atomic.Int64
+	appsCreated   atomic.Int64
+	appsDeleted   atomic.Int64
+	eventBus      *core.EventBus // optional, for Stats() in handler
 }
 
 // NewAPIMetrics creates a new API metrics collector.
 func NewAPIMetrics() *APIMetrics {
 	return &APIMetrics{}
+}
+
+// SubscribeEvents subscribes to the event bus to track business-level metrics.
+func (m *APIMetrics) SubscribeEvents(eb *core.EventBus) {
+	m.eventBus = eb
+	eb.SubscribeAsync(core.EventDeployFinished, func(_ context.Context, _ core.Event) error {
+		m.deploysTotal.Add(1)
+		return nil
+	})
+	eb.SubscribeAsync(core.EventDeployFailed, func(_ context.Context, _ core.Event) error {
+		m.deploysTotal.Add(1)
+		m.deploysFailed.Add(1)
+		return nil
+	})
+	eb.SubscribeAsync(core.EventBuildCompleted, func(_ context.Context, _ core.Event) error {
+		m.buildsTotal.Add(1)
+		return nil
+	})
+	eb.SubscribeAsync(core.EventBuildFailed, func(_ context.Context, _ core.Event) error {
+		m.buildsTotal.Add(1)
+		m.buildsFailed.Add(1)
+		return nil
+	})
+	eb.SubscribeAsync(core.EventAppCreated, func(_ context.Context, _ core.Event) error {
+		m.appsCreated.Add(1)
+		return nil
+	})
+	eb.SubscribeAsync(core.EventAppDeleted, func(_ context.Context, _ core.Event) error {
+		m.appsDeleted.Add(1)
+		return nil
+	})
 }
 
 // Middleware returns an HTTP middleware that records request metrics.
@@ -97,6 +140,47 @@ func (m *APIMetrics) Handler() http.HandlerFunc {
 			sb.WriteString(fmt.Sprintf("api_requests_by_endpoint{endpoint=%q} %d\n", key.(string), value.(*atomic.Int64).Load()))
 			return true
 		})
+
+		// Business metrics
+		sb.WriteString("\n# HELP deploys_total Total deployments (success + failure)\n")
+		sb.WriteString("# TYPE deploys_total counter\n")
+		sb.WriteString(fmt.Sprintf("deploys_total %d\n", m.deploysTotal.Load()))
+
+		sb.WriteString("\n# HELP deploys_failed_total Failed deployments\n")
+		sb.WriteString("# TYPE deploys_failed_total counter\n")
+		sb.WriteString(fmt.Sprintf("deploys_failed_total %d\n", m.deploysFailed.Load()))
+
+		sb.WriteString("\n# HELP builds_total Total builds (success + failure)\n")
+		sb.WriteString("# TYPE builds_total counter\n")
+		sb.WriteString(fmt.Sprintf("builds_total %d\n", m.buildsTotal.Load()))
+
+		sb.WriteString("\n# HELP builds_failed_total Failed builds\n")
+		sb.WriteString("# TYPE builds_failed_total counter\n")
+		sb.WriteString(fmt.Sprintf("builds_failed_total %d\n", m.buildsFailed.Load()))
+
+		sb.WriteString("\n# HELP apps_created_total Total apps created\n")
+		sb.WriteString("# TYPE apps_created_total counter\n")
+		sb.WriteString(fmt.Sprintf("apps_created_total %d\n", m.appsCreated.Load()))
+
+		sb.WriteString("\n# HELP apps_deleted_total Total apps deleted\n")
+		sb.WriteString("# TYPE apps_deleted_total counter\n")
+		sb.WriteString(fmt.Sprintf("apps_deleted_total %d\n", m.appsDeleted.Load()))
+
+		// Event bus stats
+		if m.eventBus != nil {
+			stats := m.eventBus.Stats()
+			sb.WriteString("\n# HELP eventbus_published_total Total events published\n")
+			sb.WriteString("# TYPE eventbus_published_total counter\n")
+			sb.WriteString(fmt.Sprintf("eventbus_published_total %d\n", stats.PublishCount))
+
+			sb.WriteString("\n# HELP eventbus_errors_total Total event handler errors\n")
+			sb.WriteString("# TYPE eventbus_errors_total counter\n")
+			sb.WriteString(fmt.Sprintf("eventbus_errors_total %d\n", stats.ErrorCount))
+
+			sb.WriteString("\n# HELP eventbus_subscriptions Active event subscriptions\n")
+			sb.WriteString("# TYPE eventbus_subscriptions gauge\n")
+			sb.WriteString(fmt.Sprintf("eventbus_subscriptions %d\n", stats.SubscriptionCount))
+		}
 
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		w.Write([]byte(sb.String()))

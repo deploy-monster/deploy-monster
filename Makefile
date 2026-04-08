@@ -64,6 +64,11 @@ bench:
 	@echo "Running benchmarks..."
 	$(GOTEST) -bench=. -benchmem ./...
 
+## loadtest: Run HTTP load test against a running instance
+loadtest:
+	@echo "Running load test (ensure server is running)..."
+	go run ./tests/loadtest -url http://localhost:8443 -duration 10s -concurrency 10
+
 ## lint: Run golangci-lint
 lint:
 	@echo "Running linter..."
