@@ -7,19 +7,19 @@
 
 ## Overall Verdict & Score
 
-**Production Readiness Score: 94/100** _(was 62/100 before fixes)_
+**Production Readiness Score: 96/100** _(was 62/100 before fixes)_
 
 | Category | Score | Weight | Weighted Score |
 |---|---|---|---|
 | Core Functionality | 8/10 | 20% | 16.0 |
-| Reliability & Error Handling | 8/10 | 15% | 12.0 |
-| Security | 9/10 | 20% | 18.0 |
+| Reliability & Error Handling | 9/10 | 15% | 13.5 |
+| Security | 10/10 | 20% | 20.0 |
 | Performance | 8/10 | 10% | 8.0 |
 | Testing | 9/10 | 15% | 13.5 |
 | Observability | 9/10 | 10% | 9.0 |
 | Documentation | 9/10 | 5% | 4.5 |
 | Deployment Readiness | 9/10 | 5% | 4.5 |
-| **TOTAL** | | **100%** | **94/100** (was 62) |
+| **TOTAL** | | **100%** | **96/100** (was 62) |
 
 ---
 
@@ -131,7 +131,7 @@
 - Server can restart after crash (SQLite WAL handles recovery)
 - BBolt is crash-safe (copy-on-write B+ tree)
 - No state corruption risk identified
-- In-flight deploys may leave orphaned containers (no cleanup on crash recovery)
+- ~~In-flight deploys may leave orphaned containers~~ **FIXED** — orphan cleanup on startup removes containers with `monster.managed=true` whose app no longer exists
 
 ---
 
@@ -145,7 +145,7 @@
 - [x] API key management with constant-time comparison
 - [x] Multi-tenant isolation via TenantID in claims
 - [x] ~~**MISSING:**~~ Token revocation via BBolt blacklist with TTL — **FIXED**
-- [ ] **MISSING:** Refresh token rotation on use
+- [x] ~~**MISSING:**~~ Refresh token rotation on use (old refresh token revoked via BBolt blacklist on every refresh) — **ALREADY IMPLEMENTED**
 - [x] ~~**MISSING:**~~ Rate limiting on auth endpoints (per-IP, BBolt-backed) — **FIXED**
 - [x] ~~**MISSING:**~~ CSRF protection (double-submit cookie pattern) — **FIXED**
 - [x] ~~**CONCERN:**~~ JWT key rotation supported (active + previous keys, variadic constructor) — **FIXED**
@@ -159,8 +159,8 @@
 - [x] Password strength validation (min 8 chars)
 - [x] ~~**MISSING:**~~ Email format validation in registration (`net/mail.ParseAddress`) — **FIXED**
 - [x] ~~**MISSING:**~~ App name validation with regex and length check (100 chars max) — **FIXED**
-- [ ] **MISSING:** Command injection protection in build pipeline (git URL handling)
-- [ ] **CONCERN:** Path traversal risk in volume mount paths (user-supplied)
+- [x] ~~**MISSING:**~~ Command injection protection in build pipeline (`ValidateGitURL()` rejects shell metacharacters, argument injection, non-standard schemes) — **FIXED**
+- [x] ~~**CONCERN:**~~ Path traversal protection for volume mounts (`ValidateVolumePaths()` rejects `..`, relative paths, null bytes) — **FIXED**
 
 ### 3.3 Network Security
 
@@ -399,6 +399,12 @@ Items fixed in `7a47a6b`:
 - ~~Documentation inconsistency~~ — **FIXED**: RS256→HS256 corrected in PROJECT_STATUS.md and architecture.md
 - ~~Troubleshooting guide~~ — **FIXED**: `docs/troubleshooting.md` covering startup, DB, Docker, auth, SSL, performance, logging
 
+Items fixed in `ea7d5f8`:
+- ~~Command injection in build pipeline~~ — **FIXED**: `ValidateGitURL()` rejects shell metacharacters, argument injection (`--`), non-standard schemes
+- ~~Path traversal in volume mounts~~ — **FIXED**: `ValidateVolumePaths()` rejects `..`, relative paths, null bytes
+- ~~Orphan container cleanup~~ — **FIXED**: on startup, removes containers with `monster.managed=true` whose app no longer exists
+- ~~Refresh token rotation~~ — **ALREADY IMPLEMENTED**: old refresh token blacklisted on every refresh call
+
 Remaining:
 1. Integration tests with real Docker in CI
 2. OpenTelemetry distributed tracing
@@ -409,7 +415,7 @@ Remaining:
 
 **GO — Ready for single-node production deployment.**
 
-All 4 production blockers, all 5 high-priority items, and all actionable recommendations have been resolved across 9 commits:
+All 4 production blockers, all 5 high-priority items, and all actionable recommendations have been resolved across 10 commits:
 - `ffbb230` — 4 critical security blockers (credentials, CORS, token revocation, rate limiting)
 - `8dbb777` — 5 high-priority issues (request ID, --config, security headers, error swallowing, rand.Read)
 - `dde01b4` — JWT key rotation + httpOnly cookie auth + CSRF protection
@@ -418,8 +424,9 @@ All 4 production blockers, all 5 high-priority items, and all actionable recomme
 - `20508c0` — Migration rollback + frontend test coverage boost
 - `4dd47df` — Business metrics, HTTP caching, load test harness
 - `7a47a6b` — Log level config, coverage threshold, troubleshooting guide, doc fixes
+- `ea7d5f8` — Git URL sanitization, volume path traversal protection, orphan container cleanup
 
-The platform is production-ready for single-node deployment serving teams of any size. Security posture: httpOnly cookie auth + CSRF, JWT key rotation, token revocation, rate limiting, full security headers, input validation, config validation. Operational readiness: pprof profiling, business + API metrics with Prometheus, retry/backoff for external calls, migration rollback, ETag caching, load test harness, configurable log levels, CI coverage enforcement.
+The platform is production-ready for single-node deployment serving teams of any size. Security posture: httpOnly cookie auth + CSRF, JWT key rotation, token revocation + rotation, rate limiting, full security headers, input validation, git URL sanitization, volume path traversal protection, config validation. Operational readiness: pprof profiling, business + API metrics with Prometheus, retry/backoff for external calls, migration rollback, ETag caching, load test harness, configurable log levels, CI coverage enforcement, orphan container cleanup on startup.
 
 The remaining 4 items (Docker integration tests, OpenTelemetry, PostgreSQL, Playwright) are large infrastructure efforts that don't block production deployment — they improve scalability, observability depth, and test confidence for multi-tenant hosting at scale.
 
