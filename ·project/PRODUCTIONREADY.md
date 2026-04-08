@@ -7,7 +7,7 @@
 
 ## Overall Verdict & Score
 
-**Production Readiness Score: 91/100** _(was 62/100 before fixes)_
+**Production Readiness Score: 92/100** _(was 62/100 before fixes)_
 
 | Category | Score | Weight | Weighted Score |
 |---|---|---|---|
@@ -17,9 +17,9 @@
 | Performance | 8/10 | 10% | 8.0 |
 | Testing | 9/10 | 15% | 13.5 |
 | Observability | 8/10 | 10% | 8.0 |
-| Documentation | 7/10 | 5% | 3.5 |
+| Documentation | 8/10 | 5% | 4.0 |
 | Deployment Readiness | 9/10 | 5% | 4.5 |
-| **TOTAL** | | **100%** | **91/100** (was 62) |
+| **TOTAL** | | **100%** | **92/100** (was 62) |
 
 ---
 
@@ -247,7 +247,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] Frontend tests — 14 files, 104 tests (stores, hooks, API client, components, utils)
 - [ ] **MISSING:** Integration tests (real Docker + DB)
 - [ ] **MISSING:** End-to-end tests (Playwright)
-- [ ] **MISSING:** Load tests
+- [x] ~~**MISSING:**~~ Load test harness (`tests/loadtest/`, `make loadtest`) — **FIXED**
 - [ ] **MISSING:** Chaos engineering tests
 
 ### 5.3 Test Infrastructure
@@ -345,7 +345,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] OpenAPI 3.0 specification (`docs/openapi.yaml`)
 - [x] API examples with curl (`docs/examples/api-quickstart.md`)
 - [ ] **CONCERN:** Documentation inconsistency (RS256 vs HS256 in PROJECT_STATUS.md)
-- [ ] **MISSING:** Configuration reference (all options documented)
+- [x] ~~**MISSING:**~~ Configuration reference (`docs/configuration.md` — all YAML sections, env vars, defaults, validation rules) — **FIXED**
 - [ ] **MISSING:** Troubleshooting guide
 
 ---
