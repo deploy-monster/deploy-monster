@@ -10,6 +10,7 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-XSS-Protection", "0")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'")
 		next.ServeHTTP(w, r)
 	})
 }

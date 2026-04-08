@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/mail"
 
 	"github.com/deploy-monster/deploy-monster/internal/api/middleware"
 	internalAuth "github.com/deploy-monster/deploy-monster/internal/auth"
@@ -155,6 +156,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	if req.Email == "" || req.Password == "" {
 		writeError(w, http.StatusBadRequest, "email and password required")
+		return
+	}
+
+	// Validate email format
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid email format")
 		return
 	}
 

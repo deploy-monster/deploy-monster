@@ -16,19 +16,21 @@ import (
 
 // Router sets up all HTTP routes for the API.
 type Router struct {
-	mux     *http.ServeMux
-	core    *core.Core
-	authMod *auth.Module
-	store   core.Store
+	mux        *http.ServeMux
+	core       *core.Core
+	authMod    *auth.Module
+	store      core.Store
+	apiMetrics *middleware.APIMetrics
 }
 
 // NewRouter creates a new API router with all routes registered.
 func NewRouter(c *core.Core, authMod *auth.Module, store core.Store) *Router {
 	r := &Router{
-		mux:     http.NewServeMux(),
-		core:    c,
-		authMod: authMod,
-		store:   store,
+		mux:        http.NewServeMux(),
+		core:       c,
+		authMod:    authMod,
+		store:      store,
+		apiMetrics: middleware.NewAPIMetrics(),
 	}
 	r.registerRoutes()
 	return r
@@ -40,6 +42,7 @@ func (r *Router) Handler() http.Handler {
 		r.mux,
 		middleware.RequestID,
 		middleware.SecurityHeaders,
+		r.apiMetrics.Middleware,
 		middleware.APIVersion(r.core.Build.Version),
 		middleware.BodyLimit(10<<20),       // 10MB max request body
 		middleware.Timeout(30*time.Second), // 30s request timeout
@@ -654,6 +657,7 @@ func (r *Router) registerRoutes() {
 	// ── Prometheus metrics (no auth — internal) ───────
 	promExporter := integrations.NewPrometheusExporter(r.core.Registry, r.core.Events, r.core.Services)
 	r.mux.HandleFunc("GET /metrics", promExporter.Handler())
+	r.mux.HandleFunc("GET /metrics/api", r.apiMetrics.Handler())
 
 	// ── SPA fallback — embedded React UI ──────────────
 	r.mux.Handle("/", newSPAHandler())

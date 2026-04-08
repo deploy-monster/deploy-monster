@@ -24,8 +24,12 @@ func (h *RenameHandler) Rename(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := validateAppName(req.Name); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

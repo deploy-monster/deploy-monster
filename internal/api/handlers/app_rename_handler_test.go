@@ -87,7 +87,7 @@ func TestRename_InvalidJSON(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "name is required")
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestRename_AppNotFound(t *testing.T) {

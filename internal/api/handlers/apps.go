@@ -78,8 +78,8 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
+	if err := validateAppName(req.Name); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
