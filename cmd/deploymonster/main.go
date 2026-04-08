@@ -74,12 +74,10 @@ func runServe() {
 	configPath := fs.String("config", "", "path to monster.yaml config file")
 	fs.Parse(os.Args[1:])
 
-	_ = configPath // will be used when custom config path is supported
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	cfg, err := core.LoadConfig()
+	cfg, err := core.LoadConfig(*configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
 		os.Exit(1)
@@ -158,7 +156,7 @@ func runVersion() {
 }
 
 func runConfigCheck() {
-	cfg, err := core.LoadConfig()
+	cfg, err := core.LoadConfig("")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
 		os.Exit(1)

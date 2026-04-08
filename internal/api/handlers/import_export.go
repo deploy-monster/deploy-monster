@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -159,7 +160,10 @@ func (h *ImportExportHandler) Export(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	domains, _ := h.store.ListDomainsByApp(r.Context(), appID)
+	domains, err := h.store.ListDomainsByApp(r.Context(), appID)
+	if err != nil {
+		slog.Warn("export: failed to list domains", "app_id", appID, "error", err)
+	}
 	domainNames := make([]string, len(domains))
 	for i, d := range domains {
 		domainNames[i] = d.FQDN
@@ -217,7 +221,10 @@ func (h *ImportExportHandler) Import(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Find default project
-	projects, _ := h.store.ListProjectsByTenant(r.Context(), claims.TenantID)
+	projects, pErr := h.store.ListProjectsByTenant(r.Context(), claims.TenantID)
+	if pErr != nil {
+		slog.Warn("import: failed to list projects", "error", pErr)
+	}
 	if len(projects) > 0 {
 		app.ProjectID = projects[0].ID
 	}

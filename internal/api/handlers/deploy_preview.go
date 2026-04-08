@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/build"
@@ -27,8 +28,14 @@ func (h *DeployPreviewHandler) Preview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentDep, _ := h.store.GetLatestDeployment(r.Context(), appID)
-	nextVersion, _ := h.store.GetNextDeployVersion(r.Context(), appID)
+	currentDep, err := h.store.GetLatestDeployment(r.Context(), appID)
+	if err != nil {
+		slog.Warn("deploy preview: failed to get latest deployment", "app_id", appID, "error", err)
+	}
+	nextVersion, err := h.store.GetNextDeployVersion(r.Context(), appID)
+	if err != nil {
+		slog.Warn("deploy preview: failed to get next version", "app_id", appID, "error", err)
+	}
 
 	// Detect what would be built
 	var detectedType string

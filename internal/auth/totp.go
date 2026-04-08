@@ -78,13 +78,13 @@ func generateCode(key []byte, counter int64) string {
 
 func generateTOTPSecret(length int) string {
 	b := make([]byte, length)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return string(b)
 }
 
 func randomHex(n int) string {
 	b := make([]byte, n)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	const hex = "0123456789abcdef"
 	out := make([]byte, n*2)
 	for i, v := range b {

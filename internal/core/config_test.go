@@ -3,7 +3,7 @@ package core
 import "testing"
 
 func TestLoadConfig_Defaults(t *testing.T) {
-	cfg, err := LoadConfig()
+	cfg, err := LoadConfig("")
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}

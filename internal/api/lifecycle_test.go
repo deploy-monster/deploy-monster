@@ -49,7 +49,7 @@ func TestFullAPILifecycle(t *testing.T) {
 	// Create auth module
 	authMod := auth.NewTestModule("test-secret-key-for-integration-tests-32b", sqlite)
 
-	cfg, _ := core.LoadConfig()
+	cfg, _ := core.LoadConfig("")
 	c := &core.Core{
 		Config:   cfg,
 		Store:    sqlite,

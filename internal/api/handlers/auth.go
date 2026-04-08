@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	internalAuth "github.com/deploy-monster/deploy-monster/internal/auth"
@@ -85,7 +86,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update last login
-	h.store.UpdateLastLogin(r.Context(), user.ID)
+	if err := h.store.UpdateLastLogin(r.Context(), user.ID); err != nil {
+		slog.Warn("failed to update last login", "user_id", user.ID, "error", err)
+	}
 
 	writeJSON(w, http.StatusOK, tokens)
 }

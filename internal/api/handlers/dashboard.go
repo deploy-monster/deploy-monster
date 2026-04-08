@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -27,13 +28,22 @@ func (h *DashboardHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// App counts
-	_, totalApps, _ := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 1, 0)
+	_, totalApps, err := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 1, 0)
+	if err != nil {
+		slog.Warn("dashboard: failed to list apps", "error", err)
+	}
 
 	// Domain count
-	domains, _ := h.store.ListAllDomains(r.Context())
+	domains, err := h.store.ListAllDomains(r.Context())
+	if err != nil {
+		slog.Warn("dashboard: failed to list domains", "error", err)
+	}
 
 	// Project count
-	projects, _ := h.store.ListProjectsByTenant(r.Context(), claims.TenantID)
+	projects, err := h.store.ListProjectsByTenant(r.Context(), claims.TenantID)
+	if err != nil {
+		slog.Warn("dashboard: failed to list projects", "error", err)
+	}
 
 	// Container counts
 	var running, stopped int

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -51,10 +52,16 @@ func (h *BillingHandler) GetUsage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get app count
-	_, appCount, _ := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 1, 0)
+	_, appCount, err := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 1, 0)
+	if err != nil {
+		slog.Warn("billing: failed to list apps", "error", err)
+	}
 
 	// Quota check
-	status, _ := billing.QuotaCheck(h.store, claims.TenantID, *currentPlan)
+	status, err := billing.QuotaCheck(h.store, claims.TenantID, *currentPlan)
+	if err != nil {
+		slog.Warn("billing: failed quota check", "error", err)
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"plan":       currentPlan,

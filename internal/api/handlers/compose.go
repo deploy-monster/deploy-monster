@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -79,11 +80,17 @@ func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 		Status:     "deploying",
 		Replicas:   1,
 	}
-	projects, _ := h.store.ListProjectsByTenant(r.Context(), claims.TenantID)
+	projects, err := h.store.ListProjectsByTenant(r.Context(), claims.TenantID)
+	if err != nil {
+		slog.Warn("compose: failed to list projects", "error", err)
+	}
 	if len(projects) > 0 {
 		app.ProjectID = projects[0].ID
 	}
-	h.store.CreateApp(r.Context(), app)
+	if err := h.store.CreateApp(r.Context(), app); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create app")
+		return
+	}
 
 	// Deploy async - use background context to avoid cancellation when request completes
 	go func() {

@@ -155,23 +155,34 @@ type EnterpriseConfig struct {
 }
 
 // LoadConfig loads configuration from monster.yaml, applies env var overrides,
-// and sets defaults. Priority: env vars > yaml > defaults.
-func LoadConfig() (*Config, error) {
+// and sets defaults. If configPath is non-empty, it is used instead of the
+// default search paths. Priority: env vars > yaml > defaults.
+func LoadConfig(configPath string) (*Config, error) {
 	cfg := &Config{}
 	applyDefaults(cfg)
 
-	// Try loading monster.yaml from standard locations
-	for _, path := range []string{
-		"monster.yaml",
-		"/etc/deploymonster/monster.yaml",
-		"/var/lib/deploymonster/monster.yaml",
-	} {
-		data, err := os.ReadFile(path)
-		if err == nil {
-			if err := yaml.Unmarshal(data, cfg); err != nil {
-				return nil, fmt.Errorf("parse %s: %w", path, err)
+	if configPath != "" {
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("read config %s: %w", configPath, err)
+		}
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", configPath, err)
+		}
+	} else {
+		// Try loading monster.yaml from standard locations
+		for _, path := range []string{
+			"monster.yaml",
+			"/etc/deploymonster/monster.yaml",
+			"/var/lib/deploymonster/monster.yaml",
+		} {
+			data, err := os.ReadFile(path)
+			if err == nil {
+				if err := yaml.Unmarshal(data, cfg); err != nil {
+					return nil, fmt.Errorf("parse %s: %w", path, err)
+				}
+				break
 			}
-			break
 		}
 	}
 

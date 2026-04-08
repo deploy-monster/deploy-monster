@@ -272,7 +272,7 @@ func TestLoadConfig_InvalidYAML(t *testing.T) {
 	os.Chdir(dir)
 	defer os.Chdir(origDir)
 
-	_, err := LoadConfig()
+	_, err := LoadConfig("")
 	if err == nil {
 		t.Fatal("LoadConfig should fail with invalid YAML")
 	}
@@ -287,7 +287,7 @@ func TestLoadConfig_ValidYAML(t *testing.T) {
 	os.Chdir(dir)
 	defer os.Chdir(origDir)
 
-	cfg, err := LoadConfig()
+	cfg, err := LoadConfig("")
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}

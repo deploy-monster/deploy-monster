@@ -39,6 +39,7 @@ func (r *Router) Handler() http.Handler {
 	return middleware.Chain(
 		r.mux,
 		middleware.RequestID,
+		middleware.SecurityHeaders,
 		middleware.APIVersion(r.core.Build.Version),
 		middleware.BodyLimit(10<<20),       // 10MB max request body
 		middleware.Timeout(30*time.Second), // 30s request timeout

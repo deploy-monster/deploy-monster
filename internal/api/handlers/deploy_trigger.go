@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/build"
@@ -67,9 +68,16 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 
 	if app.SourceType == "image" {
 		// For image-type apps, just redeploy the same image
-		h.store.UpdateAppStatus(r.Context(), appID, "deploying")
+		if err := h.store.UpdateAppStatus(r.Context(), appID, "deploying"); err != nil {
+			slog.Error("deploy: failed to update app status", "app_id", appID, "error", err)
+		}
 
-		version, _ := h.store.GetNextDeployVersion(r.Context(), appID)
+		version, err := h.store.GetNextDeployVersion(r.Context(), appID)
+		if err != nil {
+			slog.Error("deploy: failed to get next version", "app_id", appID, "error", err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
 		dep := &core.Deployment{
 			AppID:       appID,
 			Version:     version,
@@ -78,7 +86,11 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 			TriggeredBy: "manual",
 			Strategy:    "recreate",
 		}
-		h.store.CreateDeployment(r.Context(), dep)
+		if err := h.store.CreateDeployment(r.Context(), dep); err != nil {
+			slog.Error("deploy: failed to create deployment", "app_id", appID, "error", err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
 
 		if h.runtime != nil {
 			// Build labels with HTTP routing from domains
@@ -93,14 +105,18 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 				RestartPolicy: "unless-stopped",
 			})
 			if err != nil {
-				h.store.UpdateAppStatus(r.Context(), appID, "failed")
+				if sErr := h.store.UpdateAppStatus(r.Context(), appID, "failed"); sErr != nil {
+					slog.Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
+				}
 				writeError(w, http.StatusInternalServerError, "deploy failed: "+err.Error())
 				return
 			}
 			dep.ContainerID = containerID
 		}
 
-		h.store.UpdateAppStatus(r.Context(), appID, "running")
+		if err := h.store.UpdateAppStatus(r.Context(), appID, "running"); err != nil {
+			slog.Error("deploy: failed to update app status", "app_id", appID, "error", err)
+		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
 			"deployment": dep,
@@ -110,7 +126,9 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 	}
 
 	// For git-sourced apps, trigger full build pipeline
-	h.store.UpdateAppStatus(r.Context(), appID, "building")
+	if err := h.store.UpdateAppStatus(r.Context(), appID, "building"); err != nil {
+		slog.Error("deploy: failed to update app status", "app_id", appID, "error", err)
+	}
 
 	// Use background context to avoid cancellation when request completes
 	go func() {
@@ -124,13 +142,21 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 		}, io.Discard)
 
 		if err != nil {
-			h.store.UpdateAppStatus(ctx, appID, "failed")
+			if sErr := h.store.UpdateAppStatus(ctx, appID, "failed"); sErr != nil {
+				slog.Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
+			}
 			return
 		}
 
 		// Deploy built image
-		h.store.UpdateAppStatus(ctx, appID, "deploying")
-		version, _ := h.store.GetNextDeployVersion(ctx, appID)
+		if sErr := h.store.UpdateAppStatus(ctx, appID, "deploying"); sErr != nil {
+			slog.Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
+		}
+		version, vErr := h.store.GetNextDeployVersion(ctx, appID)
+		if vErr != nil {
+			slog.Error("deploy: failed to get next version", "app_id", appID, "error", vErr)
+			return
+		}
 		dep := &core.Deployment{
 			AppID:       appID,
 			Version:     version,
@@ -140,8 +166,12 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 			TriggeredBy: "manual",
 			Strategy:    "recreate",
 		}
-		h.store.CreateDeployment(ctx, dep)
-		h.store.UpdateAppStatus(ctx, appID, "running")
+		if dErr := h.store.CreateDeployment(ctx, dep); dErr != nil {
+			slog.Error("deploy: failed to create deployment", "app_id", appID, "error", dErr)
+		}
+		if sErr := h.store.UpdateAppStatus(ctx, appID, "running"); sErr != nil {
+			slog.Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
+		}
 	}()
 
 	writeJSON(w, http.StatusAccepted, map[string]string{

@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -80,7 +81,10 @@ func (h *MarketplaceDeployHandler) Deploy(w http.ResponseWriter, r *http.Request
 	}
 
 	// Find or create default project
-	projects, _ := h.store.ListProjectsByTenant(r.Context(), claims.TenantID)
+	projects, err := h.store.ListProjectsByTenant(r.Context(), claims.TenantID)
+	if err != nil {
+		slog.Warn("marketplace deploy: failed to list projects", "error", err)
+	}
 	if len(projects) > 0 {
 		app.ProjectID = projects[0].ID
 	}
