@@ -39,6 +39,7 @@ type ServerConfig struct {
 	SecretKey          string   `yaml:"secret_key"`
 	PreviousSecretKeys []string `yaml:"previous_secret_keys"` // old keys kept for graceful JWT rotation
 	CORSOrigins        string   `yaml:"cors_origins"`         // comma-separated allowed origins; empty = derive from domain
+	EnablePprof        bool     `yaml:"enable_pprof"`         // opt-in: expose /debug/pprof/* endpoints (auth-protected)
 }
 
 // DatabaseConfig holds database configuration.
@@ -204,7 +205,62 @@ func LoadConfig(configPath string) (*Config, error) {
 		cfg.Server.CORSOrigins = origin
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
+}
+
+// Validate checks that the configuration is well-formed and catches common misconfiguration.
+func (c *Config) Validate() error {
+	// Server
+	if c.Server.Port < 1 || c.Server.Port > 65535 {
+		return fmt.Errorf("config: server.port %d out of range (1-65535)", c.Server.Port)
+	}
+	if len(c.Server.SecretKey) < 16 {
+		return fmt.Errorf("config: server.secret_key must be at least 16 characters")
+	}
+
+	// Database
+	switch c.Database.Driver {
+	case "sqlite":
+		if c.Database.Path == "" {
+			return fmt.Errorf("config: database.path is required for sqlite driver")
+		}
+	case "postgres":
+		if c.Database.URL == "" {
+			return fmt.Errorf("config: database.url is required for postgres driver")
+		}
+	default:
+		return fmt.Errorf("config: unsupported database.driver %q (sqlite, postgres)", c.Database.Driver)
+	}
+
+	// Ingress ports
+	if c.Ingress.HTTPPort < 1 || c.Ingress.HTTPPort > 65535 {
+		return fmt.Errorf("config: ingress.http_port %d out of range (1-65535)", c.Ingress.HTTPPort)
+	}
+	if c.Ingress.HTTPSPort < 1 || c.Ingress.HTTPSPort > 65535 {
+		return fmt.Errorf("config: ingress.https_port %d out of range (1-65535)", c.Ingress.HTTPSPort)
+	}
+
+	// Registration mode
+	switch c.Registration.Mode {
+	case "open", "invite_only", "approval", "disabled", "sso_only":
+		// valid
+	default:
+		return fmt.Errorf("config: registration.mode %q not recognized (open, invite_only, approval, disabled, sso_only)", c.Registration.Mode)
+	}
+
+	// Resource limits
+	if c.Limits.MaxAppsPerTenant < 0 {
+		return fmt.Errorf("config: limits.max_apps_per_tenant must be non-negative")
+	}
+	if c.Limits.MaxConcurrentBuilds < 1 {
+		return fmt.Errorf("config: limits.max_concurrent_builds must be at least 1")
+	}
+
+	return nil
 }
 
 func applyDefaults(cfg *Config) {
@@ -268,5 +324,8 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("MONSTER_CORS_ORIGINS"); v != "" {
 		cfg.Server.CORSOrigins = v
+	}
+	if os.Getenv("MONSTER_ENABLE_PPROF") == "true" {
+		cfg.Server.EnablePprof = true
 	}
 }

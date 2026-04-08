@@ -35,7 +35,7 @@ func NewOutboundSender(events *core.EventBus) *OutboundSender {
 	}
 }
 
-// Send delivers a webhook payload to the configured URL.
+// Send delivers a webhook payload to the configured URL with retry on 5xx/network errors.
 func (s *OutboundSender) Send(ctx context.Context, webhook core.OutboundWebhook) error {
 	// Serialize payload
 	body, err := json.Marshal(webhook.Payload)
@@ -55,37 +55,55 @@ func (s *OutboundSender) Send(ctx context.Context, webhook core.OutboundWebhook)
 		defer cancel()
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, webhook.URL, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "DeployMonster/1.0")
-
-	// Apply custom headers
-	for k, v := range webhook.Headers {
-		req.Header.Set(k, v)
-	}
-
-	// HMAC signature if secret is provided
+	// HMAC signature (computed once — body is static)
+	var signature string
 	if webhook.Secret != "" {
-		sig := signPayload(body, webhook.Secret)
-		req.Header.Set("X-Monster-Signature", "sha256="+sig)
+		signature = "sha256=" + signPayload(body, webhook.Secret)
 	}
 
-	resp, err := s.client.Do(req)
+	retryCfg := core.DefaultRetryConfig()
+
+	var clientErr error // non-retryable 4xx error
+	err = core.Retry(ctx, retryCfg, func() error {
+		req, reqErr := http.NewRequestWithContext(ctx, method, webhook.URL, bytes.NewReader(body))
+		if reqErr != nil {
+			return fmt.Errorf("create request: %w", reqErr)
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "DeployMonster/1.0")
+
+		for k, v := range webhook.Headers {
+			req.Header.Set(k, v)
+		}
+		if signature != "" {
+			req.Header.Set("X-Monster-Signature", signature)
+		}
+
+		resp, doErr := s.client.Do(req)
+		if doErr != nil {
+			return fmt.Errorf("send webhook to %s: %w", webhook.URL, doErr)
+		}
+		defer resp.Body.Close()
+		io.Copy(io.Discard, resp.Body)
+
+		if resp.StatusCode >= 500 {
+			return fmt.Errorf("webhook %s returned %d", webhook.URL, resp.StatusCode)
+		}
+		if resp.StatusCode >= 400 {
+			clientErr = fmt.Errorf("webhook %s returned %d", webhook.URL, resp.StatusCode)
+			return nil // stop retry — 4xx won't succeed on retry
+		}
+		return nil
+	})
+
+	if clientErr != nil {
+		err = clientErr
+	}
+
 	if err != nil {
 		s.emitFailure(ctx, webhook.URL, err.Error())
-		return fmt.Errorf("send webhook to %s: %w", webhook.URL, err)
-	}
-	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
-
-	if resp.StatusCode >= 400 {
-		errMsg := fmt.Sprintf("HTTP %d", resp.StatusCode)
-		s.emitFailure(ctx, webhook.URL, errMsg)
-		return fmt.Errorf("webhook %s returned %d", webhook.URL, resp.StatusCode)
+		return err
 	}
 
 	// Emit success event

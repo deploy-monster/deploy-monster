@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"net/http/pprof"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/api/handlers"
@@ -658,6 +659,15 @@ func (r *Router) registerRoutes() {
 	promExporter := integrations.NewPrometheusExporter(r.core.Registry, r.core.Events, r.core.Services)
 	r.mux.HandleFunc("GET /metrics", promExporter.Handler())
 	r.mux.HandleFunc("GET /metrics/api", r.apiMetrics.Handler())
+
+	// ── pprof (opt-in, auth-protected) ───────────────
+	if r.core.Config.Server.EnablePprof {
+		r.mux.Handle("GET /debug/pprof/", protected(http.HandlerFunc(pprof.Index)))
+		r.mux.Handle("GET /debug/pprof/cmdline", protected(http.HandlerFunc(pprof.Cmdline)))
+		r.mux.Handle("GET /debug/pprof/profile", protected(http.HandlerFunc(pprof.Profile)))
+		r.mux.Handle("GET /debug/pprof/symbol", protected(http.HandlerFunc(pprof.Symbol)))
+		r.mux.Handle("GET /debug/pprof/trace", protected(http.HandlerFunc(pprof.Trace)))
+	}
 
 	// ── SPA fallback — embedded React UI ──────────────
 	r.mux.Handle("/", newSPAHandler())

@@ -1,6 +1,9 @@
 package core
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestLoadConfig_Defaults(t *testing.T) {
 	cfg, err := LoadConfig("")
@@ -32,6 +35,55 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.Server.SecretKey == "" {
 		t.Error("secret key should be auto-generated")
 	}
+}
+
+func TestConfigValidate_Valid(t *testing.T) {
+	cfg, err := LoadConfig("")
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid config should pass: %v", err)
+	}
+}
+
+func TestConfigValidate_BadPort(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Server.Port = 0
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "port") {
+		t.Fatalf("expected port error, got %v", err)
+	}
+}
+
+func TestConfigValidate_ShortSecret(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Server.SecretKey = "short"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "secret_key") {
+		t.Fatalf("expected secret_key error, got %v", err)
+	}
+}
+
+func TestConfigValidate_BadDriver(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Database.Driver = "mysql"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "driver") {
+		t.Fatalf("expected driver error, got %v", err)
+	}
+}
+
+func TestConfigValidate_BadRegistrationMode(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Registration.Mode = "unknown"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "registration.mode") {
+		t.Fatalf("expected mode error, got %v", err)
+	}
+}
+
+func validTestConfig() *Config {
+	cfg := &Config{}
+	applyDefaults(cfg)
+	cfg.Server.SecretKey = "this-is-a-valid-secret-key-32chars"
+	return cfg
 }
 
 func TestApplyDefaults(t *testing.T) {

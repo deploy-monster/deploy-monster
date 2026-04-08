@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // =====================================================
@@ -43,22 +45,25 @@ func (s *SlackProvider) Send(ctx context.Context, recipient, subject, body, form
 	}
 
 	payload, _ := json.Marshal(map[string]string{"text": text})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.WebhookURL, bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("slack send: %w", err)
-	}
-	defer resp.Body.Close()
+	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.WebhookURL, bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("slack returned %d", resp.StatusCode)
-	}
-	return nil
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("slack send: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("slack returned %d", resp.StatusCode)
+		}
+		return nil
+	})
 }
 
 // =====================================================
@@ -95,22 +100,25 @@ func (d *DiscordProvider) Send(ctx context.Context, recipient, subject, body, fo
 	}
 
 	payload, _ := json.Marshal(map[string]string{"content": content})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.WebhookURL, bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("discord send: %w", err)
-	}
-	defer resp.Body.Close()
+	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.WebhookURL, bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("discord returned %d", resp.StatusCode)
-	}
-	return nil
+		resp, err := d.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("discord send: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			return fmt.Errorf("discord returned %d", resp.StatusCode)
+		}
+		return nil
+	})
 }
 
 // =====================================================
@@ -163,22 +171,24 @@ func (t *TelegramProvider) Send(ctx context.Context, recipient, subject, body, f
 		"parse_mode": "HTML",
 	})
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
+	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	resp, err := t.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("telegram send: %w", err)
-	}
-	defer resp.Body.Close()
+		resp, err := t.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("telegram send: %w", err)
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("telegram returned %d", resp.StatusCode)
-	}
-	return nil
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("telegram returned %d", resp.StatusCode)
+		}
+		return nil
+	})
 }
 
 // =====================================================
@@ -222,21 +232,23 @@ func (w *WebhookProvider) Send(ctx context.Context, recipient, subject, body, fo
 		"format":  format,
 	})
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "DeployMonster/1.0")
+	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "DeployMonster/1.0")
 
-	resp, err := w.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("webhook send: %w", err)
-	}
-	defer resp.Body.Close()
+		resp, err := w.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("webhook send: %w", err)
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("webhook returned %d", resp.StatusCode)
-	}
-	return nil
+		if resp.StatusCode >= 400 {
+			return fmt.Errorf("webhook returned %d", resp.StatusCode)
+		}
+		return nil
+	})
 }
