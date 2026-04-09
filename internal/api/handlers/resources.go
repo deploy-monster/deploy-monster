@@ -36,6 +36,15 @@ func (h *ResourceHandler) SetLimits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.CPUQuota < 0 || req.CPUQuota > 1600000 {
+		writeError(w, http.StatusBadRequest, "cpu_quota must be between 0 and 1600000")
+		return
+	}
+	if req.MemoryMB < 0 || req.MemoryMB > 131072 {
+		writeError(w, http.StatusBadRequest, "memory_mb must be between 0 and 131072")
+		return
+	}
+
 	// Store resource limits in labels
 	labels := map[string]string{
 		"monster.resources.cpu_quota": json.Number(json.Number(string(rune(req.CPUQuota)))).String(),

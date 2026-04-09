@@ -70,6 +70,10 @@ func (h *VolumeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
+	if req.SizeMB < 0 || req.SizeMB > 102400 {
+		writeError(w, http.StatusBadRequest, "size_mb must be between 0 and 102400")
+		return
+	}
 
 	// Volume creation would use Docker Volume API
 	writeJSON(w, http.StatusCreated, map[string]any{

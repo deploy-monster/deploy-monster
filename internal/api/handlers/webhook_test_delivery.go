@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"bytes"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -62,8 +61,6 @@ func (h *WebhookTestDeliveryHandler) TestDeliver(w http.ResponseWriter, r *http.
 		"delivery_id": deliveryID,
 		"payload":     string(payload),
 	}))
-
-	_ = bytes.NewReader(payload)
 
 	// Log the test delivery
 	log := webhookTestLog{

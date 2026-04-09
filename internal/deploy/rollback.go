@@ -148,7 +148,7 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 func (r *RollbackEngine) ListVersions(ctx context.Context, appID string, limit int) ([]VersionInfo, error) {
 	deployments, err := r.store.ListDeploymentsByApp(ctx, appID, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list versions for app %s: %w", appID, err)
 	}
 
 	versions := make([]VersionInfo, len(deployments))

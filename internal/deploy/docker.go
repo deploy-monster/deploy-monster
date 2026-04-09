@@ -221,7 +221,7 @@ func (d *DockerManager) ListByLabels(ctx context.Context, labelFilters map[strin
 func (d *DockerManager) InspectContainer(ctx context.Context, containerID string) (*container.InspectResponse, error) {
 	resp, err := d.cli.ContainerInspect(ctx, containerID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("inspect container %s: %w", containerID, err)
 	}
 	return &resp, nil
 }

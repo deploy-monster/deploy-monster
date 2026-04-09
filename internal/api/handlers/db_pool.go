@@ -68,8 +68,23 @@ func (h *DBPoolHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if cfg.MaxConnections <= 0 {
 		cfg.MaxConnections = 20
 	}
+	if cfg.MaxConnections > 1000 {
+		writeError(w, http.StatusBadRequest, "max_connections must be 1000 or less")
+		return
+	}
 	if cfg.MinConnections <= 0 {
 		cfg.MinConnections = 2
+	}
+	if cfg.MinConnections > cfg.MaxConnections {
+		cfg.MinConnections = cfg.MaxConnections
+	}
+	if cfg.IdleTimeout < 0 || cfg.IdleTimeout > 86400 {
+		writeError(w, http.StatusBadRequest, "idle_timeout_sec must be between 0 and 86400")
+		return
+	}
+	if cfg.MaxLifetime < 0 || cfg.MaxLifetime > 86400 {
+		writeError(w, http.StatusBadRequest, "max_lifetime_sec must be between 0 and 86400")
+		return
 	}
 
 	if err := h.bolt.Set("dbpool", dbID, cfg, 0); err != nil {
