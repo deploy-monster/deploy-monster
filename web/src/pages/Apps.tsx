@@ -16,11 +16,13 @@ import {
 } from 'lucide-react';
 import { useApi } from '../hooks';
 import { appsAPI, type App } from '../api/apps';
+import { toast } from '@/stores/toastStore';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 
 /* ------------------------------------------------------------------ */
@@ -108,11 +110,39 @@ const EMPTY_MESSAGES: Record<string, { title: string; description: string }> = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Skeleton                                                          */
+/* ------------------------------------------------------------------ */
+
+function AppCardSkeleton() {
+  return (
+    <Card className="py-5">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 flex-1">
+            <Skeleton className="h-2.5 w-2.5 rounded-full shrink-0" />
+            <Skeleton className="h-5 w-32" />
+          </div>
+          <Skeleton className="h-5 w-14 rounded-md" />
+        </div>
+      </CardHeader>
+      <CardContent className="pb-3 space-y-3">
+        <Skeleton className="h-5 w-16 rounded-md" />
+        <div className="space-y-1.5">
+          <Skeleton className="h-3.5 w-28" />
+          <Skeleton className="h-3.5 w-36" />
+          <Skeleton className="h-3.5 w-24" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Component                                                         */
 /* ------------------------------------------------------------------ */
 
 export function Apps() {
-  const { data: appsResponse, refetch } = useApi<{ data: App[]; total: number }>(
+  const { data: appsResponse, loading, refetch } = useApi<{ data: App[]; total: number }>(
     '/apps?page=1&per_page=50',
     { refreshInterval: 10000 }
   );
@@ -166,7 +196,7 @@ export function Apps() {
       }
       refetch();
     } catch {
-      // Error handled by API layer
+      toast.error('Action failed');
     } finally {
       setActionLoading(null);
     }
@@ -236,8 +266,17 @@ export function Apps() {
         </div>
       </div>
 
+      {/* Loading skeleton */}
+      {loading && !appsResponse && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <AppCardSkeleton key={i} />
+          ))}
+        </div>
+      )}
+
       {/* App Grid or Empty State */}
-      {filteredApps.length === 0 ? (
+      {appsResponse && filteredApps.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="rounded-full bg-muted p-5 mb-5">
             <Box className="size-10 text-muted-foreground" />

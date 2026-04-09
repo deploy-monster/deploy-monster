@@ -143,6 +143,7 @@ export function AppLayout() {
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Open menu"
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden h-9 w-9 text-muted-foreground hover:text-foreground"
             >
@@ -163,7 +164,7 @@ export function AppLayout() {
             </NavLink>
 
             {/* Breadcrumbs — desktop */}
-            <nav className="hidden lg:flex items-center gap-1.5 text-sm">
+            <nav aria-label="Breadcrumb" className="hidden lg:flex items-center gap-1.5 text-sm">
               <NavLink
                 to="/"
                 className="text-muted-foreground hover:text-foreground transition-colors duration-150"
@@ -224,6 +225,7 @@ export function AppLayout() {
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Search"
               onClick={() => setSearchOpen(true)}
               className="sm:hidden h-9 w-9 text-muted-foreground hover:text-foreground"
             >
@@ -234,6 +236,7 @@ export function AppLayout() {
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Notifications"
               className="relative h-9 w-9 text-muted-foreground hover:text-foreground"
             >
               <Bell className="h-[18px] w-[18px]" />

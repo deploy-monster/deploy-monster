@@ -31,6 +31,7 @@ import {
 import { appsAPI, type App } from '../api/apps';
 import type { Deployment, EnvVar } from '@/api/deployments';
 import { useApi } from '../hooks';
+import { toast } from '@/stores/toastStore';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -120,7 +121,7 @@ export function AppDetail() {
         await appsAPI[action](id);
         refetchApp();
       } catch {
-        // Error handled by API layer
+        toast.error(`Failed to ${action} application`);
       } finally {
         setActionLoading(null);
       }
@@ -141,6 +142,7 @@ export function AppDetail() {
       await appsAPI.delete(id);
       window.location.href = '/apps';
     } catch {
+      toast.error('Failed to delete application');
       setActionLoading(null);
     }
   }, [id]);
@@ -152,7 +154,7 @@ export function AppDetail() {
       await appsAPI.restart(id);
       refetchApp();
     } catch {
-      // Error handled by API layer
+      toast.error('Failed to deploy application');
     } finally {
       setActionLoading(null);
     }
