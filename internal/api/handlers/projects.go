@@ -92,12 +92,39 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, project)
 }
 
-// Get handles GET /api/v1/projects/{id}
-func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	project, err := h.store.GetProject(r.Context(), id)
+// requireTenantProject looks up a project by ID and verifies it belongs to
+// the requesting user's tenant. Returns the project on success or writes an
+// error and returns nil on failure.
+func requireTenantProject(w http.ResponseWriter, r *http.Request, store core.Store) *core.Project {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return nil
+	}
+
+	id, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return nil
+	}
+
+	project, err := store.GetProject(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "project not found")
+		return nil
+	}
+
+	if project.TenantID != claims.TenantID {
+		writeError(w, http.StatusNotFound, "project not found")
+		return nil
+	}
+
+	return project
+}
+
+// Get handles GET /api/v1/projects/{id}
+func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
+	project := requireTenantProject(w, r, h.store)
+	if project == nil {
 		return
 	}
 	writeJSON(w, http.StatusOK, project)
@@ -105,15 +132,19 @@ func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /api/v1/projects/{id}
 func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if err := h.store.DeleteProject(r.Context(), id); err != nil {
+	project := requireTenantProject(w, r, h.store)
+	if project == nil {
+		return
+	}
+
+	if err := h.store.DeleteProject(r.Context(), project.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete project")
 		return
 	}
 
 	if h.events != nil {
 		h.events.Publish(r.Context(), core.NewEvent(core.EventProjectDeleted, "api",
-			map[string]string{"id": id}))
+			map[string]string{"id": project.ID, "name": project.Name}))
 	}
 
 	w.WriteHeader(http.StatusNoContent)

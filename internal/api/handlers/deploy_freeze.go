@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -35,9 +36,15 @@ type freezeWindowList struct {
 }
 
 // Get handles GET /api/v1/deploy/freeze
-func (h *DeployFreezeHandler) Get(w http.ResponseWriter, _ *http.Request) {
+func (h *DeployFreezeHandler) Get(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	var list freezeWindowList
-	if err := h.bolt.Get("deploy_freeze", "_all", &list); err != nil {
+	if err := h.bolt.Get("deploy_freeze", claims.TenantID, &list); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "frozen": false})
 		return
 	}
@@ -60,6 +67,12 @@ func (h *DeployFreezeHandler) Get(w http.ResponseWriter, _ *http.Request) {
 
 // Create handles POST /api/v1/deploy/freeze
 func (h *DeployFreezeHandler) Create(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	var req struct {
 		Reason   string `json:"reason"`
 		StartsAt string `json:"starts_at"`
@@ -89,10 +102,10 @@ func (h *DeployFreezeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var list freezeWindowList
-	_ = h.bolt.Get("deploy_freeze", "_all", &list)
+	_ = h.bolt.Get("deploy_freeze", claims.TenantID, &list)
 	list.Windows = append(list.Windows, freeze)
 
-	if err := h.bolt.Set("deploy_freeze", "_all", list, 0); err != nil {
+	if err := h.bolt.Set("deploy_freeze", claims.TenantID, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save freeze window")
 		return
 	}
@@ -105,10 +118,19 @@ func (h *DeployFreezeHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /api/v1/deploy/freeze/{id}
 func (h *DeployFreezeHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	freezeID := r.PathValue("id")
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	freezeID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var list freezeWindowList
-	if err := h.bolt.Get("deploy_freeze", "_all", &list); err != nil {
+	if err := h.bolt.Get("deploy_freeze", claims.TenantID, &list); err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -120,7 +142,7 @@ func (h *DeployFreezeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_ = h.bolt.Set("deploy_freeze", "_all", list, 0)
+	_ = h.bolt.Set("deploy_freeze", claims.TenantID, list, 0)
 
 	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.freeze.deleted", "api",
 		map[string]string{"freeze_id": freezeID}))

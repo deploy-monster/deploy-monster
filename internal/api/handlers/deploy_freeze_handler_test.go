@@ -17,6 +17,7 @@ func TestDeployFreeze_Get_Success(t *testing.T) {
 	handler := NewDeployFreezeHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/deploy/freeze", nil)
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -53,6 +54,7 @@ func TestDeployFreeze_Create_Success(t *testing.T) {
 		"ends_at":   endsAt,
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/freeze", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -90,6 +92,7 @@ func TestDeployFreeze_Create_DefaultTimes(t *testing.T) {
 		"reason": "emergency freeze",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/freeze", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -120,6 +123,7 @@ func TestDeployFreeze_Create_InvalidJSON(t *testing.T) {
 	handler := NewDeployFreezeHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/freeze", bytes.NewReader([]byte("{")))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -137,6 +141,7 @@ func TestDeployFreeze_Delete_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/deploy/freeze/freeze1", nil)
 	req.SetPathValue("id", "freeze1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Delete(rr, req)

@@ -239,6 +239,7 @@ func TestGetProject_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/proj1", nil)
 	req.SetPathValue("id", "proj1")
+	req = withClaims(req, "u1", "tenant1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -264,6 +265,7 @@ func TestGetProject_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/nonexistent", nil)
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "u1", "tenant1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -282,6 +284,7 @@ func TestGetProject_StoreError(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/proj1", nil)
 	req.SetPathValue("id", "proj1")
+	req = withClaims(req, "u1", "tenant1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -295,12 +298,13 @@ func TestGetProject_StoreError(t *testing.T) {
 
 func TestDeleteProject_Success(t *testing.T) {
 	store := newMockStore()
-	store.addProjectByID(&core.Project{ID: "proj1", Name: "Doomed"})
+	store.addProjectByID(&core.Project{ID: "proj1", TenantID: "tenant1", Name: "Doomed"})
 
 	handler := NewProjectHandler(store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/projects/proj1", nil)
 	req.SetPathValue("id", "proj1")
+	req = withClaims(req, "u1", "tenant1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Delete(rr, req)
@@ -316,12 +320,14 @@ func TestDeleteProject_Success(t *testing.T) {
 
 func TestDeleteProject_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addProjectByID(&core.Project{ID: "proj1", TenantID: "tenant1", Name: "Test"})
 	store.errDeleteProject = errors.New("constraint violation")
 
 	handler := NewProjectHandler(store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/projects/proj1", nil)
 	req.SetPathValue("id", "proj1")
+	req = withClaims(req, "u1", "tenant1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Delete(rr, req)
@@ -354,6 +360,7 @@ func TestProjectCreateThenGet_Integration(t *testing.T) {
 	// Get
 	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+created.ID, nil)
 	getReq.SetPathValue("id", created.ID)
+	getReq = withClaims(getReq, "user1", "tenant1", "role_owner", "user@example.com")
 	getRR := httptest.NewRecorder()
 	handler.Get(getRR, getReq)
 

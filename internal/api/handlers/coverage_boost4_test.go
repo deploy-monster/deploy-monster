@@ -1059,7 +1059,7 @@ func (m *mockContainerRuntimeWithImages) VolumeList(_ context.Context) ([]core.V
 func TestDeployFreezeHandler_Get_WithWindows(t *testing.T) {
 	bolt := newMockBoltStore()
 	now := time.Now()
-	bolt.Set("deploy_freeze", "_all", freezeWindowList{
+	bolt.Set("deploy_freeze", "t1", freezeWindowList{
 		Windows: []FreezeWindow{
 			{ID: "fw1", Reason: "maintenance", StartsAt: now.Add(-1 * time.Hour), EndsAt: now.Add(1 * time.Hour), Active: true},
 			{ID: "fw2", Reason: "past", StartsAt: now.Add(-48 * time.Hour), EndsAt: now.Add(-24 * time.Hour), Active: true},
@@ -1069,6 +1069,7 @@ func TestDeployFreezeHandler_Get_WithWindows(t *testing.T) {
 
 	h := NewDeployFreezeHandler(newMockStore(), core.NewEventBus(slog.Default()), bolt)
 	req := httptest.NewRequest("GET", "/api/v1/deploy/freeze", nil)
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -1088,7 +1089,7 @@ func TestDeployFreezeHandler_Get_WithWindows(t *testing.T) {
 
 func TestDeployFreezeHandler_Delete_WithExisting(t *testing.T) {
 	bolt := newMockBoltStore()
-	bolt.Set("deploy_freeze", "_all", freezeWindowList{
+	bolt.Set("deploy_freeze", "t1", freezeWindowList{
 		Windows: []FreezeWindow{
 			{ID: "fw1", Reason: "test", Active: true},
 			{ID: "fw2", Reason: "other", Active: true},
@@ -1098,6 +1099,7 @@ func TestDeployFreezeHandler_Delete_WithExisting(t *testing.T) {
 	h := NewDeployFreezeHandler(newMockStore(), core.NewEventBus(slog.Default()), bolt)
 	req := httptest.NewRequest("DELETE", "/api/v1/deploy/freeze/fw1", nil)
 	req.SetPathValue("id", "fw1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 
@@ -1107,7 +1109,7 @@ func TestDeployFreezeHandler_Delete_WithExisting(t *testing.T) {
 
 	// Verify fw1 is deactivated
 	var list freezeWindowList
-	bolt.Get("deploy_freeze", "_all", &list)
+	bolt.Get("deploy_freeze", "t1", &list)
 	for _, w := range list.Windows {
 		if w.ID == "fw1" && w.Active {
 			t.Error("fw1 should be deactivated")
@@ -1119,6 +1121,7 @@ func TestDeployFreezeHandler_Delete_NoExisting(t *testing.T) {
 	h := NewDeployFreezeHandler(newMockStore(), core.NewEventBus(slog.Default()), newMockBoltStore())
 	req := httptest.NewRequest("DELETE", "/api/v1/deploy/freeze/fw1", nil)
 	req.SetPathValue("id", "fw1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 
@@ -2119,6 +2122,7 @@ func TestDeployFreezeHandler_Create_BoltError(t *testing.T) {
 	h := NewDeployFreezeHandler(newMockStore(), core.NewEventBus(slog.Default()), eb)
 	body := `{"reason":"maintenance"}`
 	req := httptest.NewRequest("POST", "/api/v1/deploy/freeze", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Create(rr, req)
 
