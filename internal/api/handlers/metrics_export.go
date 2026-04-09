@@ -84,7 +84,7 @@ func (h *MetricsExportHandler) Export(w http.ResponseWriter, r *http.Request) {
 		}
 		filename := fmt.Sprintf("%s-metrics-%s.csv", appID[:8], now.Format("20060102"))
 		w.Header().Set("Content-Type", "text/csv")
-		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+		w.Header().Set("Content-Disposition", "attachment; filename="+safeFilename(filename))
 
 		writer := csv.NewWriter(w)
 		writer.Write([]string{"timestamp", "cpu_percent", "memory_mb", "requests"})

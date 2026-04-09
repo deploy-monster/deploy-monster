@@ -56,7 +56,7 @@ func (h *BuildLogHandler) Download(w http.ResponseWriter, r *http.Request) {
 
 	filename := fmt.Sprintf("%s-build-v%d-%s.log", appID[:8], dep.Version, time.Now().Format("20060102"))
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	w.Header().Set("Content-Disposition", "attachment; filename="+safeFilename(filename))
 
 	if dep.BuildLog != "" {
 		w.Write([]byte(dep.BuildLog))

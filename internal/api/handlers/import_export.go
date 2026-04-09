@@ -178,7 +178,7 @@ func (h *ImportExportHandler) Export(w http.ResponseWriter, r *http.Request) {
 		Replicas:   app.Replicas,
 	}
 
-	w.Header().Set("Content-Disposition", "attachment; filename="+app.Name+".json")
+	w.Header().Set("Content-Disposition", "attachment; filename="+safeFilename(app.Name)+".json")
 	writeJSON(w, http.StatusOK, manifest)
 }
 

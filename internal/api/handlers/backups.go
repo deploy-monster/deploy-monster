@@ -85,7 +85,7 @@ func (h *BackupHandler) Download(w http.ResponseWriter, r *http.Request) {
 	defer reader.Close()
 
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", "attachment; filename="+key)
+	w.Header().Set("Content-Disposition", "attachment; filename="+safeFilename(key))
 
 	ctx := r.Context()
 	buf := make([]byte, 32*1024)

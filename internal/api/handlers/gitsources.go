@@ -42,6 +42,9 @@ func (h *GitSourceHandler) ListRepos(w http.ResponseWriter, r *http.Request) {
 	if page < 1 {
 		page = 1
 	}
+	if page > maxPage {
+		page = maxPage
+	}
 
 	repos, err := p.ListRepos(r.Context(), page, 20)
 	if err != nil {

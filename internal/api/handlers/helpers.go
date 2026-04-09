@@ -24,11 +24,16 @@ type pagination struct {
 
 // parsePagination extracts page and per_page from query params.
 // Defaults: page=1, per_page=20. PerPage is capped at 100.
+const maxPage = 10000 // cap page to prevent integer overflow in offset calc
+
 func parsePagination(r *http.Request) pagination {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
 	if page < 1 {
 		page = 1
+	}
+	if page > maxPage {
+		page = maxPage
 	}
 	if perPage < 1 || perPage > 100 {
 		perPage = 20
@@ -209,6 +214,15 @@ var backgroundWG sync.WaitGroup
 // Should be called during graceful shutdown.
 func WaitForBackground() {
 	backgroundWG.Wait()
+}
+
+// safeFilename strips any character that is not alphanumeric, dot, hyphen, or
+// underscore from a filename. This prevents header injection via
+// Content-Disposition and path-traversal via crafted names.
+var safeFilenameRe = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
+
+func safeFilename(name string) string {
+	return safeFilenameRe.ReplaceAllString(name, "_")
 }
 
 // requirePathParam extracts a path parameter and writes a 400 error if it is

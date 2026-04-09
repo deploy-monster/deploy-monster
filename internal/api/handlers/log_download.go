@@ -46,7 +46,7 @@ func (h *LogDownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 
 	filename := fmt.Sprintf("%s-logs-%s.txt", appID[:8], time.Now().Format("20060102-150405"))
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	w.Header().Set("Content-Disposition", "attachment; filename="+safeFilename(filename))
 
 	ctx := r.Context()
 	buf := make([]byte, 32*1024)

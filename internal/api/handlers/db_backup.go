@@ -44,7 +44,7 @@ func (h *DBBackupHandler) Backup(w http.ResponseWriter, r *http.Request) {
 	filename := fmt.Sprintf("deploymonster-backup-%s.db", time.Now().Format("20060102-150405"))
 
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	w.Header().Set("Content-Disposition", "attachment; filename="+safeFilename(filename))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
 
 	ctx := r.Context()

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/deploy-monster/deploy-monster/internal/core"
 	"gopkg.in/yaml.v3"
 )
 
@@ -164,7 +165,12 @@ func resolveEnv(env any) map[string]string {
 }
 
 // Interpolate replaces ${VAR} and ${VAR:-default} in the compose YAML.
+// When a variable's default is the insecure placeholder "changeme" and
+// no user-supplied value exists, a crypto-random password is generated.
+// The same generated value is reused for every occurrence of the same
+// variable name so that e.g. DB_PASSWORD stays consistent across services.
 func Interpolate(data []byte, vars map[string]string) []byte {
+	generated := make(map[string]string) // track auto-generated secrets per key
 	re := regexp.MustCompile(`\$\{([^}]+)\}`)
 	result := re.ReplaceAllFunc(data, func(match []byte) []byte {
 		expr := string(match[2 : len(match)-1]) // strip ${ and }
@@ -175,6 +181,15 @@ func Interpolate(data []byte, vars map[string]string) []byte {
 			defaultVal := expr[idx+2:]
 			if val, ok := vars[key]; ok && val != "" {
 				return []byte(val)
+			}
+			// Replace insecure placeholder defaults with crypto-random values
+			if defaultVal == "changeme" {
+				if pw, ok := generated[key]; ok {
+					return []byte(pw)
+				}
+				pw := core.GeneratePassword(24)
+				generated[key] = pw
+				return []byte(pw)
 			}
 			return []byte(defaultVal)
 		}
