@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -588,5 +589,441 @@ func TestDeployResultContainersNetworksVolumes(t *testing.T) {
 	volumes := d.extractVolumeNames(compose)
 	if len(volumes) == 0 {
 		t.Error("expected volumes")
+	}
+}
+
+// ─── Database helper coverage ───────────────────────────────────────────────
+
+func TestGetDatabasePort(t *testing.T) {
+	c := NewCompiler(helperTopology(), "proj", "dev")
+	tests := []struct {
+		engine DatabaseEngine
+		port   int
+	}{
+		{EnginePostgres, 5432},
+		{EngineMySQL, 3306},
+		{EngineMariaDB, 3306},
+		{EngineMongoDB, 27017},
+		{EngineRedis, 6379},
+		{"unknown", 5432}, // default
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.engine), func(t *testing.T) {
+			if got := c.getDatabasePort(tt.engine); got != tt.port {
+				t.Errorf("getDatabasePort(%s) = %d, want %d", tt.engine, got, tt.port)
+			}
+		})
+	}
+}
+
+func TestGetDefaultVersion(t *testing.T) {
+	c := NewCompiler(helperTopology(), "proj", "dev")
+	tests := []struct {
+		engine  DatabaseEngine
+		version string
+	}{
+		{EnginePostgres, "16"},
+		{EngineMySQL, "8.0"},
+		{EngineMariaDB, "11"},
+		{EngineMongoDB, "7"},
+		{EngineRedis, "7"},
+		{"unknown", "latest"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.engine), func(t *testing.T) {
+			if got := c.getDefaultVersion(tt.engine); got != tt.version {
+				t.Errorf("getDefaultVersion(%s) = %q, want %q", tt.engine, got, tt.version)
+			}
+		})
+	}
+}
+
+func TestGetDatabaseImage(t *testing.T) {
+	c := NewCompiler(helperTopology(), "proj", "dev")
+	tests := []struct {
+		db    Database
+		image string
+		err   bool
+	}{
+		{Database{Engine: EnginePostgres, Version: "16"}, "postgres:16-alpine", false},
+		{Database{Engine: EngineMySQL, Version: "8.0"}, "mysql:8.0", false},
+		{Database{Engine: EngineMariaDB, Version: "11"}, "mariadb:11", false},
+		{Database{Engine: EngineMongoDB, Version: "7"}, "mongo:7", false},
+		{Database{Engine: EngineRedis, Version: "7"}, "redis:7-alpine", false},
+		{Database{Engine: "unsupported"}, "", true},
+		// default version when empty
+		{Database{Engine: EnginePostgres}, "postgres:16-alpine", false},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.db.Engine)+"_"+tt.db.Version, func(t *testing.T) {
+			img, err := c.getDatabaseImage(&tt.db)
+			if tt.err {
+				if err == nil {
+					t.Error("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if img != tt.image {
+				t.Errorf("getDatabaseImage = %q, want %q", img, tt.image)
+			}
+		})
+	}
+}
+
+func TestGetDatabaseDataPath(t *testing.T) {
+	c := NewCompiler(helperTopology(), "proj", "dev")
+	tests := []struct {
+		engine DatabaseEngine
+		path   string
+	}{
+		{EnginePostgres, "/var/lib/postgresql/data"},
+		{EngineMySQL, "/var/lib/mysql"},
+		{EngineMariaDB, "/var/lib/mysql"},
+		{EngineMongoDB, "/data/db"},
+		{EngineRedis, "/data"},
+		{"unknown", "/data"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.engine), func(t *testing.T) {
+			if got := c.getDatabaseDataPath(tt.engine); got != tt.path {
+				t.Errorf("getDatabaseDataPath(%s) = %q, want %q", tt.engine, got, tt.path)
+			}
+		})
+	}
+}
+
+func TestGenerateDatabaseURL(t *testing.T) {
+	c := NewCompiler(helperTopology(), "proj", "dev")
+
+	tests := []struct {
+		name string
+		db   Database
+		want string
+	}{
+		{
+			"postgres with all fields",
+			Database{Name: "mydb", Engine: EnginePostgres, Username: "u", Password: "p", Database: "d"},
+			"postgresql://u:p@mydb:5432/d",
+		},
+		{
+			"mysql with all fields",
+			Database{Name: "mydb", Engine: EngineMySQL, Username: "u", Password: "p", Database: "d"},
+			"mysql://u:p@mydb:3306/d",
+		},
+		{
+			"mariadb",
+			Database{Name: "mydb", Engine: EngineMariaDB, Username: "u", Password: "p", Database: "d"},
+			"mariadb://u:p@mydb:3306/d",
+		},
+		{
+			"mongodb",
+			Database{Name: "mydb", Engine: EngineMongoDB, Username: "u", Password: "p", Database: "d"},
+			"mongodb://u:p@mydb:27017/d",
+		},
+		{
+			"redis with password",
+			Database{Name: "mydb", Engine: EngineRedis, Password: "p", Database: "0"},
+			"redis://:p@mydb:6379/0",
+		},
+		{
+			"explicit ConnURL overrides generation",
+			Database{Name: "mydb", Engine: EnginePostgres, ConnURL: "custom://conn"},
+			"custom://conn",
+		},
+		{
+			"defaults username to root",
+			Database{Name: "mydb", Engine: EnginePostgres, Password: "p", Database: "d"},
+			"postgresql://root:p@mydb:5432/d",
+		},
+		{
+			"defaults database to name",
+			Database{Name: "mydb", Engine: EnginePostgres, Username: "u", Password: "p"},
+			"postgresql://u:p@mydb:5432/mydb",
+		},
+		{
+			"unknown engine fallback",
+			Database{Name: "mydb", Engine: "cockroach", Username: "u", Password: "p", Database: "d"},
+			"cockroach://mydb:5432/d",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := c.generateDatabaseURL(&tt.db)
+			if got != tt.want {
+				t.Errorf("generateDatabaseURL = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGenerateDatabaseURL_DefaultPassword(t *testing.T) {
+	c := NewCompiler(helperTopology(), "proj", "dev")
+	// When password is empty, generatePassword is called — we just check it doesn't panic
+	// and produces a non-empty URL
+	db := &Database{Name: "mydb", Engine: EnginePostgres, Username: "u", Database: "d"}
+	url := c.generateDatabaseURL(db)
+	if url == "" {
+		t.Error("expected non-empty URL")
+	}
+	if !strings.Contains(url, "pwd_") {
+		t.Errorf("expected auto-generated password in URL, got %q", url)
+	}
+}
+
+// ─── Compile: multi-database topology ───────────────────────────────────────
+
+func TestCompile_MultipleDatabases(t *testing.T) {
+	top := helperTopology()
+	top.Databases = append(top.Databases,
+		Database{
+			ID:       "db-2",
+			Name:     "cache",
+			Status:   StatusPending,
+			Engine:   EngineRedis,
+			Version:  "7",
+			SizeGB:   1,
+		},
+		Database{
+			ID:       "db-3",
+			Name:     "docs",
+			Status:   StatusPending,
+			Engine:   EngineMongoDB,
+			Version:  "7",
+			SizeGB:   5,
+			Username: "mongo",
+			Password: "secret",
+			Database: "docs",
+		},
+	)
+
+	c := NewCompiler(top, "proj", "dev")
+	compose, err := c.Compile()
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	// Should have services for each database
+	for _, name := range []string{"postgres", "cache", "docs"} {
+		if _, ok := compose.Services[name]; !ok {
+			t.Errorf("expected service %q in compose", name)
+		}
+	}
+}
+
+func TestCompile_MySQLDatabase(t *testing.T) {
+	top := helperTopology()
+	top.Databases = []Database{
+		{
+			ID:       "db-mysql",
+			Name:     "mysqldb",
+			Engine:   EngineMySQL,
+			Version:  "8.0",
+			SizeGB:   10,
+			Username: "root",
+			Password: "pass",
+			Database: "appdb",
+		},
+	}
+	// Clear connections that reference the original db-1
+	top.Connections = nil
+	c := NewCompiler(top, "proj", "dev")
+	compose, err := c.Compile()
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	svc, ok := compose.Services["mysqldb"]
+	if !ok {
+		t.Fatal("expected mysqldb service")
+	}
+	if !strings.Contains(svc.Image, "mysql") {
+		t.Errorf("expected mysql image, got %q", svc.Image)
+	}
+}
+
+// ─── Deploy: dry-run with missing work dir ──────────────────────────────────
+
+func TestDeployer_DeployCreatesOutputDir(t *testing.T) {
+	top := helperTopology()
+	c := NewCompiler(top, "proj", "dev")
+	compose, err := c.Compile()
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	dir := filepath.Join(t.TempDir(), "nested", "output")
+	d := NewDeployer(dir)
+	_, err = d.Deploy(context.Background(), compose, "", "", true)
+	if err != nil {
+		t.Fatalf("Deploy dry-run: %v", err)
+	}
+
+	// Output dir should be created
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		t.Error("expected output directory to be created")
+	}
+}
+
+// ─── Worker service with volume mounts ──────────────────────────────────────
+
+func TestCompile_MariaDBWithNonRootUser(t *testing.T) {
+	top := helperTopology()
+	top.Databases = []Database{
+		{
+			ID:       "db-maria",
+			Name:     "mariadb",
+			Engine:   EngineMariaDB,
+			Version:  "11",
+			SizeGB:   5,
+			Username: "appuser", // non-root triggers MARIADB_USER env
+			Password: "pass",
+			Database: "mydb",
+		},
+	}
+	top.Connections = nil
+	c := NewCompiler(top, "proj", "dev")
+	compose, err := c.Compile()
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	svc := compose.Services["mariadb"]
+	if svc.Environment["MARIADB_USER"] != "appuser" {
+		t.Errorf("expected MARIADB_USER=appuser, got %q", svc.Environment["MARIADB_USER"])
+	}
+	if svc.HealthCheck == nil {
+		t.Error("expected health check for MariaDB")
+	}
+}
+
+func TestCompile_MySQLWithNonRootUser(t *testing.T) {
+	top := helperTopology()
+	top.Databases = []Database{
+		{
+			ID:       "db-mysql",
+			Name:     "mysqldb",
+			Engine:   EngineMySQL,
+			Version:  "8.0",
+			SizeGB:   5,
+			Username: "appuser",
+			Password: "pass",
+			Database: "mydb",
+		},
+	}
+	top.Connections = nil
+	c := NewCompiler(top, "proj", "dev")
+	compose, err := c.Compile()
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	svc := compose.Services["mysqldb"]
+	if svc.Environment["MYSQL_USER"] != "appuser" {
+		t.Errorf("expected MYSQL_USER=appuser, got %q", svc.Environment["MYSQL_USER"])
+	}
+}
+
+func TestCompile_RedisWithPassword(t *testing.T) {
+	top := helperTopology()
+	top.Databases = []Database{
+		{
+			ID:       "db-redis",
+			Name:     "cache",
+			Engine:   EngineRedis,
+			Version:  "7",
+			SizeGB:   1,
+			Password: "secret",
+		},
+	}
+	top.Connections = nil
+	c := NewCompiler(top, "proj", "dev")
+	compose, err := c.Compile()
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	svc := compose.Services["cache"]
+	if !strings.Contains(svc.Command, "requirepass") {
+		t.Errorf("expected redis requirepass command, got %q", svc.Command)
+	}
+}
+
+func TestCompile_DatabaseWithExtraConfig(t *testing.T) {
+	top := helperTopology()
+	top.Databases[0].ExtraConfig = map[string]string{
+		"POSTGRES_MAX_CONNECTIONS": "200",
+	}
+	c := NewCompiler(top, "proj", "dev")
+	compose, err := c.Compile()
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	svc := compose.Services["postgres"]
+	if svc.Environment["POSTGRES_MAX_CONNECTIONS"] != "200" {
+		t.Error("expected extra config env to be set")
+	}
+}
+
+func TestCompile_RedisNoPassword(t *testing.T) {
+	top := helperTopology()
+	top.Databases = []Database{
+		{
+			ID:     "db-redis",
+			Name:   "cache",
+			Engine: EngineRedis,
+			SizeGB: 1,
+			// Password intentionally empty — auto-generated
+		},
+	}
+	top.Connections = nil
+	c := NewCompiler(top, "proj", "dev")
+	compose, err := c.Compile()
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	svc := compose.Services["cache"]
+	// Even with empty password, generatePassword fills one in, so requirepass should be set
+	if svc.Command == "" {
+		t.Error("expected redis command with auto-generated password")
+	}
+}
+
+func TestByNameSort(t *testing.T) {
+	apps := byName{
+		{Name: "charlie"},
+		{Name: "alpha"},
+		{Name: "bravo"},
+	}
+	sort.Sort(apps)
+	if apps[0].Name != "alpha" || apps[1].Name != "bravo" || apps[2].Name != "charlie" {
+		t.Errorf("sort failed: %v", []string{apps[0].Name, apps[1].Name, apps[2].Name})
+	}
+}
+
+func TestCompile_WorkerWithMultipleVolumes(t *testing.T) {
+	top := helperTopology()
+	top.Volumes = append(top.Volumes, Volume{
+		ID:         "vol-2",
+		Name:       "logs-vol",
+		Status:     StatusPending,
+		SizeGB:     2,
+		VolumeType: VolumeLocal,
+		MountPath:  "/logs",
+	})
+	top.Workers[0].VolumeMounts = append(top.Workers[0].VolumeMounts,
+		VolumeMount{VolumeID: "vol-2", MountPath: "/var/log"},
+	)
+
+	c := NewCompiler(top, "proj", "dev")
+	compose, err := c.Compile()
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	svc, ok := compose.Services["scheduler"]
+	if !ok {
+		t.Fatal("expected scheduler service")
+	}
+	if len(svc.Volumes) < 2 {
+		t.Errorf("expected at least 2 volume mounts, got %d", len(svc.Volumes))
 	}
 }

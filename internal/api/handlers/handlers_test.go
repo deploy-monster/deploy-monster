@@ -137,6 +137,164 @@ func TestWriteError(t *testing.T) {
 	}
 }
 
+func TestValidateAppName(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		ok    bool
+	}{
+		{"valid simple", "my-app", true},
+		{"valid with dots", "app.v2", true},
+		{"valid with spaces", "My App", true},
+		{"valid with underscore", "my_app", true},
+		{"starts with digit", "1app", true},
+		{"empty", "", false},
+		{"too long", string(make([]byte, 101)), false},
+		{"starts with dash", "-app", false},
+		{"starts with space", " app", false},
+		{"special chars", "app@v2", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateAppName(tt.input)
+			if tt.ok && err != nil {
+				t.Errorf("expected valid, got error: %v", err)
+			}
+			if !tt.ok && err == nil {
+				t.Errorf("expected error for %q", tt.input)
+			}
+		})
+	}
+}
+
+func TestWriteValidationErrors(t *testing.T) {
+	rr := httptest.NewRecorder()
+	rr.Header().Set("X-Request-ID", "req-123")
+
+	writeValidationErrors(rr, "validation failed", []FieldError{
+		{Field: "email", Message: "is required"},
+		{Field: "name", Message: "too long"},
+	})
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rr.Code)
+	}
+
+	var resp map[string]any
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+
+	if resp["success"] != false {
+		t.Error("expected success=false")
+	}
+	if resp["request_id"] != "req-123" {
+		t.Errorf("expected request_id, got %v", resp["request_id"])
+	}
+
+	errObj, _ := resp["error"].(map[string]any)
+	if errObj["code"] != "validation_error" {
+		t.Errorf("code = %v, want validation_error", errObj["code"])
+	}
+	details, ok := errObj["details"].([]any)
+	if !ok || len(details) != 2 {
+		t.Fatalf("expected 2 field errors, got %v", errObj["details"])
+	}
+
+	first, _ := details[0].(map[string]any)
+	if first["field"] != "email" || first["message"] != "is required" {
+		t.Errorf("unexpected first detail: %v", first)
+	}
+}
+
+func TestParsePagination_Defaults(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	pg := parsePagination(req)
+
+	if pg.Page != 1 {
+		t.Errorf("page = %d, want 1", pg.Page)
+	}
+	if pg.PerPage != 20 {
+		t.Errorf("per_page = %d, want 20", pg.PerPage)
+	}
+	if pg.Offset != 0 {
+		t.Errorf("offset = %d, want 0", pg.Offset)
+	}
+}
+
+func TestParsePagination_CustomValues(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps?page=3&per_page=50", nil)
+	pg := parsePagination(req)
+
+	if pg.Page != 3 {
+		t.Errorf("page = %d, want 3", pg.Page)
+	}
+	if pg.PerPage != 50 {
+		t.Errorf("per_page = %d, want 50", pg.PerPage)
+	}
+	if pg.Offset != 100 {
+		t.Errorf("offset = %d, want 100", pg.Offset)
+	}
+}
+
+func TestParsePagination_Clamping(t *testing.T) {
+	tests := []struct {
+		name    string
+		query   string
+		page    int
+		perPage int
+	}{
+		{"negative page", "page=-1&per_page=10", 1, 10},
+		{"zero page", "page=0&per_page=10", 1, 10},
+		{"per_page too large", "page=1&per_page=200", 1, 20},
+		{"per_page zero", "page=1&per_page=0", 1, 20},
+		{"per_page negative", "page=1&per_page=-5", 1, 20},
+		{"non-numeric", "page=abc&per_page=xyz", 1, 20},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/apps?"+tt.query, nil)
+			pg := parsePagination(req)
+			if pg.Page != tt.page {
+				t.Errorf("page = %d, want %d", pg.Page, tt.page)
+			}
+			if pg.PerPage != tt.perPage {
+				t.Errorf("per_page = %d, want %d", pg.PerPage, tt.perPage)
+			}
+		})
+	}
+}
+
+func TestWritePaginatedJSON(t *testing.T) {
+	rr := httptest.NewRecorder()
+	data := []string{"a", "b", "c"}
+	pg := pagination{Page: 2, PerPage: 3, Offset: 3}
+
+	writePaginatedJSON(rr, data, 10, pg)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rr.Code)
+	}
+
+	var resp map[string]any
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+
+	if resp["total"] != float64(10) {
+		t.Errorf("total = %v, want 10", resp["total"])
+	}
+	if resp["page"] != float64(2) {
+		t.Errorf("page = %v, want 2", resp["page"])
+	}
+	if resp["per_page"] != float64(3) {
+		t.Errorf("per_page = %v, want 3", resp["per_page"])
+	}
+	if resp["total_pages"] != float64(4) {
+		t.Errorf("total_pages = %v, want 4 (ceil(10/3))", resp["total_pages"])
+	}
+	arr, ok := resp["data"].([]any)
+	if !ok || len(arr) != 3 {
+		t.Errorf("data = %v", resp["data"])
+	}
+}
+
 // TestScaleRequest validates scale request parsing.
 func TestScaleRequestValidation(t *testing.T) {
 	tests := []struct {

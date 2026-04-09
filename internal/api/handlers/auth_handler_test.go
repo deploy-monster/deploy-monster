@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -357,6 +358,154 @@ func TestRegister_UserCreationError(t *testing.T) {
 	}
 }
 
+// ─── Register: input length limits & structured validation ──────────────────
+
+func TestRegister_PasswordTooLong(t *testing.T) {
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+
+	body, _ := json.Marshal(registerRequest{
+		Email:    "user@example.com",
+		Password: strings.Repeat("A", 257),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertValidationField(t, rr, "password")
+}
+
+func TestRegister_NameTooLong(t *testing.T) {
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+
+	body, _ := json.Marshal(registerRequest{
+		Email:    "user@example.com",
+		Password: "StrongPass1",
+		Name:     strings.Repeat("X", 101),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertValidationField(t, rr, "name")
+}
+
+func TestRegister_EmailTooLong(t *testing.T) {
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+
+	body, _ := json.Marshal(registerRequest{
+		Email:    strings.Repeat("a", 250) + "@b.com", // > 254
+		Password: "StrongPass1",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertValidationField(t, rr, "email")
+}
+
+func TestRegister_InvalidEmailFormat(t *testing.T) {
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+
+	body, _ := json.Marshal(registerRequest{
+		Email:    "not-an-email",
+		Password: "StrongPass1",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertValidationField(t, rr, "email")
+}
+
+func TestRegister_MultipleValidationErrors(t *testing.T) {
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+
+	body, _ := json.Marshal(registerRequest{
+		Email:    "",
+		Password: "",
+		Name:     strings.Repeat("Z", 101),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// Should contain all three field errors at once.
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	errObj, ok := resp["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error object, got %T", resp["error"])
+	}
+	if errObj["code"] != "validation_error" {
+		t.Errorf("expected code validation_error, got %v", errObj["code"])
+	}
+	details, ok := errObj["details"].([]any)
+	if !ok || len(details) < 3 {
+		t.Fatalf("expected at least 3 field errors, got %v", errObj["details"])
+	}
+	fields := map[string]bool{}
+	for _, d := range details {
+		m, _ := d.(map[string]any)
+		if f, ok := m["field"].(string); ok {
+			fields[f] = true
+		}
+	}
+	for _, f := range []string{"email", "password", "name"} {
+		if !fields[f] {
+			t.Errorf("expected field error for %q, not found in %v", f, fields)
+		}
+	}
+}
+
+// ─── Login: input length limits ─────────────────────────────────────────────
+
+func TestLogin_PasswordTooLong(t *testing.T) {
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+
+	body, _ := json.Marshal(loginRequest{
+		Email:    "user@example.com",
+		Password: strings.Repeat("A", 257),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	handler.Login(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "password must not exceed 256 characters")
+}
+
 // ─── Refresh ─────────────────────────────────────────────────────────────────
 
 func TestRefresh_Success(t *testing.T) {
@@ -623,7 +772,48 @@ func TestUpdateProfile_StoreError(t *testing.T) {
 	}
 }
 
+func TestUpdateProfile_FieldValidation(t *testing.T) {
+	store := newMockStore()
+	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
+	handler := NewSessionHandler(store)
+
+	// Both fields too long — should get both errors at once.
+	body, _ := json.Marshal(map[string]string{
+		"name":       strings.Repeat("N", 101),
+		"avatar_url": strings.Repeat("U", 2049),
+	})
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/auth/me", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+	handler.UpdateProfile(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertValidationField(t, rr, "name")
+}
+
 // ─── ChangePassword ──────────────────────────────────────────────────────────
+
+func TestChangePassword_PasswordTooLong(t *testing.T) {
+	store := newMockStore()
+	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
+	handler := NewSessionHandler(store)
+
+	body, _ := json.Marshal(map[string]string{
+		"current_password": "Password1",
+		"new_password":     strings.Repeat("A", 257),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/change-password", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+	handler.ChangePassword(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "password must not exceed 256 characters")
+}
 
 func TestChangePassword_Success(t *testing.T) {
 	store := newMockStore()
@@ -756,6 +946,34 @@ func TestChangePassword_StoreError(t *testing.T) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 // assertErrorMessage checks the JSON response has the expected error message.
+// assertValidationField checks that the response is a validation_error
+// containing at least one field error matching the given field name.
+func assertValidationField(t *testing.T, rr *httptest.ResponseRecorder, field string) {
+	t.Helper()
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v (body: %s)", err, rr.Body.String())
+	}
+	errObj, ok := resp["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error object, got %T", resp["error"])
+	}
+	if errObj["code"] != "validation_error" {
+		t.Fatalf("expected code validation_error, got %v", errObj["code"])
+	}
+	details, ok := errObj["details"].([]any)
+	if !ok {
+		t.Fatalf("expected details array, got %T", errObj["details"])
+	}
+	for _, d := range details {
+		m, _ := d.(map[string]any)
+		if m["field"] == field {
+			return
+		}
+	}
+	t.Errorf("expected field error for %q, not found in details", field)
+}
+
 func assertErrorMessage(t *testing.T, rr *httptest.ResponseRecorder, expected string) {
 	t.Helper()
 	var resp map[string]any

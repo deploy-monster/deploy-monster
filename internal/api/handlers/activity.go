@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -26,19 +25,13 @@ func (h *ActivityHandler) Feed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	if limit <= 0 || limit > 100 {
-		limit = 20
-	}
+	pg := parsePagination(r)
 
-	entries, total, err := h.store.ListAuditLogs(r.Context(), claims.TenantID, limit, 0)
+	entries, total, err := h.store.ListAuditLogs(r.Context(), claims.TenantID, pg.PerPage, pg.Offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"data":  entries,
-		"total": total,
-	})
+	writePaginatedJSON(w, entries, total, pg)
 }

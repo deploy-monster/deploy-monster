@@ -105,6 +105,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Guard against excessively long passwords (bcrypt truncates at 72 bytes;
+	// hashing very large inputs wastes CPU and can be used for DoS).
+	if len(req.Password) > 256 {
+		writeError(w, http.StatusBadRequest, "password must not exceed 256 characters")
+		return
+	}
+
 	// Look up user by email
 	user, err := h.store.GetUserByEmail(r.Context(), req.Email)
 	if err != nil {
@@ -154,20 +161,35 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		writeError(w, http.StatusBadRequest, "email and password required")
-		return
+	// Collect all validation errors so the client sees every issue at once.
+	var fields []FieldError
+
+	if req.Email == "" {
+		fields = append(fields, FieldError{Field: "email", Message: "email is required"})
+	} else {
+		if len(req.Email) > 254 { // RFC 5321 max email length
+			fields = append(fields, FieldError{Field: "email", Message: "must not exceed 254 characters"})
+		} else if _, err := mail.ParseAddress(req.Email); err != nil {
+			fields = append(fields, FieldError{Field: "email", Message: "invalid email format"})
+		}
 	}
 
-	// Validate email format
-	if _, err := mail.ParseAddress(req.Email); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid email format")
-		return
+	if req.Password == "" {
+		fields = append(fields, FieldError{Field: "password", Message: "password is required"})
+	} else {
+		if len(req.Password) > 256 {
+			fields = append(fields, FieldError{Field: "password", Message: "must not exceed 256 characters"})
+		} else if err := internalAuth.ValidatePasswordStrength(req.Password, 8); err != nil {
+			fields = append(fields, FieldError{Field: "password", Message: err.Error()})
+		}
 	}
 
-	// Validate password strength
-	if err := internalAuth.ValidatePasswordStrength(req.Password, 8); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if len(req.Name) > 100 {
+		fields = append(fields, FieldError{Field: "name", Message: "must not exceed 100 characters"})
+	}
+
+	if len(fields) > 0 {
+		writeValidationErrors(w, "validation failed", fields)
 		return
 	}
 

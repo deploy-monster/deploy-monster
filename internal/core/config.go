@@ -238,6 +238,24 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("config: server.secret_key must be at least 16 characters")
 	}
 
+	// Log level
+	if c.Server.LogLevel != "" {
+		switch c.Server.LogLevel {
+		case "debug", "info", "warn", "error":
+		default:
+			return fmt.Errorf("config: server.log_level %q not recognized (debug, info, warn, error)", c.Server.LogLevel)
+		}
+	}
+
+	// Log format
+	if c.Server.LogFormat != "" {
+		switch c.Server.LogFormat {
+		case "text", "json":
+		default:
+			return fmt.Errorf("config: server.log_format %q not recognized (text, json)", c.Server.LogFormat)
+		}
+	}
+
 	// Database
 	switch c.Database.Driver {
 	case "sqlite":
@@ -258,6 +276,53 @@ func (c *Config) Validate() error {
 	}
 	if c.Ingress.HTTPSPort < 1 || c.Ingress.HTTPSPort > 65535 {
 		return fmt.Errorf("config: ingress.https_port %d out of range (1-65535)", c.Ingress.HTTPSPort)
+	}
+
+	// ACME
+	if c.ACME.Email != "" {
+		if !strings.Contains(c.ACME.Email, "@") || !strings.Contains(c.ACME.Email, ".") {
+			return fmt.Errorf("config: acme.email %q is not a valid email address", c.ACME.Email)
+		}
+	}
+	if c.ACME.Provider != "" {
+		switch c.ACME.Provider {
+		case "http-01", "dns-01":
+		default:
+			return fmt.Errorf("config: acme.provider %q not recognized (http-01, dns-01)", c.ACME.Provider)
+		}
+	}
+
+	// DNS
+	if c.DNS.Provider != "" {
+		switch c.DNS.Provider {
+		case "cloudflare", "route53", "manual":
+		default:
+			return fmt.Errorf("config: dns.provider %q not recognized (cloudflare, route53, manual)", c.DNS.Provider)
+		}
+		if c.DNS.Provider == "cloudflare" && c.DNS.CloudflareToken == "" {
+			return fmt.Errorf("config: dns.cloudflare_token is required when dns.provider is cloudflare")
+		}
+	}
+
+	// Docker resource defaults
+	if c.Docker.DefaultCPUQuota < 0 {
+		return fmt.Errorf("config: docker.default_cpu_quota must be non-negative")
+	}
+	if c.Docker.DefaultMemoryMB < 0 {
+		return fmt.Errorf("config: docker.default_memory_mb must be non-negative")
+	}
+
+	// Backup
+	if c.Backup.RetentionDays < 0 {
+		return fmt.Errorf("config: backup.retention_days must be non-negative")
+	}
+	if c.Backup.S3.Bucket != "" {
+		if len(c.Backup.S3.Bucket) < 3 || len(c.Backup.S3.Bucket) > 63 {
+			return fmt.Errorf("config: backup.s3.bucket name must be 3-63 characters")
+		}
+		if c.Backup.S3.Region == "" {
+			return fmt.Errorf("config: backup.s3.region is required when s3 bucket is configured")
+		}
 	}
 
 	// Registration mode

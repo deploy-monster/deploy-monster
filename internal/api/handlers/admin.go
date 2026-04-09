@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"runtime"
-	"strconv"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -75,17 +74,9 @@ func (h *AdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 // ListTenants handles GET /api/v1/admin/tenants
 // Super admin only — lists all tenants on the platform.
 func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
-	if page < 1 {
-		page = 1
-	}
-	if perPage < 1 || perPage > 100 {
-		perPage = 20
-	}
-	offset := (page - 1) * perPage
+	pg := parsePagination(r)
 
-	tenants, total, err := h.store.ListAllTenants(r.Context(), perPage, offset)
+	tenants, total, err := h.store.ListAllTenants(r.Context(), pg.PerPage, pg.Offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list tenants")
 		return
@@ -94,8 +85,5 @@ func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
 		tenants = []core.Tenant{}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"data":  tenants,
-		"total": total,
-	})
+	writePaginatedJSON(w, tenants, total, pg)
 }

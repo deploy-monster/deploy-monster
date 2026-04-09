@@ -68,6 +68,18 @@ func (h *SessionHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var fields []FieldError
+	if len(req.Name) > 100 {
+		fields = append(fields, FieldError{Field: "name", Message: "must not exceed 100 characters"})
+	}
+	if len(req.AvatarURL) > 2048 {
+		fields = append(fields, FieldError{Field: "avatar_url", Message: "must not exceed 2048 characters"})
+	}
+	if len(fields) > 0 {
+		writeValidationErrors(w, "validation failed", fields)
+		return
+	}
+
 	user, err := h.store.GetUser(r.Context(), claims.UserID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "user not found")
@@ -103,6 +115,11 @@ func (h *SessionHandler) ChangePassword(w http.ResponseWriter, r *http.Request) 
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if len(req.NewPassword) > 256 {
+		writeError(w, http.StatusBadRequest, "password must not exceed 256 characters")
 		return
 	}
 

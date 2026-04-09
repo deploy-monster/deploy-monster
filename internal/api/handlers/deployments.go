@@ -23,13 +23,19 @@ func (h *DeploymentHandler) ListByApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deployments, err := h.store.ListDeploymentsByApp(r.Context(), app.ID, 20)
+	pg := parsePagination(r)
+
+	deployments, err := h.store.ListDeploymentsByApp(r.Context(), app.ID, pg.PerPage)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": deployments, "total": len(deployments)})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"data":     deployments,
+		"total":    len(deployments),
+		"per_page": pg.PerPage,
+	})
 }
 
 // GetLatest handles GET /api/v1/apps/{id}/deployments/latest

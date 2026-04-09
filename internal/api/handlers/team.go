@@ -42,11 +42,13 @@ func (h *TeamHandler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entries, total, err := h.store.ListAuditLogs(r.Context(), claims.TenantID, 50, 0)
+	pg := parsePagination(r)
+
+	entries, total, err := h.store.ListAuditLogs(r.Context(), claims.TenantID, pg.PerPage, pg.Offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": entries, "total": total})
+	writePaginatedJSON(w, entries, total, pg)
 }

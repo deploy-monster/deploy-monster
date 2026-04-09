@@ -144,6 +144,99 @@ func TestRequireAuth_MissingAuthorization(t *testing.T) {
 	}
 }
 
+// ─── Cookie auth path ───────────────────────────────────────────────────────
+
+func TestRequireAuth_ValidCookie(t *testing.T) {
+	jwtSvc := testJWT()
+	token := generateTestToken("user-c", "tenant-c", "role_admin", "cookie@test.com")
+
+	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims := auth.ClaimsFromContext(r.Context())
+		if claims == nil {
+			t.Fatal("expected claims from cookie")
+		}
+		if claims.UserID != "user-c" {
+			t.Errorf("expected user-c, got %q", claims.UserID)
+		}
+		if claims.Email != "cookie@test.com" {
+			t.Errorf("expected cookie@test.com, got %q", claims.Email)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	// No Authorization header — only cookie
+	req.AddCookie(&http.Cookie{Name: "dm_access", Value: token})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 for valid cookie, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestRequireAuth_InvalidCookie(t *testing.T) {
+	jwtSvc := testJWT()
+
+	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with invalid cookie")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.AddCookie(&http.Cookie{Name: "dm_access", Value: "invalid-token"})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for invalid cookie, got %d", rr.Code)
+	}
+}
+
+func TestRequireAuth_BearerTakesPrecedenceOverCookie(t *testing.T) {
+	jwtSvc := testJWT()
+	bearerToken := generateTestToken("bearer-user", "t1", "role_admin", "bearer@test.com")
+	cookieToken := generateTestToken("cookie-user", "t2", "role_admin", "cookie@test.com")
+
+	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims := auth.ClaimsFromContext(r.Context())
+		if claims == nil {
+			t.Fatal("expected claims")
+		}
+		// Bearer should win over cookie
+		if claims.UserID != "bearer-user" {
+			t.Errorf("expected bearer-user (Bearer precedence), got %q", claims.UserID)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.Header.Set("Authorization", "Bearer "+bearerToken)
+	req.AddCookie(&http.Cookie{Name: "dm_access", Value: cookieToken})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestRequireAuth_EmptyCookieFallsThrough(t *testing.T) {
+	jwtSvc := testJWT()
+
+	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler should not be reached with empty cookie and no other auth")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	req.AddCookie(&http.Cookie{Name: "dm_access", Value: ""})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for empty cookie, got %d", rr.Code)
+	}
+}
+
 func TestRequireAuth_ValidAPIKey(t *testing.T) {
 	jwtSvc := testJWT()
 	bolt := newMockBoltStore()

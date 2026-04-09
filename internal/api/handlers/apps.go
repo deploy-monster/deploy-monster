@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -38,30 +37,15 @@ func (h *AppHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
-	if page < 1 {
-		page = 1
-	}
-	if perPage < 1 || perPage > 100 {
-		perPage = 20
-	}
-	offset := (page - 1) * perPage
+	pg := parsePagination(r)
 
-	apps, total, err := h.store.ListAppsByTenant(r.Context(), claims.TenantID, perPage, offset)
+	apps, total, err := h.store.ListAppsByTenant(r.Context(), claims.TenantID, pg.PerPage, pg.Offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
-	totalPages := (total + perPage - 1) / perPage
-	writeJSON(w, http.StatusOK, map[string]any{
-		"data":        apps,
-		"total":       total,
-		"page":        page,
-		"per_page":    perPage,
-		"total_pages": totalPages,
-	})
+	writePaginatedJSON(w, apps, total, pg)
 }
 
 // Create handles POST /api/v1/apps

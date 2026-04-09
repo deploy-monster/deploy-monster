@@ -132,6 +132,158 @@ func TestAuditSecrets_NoWarningWhenEnvSet(t *testing.T) {
 	}
 }
 
+// ─── Validate: new rules (Tier 28) ──────────────────────────────────────────
+
+func TestConfigValidate_LogLevel(t *testing.T) {
+	for _, lvl := range []string{"debug", "info", "warn", "error", ""} {
+		cfg := validTestConfig()
+		cfg.Server.LogLevel = lvl
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("LogLevel %q should be valid, got: %v", lvl, err)
+		}
+	}
+	cfg := validTestConfig()
+	cfg.Server.LogLevel = "trace"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "log_level") {
+		t.Fatalf("expected log_level error for 'trace', got %v", err)
+	}
+}
+
+func TestConfigValidate_LogFormat(t *testing.T) {
+	for _, fmt := range []string{"text", "json", ""} {
+		cfg := validTestConfig()
+		cfg.Server.LogFormat = fmt
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("LogFormat %q should be valid, got: %v", fmt, err)
+		}
+	}
+	cfg := validTestConfig()
+	cfg.Server.LogFormat = "xml"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "log_format") {
+		t.Fatalf("expected log_format error for 'xml', got %v", err)
+	}
+}
+
+func TestConfigValidate_ACMEEmail(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.ACME.Email = "bad-email"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "acme.email") {
+		t.Fatalf("expected acme.email error, got %v", err)
+	}
+
+	cfg.ACME.Email = "user@example.com"
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("valid ACME email rejected: %v", err)
+	}
+
+	cfg.ACME.Email = "" // empty is fine (optional)
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("empty ACME email rejected: %v", err)
+	}
+}
+
+func TestConfigValidate_ACMEProvider(t *testing.T) {
+	for _, prov := range []string{"http-01", "dns-01", ""} {
+		cfg := validTestConfig()
+		cfg.ACME.Provider = prov
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("ACME provider %q should be valid, got: %v", prov, err)
+		}
+	}
+	cfg := validTestConfig()
+	cfg.ACME.Provider = "tls-alpn-01"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "acme.provider") {
+		t.Fatalf("expected acme.provider error, got %v", err)
+	}
+}
+
+func TestConfigValidate_DNSProvider(t *testing.T) {
+	for _, prov := range []string{"cloudflare", "route53", "manual"} {
+		cfg := validTestConfig()
+		cfg.DNS.Provider = prov
+		if prov == "cloudflare" {
+			cfg.DNS.CloudflareToken = "tok"
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("DNS provider %q should be valid, got: %v", prov, err)
+		}
+	}
+	cfg := validTestConfig()
+	cfg.DNS.Provider = "godaddy"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "dns.provider") {
+		t.Fatalf("expected dns.provider error, got %v", err)
+	}
+}
+
+func TestConfigValidate_CloudflareTokenRequired(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.DNS.Provider = "cloudflare"
+	cfg.DNS.CloudflareToken = ""
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "cloudflare_token") {
+		t.Fatalf("expected cloudflare_token error, got %v", err)
+	}
+}
+
+func TestConfigValidate_DockerNonNegative(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Docker.DefaultCPUQuota = -1
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "cpu_quota") {
+		t.Fatalf("expected cpu_quota error, got %v", err)
+	}
+
+	cfg = validTestConfig()
+	cfg.Docker.DefaultMemoryMB = -100
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "memory_mb") {
+		t.Fatalf("expected memory_mb error, got %v", err)
+	}
+
+	// Zero is fine
+	cfg = validTestConfig()
+	cfg.Docker.DefaultCPUQuota = 0
+	cfg.Docker.DefaultMemoryMB = 0
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("zero Docker values rejected: %v", err)
+	}
+}
+
+func TestConfigValidate_BackupRetention(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Backup.RetentionDays = -1
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "retention_days") {
+		t.Fatalf("expected retention_days error, got %v", err)
+	}
+}
+
+func TestConfigValidate_S3Bucket(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Backup.S3.Bucket = "ab" // too short
+	cfg.Backup.S3.Region = "us-east-1"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "bucket") {
+		t.Fatalf("expected bucket length error, got %v", err)
+	}
+
+	cfg = validTestConfig()
+	cfg.Backup.S3.Bucket = strings.Repeat("a", 64) // too long
+	cfg.Backup.S3.Region = "us-east-1"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "bucket") {
+		t.Fatalf("expected bucket length error for 64 chars, got %v", err)
+	}
+
+	cfg = validTestConfig()
+	cfg.Backup.S3.Bucket = "valid-bucket"
+	cfg.Backup.S3.Region = "" // region required when bucket set
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "region") {
+		t.Fatalf("expected region error, got %v", err)
+	}
+
+	cfg = validTestConfig()
+	cfg.Backup.S3.Bucket = "valid-bucket"
+	cfg.Backup.S3.Region = "us-east-1"
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("valid S3 config rejected: %v", err)
+	}
+}
+
 func TestApplyDefaults(t *testing.T) {
 	cfg := &Config{}
 	applyDefaults(cfg)
