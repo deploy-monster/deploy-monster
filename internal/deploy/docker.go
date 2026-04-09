@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -79,8 +80,10 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 		return "", fmt.Errorf("invalid container opts: %w", err)
 	}
 
-	// Pull image
-	reader, err := d.cli.ImagePull(ctx, opts.Image, image.PullOptions{})
+	// Pull image with 5-minute timeout to prevent hanging daemon from blocking API
+	pullCtx, pullCancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer pullCancel()
+	reader, err := d.cli.ImagePull(pullCtx, opts.Image, image.PullOptions{})
 	if err != nil {
 		return "", fmt.Errorf("pull image %s: %w", opts.Image, err)
 	}
@@ -94,9 +97,16 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 		Labels: opts.Labels,
 	}
 
-	// Host config with security hardening
+	// Host config with security hardening and log rotation
 	hostCfg := &container.HostConfig{
 		SecurityOpt: []string{"no-new-privileges"},
+		LogConfig: container.LogConfig{
+			Type: "json-file",
+			Config: map[string]string{
+				"max-size": "50m", // Rotate at 50MB
+				"max-file": "5",   // Keep 5 rotated files (250MB max per container)
+			},
+		},
 	}
 
 	if opts.Privileged {
@@ -148,12 +158,16 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 
 // Stop implements core.ContainerRuntime.
 func (d *DockerManager) Stop(ctx context.Context, containerID string, timeoutSec int) error {
-	return d.cli.ContainerStop(ctx, containerID, container.StopOptions{Timeout: &timeoutSec})
+	stopCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second+30*time.Second)
+	defer cancel()
+	return d.cli.ContainerStop(stopCtx, containerID, container.StopOptions{Timeout: &timeoutSec})
 }
 
 // Remove implements core.ContainerRuntime.
 func (d *DockerManager) Remove(ctx context.Context, containerID string, force bool) error {
-	return d.cli.ContainerRemove(ctx, containerID, container.RemoveOptions{Force: force})
+	removeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return d.cli.ContainerRemove(removeCtx, containerID, container.RemoveOptions{Force: force})
 }
 
 // Restart implements core.ContainerRuntime.
@@ -312,7 +326,9 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 
 // ImagePull pulls an image from a registry.
 func (d *DockerManager) ImagePull(ctx context.Context, img string) error {
-	reader, err := d.cli.ImagePull(ctx, img, image.PullOptions{})
+	pullCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	reader, err := d.cli.ImagePull(pullCtx, img, image.PullOptions{})
 	if err != nil {
 		return fmt.Errorf("pull image %s: %w", img, err)
 	}

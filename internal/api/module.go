@@ -75,6 +75,10 @@ func (m *Module) Start(_ context.Context) error {
 func (m *Module) Stop(ctx context.Context) error {
 	if m.server != nil {
 		m.logger.Info("shutting down API server")
+		// Signal drain mode — new requests get 503, in-flight requests complete
+		if m.router != nil && m.router.gracefulShutdown != nil {
+			m.router.gracefulShutdown.StartDraining()
+		}
 		return m.server.Shutdown(ctx)
 	}
 	return nil

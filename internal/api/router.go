@@ -17,21 +17,23 @@ import (
 
 // Router sets up all HTTP routes for the API.
 type Router struct {
-	mux        *http.ServeMux
-	core       *core.Core
-	authMod    *auth.Module
-	store      core.Store
-	apiMetrics *middleware.APIMetrics
+	mux              *http.ServeMux
+	core             *core.Core
+	authMod          *auth.Module
+	store            core.Store
+	apiMetrics       *middleware.APIMetrics
+	gracefulShutdown *middleware.GracefulShutdown
 }
 
 // NewRouter creates a new API router with all routes registered.
 func NewRouter(c *core.Core, authMod *auth.Module, store core.Store) *Router {
 	r := &Router{
-		mux:        http.NewServeMux(),
-		core:       c,
-		authMod:    authMod,
-		store:      store,
-		apiMetrics: middleware.NewAPIMetrics(),
+		mux:              http.NewServeMux(),
+		core:             c,
+		authMod:          authMod,
+		store:            store,
+		apiMetrics:       middleware.NewAPIMetrics(),
+		gracefulShutdown: middleware.NewGracefulShutdown(),
 	}
 	r.apiMetrics.SubscribeEvents(c.Events)
 	r.registerRoutes()
@@ -43,6 +45,7 @@ func (r *Router) Handler() http.Handler {
 	return middleware.Chain(
 		r.mux,
 		middleware.RequestID,
+		r.gracefulShutdown.Middleware,
 		middleware.SecurityHeaders,
 		r.apiMetrics.Middleware,
 		middleware.APIVersion(r.core.Build.Version),
