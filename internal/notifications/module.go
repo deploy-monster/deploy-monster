@@ -88,6 +88,18 @@ func (m *Module) Stop(_ context.Context) error {
 }
 
 func (m *Module) Health() core.HealthStatus {
+	// Before Init, dispatcher is nil — report OK (not yet started)
+	if m.dispatcher == nil {
+		return core.HealthOK
+	}
+	// After Init: if notification config exists but no providers registered, degraded
+	if m.core != nil && m.core.Config != nil {
+		cfg := m.core.Config.Notifications
+		wantProviders := cfg.SlackWebhook != "" || cfg.DiscordWebhook != "" || cfg.TelegramToken != ""
+		if wantProviders && len(m.dispatcher.Providers()) == 0 {
+			return core.HealthDegraded
+		}
+	}
 	return core.HealthOK
 }
 

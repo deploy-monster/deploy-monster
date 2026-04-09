@@ -736,15 +736,45 @@ func (r *Router) handleHealth(w http.ResponseWriter, _ *http.Request) {
 }
 
 // handleReadiness implements the /readyz endpoint for load balancer probing.
-// Returns 200 when the server is ready to accept traffic, 503 when draining.
+// Returns 200 when the server is ready to accept traffic, 503 when draining
+// or when critical dependencies (database, container runtime) are unreachable.
 // Use this for Kubernetes readinessProbe or cloud load balancer health checks.
-func (r *Router) handleReadiness(w http.ResponseWriter, _ *http.Request) {
+func (r *Router) handleReadiness(w http.ResponseWriter, req *http.Request) {
 	if r.core.IsDraining() {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
 			"status": "draining",
 		})
 		return
 	}
+
+	// Verify critical dependencies with a tight timeout
+	ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
+	defer cancel()
+
+	reasons := make([]string, 0)
+
+	// Database must be reachable
+	if r.core.Store != nil {
+		if err := r.core.Store.Ping(ctx); err != nil {
+			reasons = append(reasons, "database unreachable")
+		}
+	}
+
+	// Container runtime must be reachable (if configured)
+	if rt := r.core.Services.Container; rt != nil {
+		if err := rt.Ping(); err != nil {
+			reasons = append(reasons, "container runtime unreachable")
+		}
+	}
+
+	if len(reasons) > 0 {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"status":  "not_ready",
+			"reasons": reasons,
+		})
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "ready",
 	})

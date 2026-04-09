@@ -48,4 +48,15 @@ func (m *Module) Start(_ context.Context) error {
 }
 
 func (m *Module) Stop(_ context.Context) error { return nil }
-func (m *Module) Health() core.HealthStatus    { return core.HealthOK }
+
+func (m *Module) Health() core.HealthStatus {
+	// If git source credentials are configured but no providers registered, something is wrong
+	if m.core != nil && m.core.Config != nil && m.core.Services != nil {
+		cfg := m.core.Config.GitSources
+		hasConfig := cfg.GitHubClientID != "" || cfg.GitLabClientID != ""
+		if hasConfig && len(m.core.Services.GitProviders()) == 0 {
+			return core.HealthDegraded
+		}
+	}
+	return core.HealthOK
+}

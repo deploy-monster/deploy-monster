@@ -51,7 +51,17 @@ func (m *Module) Start(_ context.Context) error {
 }
 
 func (m *Module) Stop(_ context.Context) error { return nil }
-func (m *Module) Health() core.HealthStatus    { return core.HealthOK }
+
+func (m *Module) Health() core.HealthStatus {
+	// Before Init, registry is nil — report OK (not yet started)
+	if m.registry == nil {
+		return core.HealthOK
+	}
+	if m.registry.Count() == 0 {
+		return core.HealthDegraded
+	}
+	return core.HealthOK
+}
 
 // Registry returns the template registry for API handlers.
 func (m *Module) Registry() *TemplateRegistry { return m.registry }
