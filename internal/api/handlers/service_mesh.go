@@ -81,6 +81,10 @@ func (h *ServiceMeshHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var list serviceLinkList
 	_ = h.bolt.Get("service_mesh", appID, &list)
 
+	if len(list.Links) >= 50 {
+		writeError(w, http.StatusConflict, "service link limit reached (50 per app)")
+		return
+	}
 	list.Links = append(list.Links, link)
 
 	if err := h.bolt.Set("service_mesh", appID, list, 0); err != nil {

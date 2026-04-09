@@ -92,6 +92,10 @@ func (h *RegistryHandler) Add(w http.ResponseWriter, r *http.Request) {
 	var list registryList
 	_ = h.bolt.Get("registries", "all", &list)
 
+	if len(list.Registries) >= 20 {
+		writeError(w, http.StatusConflict, "registry limit reached (20)")
+		return
+	}
 	list.Registries = append(list.Registries, newReg)
 
 	if err := h.bolt.Set("registries", "all", list, 0); err != nil {

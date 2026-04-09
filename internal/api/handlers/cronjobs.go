@@ -79,6 +79,10 @@ func (h *CronJobHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var list cronJobList
 	_ = h.bolt.Get("cronjobs", appID, &list)
 
+	if len(list.Jobs) >= 50 {
+		writeError(w, http.StatusConflict, "cron job limit reached (50 per app)")
+		return
+	}
 	list.Jobs = append(list.Jobs, req)
 
 	if err := h.bolt.Set("cronjobs", appID, list, 0); err != nil {

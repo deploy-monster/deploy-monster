@@ -94,6 +94,11 @@ func (p *OAuthProvider) ExchangeCode(ctx context.Context, code, redirectURI stri
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode >= 400 {
+		io.Copy(io.Discard, resp.Body)
+		return "", fmt.Errorf("token exchange: HTTP %d", resp.StatusCode)
+	}
+
 	body, _ := io.ReadAll(resp.Body)
 	var tokenResp struct {
 		AccessToken string `json:"access_token"`
@@ -122,6 +127,11 @@ func (p *OAuthProvider) GetUser(ctx context.Context, accessToken string) (*OAuth
 		return nil, fmt.Errorf("get user info: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		io.Copy(io.Discard, resp.Body)
+		return nil, fmt.Errorf("get user info: HTTP %d", resp.StatusCode)
+	}
 
 	body, _ := io.ReadAll(resp.Body)
 

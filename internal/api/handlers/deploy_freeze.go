@@ -103,6 +103,11 @@ func (h *DeployFreezeHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var list freezeWindowList
 	_ = h.bolt.Get("deploy_freeze", claims.TenantID, &list)
+
+	if len(list.Windows) >= 50 {
+		writeError(w, http.StatusConflict, "freeze window limit reached (50)")
+		return
+	}
 	list.Windows = append(list.Windows, freeze)
 
 	if err := h.bolt.Set("deploy_freeze", claims.TenantID, list, 0); err != nil {

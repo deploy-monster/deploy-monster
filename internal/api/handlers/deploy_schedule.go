@@ -79,6 +79,11 @@ func (h *DeployScheduleHandler) Schedule(w http.ResponseWriter, r *http.Request)
 	// Load existing scheduled deploys and append
 	var list scheduledDeployList
 	_ = h.bolt.Get("deploy_schedule", appID, &list)
+
+	if len(list.Items) >= 50 {
+		writeError(w, http.StatusConflict, "scheduled deploy limit reached (50 per app)")
+		return
+	}
 	list.Items = append(list.Items, scheduled)
 
 	if err := h.bolt.Set("deploy_schedule", appID, list, 0); err != nil {

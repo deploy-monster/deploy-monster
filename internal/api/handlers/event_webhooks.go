@@ -88,6 +88,10 @@ func (h *EventWebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var list eventWebhookList
 	_ = h.bolt.Get("event_webhooks", "all", &list)
 
+	if len(list.Webhooks) >= 100 {
+		writeError(w, http.StatusConflict, "webhook limit reached (100)")
+		return
+	}
 	list.Webhooks = append(list.Webhooks, req)
 
 	if err := h.bolt.Set("event_webhooks", "all", list, 0); err != nil {

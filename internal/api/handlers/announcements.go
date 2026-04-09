@@ -81,6 +81,10 @@ func (h *AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var list announcementList
 	_ = h.bolt.Get("announcements", "all", &list)
 
+	if len(list.Items) >= 100 {
+		writeError(w, http.StatusConflict, "announcement limit reached (100)")
+		return
+	}
 	list.Items = append(list.Items, a)
 
 	if err := h.bolt.Set("announcements", "all", list, 0); err != nil {

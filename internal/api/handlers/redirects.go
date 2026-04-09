@@ -90,6 +90,10 @@ func (h *RedirectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var list redirectList
 	_ = h.bolt.Get("redirects", appID, &list)
 
+	if len(list.Rules) >= 200 {
+		writeError(w, http.StatusConflict, "redirect rule limit reached (200 per app)")
+		return
+	}
 	list.Rules = append(list.Rules, rule)
 
 	if err := h.bolt.Set("redirects", appID, list, 0); err != nil {

@@ -87,6 +87,11 @@ func (h *SSHKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	// Store key metadata in BBolt (private key is only returned once)
 	var list sshKeyList
 	_ = h.bolt.Get("ssh_keys", claims.UserID, &list)
+
+	if len(list.Keys) >= 50 {
+		writeError(w, http.StatusConflict, "SSH key limit reached (50)")
+		return
+	}
 	list.Keys = append(list.Keys, info)
 
 	if err := h.bolt.Set("ssh_keys", claims.UserID, list, 0); err != nil {
