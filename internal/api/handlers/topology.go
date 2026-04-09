@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/api/ws"
@@ -276,6 +277,12 @@ func (h *TopologyHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 
 	if len(req.Nodes) == 0 {
 		writeError(w, http.StatusBadRequest, "no nodes to deploy")
+		return
+	}
+
+	// Guard against path traversal in user-supplied path components
+	if strings.ContainsAny(req.ProjectID, "../\\") || strings.ContainsAny(req.Environment, "../\\") {
+		writeError(w, http.StatusBadRequest, "invalid project ID or environment")
 		return
 	}
 

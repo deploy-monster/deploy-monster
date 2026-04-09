@@ -136,14 +136,22 @@ func (m *APIMetrics) Handler() http.HandlerFunc {
 		sb.WriteString("\n# HELP api_requests_by_status Total requests by status code\n")
 		sb.WriteString("# TYPE api_requests_by_status counter\n")
 		m.statusCounts.Range(func(key, value any) bool {
-			sb.WriteString(fmt.Sprintf("api_requests_by_status{status=%q} %d\n", key.(string), value.(*atomic.Int64).Load()))
+			k, _ := key.(string)
+			v, _ := value.(*atomic.Int64)
+			if k != "" && v != nil {
+				sb.WriteString(fmt.Sprintf("api_requests_by_status{status=%q} %d\n", k, v.Load()))
+			}
 			return true
 		})
 
 		sb.WriteString("\n# HELP api_requests_by_endpoint Total requests by endpoint\n")
 		sb.WriteString("# TYPE api_requests_by_endpoint counter\n")
 		m.endpointCounts.Range(func(key, value any) bool {
-			sb.WriteString(fmt.Sprintf("api_requests_by_endpoint{endpoint=%q} %d\n", key.(string), value.(*atomic.Int64).Load()))
+			k, _ := key.(string)
+			v, _ := value.(*atomic.Int64)
+			if k != "" && v != nil {
+				sb.WriteString(fmt.Sprintf("api_requests_by_endpoint{endpoint=%q} %d\n", k, v.Load()))
+			}
 			return true
 		})
 

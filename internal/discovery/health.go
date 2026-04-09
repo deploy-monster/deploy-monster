@@ -84,6 +84,11 @@ func (hc *HealthChecker) IsHealthy(backend string) bool {
 // Start begins the periodic health check loop.
 func (hc *HealthChecker) Start() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				hc.logger.Error("panic in health checker", "error", r)
+			}
+		}()
 		ticker := time.NewTicker(hc.interval)
 		defer ticker.Stop()
 

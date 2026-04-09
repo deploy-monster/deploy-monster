@@ -65,8 +65,13 @@ func (m *Module) healthHandler() http.HandlerFunc {
 			Routes:      routeCount,
 			ActiveConns: activeConns,
 			Circuits:    circuits,
-			Uptime:      time.Since(startTime.Load().(time.Time)).Round(time.Second),
-			Version:     m.Version(),
+			Uptime: func() time.Duration {
+				if t, ok := startTime.Load().(time.Time); ok {
+					return time.Since(t).Round(time.Second)
+				}
+				return 0
+			}(),
+			Version: m.Version(),
 		}
 
 		w.Header().Set("Content-Type", "application/json")

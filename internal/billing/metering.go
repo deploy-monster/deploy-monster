@@ -30,6 +30,11 @@ func NewMeter(store core.Store, runtime core.ContainerRuntime, logger *slog.Logg
 // Start begins the metering collection loop.
 func (m *Meter) Start() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				m.logger.Error("panic in metering loop", "error", r)
+			}
+		}()
 		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
 

@@ -80,6 +80,9 @@ func (wp *WorkerPool) Submit(fn func()) {
 	wp.sem <- struct{}{}
 	go func() {
 		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in build worker", "error", r)
+			}
 			<-wp.sem
 			wp.wg.Done()
 		}()

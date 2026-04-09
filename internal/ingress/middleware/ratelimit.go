@@ -14,6 +14,7 @@ type RateLimiter struct {
 	visitors map[string]*visitor
 	rate     int // requests per window
 	window   time.Duration
+	stopCh   chan struct{}
 }
 
 type visitor struct {
@@ -27,15 +28,27 @@ func NewRateLimiter(rate int, window time.Duration) *RateLimiter {
 		visitors: make(map[string]*visitor),
 		rate:     rate,
 		window:   window,
+		stopCh:   make(chan struct{}),
 	}
 	// Cleanup expired entries periodically
 	go func() {
+		ticker := time.NewTicker(window * 2)
+		defer ticker.Stop()
 		for {
-			time.Sleep(window * 2)
-			rl.cleanup()
+			select {
+			case <-ticker.C:
+				rl.cleanup()
+			case <-rl.stopCh:
+				return
+			}
 		}
 	}()
 	return rl
+}
+
+// Stop halts the background cleanup goroutine.
+func (rl *RateLimiter) Stop() {
+	close(rl.stopCh)
 }
 
 // Middleware returns an HTTP middleware that enforces the rate limit.

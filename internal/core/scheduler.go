@@ -61,6 +61,11 @@ func (s *Scheduler) Remove(id string) {
 // Start begins the scheduler loop.
 func (s *Scheduler) Start() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("panic in scheduler", "error", r)
+			}
+		}()
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 

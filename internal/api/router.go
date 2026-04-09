@@ -563,7 +563,14 @@ func (r *Router) registerRoutes() {
 	// ── Marketplace (public list, auth for deploy) ────
 	mpMod := r.core.Registry.Get("marketplace")
 	if mpMod != nil {
-		reg := mpMod.(*marketplace.Module).Registry()
+		mm, ok := mpMod.(*marketplace.Module)
+		if !ok {
+			slog.Warn("marketplace module has unexpected type, skipping")
+		}
+		var reg *marketplace.TemplateRegistry
+		if ok {
+			reg = mm.Registry()
+		}
 		if reg == nil {
 			reg = marketplace.NewTemplateRegistry()
 		}
@@ -686,6 +693,11 @@ func (r *Router) registerRoutes() {
 
 	// Background cleanup of expired API keys (every hour)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in API key cleanup", "error", r)
+			}
+		}()
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 		for {

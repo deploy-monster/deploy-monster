@@ -62,6 +62,11 @@ func (q *SyncQueue) Enqueue(job *SyncJob) {
 // Start begins processing the queue.
 func (q *SyncQueue) Start() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				q.logger.Error("panic in DNS sync queue", "error", r)
+			}
+		}()
 		for {
 			select {
 			case job := <-q.jobs:

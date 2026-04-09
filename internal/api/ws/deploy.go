@@ -208,6 +208,11 @@ func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID st
 	defer ticker.Stop()
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in websocket ping loop", "error", r)
+			}
+		}()
 		for {
 			select {
 			case <-done:

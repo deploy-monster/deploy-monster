@@ -181,6 +181,16 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 // Useful when the publisher doesn't care about handler results.
 func (eb *EventBus) PublishAsync(ctx context.Context, event Event) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				eb.mu.RLock()
+				logger := eb.logger
+				eb.mu.RUnlock()
+				if logger != nil {
+					logger.Error("panic in async publish", "error", r, "event", event.Type)
+				}
+			}
+		}()
 		if err := eb.Publish(ctx, event); err != nil {
 			eb.mu.RLock()
 			logger := eb.logger
