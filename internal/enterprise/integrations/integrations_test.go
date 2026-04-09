@@ -399,7 +399,11 @@ func TestWHMCSBridge_SyncModuleCommand_HTTPError(t *testing.T) {
 }
 
 func TestWHMCSBridge_SyncModuleCommand_NetworkError(t *testing.T) {
-	w := NewWHMCSBridge("http://localhost:1", "test-id", "test-secret")
+	// Use a closed server to guarantee connection refused on all platforms
+	closedSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	closedSrv.Close()
+
+	w := NewWHMCSBridge(closedSrv.URL, "test-id", "test-secret")
 	err := w.SyncModuleCommand(context.Background(), "provision", 1)
 	if err == nil {
 		t.Fatal("expected network error")
@@ -455,7 +459,11 @@ func TestWHMCSBridge_GetClientDetails_Success(t *testing.T) {
 }
 
 func TestWHMCSBridge_GetClientDetails_NetworkError(t *testing.T) {
-	w := NewWHMCSBridge("http://localhost:1", "test-id", "test-secret")
+	// Use a closed server to guarantee connection refused on all platforms
+	closedSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	closedSrv.Close()
+
+	w := NewWHMCSBridge(closedSrv.URL, "test-id", "test-secret")
 	_, err := w.GetClientDetails(context.Background(), 1)
 	if err == nil {
 		t.Fatal("expected network error")

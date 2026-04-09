@@ -36,14 +36,36 @@ tags:
     description: Custom domain configuration
   - name: Compose
     description: Docker Compose stack management
+  - name: Databases
+    description: Managed database provisioning
+  - name: Backups
+    description: Backup creation and restore
+  - name: Servers
+    description: Server provisioning and management
+  - name: Git
+    description: Git provider integration
   - name: Secrets
     description: Encrypted secret vault
   - name: Billing
     description: Plans and usage tracking
   - name: Team
     description: Team roles, invites, and audit log
+  - name: Marketplace
+    description: One-click application marketplace
+  - name: Topology
+    description: Visual topology editor and deployment
+  - name: Admin
+    description: System administration and tenant management
+  - name: Webhooks
+    description: Outbound webhook management
+  - name: Notifications
+    description: Notification channel management
+  - name: Search
+    description: Global search and activity feed
   - name: Health
     description: System health checks
+  - name: Metrics
+    description: Prometheus metrics endpoints
 
 paths:
   # ── Health ────────────────────────────────────────────
@@ -844,6 +866,939 @@ paths:
                         details:
                           type: object
 
+  # ── Auth (additional) ──────────────────────────────────
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [Auth]
+      summary: Logout and clear session cookies
+      responses:
+        "200":
+          description: Logged out successfully
+
+  /api/v1/auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [Auth]
+      summary: Change current user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+      responses:
+        "200":
+          description: Password changed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Databases ────────────────────────────────────────
+  /api/v1/databases/engines:
+    get:
+      operationId: listDatabaseEngines
+      tags: [Databases]
+      summary: List available database engines and versions
+      responses:
+        "200":
+          description: Available engines
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DatabaseEngine"
+
+  /api/v1/databases:
+    post:
+      operationId: createDatabase
+      tags: [Databases]
+      summary: Create a managed database instance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, engine, version]
+              properties:
+                name:
+                  type: string
+                engine:
+                  type: string
+                  enum: [postgres, mysql, mariadb, redis, mongo]
+                version:
+                  type: string
+                size_gb:
+                  type: integer
+                  default: 10
+      responses:
+        "201":
+          description: Database created
+
+  /api/v1/databases/{id}/pool:
+    get:
+      operationId: getDatabasePool
+      tags: [Databases]
+      summary: Get connection pool settings
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Pool settings
+    put:
+      operationId: updateDatabasePool
+      tags: [Databases]
+      summary: Update connection pool settings
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                max_connections:
+                  type: integer
+                idle_timeout:
+                  type: integer
+      responses:
+        "200":
+          description: Pool updated
+
+  # ── Backups ──────────────────────────────────────────
+  /api/v1/backups:
+    get:
+      operationId: listBackups
+      tags: [Backups]
+      summary: List all backups
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Backup list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Backup"
+    post:
+      operationId: createBackup
+      tags: [Backups]
+      summary: Create a new backup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [app_id]
+              properties:
+                app_id:
+                  type: string
+                  format: uuid
+                label:
+                  type: string
+      responses:
+        "202":
+          description: Backup started
+
+  /api/v1/backups/{key}/download:
+    get:
+      operationId: downloadBackup
+      tags: [Backups]
+      summary: Download a backup archive
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Backup file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  # ── Servers ──────────────────────────────────────────
+  /api/v1/servers/providers:
+    get:
+      operationId: listServerProviders
+      tags: [Servers]
+      summary: List available VPS providers
+      security: []
+      responses:
+        "200":
+          description: Provider list
+
+  /api/v1/servers/providers/{provider}/regions:
+    get:
+      operationId: listProviderRegions
+      tags: [Servers]
+      summary: List regions for a VPS provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Region list
+
+  /api/v1/servers/providers/{provider}/sizes:
+    get:
+      operationId: listProviderSizes
+      tags: [Servers]
+      summary: List available server sizes for a VPS provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Size list
+
+  /api/v1/servers/provision:
+    post:
+      operationId: provisionServer
+      tags: [Servers]
+      summary: Provision a new server via VPS provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, region, size]
+              properties:
+                provider:
+                  type: string
+                region:
+                  type: string
+                size:
+                  type: string
+                name:
+                  type: string
+      responses:
+        "202":
+          description: Server provisioning started
+
+  /api/v1/servers/test-ssh:
+    post:
+      operationId: testSSH
+      tags: [Servers]
+      summary: Test SSH connection to a server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host]
+              properties:
+                host:
+                  type: string
+                port:
+                  type: integer
+                  default: 22
+      responses:
+        "200":
+          description: SSH test result
+
+  /api/v1/servers/{id}/decommission:
+    post:
+      operationId: decommissionServer
+      tags: [Servers]
+      summary: Decommission and destroy a server
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Server decommissioned
+
+  /api/v1/servers/{id}/metrics:
+    get:
+      operationId: getServerMetrics
+      tags: [Servers]
+      summary: Get server resource metrics (CPU, memory, disk)
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Server metrics
+
+  /api/v1/servers/stats:
+    get:
+      operationId: getServerStats
+      tags: [Servers]
+      summary: Get aggregated server statistics
+      responses:
+        "200":
+          description: Server statistics
+
+  # ── Git ──────────────────────────────────────────────
+  /api/v1/git/providers:
+    get:
+      operationId: listGitProviders
+      tags: [Git]
+      summary: List connected git providers
+      responses:
+        "200":
+          description: Git provider list
+
+  /api/v1/git/{provider}/repos:
+    get:
+      operationId: listGitRepos
+      tags: [Git]
+      summary: List repositories from a git provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Repository list
+
+  /api/v1/git/{provider}/repos/{repo}/branches:
+    get:
+      operationId: listGitBranches
+      tags: [Git]
+      summary: List branches for a repository
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Branch list
+
+  # ── Marketplace ──────────────────────────────────────
+  /api/v1/marketplace:
+    get:
+      operationId: listMarketplaceApps
+      tags: [Marketplace]
+      summary: List available marketplace applications
+      security: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Marketplace applications
+
+  /api/v1/marketplace/{slug}:
+    get:
+      operationId: getMarketplaceApp
+      tags: [Marketplace]
+      summary: Get marketplace application details
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Application details
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/marketplace/deploy:
+    post:
+      operationId: deployMarketplaceApp
+      tags: [Marketplace]
+      summary: Deploy a marketplace application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, name]
+              properties:
+                slug:
+                  type: string
+                name:
+                  type: string
+                env:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "202":
+          description: Deployment started
+
+  # ── Topology ─────────────────────────────────────────
+  /api/v1/topology:
+    post:
+      operationId: saveTopology
+      tags: [Topology]
+      summary: Save a topology configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Topology"
+      responses:
+        "200":
+          description: Topology saved
+
+  /api/v1/topology/{projectId}/{environment}:
+    get:
+      operationId: getTopology
+      tags: [Topology]
+      summary: Get topology for a project environment
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: environment
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [development, staging, production]
+      responses:
+        "200":
+          description: Topology configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Topology"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/topology/compile:
+    post:
+      operationId: compileTopology
+      tags: [Topology]
+      summary: Compile topology into Docker Compose
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Topology"
+      responses:
+        "200":
+          description: Compiled Docker Compose output
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  compose_yaml:
+                    type: string
+                  caddyfile:
+                    type: string
+                  env_file:
+                    type: string
+
+  /api/v1/topology/validate:
+    post:
+      operationId: validateTopology
+      tags: [Topology]
+      summary: Validate a topology configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Topology"
+      responses:
+        "200":
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  errors:
+                    type: array
+                    items:
+                      type: string
+
+  /api/v1/topology/deploy:
+    post:
+      operationId: deployTopology
+      tags: [Topology]
+      summary: Deploy a topology configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, environment]
+              properties:
+                project_id:
+                  type: string
+                environment:
+                  type: string
+                dry_run:
+                  type: boolean
+                  default: false
+      responses:
+        "202":
+          description: Deployment started
+
+  /api/v1/topology/templates:
+    get:
+      operationId: listTopologyTemplates
+      tags: [Topology]
+      summary: List available topology templates
+      responses:
+        "200":
+          description: Template list
+
+  /api/v1/topology/deploy/{projectId}/progress:
+    get:
+      operationId: getDeployProgress
+      tags: [Topology]
+      summary: WebSocket endpoint for deployment progress
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "101":
+          description: WebSocket upgrade
+
+  # ── Outbound Webhooks ────────────────────────────────
+  /api/v1/webhooks/outbound:
+    get:
+      operationId: listOutboundWebhooks
+      tags: [Webhooks]
+      summary: List outbound webhook subscriptions
+      responses:
+        "200":
+          description: Webhook list
+    post:
+      operationId: createOutboundWebhook
+      tags: [Webhooks]
+      summary: Create an outbound webhook subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+                secret:
+                  type: string
+      responses:
+        "201":
+          description: Webhook created
+
+  /api/v1/webhooks/outbound/{id}:
+    delete:
+      operationId: deleteOutboundWebhook
+      tags: [Webhooks]
+      summary: Delete an outbound webhook subscription
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "204":
+          description: Webhook deleted
+
+  # ── Incoming Webhooks ────────────────────────────────
+  /hooks/v1/{webhookID}:
+    post:
+      operationId: receiveWebhook
+      tags: [Webhooks]
+      summary: Receive an incoming webhook (e.g., GitHub push)
+      security: []
+      parameters:
+        - name: webhookID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Webhook processed
+        "401":
+          description: Invalid webhook signature
+
+  # ── Admin ────────────────────────────────────────────
+  /api/v1/admin/system:
+    get:
+      operationId: getSystemInfo
+      tags: [Admin]
+      summary: Get system information (version, uptime, modules)
+      responses:
+        "200":
+          description: System info
+
+  /api/v1/admin/settings:
+    patch:
+      operationId: updateAdminSettings
+      tags: [Admin]
+      summary: Update global server settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Settings updated
+
+  /api/v1/admin/tenants:
+    get:
+      operationId: listTenants
+      tags: [Admin]
+      summary: List all tenants (super-admin only)
+      responses:
+        "200":
+          description: Tenant list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Tenant"
+
+  /api/v1/admin/api-keys:
+    get:
+      operationId: listApiKeys
+      tags: [Admin]
+      summary: List API keys
+      responses:
+        "200":
+          description: API key list
+    post:
+      operationId: createApiKey
+      tags: [Admin]
+      summary: Generate a new API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                expires_in_days:
+                  type: integer
+      responses:
+        "201":
+          description: API key created (shown once)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: string
+                    description: Full API key (only shown once)
+                  prefix:
+                    type: string
+                  name:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+
+  /api/v1/admin/api-keys/{prefix}:
+    delete:
+      operationId: deleteApiKey
+      tags: [Admin]
+      summary: Revoke an API key by prefix
+      parameters:
+        - name: prefix
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: API key revoked
+
+  /api/v1/admin/db/backup:
+    get:
+      operationId: getDbBackup
+      tags: [Admin]
+      summary: Download database backup snapshot
+      responses:
+        "200":
+          description: Database backup file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /api/v1/admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [Admin]
+      summary: Get aggregated admin statistics
+      responses:
+        "200":
+          description: Admin stats
+
+  /api/v1/admin/license:
+    get:
+      operationId: getLicense
+      tags: [Admin]
+      summary: Get current license information
+      responses:
+        "200":
+          description: License info
+    post:
+      operationId: uploadLicense
+      tags: [Admin]
+      summary: Upload a new license key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+      responses:
+        "200":
+          description: License activated
+
+  # ── Events & Search ──────────────────────────────────
+  /api/v1/events/stream:
+    get:
+      operationId: streamEvents
+      tags: [Search]
+      summary: Server-Sent Events stream for real-time updates
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: string
+          description: "Event type filter (e.g., app.*, deploy.*)"
+      responses:
+        "200":
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /api/v1/search:
+    get:
+      operationId: globalSearch
+      tags: [Search]
+      summary: Search across apps, domains, and deployments
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+
+  /api/v1/activity:
+    get:
+      operationId: getActivityFeed
+      tags: [Search]
+      summary: Get recent activity feed
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Activity feed
+
+  # ── Notifications ────────────────────────────────────
+  /api/v1/notifications/test:
+    post:
+      operationId: testNotification
+      tags: [Notifications]
+      summary: Send a test notification to verify channel configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel]
+              properties:
+                channel:
+                  type: string
+                  enum: [slack, discord, email, telegram, webhook]
+      responses:
+        "200":
+          description: Test notification sent
+
+  # ── Metrics ──────────────────────────────────────────
+  /metrics:
+    get:
+      operationId: getMetrics
+      tags: [Metrics]
+      summary: Prometheus metrics endpoint
+      security: []
+      responses:
+        "200":
+          description: Prometheus text format metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /metrics/api:
+    get:
+      operationId: getApiMetrics
+      tags: [Metrics]
+      summary: API-specific Prometheus metrics
+      responses:
+        "200":
+          description: API metrics in Prometheus format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # ── Projects ─────────────────────────────────────────
+  /api/v1/projects:
+    get:
+      operationId: listProjects
+      tags: [Apps]
+      summary: List all projects
+      responses:
+        "200":
+          description: Project list
+    post:
+      operationId: createProject
+      tags: [Apps]
+      summary: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Project created
+
+  /api/v1/projects/{id}:
+    get:
+      operationId: getProject
+      tags: [Apps]
+      summary: Get project details
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Project details
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteProject
+      tags: [Apps]
+      summary: Delete a project
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "204":
+          description: Project deleted
+
+  # ── MCP ──────────────────────────────────────────────
+  /mcp/v1/tools:
+    get:
+      operationId: listMCPTools
+      tags: [Admin]
+      summary: List available MCP tools
+      responses:
+        "200":
+          description: MCP tool list
+
+  /mcp/v1/tools/{name}:
+    post:
+      operationId: invokeMCPTool
+      tags: [Admin]
+      summary: Invoke an MCP tool
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Tool result
+
   # ── Dashboard ─────────────────────────────────────────
   /api/v1/dashboard/stats:
     get:
@@ -1071,6 +2026,114 @@ components:
           type: string
         refresh_token:
           type: string
+        token_type:
+          type: string
+          example: Bearer
         expires_in:
           type: integer
           description: Access token TTL in seconds
+
+    DatabaseEngine:
+      type: object
+      properties:
+        engine:
+          type: string
+          enum: [postgres, mysql, mariadb, redis, mongo]
+        versions:
+          type: array
+          items:
+            type: string
+        default_version:
+          type: string
+        default_port:
+          type: integer
+
+    Backup:
+      type: object
+      properties:
+        key:
+          type: string
+        app_id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        size:
+          type: integer
+        storage:
+          type: string
+          enum: [local, s3]
+        created_at:
+          type: string
+          format: date-time
+
+    Topology:
+      type: object
+      properties:
+        project_id:
+          type: string
+        environment:
+          type: string
+          enum: [development, staging, production]
+        apps:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              git_url:
+                type: string
+              branch:
+                type: string
+              build_pack:
+                type: string
+              port:
+                type: integer
+              replicas:
+                type: integer
+        databases:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              engine:
+                type: string
+              version:
+                type: string
+              size_gb:
+                type: integer
+        domains:
+          type: array
+          items:
+            type: object
+            properties:
+              fqdn:
+                type: string
+              ssl_enabled:
+                type: boolean
+        volumes:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              size_gb:
+                type: integer
+              mount_path:
+                type: string
+        connections:
+          type: array
+          items:
+            type: object
+            properties:
+              source:
+                type: string
+              target:
+                type: string
+              type:
+                type: string
+                enum: [dependency, connection, dns]

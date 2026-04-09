@@ -767,8 +767,12 @@ func TestS3Storage_Delete_Success(t *testing.T) {
 }
 
 func TestS3Storage_Delete_NetworkError(t *testing.T) {
+	// Use a closed server to guarantee connection refused on all platforms
+	closedSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	closedSrv.Close()
+
 	s := &S3Storage{
-		endpoint:  "http://127.0.0.1:1",
+		endpoint:  closedSrv.URL,
 		bucket:    "test",
 		pathStyle: true,
 		client:    &http.Client{Timeout: 100 * time.Millisecond},
