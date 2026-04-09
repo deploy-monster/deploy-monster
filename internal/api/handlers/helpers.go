@@ -78,6 +78,10 @@ func requireTenantApp(w http.ResponseWriter, r *http.Request, store core.Store) 
 	}
 
 	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "application id is required")
+		return nil
+	}
 	app, err := store.GetApp(r.Context(), id)
 	if err != nil {
 		if err == core.ErrNotFound {
@@ -205,6 +209,17 @@ var backgroundWG sync.WaitGroup
 // Should be called during graceful shutdown.
 func WaitForBackground() {
 	backgroundWG.Wait()
+}
+
+// requirePathParam extracts a path parameter and writes a 400 error if it is
+// empty. Returns the value and true on success, or ("", false) on failure.
+func requirePathParam(w http.ResponseWriter, r *http.Request, name string) (string, bool) {
+	v := r.PathValue(name)
+	if v == "" {
+		writeError(w, http.StatusBadRequest, name+" is required")
+		return "", false
+	}
+	return v, true
 }
 
 // safeGo launches a goroutine with panic recovery. If the goroutine panics,

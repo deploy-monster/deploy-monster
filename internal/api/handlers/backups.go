@@ -68,7 +68,10 @@ func (h *BackupHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Download handles GET /api/v1/backups/{key}/download
 func (h *BackupHandler) Download(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+	key, ok := requirePathParam(w, r, "key")
+	if !ok {
+		return
+	}
 	if h.storage == nil {
 		writeError(w, http.StatusServiceUnavailable, "backup storage not configured")
 		return

@@ -48,15 +48,15 @@ func TestWebhookLogList_EmptyAppID(t *testing.T) {
 	store.addApp(&core.Application{ID: "", TenantID: "t1", Name: "App"})
 	handler := NewWebhookLogHandler(store, newMockBoltStore())
 
-	// Even with no path value, the handler should return 200 with empty data.
+	// Empty app ID should be rejected with 400 (path param validation).
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps//webhooks/logs", nil)
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rr.Code)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 }
 

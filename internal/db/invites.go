@@ -28,7 +28,7 @@ func (s *SQLiteDB) ListInvitesByTenant(ctx context.Context, tenantID string) ([]
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, tenant_id, email, role_id, COALESCE(invited_by,''), token_hash,
 		        expires_at, accepted_at, status, created_at
-		 FROM invitations WHERE tenant_id = ? ORDER BY created_at DESC`, tenantID,
+		 FROM invitations WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1000`, tenantID,
 	)
 	if err != nil {
 		return nil, err

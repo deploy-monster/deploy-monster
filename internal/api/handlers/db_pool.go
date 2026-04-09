@@ -37,7 +37,10 @@ func defaultPoolConfig() PoolConfig {
 
 // Get handles GET /api/v1/databases/{id}/pool
 func (h *DBPoolHandler) Get(w http.ResponseWriter, r *http.Request) {
-	dbID := r.PathValue("id")
+	dbID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var cfg PoolConfig
 	if err := h.bolt.Get("dbpool", dbID, &cfg); err != nil {
@@ -51,7 +54,10 @@ func (h *DBPoolHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/databases/{id}/pool
 func (h *DBPoolHandler) Update(w http.ResponseWriter, r *http.Request) {
-	dbID := r.PathValue("id")
+	dbID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var cfg PoolConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {

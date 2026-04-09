@@ -89,7 +89,10 @@ func (h *DNSRecordHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /api/v1/dns/records/{id}?name=...
 func (h *DNSRecordHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	recordID := r.PathValue("id")
+	recordID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 	name := r.URL.Query().Get("name")
 	provider := r.URL.Query().Get("provider")
 	if provider == "" {

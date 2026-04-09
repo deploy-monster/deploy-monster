@@ -466,7 +466,7 @@ func (p *PostgresDB) ListAppsByProject(ctx context.Context, projectID string) ([
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
 		        status, replicas, created_at, updated_at
-		 FROM applications WHERE project_id = $1 ORDER BY name`,
+		 FROM applications WHERE project_id = $1 ORDER BY name LIMIT 1000`,
 		projectID,
 	)
 	if err != nil {
@@ -617,7 +617,7 @@ func (p *PostgresDB) GetDomainByFQDN(ctx context.Context, fqdn string) (*core.Do
 func (p *PostgresDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.Domain, error) {
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
-		 FROM domains WHERE app_id = $1 ORDER BY created_at`,
+		 FROM domains WHERE app_id = $1 ORDER BY created_at LIMIT 500`,
 		appID,
 	)
 	if err != nil {
@@ -654,7 +654,7 @@ func (p *PostgresDB) DeleteDomainsByApp(ctx context.Context, appID string) (int,
 func (p *PostgresDB) ListAllDomains(ctx context.Context) ([]core.Domain, error) {
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
-		 FROM domains ORDER BY created_at`,
+		 FROM domains ORDER BY created_at LIMIT 10000`,
 	)
 	if err != nil {
 		return nil, err
@@ -704,7 +704,7 @@ func (p *PostgresDB) GetProject(ctx context.Context, id string) (*core.Project, 
 func (p *PostgresDB) ListProjectsByTenant(ctx context.Context, tenantID string) ([]core.Project, error) {
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, tenant_id, name, description, environment, created_at, updated_at
-		 FROM projects WHERE tenant_id = $1 ORDER BY name`,
+		 FROM projects WHERE tenant_id = $1 ORDER BY name LIMIT 1000`,
 		tenantID,
 	)
 	if err != nil {
@@ -789,7 +789,7 @@ func (p *PostgresDB) GetUserMembership(ctx context.Context, userID string) (*cor
 func (p *PostgresDB) ListRoles(ctx context.Context, tenantID string) ([]core.Role, error) {
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, COALESCE(tenant_id,''), name, description, permissions_json, is_builtin, created_at
-		 FROM roles WHERE tenant_id = $1 OR is_builtin = TRUE ORDER BY is_builtin DESC, name`,
+		 FROM roles WHERE tenant_id = $1 OR is_builtin = TRUE ORDER BY is_builtin DESC, name LIMIT 500`,
 		tenantID,
 	)
 	if err != nil {
@@ -888,7 +888,7 @@ func (p *PostgresDB) ListSecretsByTenant(ctx context.Context, tenantID string) (
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, COALESCE(tenant_id,''), COALESCE(project_id,''), COALESCE(app_id,''),
 		        name, type, description, scope, current_version, created_at, updated_at
-		 FROM secrets WHERE tenant_id = $1 ORDER BY created_at DESC`, tenantID,
+		 FROM secrets WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 1000`, tenantID,
 	)
 	if err != nil {
 		return nil, err
@@ -929,7 +929,7 @@ func (p *PostgresDB) ListInvitesByTenant(ctx context.Context, tenantID string) (
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, tenant_id, email, role_id, COALESCE(invited_by,''), token_hash,
 		        expires_at, accepted_at, status, created_at
-		 FROM invitations WHERE tenant_id = $1 ORDER BY created_at DESC`, tenantID,
+		 FROM invitations WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 1000`, tenantID,
 	)
 	if err != nil {
 		return nil, err
@@ -1021,7 +1021,7 @@ func (p *PostgresDB) GetLatestSecretVersion(ctx context.Context, secretID string
 func (p *PostgresDB) ListAllSecretVersions(ctx context.Context) ([]core.SecretVersion, error) {
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, secret_id, version, value_enc, created_by, created_at
-		 FROM secret_versions ORDER BY secret_id, version`,
+		 FROM secret_versions ORDER BY secret_id, version LIMIT 10000`,
 	)
 	if err != nil {
 		return nil, err

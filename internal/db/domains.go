@@ -39,7 +39,7 @@ func (s *SQLiteDB) GetDomainByFQDN(ctx context.Context, fqdn string) (*core.Doma
 func (s *SQLiteDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.Domain, error) {
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
-		 FROM domains WHERE app_id = ? ORDER BY created_at`,
+		 FROM domains WHERE app_id = ? ORDER BY created_at LIMIT 500`,
 		appID,
 	)
 	if err != nil {
@@ -73,7 +73,7 @@ func (s *SQLiteDB) DeleteDomainsByApp(ctx context.Context, appID string) (int, e
 func (s *SQLiteDB) ListAllDomains(ctx context.Context) ([]core.Domain, error) {
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
-		 FROM domains ORDER BY created_at`,
+		 FROM domains ORDER BY created_at LIMIT 10000`,
 	)
 	if err != nil {
 		return nil, err

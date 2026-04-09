@@ -90,7 +90,7 @@ func (s *SQLiteDB) GetRole(ctx context.Context, roleID string) (*core.Role, erro
 func (s *SQLiteDB) ListRoles(ctx context.Context, tenantID string) ([]core.Role, error) {
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, COALESCE(tenant_id,''), name, description, permissions_json, is_builtin, created_at
-		 FROM roles WHERE tenant_id = ? OR is_builtin = 1 ORDER BY is_builtin DESC, name`,
+		 FROM roles WHERE tenant_id = ? OR is_builtin = 1 ORDER BY is_builtin DESC, name LIMIT 500`,
 		tenantID,
 	)
 	if err != nil {
@@ -142,7 +142,7 @@ func (s *SQLiteDB) GetProject(ctx context.Context, id string) (*core.Project, er
 func (s *SQLiteDB) ListProjectsByTenant(ctx context.Context, tenantID string) ([]core.Project, error) {
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, tenant_id, name, description, environment, created_at, updated_at
-		 FROM projects WHERE tenant_id = ? ORDER BY name`,
+		 FROM projects WHERE tenant_id = ? ORDER BY name LIMIT 1000`,
 		tenantID,
 	)
 	if err != nil {

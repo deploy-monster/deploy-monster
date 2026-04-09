@@ -44,7 +44,7 @@ func (s *SQLiteDB) ListSecretsByTenant(ctx context.Context, tenantID string) ([]
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, COALESCE(tenant_id,''), COALESCE(project_id,''), COALESCE(app_id,''),
                 name, type, description, scope, current_version, created_at, updated_at
-         FROM secrets WHERE tenant_id = ? ORDER BY created_at DESC`, tenantID,
+         FROM secrets WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1000`, tenantID,
 	)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (s *SQLiteDB) GetSecretByScopeAndName(ctx context.Context, scope, name stri
 func (s *SQLiteDB) ListAllSecretVersions(ctx context.Context) ([]core.SecretVersion, error) {
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, secret_id, version, value_enc, created_by, created_at
-         FROM secret_versions ORDER BY secret_id, version`,
+         FROM secret_versions ORDER BY secret_id, version LIMIT 10000`,
 	)
 	if err != nil {
 		return nil, err

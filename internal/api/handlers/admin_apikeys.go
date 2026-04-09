@@ -130,7 +130,10 @@ func (h *AdminAPIKeyHandler) CleanupExpiredKeys() int {
 
 // Revoke handles DELETE /api/v1/admin/api-keys/{prefix}
 func (h *AdminAPIKeyHandler) Revoke(w http.ResponseWriter, r *http.Request) {
-	prefix := r.PathValue("prefix")
+	prefix, ok := requirePathParam(w, r, "prefix")
+	if !ok {
+		return
+	}
 
 	// Delete the key record
 	_ = h.bolt.Delete("api_keys", prefix)
