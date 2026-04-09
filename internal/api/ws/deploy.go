@@ -158,14 +158,23 @@ func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID st
 	h.Register(projectID, conn)
 	defer h.Unregister(projectID, conn)
 
-	// Keep connection alive
+	// Keep connection alive with ping messages.
+	// done channel ensures the ping goroutine exits when the read loop ends.
+	done := make(chan struct{})
+	defer close(done)
+
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	go func() {
-		for range ticker.C {
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+		for {
+			select {
+			case <-done:
 				return
+			case <-ticker.C:
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					return
+				}
 			}
 		}
 	}()

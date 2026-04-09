@@ -211,3 +211,39 @@ func TestGetDeployHub_ReturnsSingleton(t *testing.T) {
 		t.Error("GetDeployHub should return the same instance")
 	}
 }
+
+func TestServeWS_CleansUpOnDisconnect(t *testing.T) {
+	hub := NewDeployHub()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hub.ServeWS(w, r, "proj-cleanup")
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+
+	// Verify the client was registered
+	time.Sleep(50 * time.Millisecond)
+	hub.mu.RLock()
+	count := len(hub.clients["proj-cleanup"])
+	hub.mu.RUnlock()
+	if count != 1 {
+		t.Fatalf("expected 1 client, got %d", count)
+	}
+
+	// Close the connection — triggers cleanup of both read loop and ping goroutine
+	conn.Close()
+
+	// Wait for cleanup
+	time.Sleep(100 * time.Millisecond)
+	hub.mu.RLock()
+	count = len(hub.clients["proj-cleanup"])
+	hub.mu.RUnlock()
+	if count != 0 {
+		t.Errorf("expected 0 clients after close, got %d", count)
+	}
+}
