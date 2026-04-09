@@ -39,6 +39,7 @@ func TestAppUpdate_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/apps/app1", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -79,6 +80,7 @@ func TestAppUpdate_PartialUpdate(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:       "app1",
+		TenantID: "tenant1",
 		Name:     "Original",
 		Branch:   "main",
 		Replicas: 1,
@@ -92,6 +94,7 @@ func TestAppUpdate_PartialUpdate(t *testing.T) {
 	body, _ := json.Marshal(updateAppRequest{Branch: "staging"})
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/apps/app1", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -122,6 +125,7 @@ func TestAppUpdate_AppNotFound(t *testing.T) {
 	body, _ := json.Marshal(updateAppRequest{Name: "New Name"})
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/apps/nonexistent", bytes.NewReader(body))
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -129,18 +133,19 @@ func TestAppUpdate_AppNotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "app not found")
+	assertErrorMessage(t, rr, "application not found")
 }
 
 func TestAppUpdate_InvalidJSON(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "App", Status: "running"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "App", Status: "running"})
 
 	c := testCore()
 	handler := NewAppHandler(store, c)
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/apps/app1", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -153,7 +158,7 @@ func TestAppUpdate_InvalidJSON(t *testing.T) {
 
 func TestAppUpdate_StoreError(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "App", Status: "running"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "App", Status: "running"})
 	store.errUpdateApp = errors.New("db error")
 
 	c := testCore()
@@ -162,6 +167,7 @@ func TestAppUpdate_StoreError(t *testing.T) {
 	body, _ := json.Marshal(updateAppRequest{Name: "New"})
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/apps/app1", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -182,6 +188,7 @@ func TestAppUpdate_GetAppStoreError(t *testing.T) {
 	body, _ := json.Marshal(updateAppRequest{Name: "New"})
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/apps/app1", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)

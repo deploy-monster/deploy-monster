@@ -17,6 +17,7 @@ func TestScale_Success(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:       "app1",
+		TenantID: "tenant1",
 		Name:     "Web App",
 		Replicas: 1,
 		Status:   "running",
@@ -28,6 +29,7 @@ func TestScale_Success(t *testing.T) {
 	body, _ := json.Marshal(scaleRequest{Replicas: 5})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/scale", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Scale(rr, req)
@@ -62,6 +64,7 @@ func TestScale_ScaleToZero(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:       "app1",
+		TenantID: "tenant1",
 		Name:     "Idle App",
 		Replicas: 3,
 		Status:   "running",
@@ -72,6 +75,7 @@ func TestScale_ScaleToZero(t *testing.T) {
 	body, _ := json.Marshal(scaleRequest{Replicas: 0})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/scale", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Scale(rr, req)
@@ -90,10 +94,12 @@ func TestScale_ScaleToZero(t *testing.T) {
 
 func TestScale_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewScaleHandler(store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/scale", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Scale(rr, req)
@@ -106,11 +112,13 @@ func TestScale_InvalidJSON(t *testing.T) {
 
 func TestScale_NegativeReplicas(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewScaleHandler(store, testCore().Events)
 
 	body, _ := json.Marshal(scaleRequest{Replicas: -1})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/scale", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Scale(rr, req)
@@ -123,11 +131,13 @@ func TestScale_NegativeReplicas(t *testing.T) {
 
 func TestScale_TooManyReplicas(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewScaleHandler(store, testCore().Events)
 
 	body, _ := json.Marshal(scaleRequest{Replicas: 101})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/scale", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Scale(rr, req)
@@ -140,13 +150,14 @@ func TestScale_TooManyReplicas(t *testing.T) {
 
 func TestScale_MaxReplicas(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "Big App", Replicas: 1, Status: "running"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Big App", Replicas: 1, Status: "running"})
 
 	handler := NewScaleHandler(store, testCore().Events)
 
 	body, _ := json.Marshal(scaleRequest{Replicas: 100})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/scale", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Scale(rr, req)
@@ -163,6 +174,7 @@ func TestScale_AppNotFound(t *testing.T) {
 	body, _ := json.Marshal(scaleRequest{Replicas: 3})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/nonexistent/scale", bytes.NewReader(body))
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Scale(rr, req)
@@ -170,12 +182,12 @@ func TestScale_AppNotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "app not found")
+	assertErrorMessage(t, rr, "application not found")
 }
 
 func TestScale_UpdateError(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "Fail App", Replicas: 1, Status: "running"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Fail App", Replicas: 1, Status: "running"})
 	store.errUpdateApp = errors.New("db error")
 
 	handler := NewScaleHandler(store, testCore().Events)
@@ -183,6 +195,7 @@ func TestScale_UpdateError(t *testing.T) {
 	body, _ := json.Marshal(scaleRequest{Replicas: 5})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/scale", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Scale(rr, req)

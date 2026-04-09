@@ -15,6 +15,7 @@ import (
 
 func TestListDeploymentsByApp_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	now := time.Now()
 	store.addDeployment("app1", core.Deployment{
 		ID:        "dep1",
@@ -37,6 +38,7 @@ func TestListDeploymentsByApp_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.ListByApp(rr, req)
@@ -61,10 +63,12 @@ func TestListDeploymentsByApp_Success(t *testing.T) {
 
 func TestListDeploymentsByApp_Empty(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewDeploymentHandler(store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.ListByApp(rr, req)
@@ -84,12 +88,14 @@ func TestListDeploymentsByApp_Empty(t *testing.T) {
 
 func TestListDeploymentsByApp_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	store.errListDeploymentsByApp = errors.New("db error")
 
 	handler := NewDeploymentHandler(store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.ListByApp(rr, req)
@@ -103,6 +109,7 @@ func TestListDeploymentsByApp_StoreError(t *testing.T) {
 
 func TestGetLatestDeployment_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	now := time.Now()
 	store.latestDeployments["app1"] = &core.Deployment{
 		ID:        "dep-latest",
@@ -117,6 +124,7 @@ func TestGetLatestDeployment_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments/latest", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.GetLatest(rr, req)
@@ -141,10 +149,12 @@ func TestGetLatestDeployment_Success(t *testing.T) {
 
 func TestGetLatestDeployment_NotFound(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewDeploymentHandler(store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments/latest", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.GetLatest(rr, req)
@@ -157,12 +167,14 @@ func TestGetLatestDeployment_NotFound(t *testing.T) {
 
 func TestGetLatestDeployment_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	store.errGetLatestDeployment = errors.New("db error")
 
 	handler := NewDeploymentHandler(store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments/latest", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.GetLatest(rr, req)

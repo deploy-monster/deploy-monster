@@ -30,7 +30,11 @@ type commitRollbackRequest struct {
 // RollbackToCommit handles POST /api/v1/apps/{id}/rollback-to-commit
 // Finds the deployment that matches the commit and redeploys it.
 func (h *CommitRollbackHandler) RollbackToCommit(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	tApp := requireTenantApp(w, r, h.store)
+	if tApp == nil {
+		return
+	}
+	appID := tApp.ID
 
 	var req commitRollbackRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

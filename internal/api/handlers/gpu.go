@@ -37,11 +37,14 @@ type gpuDetection struct {
 
 // Get handles GET /api/v1/apps/{id}/gpu
 func (h *GPUHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	// Try to load stored GPU config for this app
 	var cfg GPUConfig
-	if err := h.bolt.Get("gpu_config", appID, &cfg); err != nil {
+	if err := h.bolt.Get("gpu_config", app.ID, &cfg); err != nil {
 		cfg = GPUConfig{
 			Enabled:      false,
 			Capabilities: []string{"compute", "utility"},
@@ -60,7 +63,11 @@ func (h *GPUHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/gpu
 func (h *GPUHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var cfg GPUConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {

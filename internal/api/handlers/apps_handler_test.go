@@ -325,6 +325,7 @@ func TestGetApp_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -351,6 +352,7 @@ func TestGetApp_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/nonexistent", nil)
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -370,6 +372,7 @@ func TestGetApp_StoreError(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -383,13 +386,14 @@ func TestGetApp_StoreError(t *testing.T) {
 
 func TestDeleteApp_Success(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "Doomed"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Doomed"})
 
 	c := testCore()
 	handler := NewAppHandler(store, c)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app1", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Delete(rr, req)
@@ -405,6 +409,7 @@ func TestDeleteApp_Success(t *testing.T) {
 
 func TestDeleteApp_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test"})
 	store.errDeleteApp = errors.New("constraint violation")
 
 	c := testCore()
@@ -412,6 +417,7 @@ func TestDeleteApp_StoreError(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app1", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Delete(rr, req)
@@ -425,11 +431,13 @@ func TestDeleteApp_StoreError(t *testing.T) {
 
 func TestRestart_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	c := testCore()
 	handler := NewAppHandler(store, c)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/restart", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Restart(rr, req)
@@ -451,6 +459,7 @@ func TestRestart_Success(t *testing.T) {
 
 func TestRestart_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	store.errUpdateAppStatus = errors.New("db error")
 
 	c := testCore()
@@ -458,6 +467,7 @@ func TestRestart_StoreError(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/restart", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Restart(rr, req)
@@ -469,11 +479,13 @@ func TestRestart_StoreError(t *testing.T) {
 
 func TestStop_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	c := testCore()
 	handler := NewAppHandler(store, c)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/stop", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Stop(rr, req)
@@ -495,6 +507,7 @@ func TestStop_Success(t *testing.T) {
 
 func TestStop_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	store.errUpdateAppStatus = errors.New("db error")
 
 	c := testCore()
@@ -502,6 +515,7 @@ func TestStop_StoreError(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/stop", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Stop(rr, req)
@@ -513,11 +527,13 @@ func TestStop_StoreError(t *testing.T) {
 
 func TestStart_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "stopped"})
 	c := testCore()
 	handler := NewAppHandler(store, c)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/start", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Start(rr, req)
@@ -539,6 +555,7 @@ func TestStart_Success(t *testing.T) {
 
 func TestStart_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "stopped"})
 	store.errUpdateAppStatus = errors.New("db error")
 
 	c := testCore()
@@ -546,6 +563,7 @@ func TestStart_StoreError(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/start", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Start(rr, req)
@@ -580,6 +598,7 @@ func TestCreateThenGet_Integration(t *testing.T) {
 	// Get
 	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/apps/"+created.ID, nil)
 	getReq.SetPathValue("id", created.ID)
+	getReq = withClaims(getReq, "user1", "tenant1", "role_owner", "user@example.com")
 	getRR := httptest.NewRecorder()
 
 	handler.Get(getRR, getReq)
@@ -622,6 +641,7 @@ func TestCreateDeleteGet_Integration(t *testing.T) {
 	// Delete
 	delReq := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/"+created.ID, nil)
 	delReq.SetPathValue("id", created.ID)
+	delReq = withClaims(delReq, "user1", "tenant1", "role_owner", "user@example.com")
 	delRR := httptest.NewRecorder()
 	handler.Delete(delRR, delReq)
 
@@ -632,6 +652,7 @@ func TestCreateDeleteGet_Integration(t *testing.T) {
 	// Get should now 404
 	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/apps/"+created.ID, nil)
 	getReq.SetPathValue("id", created.ID)
+	getReq = withClaims(getReq, "user1", "tenant1", "role_owner", "user@example.com")
 	getRR := httptest.NewRecorder()
 	handler.Get(getRR, getReq)
 

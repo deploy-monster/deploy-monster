@@ -336,7 +336,9 @@ func TestPinHandler_Pin_NoClaims(t *testing.T) {
 
 func TestPinHandler_Pin_NewPin(t *testing.T) {
 	bolt := newMockBoltStore()
-	h := NewPinHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "Test", Status: "running"})
+	h := NewPinHandler(store, bolt)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/pin", nil)
 	req.SetPathValue("id", "app-1")
@@ -357,7 +359,9 @@ func TestPinHandler_Pin_NewPin(t *testing.T) {
 func TestPinHandler_Pin_AlreadyPinned(t *testing.T) {
 	bolt := newMockBoltStore()
 	bolt.Set("app_pins", "u1", pinnedApps{AppIDs: []string{"app-1"}}, 0)
-	h := NewPinHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "Test", Status: "running"})
+	h := NewPinHandler(store, bolt)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/pin", nil)
 	req.SetPathValue("id", "app-1")
@@ -383,7 +387,9 @@ func TestPinHandler_Unpin_NoClaims(t *testing.T) {
 }
 
 func TestPinHandler_Unpin_NoPins(t *testing.T) {
-	h := NewPinHandler(newMockStore(), newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "Test", Status: "running"})
+	h := NewPinHandler(store, newMockBoltStore())
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/pin", nil)
 	req.SetPathValue("id", "app-1")
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
@@ -398,7 +404,9 @@ func TestPinHandler_Unpin_NoPins(t *testing.T) {
 func TestPinHandler_Unpin_ExistingPin(t *testing.T) {
 	bolt := newMockBoltStore()
 	bolt.Set("app_pins", "u1", pinnedApps{AppIDs: []string{"app-1", "app-2"}}, 0)
-	h := NewPinHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "Test", Status: "running"})
+	h := NewPinHandler(store, bolt)
 
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/pin", nil)
 	req.SetPathValue("id", "app-1")
@@ -645,9 +653,12 @@ func TestContainerHistoryHandler_History_WithStoredMetrics(t *testing.T) {
 		},
 	}, 0)
 
-	h := NewContainerHistoryHandler(nil, bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewContainerHistoryHandler(store, nil, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/containers/history?period=1h", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.History(rr, req)
 
@@ -671,9 +682,12 @@ func TestContainerHistoryHandler_History_Period24h(t *testing.T) {
 		},
 	}, 0)
 
-	h := NewContainerHistoryHandler(nil, bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewContainerHistoryHandler(store, nil, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/containers/history?period=24h", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.History(rr, req)
 
@@ -693,9 +707,12 @@ func TestContainerHistoryHandler_History_Period7d(t *testing.T) {
 		},
 	}, 0)
 
-	h := NewContainerHistoryHandler(nil, bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewContainerHistoryHandler(store, nil, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/containers/history?period=7d", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.History(rr, req)
 
@@ -707,9 +724,12 @@ func TestContainerHistoryHandler_History_Period7d(t *testing.T) {
 }
 
 func TestContainerHistoryHandler_History_EmptyMetrics_24h(t *testing.T) {
-	h := NewContainerHistoryHandler(nil, newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewContainerHistoryHandler(store, nil, newMockBoltStore())
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/containers/history?period=24h", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.History(rr, req)
 
@@ -721,9 +741,12 @@ func TestContainerHistoryHandler_History_EmptyMetrics_24h(t *testing.T) {
 }
 
 func TestContainerHistoryHandler_History_EmptyMetrics_7d(t *testing.T) {
-	h := NewContainerHistoryHandler(nil, newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewContainerHistoryHandler(store, nil, newMockBoltStore())
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/containers/history?period=7d", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.History(rr, req)
 
@@ -735,9 +758,12 @@ func TestContainerHistoryHandler_History_EmptyMetrics_7d(t *testing.T) {
 }
 
 func TestContainerHistoryHandler_History_NilBolt(t *testing.T) {
-	h := NewContainerHistoryHandler(nil, nil)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewContainerHistoryHandler(store, nil, nil)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/containers/history", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.History(rr, req)
 
@@ -755,9 +781,12 @@ func TestAppMiddlewareHandler_Get_Stored(t *testing.T) {
 	cfg := MiddlewareConfig{Compress: false, Headers: map[string]string{"X-Custom": "val"}}
 	bolt.Set("app_middleware", "app-1", cfg, 0)
 
-	h := NewAppMiddlewareHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewAppMiddlewareHandler(store, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/middleware", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -773,11 +802,14 @@ func TestAppMiddlewareHandler_Get_Stored(t *testing.T) {
 
 func TestAppMiddlewareHandler_Update_Success(t *testing.T) {
 	bolt := newMockBoltStore()
-	h := NewAppMiddlewareHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewAppMiddlewareHandler(store, bolt)
 
 	body := `{"compress":true,"headers":{"X-Frame-Options":"DENY"}}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/middleware", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -795,9 +827,12 @@ func TestAutoscaleHandler_Get_Stored(t *testing.T) {
 	cfg := AutoscaleConfig{Enabled: true, MinReplicas: 2, MaxReplicas: 8}
 	bolt.Set("autoscale", "app-1", cfg, 0)
 
-	h := NewAutoscaleHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewAutoscaleHandler(store, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/autoscale", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -810,12 +845,15 @@ func TestAutoscaleHandler_Get_Stored(t *testing.T) {
 
 func TestAutoscaleHandler_Update_MinMaxCorrection(t *testing.T) {
 	bolt := newMockBoltStore()
-	h := NewAutoscaleHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewAutoscaleHandler(store, bolt)
 
 	// min=0 should be corrected to 1, max=0 should be corrected to min
 	body := `{"enabled":true,"min_replicas":0,"max_replicas":0}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/autoscale", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -833,9 +871,12 @@ func TestBasicAuthHandler_Get_Stored(t *testing.T) {
 	cfg := BasicAuthConfig{Enabled: true, Realm: "Admin", Users: map[string]string{"admin": "hash123"}}
 	bolt.Set("basic_auth", "app-1", cfg, 0)
 
-	h := NewBasicAuthHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewBasicAuthHandler(store, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/basic-auth", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -848,11 +889,14 @@ func TestBasicAuthHandler_Get_Stored(t *testing.T) {
 
 func TestBasicAuthHandler_Update_DefaultRealm(t *testing.T) {
 	bolt := newMockBoltStore()
-	h := NewBasicAuthHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewBasicAuthHandler(store, bolt)
 
 	body := `{"enabled":true,"realm":"","users":{"admin":"hash"}}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/basic-auth", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -1093,9 +1137,12 @@ func TestCronJobHandler_List_WithJobs(t *testing.T) {
 		Jobs: []CronJobConfig{{ID: "j1", Name: "cleanup", Schedule: "0 0 * * *", Command: "/bin/clean", Enabled: true}},
 	}, 0)
 
-	h := NewCronJobHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewCronJobHandler(store, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/cron", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 
@@ -1115,10 +1162,13 @@ func TestCronJobHandler_Delete_WithExisting(t *testing.T) {
 		},
 	}, 0)
 
-	h := NewCronJobHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewCronJobHandler(store, bolt)
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/cron/j1", nil)
 	req.SetPathValue("id", "app-1")
 	req.SetPathValue("jobId", "j1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 
@@ -1134,10 +1184,13 @@ func TestCronJobHandler_Delete_WithExisting(t *testing.T) {
 }
 
 func TestCronJobHandler_Delete_NoExisting(t *testing.T) {
-	h := NewCronJobHandler(newMockStore(), newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewCronJobHandler(store, newMockBoltStore())
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/cron/j1", nil)
 	req.SetPathValue("id", "app-1")
 	req.SetPathValue("jobId", "j1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 
@@ -1159,10 +1212,13 @@ func TestDeployScheduleHandler_CancelScheduled_WithExisting(t *testing.T) {
 		},
 	}, 0)
 
-	h := NewDeployScheduleHandler(newMockStore(), core.NewEventBus(slog.Default()), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewDeployScheduleHandler(store, core.NewEventBus(slog.Default()), bolt)
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/deploy/scheduled/sd1", nil)
 	req.SetPathValue("id", "app-1")
 	req.SetPathValue("scheduleId", "sd1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.CancelScheduled(rr, req)
 
@@ -1180,10 +1236,13 @@ func TestDeployScheduleHandler_CancelScheduled_WithExisting(t *testing.T) {
 }
 
 func TestDeployScheduleHandler_CancelScheduled_NoExisting(t *testing.T) {
-	h := NewDeployScheduleHandler(newMockStore(), core.NewEventBus(slog.Default()), newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewDeployScheduleHandler(store, core.NewEventBus(slog.Default()), newMockBoltStore())
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/deploy/scheduled/sd1", nil)
 	req.SetPathValue("id", "app-1")
 	req.SetPathValue("scheduleId", "sd1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.CancelScheduled(rr, req)
 
@@ -1305,9 +1364,12 @@ func TestDeployNotifyHandler_Get_Stored(t *testing.T) {
 		OnSuccess: []NotifyTarget{{Channel: "slack", Recipient: "#deploys"}},
 	}, 0)
 
-	h := NewDeployNotifyHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewDeployNotifyHandler(store, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/deploy-notifications", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -1320,11 +1382,14 @@ func TestDeployNotifyHandler_Get_Stored(t *testing.T) {
 
 func TestDeployNotifyHandler_Update_Success(t *testing.T) {
 	bolt := newMockBoltStore()
-	h := NewDeployNotifyHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewDeployNotifyHandler(store, bolt)
 
 	body := `{"on_success":[{"channel":"discord","recipient":"#ops"}],"on_failure":[{"channel":"email","recipient":"admin@x.com"}]}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/deploy-notifications", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -1487,9 +1552,12 @@ func TestMetricsHistoryHandler_AppMetrics_StoredData(t *testing.T) {
 		Points: []MetricsPoint{{Timestamp: time.Now(), CPUPercent: 45.0, MemoryMB: 512}},
 	}, 0)
 
-	h := NewMetricsHistoryHandler(newMockStore(), nil, bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewMetricsHistoryHandler(store, nil, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/metrics?period=24h", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.AppMetrics(rr, req)
 
@@ -1504,9 +1572,12 @@ func TestMetricsHistoryHandler_AppMetrics_RuntimeFallback(t *testing.T) {
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{{ID: "c1", Name: "app-1"}},
 	}
-	h := NewMetricsHistoryHandler(newMockStore(), runtime, newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewMetricsHistoryHandler(store, runtime, newMockBoltStore())
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/metrics", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.AppMetrics(rr, req)
 
@@ -1516,9 +1587,12 @@ func TestMetricsHistoryHandler_AppMetrics_RuntimeFallback(t *testing.T) {
 }
 
 func TestMetricsHistoryHandler_AppMetrics_NilRuntime(t *testing.T) {
-	h := NewMetricsHistoryHandler(newMockStore(), nil, newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/metrics", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.AppMetrics(rr, req)
 
@@ -1535,7 +1609,7 @@ func TestMetricsHistoryHandler_AppMetrics_NilRuntime(t *testing.T) {
 
 func TestExecHandler_Exec_WithArgs(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "test"})
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{{ID: "c1", Name: "test"}},
 	}
@@ -1544,6 +1618,7 @@ func TestExecHandler_Exec_WithArgs(t *testing.T) {
 	body := `{"command":"ls","args":["-la","/tmp"]}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Exec(rr, req)
 
@@ -1554,13 +1629,14 @@ func TestExecHandler_Exec_WithArgs(t *testing.T) {
 
 func TestExecHandler_Exec_NoContainers(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "test"})
 	runtime := &mockContainerRuntime{containers: nil}
 	h := NewExecHandler(runtime, store, slog.Default(), nil)
 
 	body := `{"command":"echo hello"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Exec(rr, req)
 
@@ -1571,13 +1647,14 @@ func TestExecHandler_Exec_NoContainers(t *testing.T) {
 
 func TestExecHandler_Exec_ListError(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "test"})
 	runtime := &mockContainerRuntime{listErr: io.EOF}
 	h := NewExecHandler(runtime, store, slog.Default(), nil)
 
 	body := `{"command":"echo hello"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Exec(rr, req)
 
@@ -1594,6 +1671,7 @@ func TestExecHandler_Exec_AppNotFound(t *testing.T) {
 	body := `{"command":"echo hello"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/no-app/exec", strings.NewReader(body))
 	req.SetPathValue("id", "no-app")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Exec(rr, req)
 
@@ -1616,9 +1694,12 @@ func TestDeployScheduleHandler_ListScheduled_WithItems(t *testing.T) {
 		},
 	}, 0)
 
-	h := NewDeployScheduleHandler(newMockStore(), core.NewEventBus(slog.Default()), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewDeployScheduleHandler(store, core.NewEventBus(slog.Default()), bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/deploy/scheduled", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.ListScheduled(rr, req)
 
@@ -1639,9 +1720,12 @@ func TestGPUHandler_Get_WithNvidiaImages(t *testing.T) {
 			{ID: "img1", Tags: []string{"nvidia/cuda:12.0-runtime"}},
 		},
 	}
-	h := NewGPUHandler(newMockStore(), runtime, newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewGPUHandler(store, runtime, newMockBoltStore())
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/gpu", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -1743,10 +1827,13 @@ func (m *errorBoltStore) Set(_, _ string, _ any, _ int64) error {
 }
 
 func TestAppMiddlewareHandler_Update_BoltError(t *testing.T) {
-	h := NewAppMiddlewareHandler(newMockStore(), newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewAppMiddlewareHandler(store, newErrorBoltStore())
 	body := `{"compress":true}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/middleware", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -1755,10 +1842,13 @@ func TestAppMiddlewareHandler_Update_BoltError(t *testing.T) {
 }
 
 func TestAutoscaleHandler_Update_BoltError(t *testing.T) {
-	h := NewAutoscaleHandler(newMockStore(), newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewAutoscaleHandler(store, newErrorBoltStore())
 	body := `{"enabled":true,"min_replicas":1,"max_replicas":5}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/autoscale", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -1767,10 +1857,13 @@ func TestAutoscaleHandler_Update_BoltError(t *testing.T) {
 }
 
 func TestBasicAuthHandler_Update_BoltError(t *testing.T) {
-	h := NewBasicAuthHandler(newMockStore(), newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewBasicAuthHandler(store, newErrorBoltStore())
 	body := `{"enabled":true,"realm":"X","users":{"a":"b"}}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/basic-auth", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -1779,10 +1872,13 @@ func TestBasicAuthHandler_Update_BoltError(t *testing.T) {
 }
 
 func TestDeployNotifyHandler_Update_BoltError(t *testing.T) {
-	h := NewDeployNotifyHandler(newMockStore(), newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewDeployNotifyHandler(store, newErrorBoltStore())
 	body := `{"on_success":[]}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/deploy-notifications", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -1803,7 +1899,9 @@ func TestDBPoolHandler_Update_BoltError(t *testing.T) {
 }
 
 func TestPinHandler_Pin_BoltError(t *testing.T) {
-	h := NewPinHandler(newMockStore(), newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "Test", Status: "running"})
+	h := NewPinHandler(store, newErrorBoltStore())
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/pin", nil)
 	req.SetPathValue("id", "app-1")
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
@@ -1818,7 +1916,9 @@ func TestPinHandler_Unpin_BoltError(t *testing.T) {
 	eb := newErrorBoltStore()
 	// Seed data so the Get succeeds but Set fails
 	eb.mockBoltStore.Set("app_pins", "u1", pinnedApps{AppIDs: []string{"app-1"}}, 0)
-	h := NewPinHandler(newMockStore(), eb)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewPinHandler(store, eb)
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/pin", nil)
 	req.SetPathValue("id", "app-1")
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
@@ -1830,10 +1930,13 @@ func TestPinHandler_Unpin_BoltError(t *testing.T) {
 }
 
 func TestCronJobHandler_Create_BoltError(t *testing.T) {
-	h := NewCronJobHandler(newMockStore(), newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewCronJobHandler(store, newErrorBoltStore())
 	body := `{"schedule":"* * * * *","command":"echo hi"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/cron", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Create(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -1844,10 +1947,13 @@ func TestCronJobHandler_Create_BoltError(t *testing.T) {
 func TestCronJobHandler_Delete_BoltError(t *testing.T) {
 	eb := newErrorBoltStore()
 	eb.mockBoltStore.Set("cronjobs", "app-1", cronJobList{Jobs: []CronJobConfig{{ID: "j1"}}}, 0)
-	h := NewCronJobHandler(newMockStore(), eb)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewCronJobHandler(store, eb)
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/cron/j1", nil)
 	req.SetPathValue("id", "app-1")
 	req.SetPathValue("jobId", "j1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -1885,6 +1991,7 @@ func TestDeployTriggerHandler_ImageDeploy(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/deploy", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.TriggerDeploy(rr, req)
 
@@ -1899,6 +2006,7 @@ func TestDeployTriggerHandler_AppNotFound(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/nope/deploy", nil)
 	req.SetPathValue("id", "nope")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.TriggerDeploy(rr, req)
 
@@ -1920,6 +2028,7 @@ func TestDeployTriggerHandler_GitDeploy(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-2/deploy", nil)
 	req.SetPathValue("id", "app-2")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.TriggerDeploy(rr, req)
 
@@ -1935,9 +2044,12 @@ func TestDeployTriggerHandler_GitDeploy(t *testing.T) {
 func TestErrorPageHandler_Get_Stored(t *testing.T) {
 	bolt := newMockBoltStore()
 	bolt.Set("error_pages", "app-1", ErrorPageConfig{Page502: "<h1>Bad Gateway</h1>"}, 0)
-	h := NewErrorPageHandler(bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewErrorPageHandler(store, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/error-pages", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -1949,10 +2061,13 @@ func TestErrorPageHandler_Get_Stored(t *testing.T) {
 }
 
 func TestErrorPageHandler_Update_Success(t *testing.T) {
-	h := NewErrorPageHandler(newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewErrorPageHandler(store, newMockBoltStore())
 	body := `{"page_502":"<h1>Down</h1>","page_503":"<h1>Maintenance</h1>"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/error-pages", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -1962,10 +2077,13 @@ func TestErrorPageHandler_Update_Success(t *testing.T) {
 }
 
 func TestErrorPageHandler_Update_BoltError(t *testing.T) {
-	h := NewErrorPageHandler(newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewErrorPageHandler(store, newErrorBoltStore())
 	body := `{"page_502":"<h1>Down</h1>"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/error-pages", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -1980,11 +2098,14 @@ func TestErrorPageHandler_Update_BoltError(t *testing.T) {
 
 func TestDeployScheduleHandler_Schedule_BoltError(t *testing.T) {
 	eb := newErrorBoltStore()
-	h := NewDeployScheduleHandler(newMockStore(), core.NewEventBus(slog.Default()), eb)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewDeployScheduleHandler(store, core.NewEventBus(slog.Default()), eb)
 	futureTime := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 	body := `{"scheduled_at":"` + futureTime + `","image":"nginx:latest"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/deploy/schedule", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Schedule(rr, req)
 
@@ -2015,10 +2136,13 @@ func TestDeployFreezeHandler_Create_BoltError(t *testing.T) {
 // =============================================================================
 
 func TestGPUHandler_Update_BoltError(t *testing.T) {
-	h := NewGPUHandler(newMockStore(), nil, newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewGPUHandler(store, nil, newErrorBoltStore())
 	body := `{"enabled":true,"driver":"nvidia"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/gpu", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -2027,10 +2151,13 @@ func TestGPUHandler_Update_BoltError(t *testing.T) {
 }
 
 func TestLogRetentionHandler_Update_BoltError(t *testing.T) {
-	h := NewLogRetentionHandler(newMockStore(), newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewLogRetentionHandler(store, newErrorBoltStore())
 	body := `{"days":30}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -2041,9 +2168,12 @@ func TestLogRetentionHandler_Update_BoltError(t *testing.T) {
 func TestLogRetentionHandler_Get_Stored(t *testing.T) {
 	bolt := newMockBoltStore()
 	bolt.Set("log_retention", "app-1", map[string]int{"days": 14}, 0)
-	h := NewLogRetentionHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewLogRetentionHandler(store, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/log-retention", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 	if rr.Code != http.StatusOK {
@@ -2054,9 +2184,12 @@ func TestLogRetentionHandler_Get_Stored(t *testing.T) {
 func TestMaintenanceHandler_Get_Stored(t *testing.T) {
 	bolt := newMockBoltStore()
 	bolt.Set("maintenance", "app-1", map[string]bool{"enabled": true}, 0)
-	h := NewMaintenanceHandler(newMockStore(), core.NewEventBus(slog.Default()), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewMaintenanceHandler(store, core.NewEventBus(slog.Default()), bolt)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/maintenance", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 	if rr.Code != http.StatusOK {
@@ -2065,10 +2198,13 @@ func TestMaintenanceHandler_Get_Stored(t *testing.T) {
 }
 
 func TestMaintenanceHandler_Update_BoltError(t *testing.T) {
-	h := NewMaintenanceHandler(newMockStore(), core.NewEventBus(slog.Default()), newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewMaintenanceHandler(store, core.NewEventBus(slog.Default()), newErrorBoltStore())
 	body := `{"enabled":true}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/maintenance", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -2077,10 +2213,13 @@ func TestMaintenanceHandler_Update_BoltError(t *testing.T) {
 }
 
 func TestStickySessionHandler_Update_BoltError(t *testing.T) {
-	h := NewStickySessionHandler(newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewStickySessionHandler(store, newErrorBoltStore())
 	body := `{"enabled":true,"cookie_name":"MONSTERSESSION"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/sticky-sessions", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -2090,12 +2229,13 @@ func TestStickySessionHandler_Update_BoltError(t *testing.T) {
 
 func TestLabelsHandler_Update_StoreError(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
 	store.errUpdateApp = io.EOF
 	h := NewLabelsHandler(store)
 	body := `{"env":"production"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/labels", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -2117,10 +2257,13 @@ func TestTenantRateLimitHandler_Update_BoltError(t *testing.T) {
 }
 
 func TestServiceMeshHandler_Create_BoltError(t *testing.T) {
-	h := NewServiceMeshHandler(newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-a", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewServiceMeshHandler(store, newErrorBoltStore())
 	body := `{"target_app_id":"app-b","port":8080}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-a/mesh/links", strings.NewReader(body))
 	req.SetPathValue("id", "app-a")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Create(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -2129,10 +2272,13 @@ func TestServiceMeshHandler_Create_BoltError(t *testing.T) {
 }
 
 func TestRedirectHandler_Create_BoltError(t *testing.T) {
-	h := NewRedirectHandler(newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewRedirectHandler(store, newErrorBoltStore())
 	body := `{"source":"/old","destination":"/new","status_code":301}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/redirects", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Create(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -2176,10 +2322,13 @@ func TestAdminAPIKeyHandler_Generate_BoltSetError(t *testing.T) {
 // =============================================================================
 
 func TestResponseHeadersHandler_Update_BoltError(t *testing.T) {
-	h := NewResponseHeadersHandler(newErrorBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewResponseHeadersHandler(store, newErrorBoltStore())
 	body := `{"hsts":"max-age=31536000"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/response-headers", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -2188,10 +2337,13 @@ func TestResponseHeadersHandler_Update_BoltError(t *testing.T) {
 }
 
 func TestResponseHeadersHandler_Update_SuccessCustom(t *testing.T) {
-	h := NewResponseHeadersHandler(newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewResponseHeadersHandler(store, newMockBoltStore())
 	body := `{"hsts":"max-age=31536000","csp":"default-src 'self'"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/response-headers", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusOK {
@@ -2207,9 +2359,12 @@ func TestMetricsExportHandler_Export_CSV(t *testing.T) {
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{{ID: "c1", Name: "app-1"}},
 	}
-	h := NewMetricsExportHandler(newMockBoltStore(), runtime)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-12345", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewMetricsExportHandler(store, newMockBoltStore(), runtime)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-12345/metrics/export?format=csv", nil)
 	req.SetPathValue("id", "app-12345")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Export(rr, req)
 
@@ -2225,9 +2380,12 @@ func TestMetricsExportHandler_Export_JSON_WithRuntime(t *testing.T) {
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{{ID: "c1", Name: "test-app"}},
 	}
-	h := NewMetricsExportHandler(newMockBoltStore(), runtime)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewMetricsExportHandler(store, newMockBoltStore(), runtime)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/metrics/export", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Export(rr, req)
 
@@ -2241,9 +2399,12 @@ func TestMetricsExportHandler_Export_StoredData(t *testing.T) {
 	bolt.Set("metrics_export", "app-1", []metricsPoint{
 		{Timestamp: "2026-01-01T00:00:00Z", CPUPercent: 50.0, MemoryMB: 256},
 	}, 0)
-	h := NewMetricsExportHandler(bolt, nil)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewMetricsExportHandler(store, bolt, nil)
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/metrics/export?format=csv", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Export(rr, req)
 
@@ -2268,6 +2429,7 @@ func TestDeployTriggerHandler_ImageDeploy_RuntimeError(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-err/deploy", nil)
 	req.SetPathValue("id", "app-err")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.TriggerDeploy(rr, req)
 
@@ -2288,6 +2450,7 @@ func TestDeployTriggerHandler_ImageDeploy_NilRuntime(t *testing.T) {
 	h := NewDeployTriggerHandler(store, nil, core.NewEventBus(slog.Default()))
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-nil/deploy", nil)
 	req.SetPathValue("id", "app-nil")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.TriggerDeploy(rr, req)
 
@@ -2434,9 +2597,12 @@ func TestRegistryHandler_List_Stored(t *testing.T) {
 func TestWebhookLogHandler_List_Stored(t *testing.T) {
 	bolt := newMockBoltStore()
 	bolt.Set("webhook_logs", "wh-1", map[string]any{"entries": []any{}}, 0)
-	h := NewWebhookLogHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "wh-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewWebhookLogHandler(store, bolt)
 	req := httptest.NewRequest("GET", "/api/v1/webhooks/wh-1/logs", nil)
 	req.SetPathValue("id", "wh-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 	if rr.Code != http.StatusOK {

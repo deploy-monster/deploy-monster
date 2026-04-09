@@ -153,10 +153,9 @@ func (h *ExecHandler) Exec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the app exists
+	// Verify the app exists and belongs to this tenant
 	if h.store != nil {
-		if _, err := h.store.GetApp(r.Context(), appID); err != nil {
-			writeError(w, http.StatusNotFound, "app not found")
+		if app := requireTenantApp(w, r, h.store); app == nil {
 			return
 		}
 	}

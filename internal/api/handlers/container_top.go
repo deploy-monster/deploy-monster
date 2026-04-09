@@ -8,16 +8,21 @@ import (
 
 // ContainerTopHandler lists running processes inside a container.
 type ContainerTopHandler struct {
+	store   core.Store
 	runtime core.ContainerRuntime
 }
 
-func NewContainerTopHandler(runtime core.ContainerRuntime) *ContainerTopHandler {
-	return &ContainerTopHandler{runtime: runtime}
+func NewContainerTopHandler(store core.Store, runtime core.ContainerRuntime) *ContainerTopHandler {
+	return &ContainerTopHandler{store: store, runtime: runtime}
 }
 
 // Top handles GET /api/v1/apps/{id}/processes
 func (h *ContainerTopHandler) Top(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	if h.runtime == nil {
 		writeError(w, http.StatusServiceUnavailable, "runtime not available")

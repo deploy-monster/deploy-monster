@@ -14,6 +14,7 @@ import (
 
 func TestCommand_Run_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{
 			{
@@ -32,6 +33,7 @@ func TestCommand_Run_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/commands", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Run(rr, req)
@@ -62,6 +64,7 @@ func TestCommand_Run_Success(t *testing.T) {
 
 func TestCommand_Run_DefaultTimeout(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{
 			{ID: "container123456789abcdef", Name: "myapp", Status: "running"},
@@ -73,6 +76,7 @@ func TestCommand_Run_DefaultTimeout(t *testing.T) {
 	body, _ := json.Marshal(runCommandRequest{Command: "echo hello"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/commands", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Run(rr, req)
@@ -91,12 +95,14 @@ func TestCommand_Run_DefaultTimeout(t *testing.T) {
 
 func TestCommand_Run_EmptyCommand(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
 	handler := NewCommandHandler(runtime, store, testCore().Events)
 
 	body, _ := json.Marshal(runCommandRequest{Command: ""})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/commands", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Run(rr, req)
@@ -109,11 +115,13 @@ func TestCommand_Run_EmptyCommand(t *testing.T) {
 
 func TestCommand_Run_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
 	handler := NewCommandHandler(runtime, store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/commands", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Run(rr, req)
@@ -126,11 +134,13 @@ func TestCommand_Run_InvalidJSON(t *testing.T) {
 
 func TestCommand_Run_NoRuntime(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewCommandHandler(nil, store, testCore().Events)
 
 	body, _ := json.Marshal(runCommandRequest{Command: "echo hello"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/commands", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Run(rr, req)
@@ -143,6 +153,7 @@ func TestCommand_Run_NoRuntime(t *testing.T) {
 
 func TestCommand_Run_NoContainer(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{},
 	}
@@ -151,6 +162,7 @@ func TestCommand_Run_NoContainer(t *testing.T) {
 	body, _ := json.Marshal(runCommandRequest{Command: "echo hello"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/commands", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Run(rr, req)
@@ -165,11 +177,13 @@ func TestCommand_Run_NoContainer(t *testing.T) {
 
 func TestCommand_History_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
 	handler := NewCommandHandler(runtime, store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/commands", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.History(rr, req)

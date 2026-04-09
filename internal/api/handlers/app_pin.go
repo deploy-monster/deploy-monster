@@ -24,13 +24,13 @@ type pinnedApps struct {
 
 // Pin handles POST /api/v1/apps/{id}/pin
 func (h *PinHandler) Pin(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	claims := auth.ClaimsFromContext(r.Context())
-	if claims == nil {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
+
+	claims := auth.ClaimsFromContext(r.Context())
 
 	var pins pinnedApps
 	_ = h.bolt.Get("app_pins", claims.UserID, &pins)
@@ -55,13 +55,13 @@ func (h *PinHandler) Pin(w http.ResponseWriter, r *http.Request) {
 
 // Unpin handles DELETE /api/v1/apps/{id}/pin
 func (h *PinHandler) Unpin(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	claims := auth.ClaimsFromContext(r.Context())
-	if claims == nil {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
+
+	claims := auth.ClaimsFromContext(r.Context())
 
 	var pins pinnedApps
 	if err := h.bolt.Get("app_pins", claims.UserID, &pins); err != nil {

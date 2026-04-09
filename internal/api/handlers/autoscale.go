@@ -43,10 +43,13 @@ func defaultAutoscaleConfig() AutoscaleConfig {
 
 // Get handles GET /api/v1/apps/{id}/autoscale
 func (h *AutoscaleHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var cfg AutoscaleConfig
-	if err := h.bolt.Get("autoscale", appID, &cfg); err != nil {
+	if err := h.bolt.Get("autoscale", app.ID, &cfg); err != nil {
 		writeJSON(w, http.StatusOK, defaultAutoscaleConfig())
 		return
 	}
@@ -56,7 +59,11 @@ func (h *AutoscaleHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/autoscale
 func (h *AutoscaleHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var cfg AutoscaleConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {

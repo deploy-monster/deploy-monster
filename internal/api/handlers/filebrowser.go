@@ -10,11 +10,12 @@ import (
 
 // FileBrowserHandler provides read-only access to container filesystem.
 type FileBrowserHandler struct {
+	store   core.Store
 	runtime core.ContainerRuntime
 }
 
-func NewFileBrowserHandler(runtime core.ContainerRuntime) *FileBrowserHandler {
-	return &FileBrowserHandler{runtime: runtime}
+func NewFileBrowserHandler(store core.Store, runtime core.ContainerRuntime) *FileBrowserHandler {
+	return &FileBrowserHandler{store: store, runtime: runtime}
 }
 
 // FileEntry represents a file or directory in a container.
@@ -51,7 +52,11 @@ func isPathSafe(p string) bool {
 // List handles GET /api/v1/apps/{id}/files?path=/
 // Lists files in a container directory.
 func (h *FileBrowserHandler) List(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		path = "/"

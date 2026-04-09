@@ -6,17 +6,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── Canary Deploy ───────────────────────────────────────────────────────────
 
 func TestCanary_Get_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	events := testCore().Events
 	handler := NewCanaryHandler(store, events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/canary", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -41,6 +45,7 @@ func TestCanary_Get_Success(t *testing.T) {
 
 func TestCanary_Start_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	events := testCore().Events
 	handler := NewCanaryHandler(store, events)
 
@@ -53,6 +58,7 @@ func TestCanary_Start_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/canary", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Start(rr, req)
@@ -88,6 +94,7 @@ func TestCanary_Start_Success(t *testing.T) {
 
 func TestCanary_Start_DefaultWeights(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	events := testCore().Events
 	handler := NewCanaryHandler(store, events)
 
@@ -97,6 +104,7 @@ func TestCanary_Start_DefaultWeights(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/canary", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Start(rr, req)
@@ -125,6 +133,7 @@ func TestCanary_Start_DefaultWeights(t *testing.T) {
 
 func TestCanary_Start_MissingImage(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	events := testCore().Events
 	handler := NewCanaryHandler(store, events)
 
@@ -134,6 +143,7 @@ func TestCanary_Start_MissingImage(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/canary", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Start(rr, req)
@@ -146,11 +156,13 @@ func TestCanary_Start_MissingImage(t *testing.T) {
 
 func TestCanary_Start_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	events := testCore().Events
 	handler := NewCanaryHandler(store, events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/canary", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Start(rr, req)
@@ -163,11 +175,13 @@ func TestCanary_Start_InvalidJSON(t *testing.T) {
 
 func TestCanary_Promote_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	events := testCore().Events
 	handler := NewCanaryHandler(store, events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/canary/promote", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Promote(rr, req)
@@ -189,11 +203,13 @@ func TestCanary_Promote_Success(t *testing.T) {
 
 func TestCanary_Cancel_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	events := testCore().Events
 	handler := NewCanaryHandler(store, events)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app1/canary", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Cancel(rr, req)

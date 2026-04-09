@@ -18,7 +18,11 @@ func NewDeployDiffHandler(store core.Store) *DeployDiffHandler {
 
 // Diff handles GET /api/v1/apps/{id}/deployments/diff?from=1&to=2
 func (h *DeployDiffHandler) Diff(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	fromVer, _ := strconv.Atoi(r.URL.Query().Get("from"))
 	toVer, _ := strconv.Atoi(r.URL.Query().Get("to"))
 

@@ -9,11 +9,12 @@ import (
 
 // StickySessionHandler configures session affinity for load-balanced apps.
 type StickySessionHandler struct {
-	bolt core.BoltStorer
+	store core.Store
+	bolt  core.BoltStorer
 }
 
-func NewStickySessionHandler(bolt core.BoltStorer) *StickySessionHandler {
-	return &StickySessionHandler{bolt: bolt}
+func NewStickySessionHandler(store core.Store, bolt core.BoltStorer) *StickySessionHandler {
+	return &StickySessionHandler{store: store, bolt: bolt}
 }
 
 // StickySessionConfig holds cookie-based session affinity settings.
@@ -36,10 +37,13 @@ func defaultStickyConfig() StickySessionConfig {
 
 // Get handles GET /api/v1/apps/{id}/sticky-sessions
 func (h *StickySessionHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var cfg StickySessionConfig
-	if err := h.bolt.Get("sticky_sessions", appID, &cfg); err != nil {
+	if err := h.bolt.Get("sticky_sessions", app.ID, &cfg); err != nil {
 		writeJSON(w, http.StatusOK, defaultStickyConfig())
 		return
 	}
@@ -49,7 +53,11 @@ func (h *StickySessionHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/sticky-sessions
 func (h *StickySessionHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var cfg StickySessionConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {

@@ -58,13 +58,11 @@ func (h *DeployTriggerHandler) buildDeployLabels(ctx context.Context, app *core.
 // TriggerDeploy handles POST /api/v1/apps/{id}/deploy
 // Triggers a manual build+deploy for a git-sourced app.
 func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
 
 	if app.SourceType == "image" {
 		// For image-type apps, just redeploy the same image

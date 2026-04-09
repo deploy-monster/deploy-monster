@@ -9,12 +9,13 @@ import (
 
 // ContainerHistoryHandler serves per-container resource usage over time.
 type ContainerHistoryHandler struct {
+	store   core.Store
 	runtime core.ContainerRuntime
 	bolt    core.BoltStorer
 }
 
-func NewContainerHistoryHandler(runtime core.ContainerRuntime, bolt core.BoltStorer) *ContainerHistoryHandler {
-	return &ContainerHistoryHandler{runtime: runtime, bolt: bolt}
+func NewContainerHistoryHandler(store core.Store, runtime core.ContainerRuntime, bolt core.BoltStorer) *ContainerHistoryHandler {
+	return &ContainerHistoryHandler{store: store, runtime: runtime, bolt: bolt}
 }
 
 // ContainerResourcePoint represents a data point in container history.
@@ -35,7 +36,11 @@ type metricsRingData struct {
 
 // History handles GET /api/v1/apps/{id}/containers/history
 func (h *ContainerHistoryHandler) History(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	period := r.URL.Query().Get("period")
 	if period == "" {
 		period = "1h"

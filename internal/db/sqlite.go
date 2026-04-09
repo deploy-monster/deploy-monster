@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 	_ "modernc.org/sqlite"
@@ -47,6 +48,8 @@ func NewSQLite(path string) (*SQLiteDB, error) {
 	// SQLite single-writer connection pool
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(2)
+	db.SetConnMaxLifetime(10 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 
 	s := &SQLiteDB{db: db}
 	if err := s.migrate(); err != nil {

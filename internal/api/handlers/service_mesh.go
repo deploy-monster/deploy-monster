@@ -9,11 +9,12 @@ import (
 
 // ServiceMeshHandler configures inter-service communication rules.
 type ServiceMeshHandler struct {
-	bolt core.BoltStorer
+	store core.Store
+	bolt  core.BoltStorer
 }
 
-func NewServiceMeshHandler(bolt core.BoltStorer) *ServiceMeshHandler {
-	return &ServiceMeshHandler{bolt: bolt}
+func NewServiceMeshHandler(store core.Store, bolt core.BoltStorer) *ServiceMeshHandler {
+	return &ServiceMeshHandler{store: store, bolt: bolt}
 }
 
 // ServiceLink defines a connection between two apps.
@@ -33,7 +34,11 @@ type serviceLinkList struct {
 
 // List handles GET /api/v1/apps/{id}/links
 func (h *ServiceMeshHandler) List(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var list serviceLinkList
 	if err := h.bolt.Get("service_mesh", appID, &list); err != nil {
@@ -46,7 +51,11 @@ func (h *ServiceMeshHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Create handles POST /api/v1/apps/{id}/links
 func (h *ServiceMeshHandler) Create(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var link ServiceLink
 	if err := json.NewDecoder(r.Body).Decode(&link); err != nil {
@@ -80,7 +89,11 @@ func (h *ServiceMeshHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /api/v1/apps/{id}/links/{targetId}
 func (h *ServiceMeshHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	targetID := r.PathValue("targetId")
 
 	var list serviceLinkList

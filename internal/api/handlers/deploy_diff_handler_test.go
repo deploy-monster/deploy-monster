@@ -14,6 +14,7 @@ import (
 
 func TestDeployDiff_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	store.addDeployment("app1", core.Deployment{
 		ID:          "dep1",
 		AppID:       "app1",
@@ -37,6 +38,7 @@ func TestDeployDiff_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments/diff?from=1&to=2", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Diff(rr, req)
@@ -98,10 +100,12 @@ func TestDeployDiff_Success(t *testing.T) {
 
 func TestDeployDiff_MissingVersionParams(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewDeployDiffHandler(store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments/diff", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Diff(rr, req)
@@ -114,10 +118,12 @@ func TestDeployDiff_MissingVersionParams(t *testing.T) {
 
 func TestDeployDiff_MissingFromParam(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewDeployDiffHandler(store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments/diff?to=2", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Diff(rr, req)
@@ -130,10 +136,12 @@ func TestDeployDiff_MissingFromParam(t *testing.T) {
 
 func TestDeployDiff_MissingToParam(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewDeployDiffHandler(store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments/diff?from=1", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Diff(rr, req)
@@ -146,6 +154,7 @@ func TestDeployDiff_MissingToParam(t *testing.T) {
 
 func TestDeployDiff_VersionNotFound(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	store.addDeployment("app1", core.Deployment{
 		ID:      "dep1",
 		AppID:   "app1",
@@ -157,6 +166,7 @@ func TestDeployDiff_VersionNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments/diff?from=1&to=99", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Diff(rr, req)
@@ -169,12 +179,14 @@ func TestDeployDiff_VersionNotFound(t *testing.T) {
 
 func TestDeployDiff_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	store.errListDeploymentsByApp = errors.New("db error")
 
 	handler := NewDeployDiffHandler(store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments/diff?from=1&to=2", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Diff(rr, req)
@@ -187,10 +199,12 @@ func TestDeployDiff_StoreError(t *testing.T) {
 
 func TestDeployDiff_InvalidVersionStrings(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewDeployDiffHandler(store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deployments/diff?from=abc&to=xyz", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Diff(rr, req)

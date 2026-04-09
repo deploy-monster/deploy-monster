@@ -23,7 +23,11 @@ type scaleRequest struct {
 
 // Scale handles POST /api/v1/apps/{id}/scale
 func (h *ScaleHandler) Scale(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var req scaleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -33,12 +37,6 @@ func (h *ScaleHandler) Scale(w http.ResponseWriter, r *http.Request) {
 
 	if req.Replicas < 0 || req.Replicas > 100 {
 		writeError(w, http.StatusBadRequest, "replicas must be between 0 and 100")
-		return
-	}
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
 		return
 	}
 

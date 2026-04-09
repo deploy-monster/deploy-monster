@@ -27,6 +27,7 @@ func TestRename_Success(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"name": "New Name"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/rename", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Rename(rr, req)
@@ -97,6 +98,7 @@ func TestRename_AppNotFound(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"name": "New Name"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/nonexistent/rename", bytes.NewReader(body))
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Rename(rr, req)
@@ -104,15 +106,16 @@ func TestRename_AppNotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "app not found")
+	assertErrorMessage(t, rr, "application not found")
 }
 
 func TestRename_UpdateError(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
-		ID:     "app1",
-		Name:   "Old Name",
-		Status: "running",
+		ID:       "app1",
+		TenantID: "tenant1",
+		Name:     "Old Name",
+		Status:   "running",
 	})
 	store.errUpdateApp = errors.New("db error")
 
@@ -121,6 +124,7 @@ func TestRename_UpdateError(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"name": "New Name"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/rename", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Rename(rr, req)

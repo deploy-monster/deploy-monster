@@ -368,6 +368,7 @@ func TestFinal_DeployTrigger_ImageDeploy(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/deploy", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_owner", "test@test.com")
 	rr := httptest.NewRecorder()
 	h.TriggerDeploy(rr, req)
 
@@ -395,6 +396,7 @@ func TestFinal_DeployTrigger_GitDeploy(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-2/deploy", nil)
 	req.SetPathValue("id", "app-2")
+	req = withClaims(req, "u1", "t1", "role_owner", "test@test.com")
 	rr := httptest.NewRecorder()
 	h.TriggerDeploy(rr, req)
 
@@ -416,6 +418,7 @@ func TestFinal_EnvImport_DotEnvFormat(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/env/import", strings.NewReader(envContent))
 	req.SetPathValue("id", "app-1")
 	req.Header.Set("Content-Type", "text/plain")
+	req = withClaims(req, "u1", "t1", "role_owner", "test@test.com")
 	rr := httptest.NewRecorder()
 	h.Import(rr, req)
 
@@ -809,11 +812,14 @@ func TestFinal_ServiceMesh_Delete_BoltSetError(t *testing.T) {
 
 	// Replace with a failing bolt
 	failBolt := &boltFailOnFirstSet{mockBoltStore: bolt}
-	h := NewServiceMeshHandler(failBolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "App"})
+	h := NewServiceMeshHandler(store, failBolt)
 
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/links/link-1", nil)
 	req.SetPathValue("id", "app-1")
 	req.SetPathValue("targetId", "link-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 
@@ -827,11 +833,14 @@ func TestFinal_ServiceMesh_Delete_BoltSetError(t *testing.T) {
 // =============================================================================
 
 func TestFinal_ServiceMesh_Delete_NoLinks(t *testing.T) {
-	h := NewServiceMeshHandler(newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "App"})
+	h := NewServiceMeshHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/links/link-1", nil)
 	req.SetPathValue("id", "app-1")
 	req.SetPathValue("targetId", "link-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 
@@ -1183,10 +1192,13 @@ func TestFinal_DetailedHealth_Degraded(t *testing.T) {
 
 func TestFinal_MetricsExport_CSV(t *testing.T) {
 	bolt := newMockBoltStore()
-	h := NewMetricsExportHandler(bolt, nil)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app12345678", TenantID: "t1", Name: "App"})
+	h := NewMetricsExportHandler(store, bolt, nil)
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app12345678/metrics/export?format=csv", nil)
 	req.SetPathValue("id", "app12345678")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Export(rr, req)
 
@@ -1204,10 +1216,13 @@ func TestFinal_MetricsExport_CSV(t *testing.T) {
 
 func TestFinal_MetricsExport_ShortAppID(t *testing.T) {
 	bolt := newMockBoltStore()
-	h := NewMetricsExportHandler(bolt, nil)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "ab", TenantID: "t1", Name: "App"})
+	h := NewMetricsExportHandler(store, bolt, nil)
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/ab/metrics/export?format=csv", nil)
 	req.SetPathValue("id", "ab")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Export(rr, req)
 

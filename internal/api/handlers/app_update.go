@@ -17,15 +17,8 @@ type updateAppRequest struct {
 
 // Update handles PATCH /api/v1/apps/{id}
 func (h *AppHandler) Update(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	app, err := h.store.GetApp(r.Context(), id)
-	if err != nil {
-		if err == core.ErrNotFound {
-			writeError(w, http.StatusNotFound, "app not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "internal error")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
 

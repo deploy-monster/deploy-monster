@@ -18,7 +18,11 @@ func NewStatsHandler(runtime core.ContainerRuntime, store core.Store) *StatsHand
 
 // AppStats handles GET /api/v1/apps/{id}/stats
 func (h *StatsHandler) AppStats(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	if h.runtime == nil {
 		writeError(w, http.StatusServiceUnavailable, "container runtime not available")

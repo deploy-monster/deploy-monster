@@ -33,12 +33,11 @@ func (h *SaveTemplateHandler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	appID := r.PathValue("id")
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
 
 	var req saveTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

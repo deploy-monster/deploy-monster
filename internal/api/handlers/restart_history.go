@@ -9,11 +9,12 @@ import (
 
 // RestartHistoryHandler tracks container restart events.
 type RestartHistoryHandler struct {
+	store   core.Store
 	runtime core.ContainerRuntime
 }
 
-func NewRestartHistoryHandler(runtime core.ContainerRuntime) *RestartHistoryHandler {
-	return &RestartHistoryHandler{runtime: runtime}
+func NewRestartHistoryHandler(store core.Store, runtime core.ContainerRuntime) *RestartHistoryHandler {
+	return &RestartHistoryHandler{store: store, runtime: runtime}
 }
 
 // RestartEvent records when and why a container restarted.
@@ -25,7 +26,11 @@ type RestartEvent struct {
 
 // List handles GET /api/v1/apps/{id}/restarts
 func (h *RestartHistoryHandler) List(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	if h.runtime == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"app_id": appID, "data": []any{}, "total": 0})

@@ -6,7 +6,40 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+
+	"github.com/deploy-monster/deploy-monster/internal/auth"
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+// requireTenantApp fetches an app by ID and verifies it belongs to the
+// requesting user's tenant. Returns the app on success or writes an error
+// response and returns nil on failure. Every handler that operates on
+// an app by ID must use this instead of calling store.GetApp directly.
+func requireTenantApp(w http.ResponseWriter, r *http.Request, store core.Store) *core.Application {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return nil
+	}
+
+	id := r.PathValue("id")
+	app, err := store.GetApp(r.Context(), id)
+	if err != nil {
+		if err == core.ErrNotFound {
+			writeError(w, http.StatusNotFound, "application not found")
+		} else {
+			writeError(w, http.StatusInternalServerError, "internal error")
+		}
+		return nil
+	}
+
+	if app.TenantID != claims.TenantID {
+		writeError(w, http.StatusNotFound, "application not found")
+		return nil
+	}
+
+	return app
+}
 
 func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -32,8 +65,30 @@ func validateAppName(name string) error {
 	return nil
 }
 
+// statusCodeMap maps HTTP status codes to machine-readable error codes.
+var statusCodeMap = map[int]string{
+	http.StatusBadRequest:          "bad_request",
+	http.StatusUnauthorized:        "unauthorized",
+	http.StatusForbidden:           "forbidden",
+	http.StatusNotFound:            "not_found",
+	http.StatusConflict:            "conflict",
+	http.StatusTooManyRequests:     "rate_limited",
+	http.StatusInternalServerError: "internal_error",
+	http.StatusServiceUnavailable:  "unavailable",
+}
+
 func writeError(w http.ResponseWriter, status int, message string) {
-	resp := map[string]string{"error": message}
+	code := statusCodeMap[status]
+	if code == "" {
+		code = "error"
+	}
+	resp := map[string]any{
+		"success": false,
+		"error": map[string]string{
+			"code":    code,
+			"message": message,
+		},
+	}
 	if rid := w.Header().Get("X-Request-ID"); rid != "" {
 		resp["request_id"] = rid
 	}

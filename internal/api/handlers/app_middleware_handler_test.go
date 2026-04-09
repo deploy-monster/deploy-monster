@@ -6,16 +6,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── App Middleware ──────────────────────────────────────────────────────────
 
 func TestAppMiddleware_Get_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewAppMiddlewareHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/middleware", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -34,6 +38,7 @@ func TestAppMiddleware_Get_Success(t *testing.T) {
 
 func TestAppMiddleware_Update_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewAppMiddlewareHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(MiddlewareConfig{
@@ -57,6 +62,7 @@ func TestAppMiddleware_Update_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/middleware", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -109,6 +115,7 @@ func TestAppMiddleware_Update_Success(t *testing.T) {
 
 func TestAppMiddleware_Update_MinimalConfig(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewAppMiddlewareHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(MiddlewareConfig{
@@ -116,6 +123,7 @@ func TestAppMiddleware_Update_MinimalConfig(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/middleware", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -134,10 +142,12 @@ func TestAppMiddleware_Update_MinimalConfig(t *testing.T) {
 
 func TestAppMiddleware_Update_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewAppMiddlewareHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/middleware", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)

@@ -6,16 +6,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── Get Autoscale ───────────────────────────────────────────────────────────
 
 func TestAutoscale_Get_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewAutoscaleHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/autoscale", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -54,6 +58,7 @@ func TestAutoscale_Get_Success(t *testing.T) {
 
 func TestAutoscale_Update_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewAutoscaleHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(AutoscaleConfig{
@@ -65,6 +70,7 @@ func TestAutoscale_Update_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/autoscale", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -100,10 +106,12 @@ func TestAutoscale_Update_Success(t *testing.T) {
 
 func TestAutoscale_Update_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewAutoscaleHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/autoscale", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -116,6 +124,7 @@ func TestAutoscale_Update_InvalidJSON(t *testing.T) {
 
 func TestAutoscale_Update_MaxLessThanMin(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewAutoscaleHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(AutoscaleConfig{
@@ -125,6 +134,7 @@ func TestAutoscale_Update_MaxLessThanMin(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/autoscale", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -144,6 +154,7 @@ func TestAutoscale_Update_MaxLessThanMin(t *testing.T) {
 
 func TestAutoscale_Update_NegativeMin(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewAutoscaleHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(AutoscaleConfig{
@@ -152,6 +163,7 @@ func TestAutoscale_Update_NegativeMin(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/autoscale", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)

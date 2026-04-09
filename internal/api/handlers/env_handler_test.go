@@ -19,6 +19,7 @@ func TestEnvVarGet_Success(t *testing.T) {
 	envJSON := `[{"key":"DB_HOST","value":"localhost"},{"key":"API_KEY","value":"secret123"}]`
 	store.addApp(&core.Application{
 		ID:         "app1",
+		TenantID:   "t1",
 		Name:       "App",
 		EnvVarsEnc: envJSON,
 	})
@@ -27,6 +28,7 @@ func TestEnvVarGet_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/env", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -63,6 +65,7 @@ func TestEnvVarGet_SecretReference(t *testing.T) {
 	envJSON := `[{"key":"DB_PASS","value":"${SECRET:db_password}"}]`
 	store.addApp(&core.Application{
 		ID:         "app1",
+		TenantID:   "t1",
 		Name:       "App",
 		EnvVarsEnc: envJSON,
 	})
@@ -71,6 +74,7 @@ func TestEnvVarGet_SecretReference(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/env", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -92,12 +96,13 @@ func TestEnvVarGet_SecretReference(t *testing.T) {
 
 func TestEnvVarGet_EmptyEnv(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "App"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 
 	handler := NewEnvVarHandler(store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/env", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -121,6 +126,7 @@ func TestEnvVarGet_AppNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/nonexistent/env", nil)
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -128,14 +134,14 @@ func TestEnvVarGet_AppNotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "app not found")
+	assertErrorMessage(t, rr, "application not found")
 }
 
 // ─── EnvVar Update ───────────────────────────────────────────────────────────
 
 func TestEnvVarUpdate_Success(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "App"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 
 	handler := NewEnvVarHandler(store)
 
@@ -147,6 +153,7 @@ func TestEnvVarUpdate_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/env", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -173,10 +180,12 @@ func TestEnvVarUpdate_Success(t *testing.T) {
 
 func TestEnvVarUpdate_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewEnvVarHandler(store)
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/env", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -189,6 +198,7 @@ func TestEnvVarUpdate_InvalidJSON(t *testing.T) {
 
 func TestEnvVarUpdate_EmptyKey(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewEnvVarHandler(store)
 
 	body, _ := json.Marshal(map[string]any{
@@ -198,6 +208,7 @@ func TestEnvVarUpdate_EmptyKey(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/env", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -219,6 +230,7 @@ func TestEnvVarUpdate_AppNotFound(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/nonexistent/env", bytes.NewReader(body))
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -226,12 +238,12 @@ func TestEnvVarUpdate_AppNotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "app not found")
+	assertErrorMessage(t, rr, "application not found")
 }
 
 func TestEnvVarUpdate_StoreError(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "App"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	store.errUpdateApp = errors.New("db error")
 
 	handler := NewEnvVarHandler(store)
@@ -243,6 +255,7 @@ func TestEnvVarUpdate_StoreError(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/env", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -257,7 +270,7 @@ func TestEnvVarUpdate_StoreError(t *testing.T) {
 
 func TestEnvImport_DotEnvFormat(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "App"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 
 	handler := NewEnvImportHandler(store)
 
@@ -265,6 +278,7 @@ func TestEnvImport_DotEnvFormat(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/env/import", strings.NewReader(dotenv))
 	req.SetPathValue("id", "app1")
 	req.Header.Set("Content-Type", "text/plain")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Import(rr, req)
@@ -287,7 +301,7 @@ func TestEnvImport_DotEnvFormat(t *testing.T) {
 
 func TestEnvImport_JSONFormat(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "App"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 
 	handler := NewEnvImportHandler(store)
 
@@ -298,6 +312,7 @@ func TestEnvImport_JSONFormat(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/env/import", bytes.NewReader(vars))
 	req.SetPathValue("id", "app1")
 	req.Header.Set("Content-Type", "application/json")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Import(rr, req)
@@ -317,10 +332,12 @@ func TestEnvImport_JSONFormat(t *testing.T) {
 
 func TestEnvImport_EmptyVars(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewEnvImportHandler(store)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/env/import", strings.NewReader("# only comments\n"))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Import(rr, req)
@@ -338,6 +355,7 @@ func TestEnvImport_AppNotFound(t *testing.T) {
 	dotenv := "KEY=value\n"
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/nonexistent/env/import", strings.NewReader(dotenv))
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Import(rr, req)
@@ -345,16 +363,18 @@ func TestEnvImport_AppNotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "app not found")
+	assertErrorMessage(t, rr, "application not found")
 }
 
 func TestEnvImport_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewEnvImportHandler(store)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/env/import", strings.NewReader("[bad"))
 	req.SetPathValue("id", "app1")
 	req.Header.Set("Content-Type", "application/json")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Import(rr, req)
@@ -372,6 +392,7 @@ func TestEnvExport_DotEnvFormat(t *testing.T) {
 	envJSON := `[{"key":"DB_HOST","value":"localhost"},{"key":"DB_PORT","value":"5432"}]`
 	store.addApp(&core.Application{
 		ID:         "app1",
+		TenantID:   "t1",
 		Name:       "App",
 		EnvVarsEnc: envJSON,
 	})
@@ -380,6 +401,7 @@ func TestEnvExport_DotEnvFormat(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/env/export", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Export(rr, req)
@@ -407,6 +429,7 @@ func TestEnvExport_JSONFormat(t *testing.T) {
 	envJSON := `[{"key":"KEY1","value":"val1"}]`
 	store.addApp(&core.Application{
 		ID:         "app1",
+		TenantID:   "t1",
 		Name:       "App",
 		EnvVarsEnc: envJSON,
 	})
@@ -415,6 +438,7 @@ func TestEnvExport_JSONFormat(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/env/export?format=json", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Export(rr, req)
@@ -440,6 +464,7 @@ func TestEnvExport_AppNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/nonexistent/env/export", nil)
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Export(rr, req)
@@ -455,11 +480,13 @@ func TestEnvCompare_Success(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:         "app1",
+		TenantID:   "t1",
 		Name:       "App 1",
 		EnvVarsEnc: `[{"key":"DB_HOST","value":"localhost"},{"key":"APP_PORT","value":"3000"}]`,
 	})
 	store.addApp(&core.Application{
 		ID:         "app2",
+		TenantID:   "t1",
 		Name:       "App 2",
 		EnvVarsEnc: `[{"key":"DB_HOST","value":"remote.db"},{"key":"LOG_LEVEL","value":"debug"}]`,
 	})
@@ -471,6 +498,7 @@ func TestEnvCompare_Success(t *testing.T) {
 		"right_app_id": "app2",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/env/compare", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Compare(rr, req)
@@ -513,7 +541,7 @@ func TestEnvCompare_Success(t *testing.T) {
 
 func TestEnvCompare_LeftAppNotFound(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app2", Name: "App 2"})
+	store.addApp(&core.Application{ID: "app2", TenantID: "t1", Name: "App 2"})
 
 	handler := NewEnvCompareHandler(store)
 
@@ -522,6 +550,7 @@ func TestEnvCompare_LeftAppNotFound(t *testing.T) {
 		"right_app_id": "app2",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/env/compare", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Compare(rr, req)
@@ -534,7 +563,7 @@ func TestEnvCompare_LeftAppNotFound(t *testing.T) {
 
 func TestEnvCompare_RightAppNotFound(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", Name: "App 1"})
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App 1"})
 
 	handler := NewEnvCompareHandler(store)
 
@@ -543,6 +572,7 @@ func TestEnvCompare_RightAppNotFound(t *testing.T) {
 		"right_app_id": "nonexistent",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/env/compare", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Compare(rr, req)
@@ -571,8 +601,8 @@ func TestEnvCompare_InvalidJSON(t *testing.T) {
 func TestEnvCompare_IdenticalApps(t *testing.T) {
 	store := newMockStore()
 	envJSON := `[{"key":"KEY1","value":"val1"}]`
-	store.addApp(&core.Application{ID: "app1", Name: "App 1", EnvVarsEnc: envJSON})
-	store.addApp(&core.Application{ID: "app2", Name: "App 2", EnvVarsEnc: envJSON})
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App 1", EnvVarsEnc: envJSON})
+	store.addApp(&core.Application{ID: "app2", TenantID: "t1", Name: "App 2", EnvVarsEnc: envJSON})
 
 	handler := NewEnvCompareHandler(store)
 
@@ -581,6 +611,7 @@ func TestEnvCompare_IdenticalApps(t *testing.T) {
 		"right_app_id": "app2",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/env/compare", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Compare(rr, req)

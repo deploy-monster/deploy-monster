@@ -5,12 +5,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── App Pin ─────────────────────────────────────────────────────────────────
 
 func TestAppPin_Pin_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewPinHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/pin", nil)
@@ -37,6 +40,7 @@ func TestAppPin_Pin_Success(t *testing.T) {
 
 func TestAppPin_Pin_DifferentAppID(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "my-special-app", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewPinHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/my-special-app/pin", nil)
@@ -60,6 +64,7 @@ func TestAppPin_Pin_DifferentAppID(t *testing.T) {
 
 func TestAppPin_Unpin_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewPinHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app1/pin", nil)
@@ -86,6 +91,7 @@ func TestAppPin_Unpin_Success(t *testing.T) {
 
 func TestAppPin_Unpin_DifferentAppID(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app99", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewPinHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app99/pin", nil)

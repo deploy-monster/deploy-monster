@@ -34,7 +34,11 @@ type metricsRing struct {
 
 // AppMetrics handles GET /api/v1/apps/{id}/metrics
 func (h *MetricsHistoryHandler) AppMetrics(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	period := r.URL.Query().Get("period") // 1h, 24h, 7d, 30d
 	if period == "" {
 		period = "24h"

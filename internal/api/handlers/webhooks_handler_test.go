@@ -5,16 +5,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── Webhook Log List ────────────────────────────────────────────────────────
 
 func TestWebhookLogList_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewWebhookLogHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/webhooks/logs", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -41,10 +45,12 @@ func TestWebhookLogList_Success(t *testing.T) {
 
 func TestWebhookLogList_EmptyAppID(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "", TenantID: "t1", Name: "App"})
 	handler := NewWebhookLogHandler(store, newMockBoltStore())
 
 	// Even with no path value, the handler should return 200 with empty data.
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps//webhooks/logs", nil)
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -56,10 +62,12 @@ func TestWebhookLogList_EmptyAppID(t *testing.T) {
 
 func TestWebhookLogList_ResponseFormat(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewWebhookLogHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/webhooks/logs", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)

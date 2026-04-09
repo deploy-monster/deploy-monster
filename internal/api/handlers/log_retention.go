@@ -35,10 +35,13 @@ func defaultLogRetention() LogRetentionConfig {
 
 // Get handles GET /api/v1/apps/{id}/log-retention
 func (h *LogRetentionHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var cfg LogRetentionConfig
-	if err := h.bolt.Get("log_retention", appID, &cfg); err != nil {
+	if err := h.bolt.Get("log_retention", app.ID, &cfg); err != nil {
 		// Return defaults if not configured
 		writeJSON(w, http.StatusOK, defaultLogRetention())
 		return
@@ -49,7 +52,11 @@ func (h *LogRetentionHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/log-retention
 func (h *LogRetentionHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var cfg LogRetentionConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {

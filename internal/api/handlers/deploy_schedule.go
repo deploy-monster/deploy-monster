@@ -38,7 +38,11 @@ type scheduledDeployList struct {
 
 // Schedule handles POST /api/v1/apps/{id}/deploy/schedule
 func (h *DeployScheduleHandler) Schedule(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var req struct {
 		ScheduledAt string `json:"scheduled_at"` // RFC3339
@@ -90,7 +94,11 @@ func (h *DeployScheduleHandler) Schedule(w http.ResponseWriter, r *http.Request)
 
 // ListScheduled handles GET /api/v1/apps/{id}/deploy/scheduled
 func (h *DeployScheduleHandler) ListScheduled(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var list scheduledDeployList
 	if err := h.bolt.Get("deploy_schedule", appID, &list); err != nil {
@@ -111,7 +119,11 @@ func (h *DeployScheduleHandler) ListScheduled(w http.ResponseWriter, r *http.Req
 
 // CancelScheduled handles DELETE /api/v1/apps/{id}/deploy/scheduled/{scheduleId}
 func (h *DeployScheduleHandler) CancelScheduled(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	scheduleID := r.PathValue("scheduleId")
 
 	var list scheduledDeployList

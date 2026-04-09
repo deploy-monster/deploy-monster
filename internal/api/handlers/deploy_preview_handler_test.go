@@ -15,6 +15,7 @@ func TestDeployPreview_Success_Git(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:         "app1",
+		TenantID:   "t1",
 		Name:       "Web App",
 		SourceType: "git",
 		SourceURL:  "https://github.com/user/repo",
@@ -27,6 +28,7 @@ func TestDeployPreview_Success_Git(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy/preview", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Preview(rr, req)
@@ -71,6 +73,7 @@ func TestDeployPreview_Success_Image(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:         "app2",
+		TenantID:   "t1",
 		Name:       "Docker App",
 		SourceType: "image",
 		SourceURL:  "nginx:latest",
@@ -81,6 +84,7 @@ func TestDeployPreview_Success_Image(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app2/deploy/preview", nil)
 	req.SetPathValue("id", "app2")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Preview(rr, req)
@@ -101,6 +105,7 @@ func TestDeployPreview_WithExistingDeployment(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:         "app1",
+		TenantID:   "t1",
 		Name:       "Web App",
 		SourceType: "git",
 		Status:     "running",
@@ -117,6 +122,7 @@ func TestDeployPreview_WithExistingDeployment(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy/preview", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Preview(rr, req)
@@ -147,6 +153,7 @@ func TestDeployPreview_AppNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/nonexistent/deploy/preview", nil)
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Preview(rr, req)
@@ -154,13 +161,14 @@ func TestDeployPreview_AppNotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "app not found")
+	assertErrorMessage(t, rr, "application not found")
 }
 
 func TestDeployPreview_SupportedTypes(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:         "app1",
+		TenantID:   "t1",
 		Name:       "App",
 		SourceType: "git",
 		Status:     "running",
@@ -170,6 +178,7 @@ func TestDeployPreview_SupportedTypes(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy/preview", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Preview(rr, req)
@@ -194,6 +203,7 @@ func TestDeployPreview_CustomDockerfile(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:         "app1",
+		TenantID:   "t1",
 		Name:       "Custom App",
 		SourceType: "dockerfile",
 		Dockerfile: "Dockerfile.prod",
@@ -204,6 +214,7 @@ func TestDeployPreview_CustomDockerfile(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy/preview", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Preview(rr, req)

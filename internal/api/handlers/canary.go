@@ -30,13 +30,18 @@ type CanaryConfig struct {
 
 // Get handles GET /api/v1/apps/{id}/canary
 func (h *CanaryHandler) Get(w http.ResponseWriter, r *http.Request) {
-	_ = r.PathValue("id")
+	if app := requireTenantApp(w, r, h.store); app == nil {
+		return
+	}
 	writeJSON(w, http.StatusOK, CanaryConfig{Enabled: false, WeightNew: 0, WeightOld: 100})
 }
 
 // Start handles POST /api/v1/apps/{id}/canary
 func (h *CanaryHandler) Start(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var cfg CanaryConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
@@ -62,10 +67,10 @@ func (h *CanaryHandler) Start(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.canary.started", "api",
-		map[string]any{"app_id": appID, "new_image": cfg.NewImage, "weight": cfg.WeightNew}))
+		map[string]any{"app_id": app.ID, "new_image": cfg.NewImage, "weight": cfg.WeightNew}))
 
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"app_id": appID,
+		"app_id": app.ID,
 		"config": cfg,
 		"status": "canary_active",
 	})
@@ -74,13 +79,16 @@ func (h *CanaryHandler) Start(w http.ResponseWriter, r *http.Request) {
 // Promote handles POST /api/v1/apps/{id}/canary/promote
 // Shifts 100% traffic to the new version.
 func (h *CanaryHandler) Promote(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.canary.promoted", "api",
-		map[string]string{"app_id": appID}))
+		map[string]string{"app_id": app.ID}))
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"app_id": appID,
+		"app_id": app.ID,
 		"status": "promoted — 100% traffic to new version",
 	})
 }
@@ -88,13 +96,16 @@ func (h *CanaryHandler) Promote(w http.ResponseWriter, r *http.Request) {
 // Cancel handles DELETE /api/v1/apps/{id}/canary
 // Rolls back to 100% old version.
 func (h *CanaryHandler) Cancel(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.canary.cancelled", "api",
-		map[string]string{"app_id": appID}))
+		map[string]string{"app_id": app.ID}))
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"app_id": appID,
+		"app_id": app.ID,
 		"status": "cancelled — 100% traffic back to old version",
 	})
 }

@@ -9,11 +9,12 @@ import (
 
 // RedirectHandler manages per-app URL redirect/rewrite rules.
 type RedirectHandler struct {
-	bolt core.BoltStorer
+	store core.Store
+	bolt  core.BoltStorer
 }
 
-func NewRedirectHandler(bolt core.BoltStorer) *RedirectHandler {
-	return &RedirectHandler{bolt: bolt}
+func NewRedirectHandler(store core.Store, bolt core.BoltStorer) *RedirectHandler {
+	return &RedirectHandler{store: store, bolt: bolt}
 }
 
 // RedirectRule defines a URL redirect or rewrite.
@@ -33,7 +34,11 @@ type redirectList struct {
 
 // List handles GET /api/v1/apps/{id}/redirects
 func (h *RedirectHandler) List(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var list redirectList
 	if err := h.bolt.Get("redirects", appID, &list); err != nil {
@@ -46,7 +51,11 @@ func (h *RedirectHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Create handles POST /api/v1/apps/{id}/redirects
 func (h *RedirectHandler) Create(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var rule RedirectRule
 	if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
@@ -84,7 +93,11 @@ func (h *RedirectHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /api/v1/apps/{id}/redirects/{ruleId}
 func (h *RedirectHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	ruleID := r.PathValue("ruleId")
 
 	var list redirectList

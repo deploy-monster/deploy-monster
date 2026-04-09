@@ -758,11 +758,16 @@ func TestChangePassword_StoreError(t *testing.T) {
 // assertErrorMessage checks the JSON response has the expected error message.
 func assertErrorMessage(t *testing.T, rr *httptest.ResponseRecorder, expected string) {
 	t.Helper()
-	var resp map[string]string
+	var resp map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode error response: %v (body: %s)", err, rr.Body.String())
 	}
-	if resp["error"] != expected {
-		t.Errorf("expected error %q, got %q", expected, resp["error"])
+	errObj, ok := resp["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected structured error object, got %T: %v", resp["error"], resp["error"])
+	}
+	msg, _ := errObj["message"].(string)
+	if msg != expected {
+		t.Errorf("expected error %q, got %q", expected, msg)
 	}
 }

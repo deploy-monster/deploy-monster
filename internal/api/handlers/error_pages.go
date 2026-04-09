@@ -9,11 +9,12 @@ import (
 
 // ErrorPageHandler manages custom error pages per app.
 type ErrorPageHandler struct {
-	bolt core.BoltStorer
+	store core.Store
+	bolt  core.BoltStorer
 }
 
-func NewErrorPageHandler(bolt core.BoltStorer) *ErrorPageHandler {
-	return &ErrorPageHandler{bolt: bolt}
+func NewErrorPageHandler(store core.Store, bolt core.BoltStorer) *ErrorPageHandler {
+	return &ErrorPageHandler{store: store, bolt: bolt}
 }
 
 // ErrorPageConfig holds custom error page HTML per status code.
@@ -26,10 +27,13 @@ type ErrorPageConfig struct {
 
 // Get handles GET /api/v1/apps/{id}/error-pages
 func (h *ErrorPageHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var cfg ErrorPageConfig
-	if err := h.bolt.Get("error_pages", appID, &cfg); err != nil {
+	if err := h.bolt.Get("error_pages", app.ID, &cfg); err != nil {
 		// No custom pages — return empty config
 		writeJSON(w, http.StatusOK, ErrorPageConfig{})
 		return
@@ -40,7 +44,11 @@ func (h *ErrorPageHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/error-pages
 func (h *ErrorPageHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var cfg ErrorPageConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {

@@ -37,9 +37,7 @@ func (h *RestartPolicyHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	if requireTenantApp(w, r, h.store) == nil {
 		return
 	}
 

@@ -14,6 +14,7 @@ import (
 
 func TestBuildLog_Get_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app12345", TenantID: "tenant1", Name: "Test", Status: "running"})
 	store.latestDeployments["app12345"] = &core.Deployment{
 		ID:       "dep1",
 		AppID:    "app12345",
@@ -27,6 +28,7 @@ func TestBuildLog_Get_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/builds/5/log", nil)
 	req.SetPathValue("id", "app12345")
 	req.SetPathValue("version", "5")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -54,11 +56,13 @@ func TestBuildLog_Get_Success(t *testing.T) {
 
 func TestBuildLog_Get_NotFound(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "nonexistent", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewBuildLogHandler(store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/nonexistent/builds/1/log", nil)
 	req.SetPathValue("id", "nonexistent")
 	req.SetPathValue("version", "1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -73,6 +77,7 @@ func TestBuildLog_Get_NotFound(t *testing.T) {
 
 func TestBuildLog_Download_WithLog(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app12345", TenantID: "tenant1", Name: "Test", Status: "running"})
 	store.latestDeployments["app12345"] = &core.Deployment{
 		ID:       "dep1",
 		AppID:    "app12345",
@@ -86,6 +91,7 @@ func TestBuildLog_Download_WithLog(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/builds/3/log/download", nil)
 	req.SetPathValue("id", "app12345")
 	req.SetPathValue("version", "3")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Download(rr, req)
@@ -115,6 +121,7 @@ func TestBuildLog_Download_WithLog(t *testing.T) {
 
 func TestBuildLog_Download_EmptyLog(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app12345", TenantID: "tenant1", Name: "Test", Status: "running"})
 	store.latestDeployments["app12345"] = &core.Deployment{
 		ID:       "dep1",
 		AppID:    "app12345",
@@ -128,6 +135,7 @@ func TestBuildLog_Download_EmptyLog(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/builds/1/log/download", nil)
 	req.SetPathValue("id", "app12345")
 	req.SetPathValue("version", "1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Download(rr, req)
@@ -144,11 +152,13 @@ func TestBuildLog_Download_EmptyLog(t *testing.T) {
 
 func TestBuildLog_Download_NotFound(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "nonexistent", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewBuildLogHandler(store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/nonexistent/builds/1/log/download", nil)
 	req.SetPathValue("id", "nonexistent")
 	req.SetPathValue("version", "1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Download(rr, req)

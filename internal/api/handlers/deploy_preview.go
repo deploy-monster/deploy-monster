@@ -20,13 +20,11 @@ func NewDeployPreviewHandler(store core.Store) *DeployPreviewHandler {
 // Preview handles POST /api/v1/apps/{id}/deploy/preview
 // Shows what would happen without actually deploying.
 func (h *DeployPreviewHandler) Preview(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
 
 	currentDep, err := h.store.GetLatestDeployment(r.Context(), appID)
 	if err != nil {

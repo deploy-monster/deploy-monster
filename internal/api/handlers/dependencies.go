@@ -27,13 +27,11 @@ type DependencyNode struct {
 
 // Graph handles GET /api/v1/apps/{id}/dependencies
 func (h *DependencyHandler) Graph(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
 
 	nodes := []DependencyNode{
 		{ID: app.ID, Name: app.Name, Type: "app", Status: app.Status, Links: []string{}},

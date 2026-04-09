@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -35,13 +36,19 @@ func (h *EnvCompareHandler) Compare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	leftApp, err := h.store.GetApp(r.Context(), req.LeftAppID)
-	if err != nil {
+	if err != nil || leftApp.TenantID != claims.TenantID {
 		writeError(w, http.StatusNotFound, "left app not found")
 		return
 	}
 	rightApp, err := h.store.GetApp(r.Context(), req.RightAppID)
-	if err != nil {
+	if err != nil || rightApp.TenantID != claims.TenantID {
 		writeError(w, http.StatusNotFound, "right app not found")
 		return
 	}

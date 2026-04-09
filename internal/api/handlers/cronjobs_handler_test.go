@@ -6,16 +6,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── List Cron Jobs ──────────────────────────────────────────────────────────
 
 func TestCronJobs_List_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewCronJobHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/cron", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -43,6 +47,7 @@ func TestCronJobs_List_Success(t *testing.T) {
 
 func TestCronJobs_Create_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewCronJobHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(CronJobConfig{
@@ -52,6 +57,7 @@ func TestCronJobs_Create_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/cron", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -84,6 +90,7 @@ func TestCronJobs_Create_Success(t *testing.T) {
 
 func TestCronJobs_Create_MissingSchedule(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewCronJobHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(CronJobConfig{
@@ -91,6 +98,7 @@ func TestCronJobs_Create_MissingSchedule(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/cron", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -103,6 +111,7 @@ func TestCronJobs_Create_MissingSchedule(t *testing.T) {
 
 func TestCronJobs_Create_MissingCommand(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewCronJobHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(CronJobConfig{
@@ -110,6 +119,7 @@ func TestCronJobs_Create_MissingCommand(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/cron", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -122,10 +132,12 @@ func TestCronJobs_Create_MissingCommand(t *testing.T) {
 
 func TestCronJobs_Create_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewCronJobHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/cron", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -140,11 +152,13 @@ func TestCronJobs_Create_InvalidJSON(t *testing.T) {
 
 func TestCronJobs_Delete_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewCronJobHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app1/cron/job1", nil)
 	req.SetPathValue("id", "app1")
 	req.SetPathValue("jobId", "job1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Delete(rr, req)

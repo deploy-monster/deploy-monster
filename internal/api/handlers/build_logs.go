@@ -19,7 +19,11 @@ func NewBuildLogHandler(store core.Store) *BuildLogHandler {
 
 // Get handles GET /api/v1/apps/{id}/builds/{version}/log
 func (h *BuildLogHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	_ = r.PathValue("version")
 
 	dep, err := h.store.GetLatestDeployment(r.Context(), appID)
@@ -38,7 +42,11 @@ func (h *BuildLogHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Download handles GET /api/v1/apps/{id}/builds/{version}/log/download
 func (h *BuildLogHandler) Download(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	dep, err := h.store.GetLatestDeployment(r.Context(), appID)
 	if err != nil {

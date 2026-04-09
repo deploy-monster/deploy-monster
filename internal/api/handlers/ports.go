@@ -26,13 +26,11 @@ type PortMapping struct {
 
 // Get handles GET /api/v1/apps/{id}/ports
 func (h *PortHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	_, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
 
 	// Default port based on app type — in production would read from container inspect
 	writeJSON(w, http.StatusOK, map[string]any{

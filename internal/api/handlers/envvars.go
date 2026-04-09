@@ -25,11 +25,8 @@ type envVarEntry struct {
 // Get handles GET /api/v1/apps/{id}/env
 // Returns env vars with secret values masked.
 func (h *EnvVarHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
 
@@ -50,7 +47,10 @@ func (h *EnvVarHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/env
 func (h *EnvVarHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var req struct {
 		Vars []envVarEntry `json:"vars"`
@@ -70,12 +70,6 @@ func (h *EnvVarHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	// Serialize and store
 	data, _ := json.Marshal(req.Vars)
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
-		return
-	}
 	app.EnvVarsEnc = string(data)
 
 	if err := h.store.UpdateApp(r.Context(), app); err != nil {

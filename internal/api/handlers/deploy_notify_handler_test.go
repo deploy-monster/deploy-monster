@@ -6,16 +6,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── Deploy Notify ───────────────────────────────────────────────────────────
 
 func TestDeployNotify_Get_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewDeployNotifyHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deploy-notifications", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -40,6 +44,7 @@ func TestDeployNotify_Get_Success(t *testing.T) {
 
 func TestDeployNotify_Update_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewDeployNotifyHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(DeployNotifyConfig{
@@ -56,6 +61,7 @@ func TestDeployNotify_Update_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/deploy-notifications", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -100,11 +106,13 @@ func TestDeployNotify_Update_Success(t *testing.T) {
 
 func TestDeployNotify_Update_EmptyConfig(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewDeployNotifyHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(DeployNotifyConfig{})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/deploy-notifications", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -123,10 +131,12 @@ func TestDeployNotify_Update_EmptyConfig(t *testing.T) {
 
 func TestDeployNotify_Update_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewDeployNotifyHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/deploy-notifications", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)

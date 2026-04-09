@@ -18,9 +18,12 @@ func NewDeploymentHandler(store core.Store, events *core.EventBus) *DeploymentHa
 
 // ListByApp handles GET /api/v1/apps/{id}/deployments
 func (h *DeploymentHandler) ListByApp(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
-	deployments, err := h.store.ListDeploymentsByApp(r.Context(), appID, 20)
+	deployments, err := h.store.ListDeploymentsByApp(r.Context(), app.ID, 20)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
@@ -31,9 +34,12 @@ func (h *DeploymentHandler) ListByApp(w http.ResponseWriter, r *http.Request) {
 
 // GetLatest handles GET /api/v1/apps/{id}/deployments/latest
 func (h *DeploymentHandler) GetLatest(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
-	dep, err := h.store.GetLatestDeployment(r.Context(), appID)
+	dep, err := h.store.GetLatestDeployment(r.Context(), app.ID)
 	if err != nil {
 		if err == core.ErrNotFound {
 			writeError(w, http.StatusNotFound, "no deployments found")

@@ -20,13 +20,11 @@ func NewSuspendHandler(store core.Store, runtime core.ContainerRuntime, events *
 // Suspend handles POST /api/v1/apps/{id}/suspend
 // Stops the container but preserves all data and configuration.
 func (h *SuspendHandler) Suspend(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
 
 	if app.Status == "suspended" {
 		writeError(w, http.StatusConflict, "app already suspended")
@@ -52,13 +50,11 @@ func (h *SuspendHandler) Suspend(w http.ResponseWriter, r *http.Request) {
 // Resume handles POST /api/v1/apps/{id}/resume
 // Restarts a suspended app from its existing container.
 func (h *SuspendHandler) Resume(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
 
 	if app.Status != "suspended" {
 		writeError(w, http.StatusConflict, "app is not suspended")

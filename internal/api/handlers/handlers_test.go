@@ -129,10 +129,11 @@ func TestWriteError(t *testing.T) {
 		t.Errorf("status = %d, want 400", rr.Code)
 	}
 
-	var resp map[string]string
+	var resp map[string]any
 	json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["error"] != "something went wrong" {
-		t.Errorf("error = %q", resp["error"])
+	errObj, _ := resp["error"].(map[string]any)
+	if errObj == nil || errObj["message"] != "something went wrong" {
+		t.Errorf("error message = %v", errObj)
 	}
 }
 

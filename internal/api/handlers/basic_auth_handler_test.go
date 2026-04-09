@@ -6,16 +6,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── Basic Auth ──────────────────────────────────────────────────────────────
 
 func TestBasicAuth_Get_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewBasicAuthHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/basic-auth", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -37,6 +41,7 @@ func TestBasicAuth_Get_Success(t *testing.T) {
 
 func TestBasicAuth_Update_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewBasicAuthHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(BasicAuthConfig{
@@ -46,6 +51,7 @@ func TestBasicAuth_Update_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/basic-auth", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -75,6 +81,7 @@ func TestBasicAuth_Update_Success(t *testing.T) {
 
 func TestBasicAuth_Update_DefaultRealm(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewBasicAuthHandler(store, newMockBoltStore())
 
 	body, _ := json.Marshal(BasicAuthConfig{
@@ -84,6 +91,7 @@ func TestBasicAuth_Update_DefaultRealm(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/basic-auth", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -103,10 +111,12 @@ func TestBasicAuth_Update_DefaultRealm(t *testing.T) {
 
 func TestBasicAuth_Update_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewBasicAuthHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/basic-auth", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)

@@ -13,6 +13,8 @@ import (
 // ─── Container Top (Process List) ────────────────────────────────────────────
 
 func TestContainerTop_Success(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{
 			{
@@ -23,10 +25,11 @@ func TestContainerTop_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewContainerTopHandler(runtime)
+	handler := NewContainerTopHandler(store, runtime)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/processes", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Top(rr, req)
@@ -63,10 +66,13 @@ func TestContainerTop_Success(t *testing.T) {
 }
 
 func TestContainerTop_NoRuntime(t *testing.T) {
-	handler := NewContainerTopHandler(nil)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	handler := NewContainerTopHandler(store, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/processes", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Top(rr, req)
@@ -78,14 +84,17 @@ func TestContainerTop_NoRuntime(t *testing.T) {
 }
 
 func TestContainerTop_NoContainer(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{},
 	}
 
-	handler := NewContainerTopHandler(runtime)
+	handler := NewContainerTopHandler(store, runtime)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/processes", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Top(rr, req)
@@ -97,14 +106,17 @@ func TestContainerTop_NoContainer(t *testing.T) {
 }
 
 func TestContainerTop_RuntimeListError(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{
 		listErr: errors.New("docker error"),
 	}
 
-	handler := NewContainerTopHandler(runtime)
+	handler := NewContainerTopHandler(store, runtime)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/processes", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Top(rr, req)

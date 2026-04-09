@@ -117,9 +117,10 @@ func TestNotificationTest_SendError(t *testing.T) {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 
-	var resp map[string]string
+	var resp map[string]any
 	json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["error"] == "" {
+	errObj, _ := resp["error"].(map[string]any)
+	if errObj == nil || errObj["message"] == "" {
 		t.Error("expected non-empty error message")
 	}
 }

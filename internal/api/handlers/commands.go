@@ -27,7 +27,11 @@ type runCommandRequest struct {
 
 // Run handles POST /api/v1/apps/{id}/commands
 func (h *CommandHandler) Run(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var req runCommandRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -71,6 +75,8 @@ func (h *CommandHandler) Run(w http.ResponseWriter, r *http.Request) {
 
 // History handles GET /api/v1/apps/{id}/commands
 func (h *CommandHandler) History(w http.ResponseWriter, r *http.Request) {
-	_ = r.PathValue("id")
+	if app := requireTenantApp(w, r, h.store); app == nil {
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 }

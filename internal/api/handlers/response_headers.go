@@ -9,11 +9,12 @@ import (
 
 // ResponseHeadersHandler manages per-app security and custom response headers.
 type ResponseHeadersHandler struct {
-	bolt core.BoltStorer
+	store core.Store
+	bolt  core.BoltStorer
 }
 
-func NewResponseHeadersHandler(bolt core.BoltStorer) *ResponseHeadersHandler {
-	return &ResponseHeadersHandler{bolt: bolt}
+func NewResponseHeadersHandler(store core.Store, bolt core.BoltStorer) *ResponseHeadersHandler {
+	return &ResponseHeadersHandler{store: store, bolt: bolt}
 }
 
 // ResponseHeadersConfig defines custom response headers for the ingress.
@@ -38,10 +39,13 @@ func defaultResponseHeaders() ResponseHeadersConfig {
 
 // Get handles GET /api/v1/apps/{id}/response-headers
 func (h *ResponseHeadersHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var cfg ResponseHeadersConfig
-	if err := h.bolt.Get("response_headers", appID, &cfg); err != nil {
+	if err := h.bolt.Get("response_headers", app.ID, &cfg); err != nil {
 		writeJSON(w, http.StatusOK, defaultResponseHeaders())
 		return
 	}
@@ -51,7 +55,11 @@ func (h *ResponseHeadersHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/response-headers
 func (h *ResponseHeadersHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var cfg ResponseHeadersConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {

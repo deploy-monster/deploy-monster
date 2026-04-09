@@ -25,11 +25,7 @@ type IPWhitelistConfig struct {
 
 // Get handles GET /api/v1/apps/{id}/access
 func (h *IPWhitelistHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	_, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	if requireTenantApp(w, r, h.store) == nil {
 		return
 	}
 
@@ -41,17 +37,15 @@ func (h *IPWhitelistHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/access
 func (h *IPWhitelistHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var cfg IPWhitelistConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	_, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
 		return
 	}
 

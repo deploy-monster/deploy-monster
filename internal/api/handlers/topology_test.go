@@ -21,8 +21,8 @@ func TestTopologyHandler_Save(t *testing.T) {
 	req := TopologyDeployRequest{
 		Nodes: []TopologyNode{
 			{
-				ID:   "app-1",
-				Type: "app",
+				ID:       "app-1",
+				Type:     "app",
 				Position: Position{X: 100, Y: 100},
 				Data: map[string]interface{}{
 					"name":     "my-app",

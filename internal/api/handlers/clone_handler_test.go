@@ -34,6 +34,7 @@ func TestClone_Success(t *testing.T) {
 	body, _ := json.Marshal(cloneRequest{NewName: "Cloned App"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/source1/clone", bytes.NewReader(body))
 	req.SetPathValue("id", "source1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Clone(rr, req)
@@ -98,6 +99,7 @@ func TestClone_DefaultName(t *testing.T) {
 	body, _ := json.Marshal(cloneRequest{})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/source1/clone", bytes.NewReader(body))
 	req.SetPathValue("id", "source1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Clone(rr, req)
@@ -122,6 +124,7 @@ func TestClone_SourceNotFound(t *testing.T) {
 	body, _ := json.Marshal(cloneRequest{NewName: "Clone"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/nonexistent/clone", bytes.NewReader(body))
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Clone(rr, req)
@@ -129,7 +132,7 @@ func TestClone_SourceNotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "source app not found")
+	assertErrorMessage(t, rr, "application not found")
 }
 
 func TestClone_InvalidJSON(t *testing.T) {
@@ -166,6 +169,7 @@ func TestClone_StoreError(t *testing.T) {
 	body, _ := json.Marshal(cloneRequest{NewName: "Clone"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/source1/clone", bytes.NewReader(body))
 	req.SetPathValue("id", "source1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Clone(rr, req)
@@ -186,11 +190,12 @@ func TestClone_GetAppStoreError(t *testing.T) {
 	body, _ := json.Marshal(cloneRequest{NewName: "Clone"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/source1/clone", bytes.NewReader(body))
 	req.SetPathValue("id", "source1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Clone(rr, req)
 
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d", rr.Code)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
 	}
 }

@@ -5,16 +5,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── Container History ───────────────────────────────────────────────────────
 
 func TestContainerHistory_DefaultPeriod(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(runtime, newMockBoltStore())
+	handler := NewContainerHistoryHandler(store, runtime, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.History(rr, req)
@@ -46,11 +51,14 @@ func TestContainerHistory_DefaultPeriod(t *testing.T) {
 }
 
 func TestContainerHistory_24hPeriod(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(runtime, newMockBoltStore())
+	handler := NewContainerHistoryHandler(store, runtime, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history?period=24h", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.History(rr, req)
@@ -76,11 +84,14 @@ func TestContainerHistory_24hPeriod(t *testing.T) {
 }
 
 func TestContainerHistory_7dPeriod(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(runtime, newMockBoltStore())
+	handler := NewContainerHistoryHandler(store, runtime, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history?period=7d", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.History(rr, req)
@@ -106,11 +117,14 @@ func TestContainerHistory_7dPeriod(t *testing.T) {
 }
 
 func TestContainerHistory_UnknownPeriodDefaultsTo1h(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(runtime, newMockBoltStore())
+	handler := NewContainerHistoryHandler(store, runtime, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history?period=30d", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.History(rr, req)
@@ -129,11 +143,14 @@ func TestContainerHistory_UnknownPeriodDefaultsTo1h(t *testing.T) {
 }
 
 func TestContainerHistory_PointStructure(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(runtime, newMockBoltStore())
+	handler := NewContainerHistoryHandler(store, runtime, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.History(rr, req)

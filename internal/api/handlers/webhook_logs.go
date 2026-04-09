@@ -35,10 +35,13 @@ type webhookLogList struct {
 
 // List handles GET /api/v1/apps/{id}/webhooks/logs
 func (h *WebhookLogHandler) List(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var list webhookLogList
-	if err := h.bolt.Get("webhook_logs", appID, &list); err != nil {
+	if err := h.bolt.Get("webhook_logs", app.ID, &list); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 		return
 	}

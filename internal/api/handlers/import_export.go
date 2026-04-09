@@ -154,9 +154,8 @@ func (m *AppManifest) Validate() []string {
 func (h *ImportExportHandler) Export(w http.ResponseWriter, r *http.Request) {
 	appID := r.PathValue("id")
 
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
 

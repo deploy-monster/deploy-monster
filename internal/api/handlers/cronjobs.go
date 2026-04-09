@@ -33,7 +33,11 @@ type cronJobList struct {
 
 // List handles GET /api/v1/apps/{id}/cron
 func (h *CronJobHandler) List(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var list cronJobList
 	if err := h.bolt.Get("cronjobs", appID, &list); err != nil {
@@ -47,7 +51,11 @@ func (h *CronJobHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Create handles POST /api/v1/apps/{id}/cron
 func (h *CronJobHandler) Create(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var req CronJobConfig
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -82,7 +90,11 @@ func (h *CronJobHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /api/v1/apps/{id}/cron/{jobId}
 func (h *CronJobHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	jobID := r.PathValue("jobId")
 
 	var list cronJobList

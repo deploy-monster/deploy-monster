@@ -32,6 +32,7 @@ func TestDeployTrigger_ImageApp_RuntimeError(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app-err/deploy", nil)
 	req.SetPathValue("id", "app-err")
+	req = withClaims(req, "user1", "t1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.TriggerDeploy(rr, req)

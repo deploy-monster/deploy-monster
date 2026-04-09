@@ -126,7 +126,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/transfer", protected(http.HandlerFunc(txfrH.TransferApp)))
 
 	// ── Metrics Export ────────────────────────────────
-	mxExportH := handlers.NewMetricsExportHandler(r.core.DB.Bolt, r.core.Services.Container)
+	mxExportH := handlers.NewMetricsExportHandler(r.store, r.core.DB.Bolt, r.core.Services.Container)
 	r.mux.Handle("GET /api/v1/apps/{id}/metrics/export", protected(http.HandlerFunc(mxExportH.Export)))
 
 	// ── App Rename ────────────────────────────────────
@@ -164,13 +164,13 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/snapshots", protected(http.HandlerFunc(snapH.Create)))
 
 	// ── Service Links (Mesh) ──────────────────────────
-	meshH := handlers.NewServiceMeshHandler(r.core.DB.Bolt)
+	meshH := handlers.NewServiceMeshHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/links", protected(http.HandlerFunc(meshH.List)))
 	r.mux.Handle("POST /api/v1/apps/{id}/links", protected(http.HandlerFunc(meshH.Create)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/links/{targetId}", protected(http.HandlerFunc(meshH.Delete)))
 
 	// ── Webhook Replay ────────────────────────────────
-	whReplayH := handlers.NewWebhookReplayHandler(r.core.Events)
+	whReplayH := handlers.NewWebhookReplayHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/{logId}/replay", protected(http.HandlerFunc(whReplayH.Replay)))
 
 	// ── App Clone & Bulk Ops ──────────────────────────
@@ -189,11 +189,11 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/labels", protected(http.HandlerFunc(labelsH.Update)))
 
 	// ── Disk Usage ────────────────────────────────────
-	diskH := handlers.NewDiskUsageHandler(r.core.Services.Container)
+	diskH := handlers.NewDiskUsageHandler(r.store, r.core.Services.Container)
 	r.mux.Handle("GET /api/v1/apps/{id}/disk", protected(http.HandlerFunc(diskH.AppDisk)))
 
 	// ── Webhook Test ──────────────────────────────────
-	whTestH := handlers.NewWebhookTestDeliveryHandler(r.core.Events, r.core.DB.Bolt)
+	whTestH := handlers.NewWebhookTestDeliveryHandler(r.store, r.core.Events, r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/test", protected(http.HandlerFunc(whTestH.TestDeliver)))
 
 	// ── App Ports ─────────────────────────────────────
@@ -227,7 +227,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/middleware", protected(http.HandlerFunc(amwH.Update)))
 
 	// ── Restart History ───────────────────────────────
-	rstHistH := handlers.NewRestartHistoryHandler(r.core.Services.Container)
+	rstHistH := handlers.NewRestartHistoryHandler(r.store, r.core.Services.Container)
 	r.mux.Handle("GET /api/v1/apps/{id}/restarts", protected(http.HandlerFunc(rstHistH.List)))
 
 	// ── Webhook Secret Rotation ───────────────────────
@@ -255,18 +255,18 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/maintenance", protected(http.HandlerFunc(maintH.Update)))
 
 	// ── Redirects ─────────────────────────────────────
-	redirH := handlers.NewRedirectHandler(r.core.DB.Bolt)
+	redirH := handlers.NewRedirectHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.List)))
 	r.mux.Handle("POST /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.Create)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/redirects/{ruleId}", protected(http.HandlerFunc(redirH.Delete)))
 
 	// ── Error Pages ───────────────────────────────────
-	epH := handlers.NewErrorPageHandler(r.core.DB.Bolt)
+	epH := handlers.NewErrorPageHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/error-pages", protected(http.HandlerFunc(epH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/error-pages", protected(http.HandlerFunc(epH.Update)))
 
 	// ── Sticky Sessions ───────────────────────────────
-	stickyH := handlers.NewStickySessionHandler(r.core.DB.Bolt)
+	stickyH := handlers.NewStickySessionHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/sticky-sessions", protected(http.HandlerFunc(stickyH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/sticky-sessions", protected(http.HandlerFunc(stickyH.Update)))
 
@@ -276,12 +276,12 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Update)))
 
 	// ── Response Headers ──────────────────────────────
-	rhH := handlers.NewResponseHeadersHandler(r.core.DB.Bolt)
+	rhH := handlers.NewResponseHeadersHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/response-headers", protected(http.HandlerFunc(rhH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/response-headers", protected(http.HandlerFunc(rhH.Update)))
 
 	// ── Container History ─────────────────────────────
-	chH := handlers.NewContainerHistoryHandler(r.core.Services.Container, r.core.DB.Bolt)
+	chH := handlers.NewContainerHistoryHandler(r.store, r.core.Services.Container, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/containers/history", protected(http.HandlerFunc(chH.History)))
 
 	// ── Deploy Notifications ──────────────────────────
@@ -295,7 +295,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("PUT /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Update)))
 
 	// ── Container Processes ───────────────────────────
-	topH := handlers.NewContainerTopHandler(r.core.Services.Container)
+	topH := handlers.NewContainerTopHandler(r.store, r.core.Services.Container)
 	r.mux.Handle("GET /api/v1/apps/{id}/processes", protected(http.HandlerFunc(topH.Top)))
 
 	// ── Webhook Logs ──────────────────────────────────
@@ -323,7 +323,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/deployments/latest", protected(http.HandlerFunc(depH.GetLatest)))
 
 	// ── File Browser ──────────────────────────────────
-	fbH := handlers.NewFileBrowserHandler(r.core.Services.Container)
+	fbH := handlers.NewFileBrowserHandler(r.store, r.core.Services.Container)
 	r.mux.Handle("GET /api/v1/apps/{id}/files", protected(http.HandlerFunc(fbH.List)))
 
 	// ── Stats & Scaling ───────────────────────────────

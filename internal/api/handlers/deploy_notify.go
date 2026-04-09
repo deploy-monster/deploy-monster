@@ -32,10 +32,13 @@ type NotifyTarget struct {
 
 // Get handles GET /api/v1/apps/{id}/deploy-notifications
 func (h *DeployNotifyHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var cfg DeployNotifyConfig
-	if err := h.bolt.Get("deploy_notify", appID, &cfg); err != nil {
+	if err := h.bolt.Get("deploy_notify", app.ID, &cfg); err != nil {
 		writeJSON(w, http.StatusOK, DeployNotifyConfig{})
 		return
 	}
@@ -45,7 +48,10 @@ func (h *DeployNotifyHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/deploy-notifications
 func (h *DeployNotifyHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var cfg DeployNotifyConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
@@ -53,10 +59,10 @@ func (h *DeployNotifyHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.bolt.Set("deploy_notify", appID, cfg, 0); err != nil {
+	if err := h.bolt.Set("deploy_notify", app.ID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save notification config")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"app_id": appID, "config": cfg, "status": "updated"})
+	writeJSON(w, http.StatusOK, map[string]any{"app_id": app.ID, "config": cfg, "status": "updated"})
 }

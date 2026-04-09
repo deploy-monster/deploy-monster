@@ -129,24 +129,20 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Get handles GET /api/v1/apps/{id}
 func (h *AppHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	app, err := h.store.GetApp(r.Context(), id)
-	if err != nil {
-		if err == core.ErrNotFound {
-			writeError(w, http.StatusNotFound, "application not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "internal error")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
-
 	writeJSON(w, http.StatusOK, app)
 }
 
 // Delete handles DELETE /api/v1/apps/{id}
 func (h *AppHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if err := h.store.DeleteApp(r.Context(), id); err != nil {
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	if err := h.store.DeleteApp(r.Context(), app.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete application")
 		return
 	}
@@ -154,7 +150,7 @@ func (h *AppHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	h.core.Events.Publish(r.Context(), core.Event{
 		Type:   core.EventAppDeleted,
 		Source: "api",
-		Data:   map[string]string{"id": id},
+		Data:   map[string]string{"id": app.ID},
 	})
 
 	w.WriteHeader(http.StatusNoContent)
@@ -162,10 +158,11 @@ func (h *AppHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // Restart handles POST /api/v1/apps/{id}/restart
 func (h *AppHandler) Restart(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	// For now, just update the status - actual Docker operations come in Phase 1.6
-	if err := h.store.UpdateAppStatus(r.Context(), id, "running"); err != nil {
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "running"); err != nil {
 		writeError(w, http.StatusInternalServerError, "restart failed")
 		return
 	}
@@ -175,9 +172,11 @@ func (h *AppHandler) Restart(w http.ResponseWriter, r *http.Request) {
 
 // Stop handles POST /api/v1/apps/{id}/stop
 func (h *AppHandler) Stop(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	if err := h.store.UpdateAppStatus(r.Context(), id, "stopped"); err != nil {
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "stopped"); err != nil {
 		writeError(w, http.StatusInternalServerError, "stop failed")
 		return
 	}
@@ -185,7 +184,7 @@ func (h *AppHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	h.core.Events.Publish(r.Context(), core.Event{
 		Type:   core.EventAppStopped,
 		Source: "api",
-		Data:   map[string]string{"id": id},
+		Data:   map[string]string{"id": app.ID},
 	})
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
@@ -193,9 +192,11 @@ func (h *AppHandler) Stop(w http.ResponseWriter, r *http.Request) {
 
 // Start handles POST /api/v1/apps/{id}/start
 func (h *AppHandler) Start(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	if err := h.store.UpdateAppStatus(r.Context(), id, "running"); err != nil {
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "running"); err != nil {
 		writeError(w, http.StatusInternalServerError, "start failed")
 		return
 	}
@@ -203,7 +204,7 @@ func (h *AppHandler) Start(w http.ResponseWriter, r *http.Request) {
 	h.core.Events.Publish(r.Context(), core.Event{
 		Type:   core.EventAppStarted,
 		Source: "api",
-		Data:   map[string]string{"id": id},
+		Data:   map[string]string{"id": app.ID},
 	})
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "running"})

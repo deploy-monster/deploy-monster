@@ -7,12 +7,15 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── Deploy Schedule ─────────────────────────────────────────────────────────
 
 func TestDeploySchedule_Schedule_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	events := testCore().Events
 	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
@@ -24,6 +27,7 @@ func TestDeploySchedule_Schedule_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy/schedule", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Schedule(rr, req)
@@ -60,11 +64,13 @@ func TestDeploySchedule_Schedule_Success(t *testing.T) {
 
 func TestDeploySchedule_Schedule_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	events := testCore().Events
 	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy/schedule", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Schedule(rr, req)
@@ -77,6 +83,7 @@ func TestDeploySchedule_Schedule_InvalidJSON(t *testing.T) {
 
 func TestDeploySchedule_Schedule_InvalidTimeFormat(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	events := testCore().Events
 	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
@@ -85,6 +92,7 @@ func TestDeploySchedule_Schedule_InvalidTimeFormat(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy/schedule", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Schedule(rr, req)
@@ -97,6 +105,7 @@ func TestDeploySchedule_Schedule_InvalidTimeFormat(t *testing.T) {
 
 func TestDeploySchedule_Schedule_PastTime(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	events := testCore().Events
 	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
@@ -106,6 +115,7 @@ func TestDeploySchedule_Schedule_PastTime(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy/schedule", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Schedule(rr, req)
@@ -118,11 +128,13 @@ func TestDeploySchedule_Schedule_PastTime(t *testing.T) {
 
 func TestDeploySchedule_ListScheduled_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	events := testCore().Events
 	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deploy/scheduled", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.ListScheduled(rr, req)
@@ -148,12 +160,14 @@ func TestDeploySchedule_ListScheduled_Success(t *testing.T) {
 
 func TestDeploySchedule_CancelScheduled_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	events := testCore().Events
 	handler := NewDeployScheduleHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app1/deploy/scheduled/sched1", nil)
 	req.SetPathValue("id", "app1")
 	req.SetPathValue("scheduleId", "sched1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.CancelScheduled(rr, req)

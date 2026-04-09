@@ -15,10 +15,13 @@ import (
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestDiskUsageHandler_AppDisk_NilRuntime(t *testing.T) {
-	h := NewDiskUsageHandler(nil)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewDiskUsageHandler(store, nil)
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/disk", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.AppDisk(rr, req)
 
@@ -36,10 +39,13 @@ func TestDiskUsageHandler_AppDisk_WithRuntime(t *testing.T) {
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{{ID: "c1", State: "running"}},
 	}
-	h := NewDiskUsageHandler(runtime)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-2", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewDiskUsageHandler(store, runtime)
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-2/disk", nil)
 	req.SetPathValue("id", "app-2")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.AppDisk(rr, req)
 
@@ -54,7 +60,7 @@ func TestDiskUsageHandler_AppDisk_WithRuntime(t *testing.T) {
 }
 
 func TestDiskUsageHandler_SystemDisk(t *testing.T) {
-	h := NewDiskUsageHandler(nil)
+	h := NewDiskUsageHandler(nil, nil)
 
 	req := httptest.NewRequest("GET", "/api/v1/admin/disk", nil)
 	rr := httptest.NewRecorder()
@@ -70,10 +76,13 @@ func TestDiskUsageHandler_SystemDisk(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestErrorPageHandler_Get(t *testing.T) {
-	h := NewErrorPageHandler(newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewErrorPageHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/error-pages", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -83,11 +92,14 @@ func TestErrorPageHandler_Get(t *testing.T) {
 }
 
 func TestErrorPageHandler_Update(t *testing.T) {
-	h := NewErrorPageHandler(newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewErrorPageHandler(store, newMockBoltStore())
 
 	body := `{"page_502":"<h1>Down</h1>","page_503":"<h1>Unavailable</h1>"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/error-pages", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -102,10 +114,13 @@ func TestErrorPageHandler_Update(t *testing.T) {
 }
 
 func TestErrorPageHandler_Update_InvalidBody(t *testing.T) {
-	h := NewErrorPageHandler(newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
+	h := NewErrorPageHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/error-pages", strings.NewReader("not json"))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -155,10 +170,12 @@ func TestImageCleanupHandler_Prune(t *testing.T) {
 
 func TestLogRetentionHandler_Get(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
 	h := NewLogRetentionHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/log-retention", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -180,11 +197,13 @@ func TestLogRetentionHandler_Get(t *testing.T) {
 
 func TestLogRetentionHandler_Update(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
 	h := NewLogRetentionHandler(store, newMockBoltStore())
 
 	body := `{"max_size_mb":100,"max_files":10,"driver":"local"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -195,12 +214,14 @@ func TestLogRetentionHandler_Update(t *testing.T) {
 
 func TestLogRetentionHandler_Update_DefaultValues(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
 	h := NewLogRetentionHandler(store, newMockBoltStore())
 
 	// max_size_mb <= 0 should default to 50, max_files <= 0 should default to 5
 	body := `{"max_size_mb":-1,"max_files":0}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -211,10 +232,12 @@ func TestLogRetentionHandler_Update_DefaultValues(t *testing.T) {
 
 func TestLogRetentionHandler_Update_InvalidBody(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
 	h := NewLogRetentionHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader("{invalid"))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -229,11 +252,13 @@ func TestLogRetentionHandler_Update_InvalidBody(t *testing.T) {
 
 func TestMaintenanceHandler_Get(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
 	events := core.NewEventBus(nil)
 	h := NewMaintenanceHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/maintenance", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -249,12 +274,14 @@ func TestMaintenanceHandler_Get(t *testing.T) {
 
 func TestMaintenanceHandler_Update_Enable(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
 	events := core.NewEventBus(nil)
 	h := NewMaintenanceHandler(store, events, newMockBoltStore())
 
 	body := `{"enabled":true,"message":"We are upgrading","allowed_ips":["10.0.0.1"]}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/maintenance", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -270,12 +297,14 @@ func TestMaintenanceHandler_Update_Enable(t *testing.T) {
 
 func TestMaintenanceHandler_Update_Disable(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
 	events := core.NewEventBus(nil)
 	h := NewMaintenanceHandler(store, events, newMockBoltStore())
 
 	body := `{"enabled":false}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/maintenance", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -291,11 +320,13 @@ func TestMaintenanceHandler_Update_Disable(t *testing.T) {
 
 func TestMaintenanceHandler_Update_InvalidBody(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
 	events := core.NewEventBus(nil)
 	h := NewMaintenanceHandler(store, events, newMockBoltStore())
 
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/maintenance", strings.NewReader("bad"))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -310,11 +341,12 @@ func TestMaintenanceHandler_Update_InvalidBody(t *testing.T) {
 
 func TestPortHandler_Get(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test-app"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test-app"})
 	h := NewPortHandler(store)
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/ports", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -329,6 +361,7 @@ func TestPortHandler_Get_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/missing/ports", nil)
 	req.SetPathValue("id", "missing")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -402,11 +435,12 @@ func TestPortHandler_Update_PortOverMax(t *testing.T) {
 
 func TestLabelsHandler_Get(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test", LabelsJSON: `{"env":"prod","team":"backend"}`})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", LabelsJSON: `{"env":"prod","team":"backend"}`})
 	h := NewLabelsHandler(store)
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/labels", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -417,11 +451,12 @@ func TestLabelsHandler_Get(t *testing.T) {
 
 func TestLabelsHandler_Get_Empty(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
 	h := NewLabelsHandler(store)
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/labels", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -436,6 +471,7 @@ func TestLabelsHandler_Get_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/missing/labels", nil)
 	req.SetPathValue("id", "missing")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -446,12 +482,13 @@ func TestLabelsHandler_Get_NotFound(t *testing.T) {
 
 func TestLabelsHandler_Update(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
 	h := NewLabelsHandler(store)
 
 	body := `{"env":"staging","version":"v2"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/labels", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -467,6 +504,7 @@ func TestLabelsHandler_Update_NotFound(t *testing.T) {
 	body := `{"env":"staging"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/missing/labels", strings.NewReader(body))
 	req.SetPathValue("id", "missing")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -477,10 +515,12 @@ func TestLabelsHandler_Update_NotFound(t *testing.T) {
 
 func TestLabelsHandler_Update_InvalidBody(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
 	h := NewLabelsHandler(store)
 
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/labels", strings.NewReader("bad"))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -495,11 +535,12 @@ func TestLabelsHandler_Update_InvalidBody(t *testing.T) {
 
 func TestIPWhitelistHandler_Get(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
 	h := NewIPWhitelistHandler(store)
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/access", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -514,6 +555,7 @@ func TestIPWhitelistHandler_Get_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/missing/access", nil)
 	req.SetPathValue("id", "missing")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Get(rr, req)
 
@@ -524,12 +566,13 @@ func TestIPWhitelistHandler_Get_NotFound(t *testing.T) {
 
 func TestIPWhitelistHandler_Update(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
 	h := NewIPWhitelistHandler(store)
 
 	body := `{"enabled":true,"allowed_ips":["192.168.1.0/24"],"deny_ips":["10.0.0.1"]}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/access", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -545,6 +588,7 @@ func TestIPWhitelistHandler_Update_NotFound(t *testing.T) {
 	body := `{"enabled":true}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/missing/access", strings.NewReader(body))
 	req.SetPathValue("id", "missing")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -555,10 +599,12 @@ func TestIPWhitelistHandler_Update_NotFound(t *testing.T) {
 
 func TestIPWhitelistHandler_Update_InvalidBody(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
 	h := NewIPWhitelistHandler(store)
 
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/access", strings.NewReader("bad"))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -586,6 +632,7 @@ func TestCommitRollbackHandler_RollbackToCommit_Success(t *testing.T) {
 	body := `{"commit_sha":"abc1234567890"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.RollbackToCommit(rr, req)
 
@@ -611,6 +658,7 @@ func TestCommitRollbackHandler_RollbackToCommit_PartialMatch(t *testing.T) {
 	body := `{"commit_sha":"abcdef1"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.RollbackToCommit(rr, req)
 
@@ -621,12 +669,14 @@ func TestCommitRollbackHandler_RollbackToCommit_PartialMatch(t *testing.T) {
 
 func TestCommitRollbackHandler_RollbackToCommit_NotFound(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "testapp", Status: "running"})
 	events := core.NewEventBus(nil)
 	h := NewCommitRollbackHandler(store, &mockContainerRuntime{}, events)
 
 	body := `{"commit_sha":"nonexistent"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.RollbackToCommit(rr, req)
 
@@ -637,12 +687,14 @@ func TestCommitRollbackHandler_RollbackToCommit_NotFound(t *testing.T) {
 
 func TestCommitRollbackHandler_RollbackToCommit_EmptyCommit(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "testapp", Status: "running"})
 	events := core.NewEventBus(nil)
 	h := NewCommitRollbackHandler(store, &mockContainerRuntime{}, events)
 
 	body := `{"commit_sha":""}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.RollbackToCommit(rr, req)
 
@@ -653,11 +705,13 @@ func TestCommitRollbackHandler_RollbackToCommit_EmptyCommit(t *testing.T) {
 
 func TestCommitRollbackHandler_RollbackToCommit_InvalidBody(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "testapp", Status: "running"})
 	events := core.NewEventBus(nil)
 	h := NewCommitRollbackHandler(store, &mockContainerRuntime{}, events)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader("{bad"))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.RollbackToCommit(rr, req)
 
@@ -668,6 +722,7 @@ func TestCommitRollbackHandler_RollbackToCommit_InvalidBody(t *testing.T) {
 
 func TestCommitRollbackHandler_RollbackToCommit_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "testapp", Status: "running"})
 	store.errListDeploymentsByApp = core.ErrNotFound
 	events := core.NewEventBus(nil)
 	h := NewCommitRollbackHandler(store, &mockContainerRuntime{}, events)
@@ -675,6 +730,7 @@ func TestCommitRollbackHandler_RollbackToCommit_StoreError(t *testing.T) {
 	body := `{"commit_sha":"abc1234"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback-to-commit", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.RollbackToCommit(rr, req)
 
@@ -691,11 +747,13 @@ func TestEnvCompareHandler_Compare(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:         "app-left",
+		TenantID:   "t1",
 		Name:       "left-app",
 		EnvVarsEnc: `[{"key":"DB_HOST","value":"localhost"},{"key":"DB_PORT","value":"5432"}]`,
 	})
 	store.addApp(&core.Application{
 		ID:         "app-right",
+		TenantID:   "t1",
 		Name:       "right-app",
 		EnvVarsEnc: `[{"key":"DB_HOST","value":"prod-server"},{"key":"REDIS_URL","value":"redis://localhost"}]`,
 	})
@@ -703,6 +761,7 @@ func TestEnvCompareHandler_Compare(t *testing.T) {
 
 	body := `{"left_app_id":"app-left","right_app_id":"app-right"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/env/compare", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Compare(rr, req)
 
@@ -723,6 +782,7 @@ func TestEnvCompareHandler_Compare_LeftNotFound(t *testing.T) {
 
 	body := `{"left_app_id":"missing","right_app_id":"also-missing"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/env/compare", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Compare(rr, req)
 
@@ -750,12 +810,13 @@ func TestEnvCompareHandler_Compare_InvalidBody(t *testing.T) {
 
 func TestEnvImportHandler_Import_DotEnv(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
 	h := NewEnvImportHandler(store)
 
 	envContent := "DB_HOST=localhost\nDB_PORT=5432\n# comment\nREDIS_URL=\"redis://localhost\"\n"
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/env/import", strings.NewReader(envContent))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Import(rr, req)
 
@@ -771,13 +832,14 @@ func TestEnvImportHandler_Import_DotEnv(t *testing.T) {
 
 func TestEnvImportHandler_Import_JSON(t *testing.T) {
 	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", Name: "test"})
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
 	h := NewEnvImportHandler(store)
 
 	body := `[{"key":"API_KEY","value":"secret123"},{"key":"NODE_ENV","value":"production"}]`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/env/import", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Import(rr, req)
 
@@ -807,6 +869,7 @@ func TestEnvImportHandler_Import_AppNotFound(t *testing.T) {
 	body := "KEY=VALUE\n"
 	req := httptest.NewRequest("POST", "/api/v1/apps/missing/env/import", strings.NewReader(body))
 	req.SetPathValue("id", "missing")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Import(rr, req)
 
@@ -821,6 +884,7 @@ func TestEnvImportHandler_Export_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/missing/env/export", nil)
 	req.SetPathValue("id", "missing")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Export(rr, req)
 
@@ -833,6 +897,7 @@ func TestEnvImportHandler_Export_DotEnv(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:         "app-1",
+		TenantID:   "t1",
 		Name:       "test",
 		EnvVarsEnc: `[{"key":"FOO","value":"bar"},{"key":"BAZ","value":"qux"}]`,
 	})
@@ -840,6 +905,7 @@ func TestEnvImportHandler_Export_DotEnv(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/env/export", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Export(rr, req)
 
@@ -859,6 +925,7 @@ func TestEnvImportHandler_Export_JSON(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
 		ID:         "app-1",
+		TenantID:   "t1",
 		Name:       "test",
 		EnvVarsEnc: `[{"key":"FOO","value":"bar"}]`,
 	})
@@ -866,6 +933,7 @@ func TestEnvImportHandler_Export_JSON(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/env/export?format=json", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Export(rr, req)
 
@@ -881,7 +949,7 @@ func TestEnvImportHandler_Export_JSON(t *testing.T) {
 func TestImportExportHandler_Export(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
-		ID: "app-1", Name: "my-web-app", Type: "service",
+		ID: "app-1", TenantID: "t1", Name: "my-web-app", Type: "service",
 		SourceType: "image", SourceURL: "nginx:latest", Replicas: 2,
 	})
 	store.domainsByApp["app-1"] = []core.Domain{
@@ -892,6 +960,7 @@ func TestImportExportHandler_Export(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/export", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Export(rr, req)
 
@@ -914,6 +983,7 @@ func TestImportExportHandler_Export_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/api/v1/apps/missing/export", nil)
 	req.SetPathValue("id", "missing")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Export(rr, req)
 
@@ -1121,10 +1191,11 @@ func TestWriteError_NotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", rr.Code)
 	}
-	var resp map[string]string
+	var resp map[string]any
 	json.NewDecoder(rr.Body).Decode(&resp)
-	if resp["error"] != "not found" {
-		t.Errorf("error = %q, want 'not found'", resp["error"])
+	errObj, _ := resp["error"].(map[string]any)
+	if errObj == nil || errObj["message"] != "not found" {
+		t.Errorf("error message = %v, want 'not found'", errObj)
 	}
 }
 

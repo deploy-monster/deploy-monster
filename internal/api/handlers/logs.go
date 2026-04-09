@@ -20,7 +20,11 @@ func NewLogHandler(runtime core.ContainerRuntime, store core.Store) *LogHandler 
 // GetLogs handles GET /api/v1/apps/{id}/logs
 // Returns the last N lines of container logs.
 func (h *LogHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	tail := r.URL.Query().Get("tail")
 	if tail == "" {
 		tail = "100"

@@ -44,10 +44,13 @@ type CORSMiddleware struct {
 
 // Get handles GET /api/v1/apps/{id}/middleware
 func (h *AppMiddlewareHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var cfg MiddlewareConfig
-	if err := h.bolt.Get("app_middleware", appID, &cfg); err != nil {
+	if err := h.bolt.Get("app_middleware", app.ID, &cfg); err != nil {
 		// Return default config
 		writeJSON(w, http.StatusOK, MiddlewareConfig{Compress: true})
 		return
@@ -58,7 +61,11 @@ func (h *AppMiddlewareHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/middleware
 func (h *AppMiddlewareHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var cfg MiddlewareConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {

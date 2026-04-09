@@ -15,15 +15,17 @@ import (
 func TestHealthCheckGet_Success(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{
-		ID:     "app1",
-		Name:   "Test App",
-		Status: "running",
+		ID:       "app1",
+		TenantID: "t1",
+		Name:     "Test App",
+		Status:   "running",
 	})
 
 	handler := NewHealthCheckHandler(store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/healthcheck", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -58,6 +60,7 @@ func TestHealthCheckGet_AppNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/nonexistent/healthcheck", nil)
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Get(rr, req)
@@ -65,7 +68,7 @@ func TestHealthCheckGet_AppNotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "app not found")
+	assertErrorMessage(t, rr, "application not found")
 }
 
 // ─── HealthCheck Update ──────────────────────────────────────────────────────

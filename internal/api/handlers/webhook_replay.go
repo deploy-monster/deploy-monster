@@ -8,16 +8,20 @@ import (
 
 // WebhookReplayHandler re-triggers a webhook from its delivery log.
 type WebhookReplayHandler struct {
+	store  core.Store
 	events *core.EventBus
 }
 
-func NewWebhookReplayHandler(events *core.EventBus) *WebhookReplayHandler {
-	return &WebhookReplayHandler{events: events}
+func NewWebhookReplayHandler(store core.Store, events *core.EventBus) *WebhookReplayHandler {
+	return &WebhookReplayHandler{store: store, events: events}
 }
 
 // Replay handles POST /api/v1/apps/{id}/webhooks/{logId}/replay
 func (h *WebhookReplayHandler) Replay(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 	logID := r.PathValue("logId")
 
 	// Would look up the original webhook payload from webhook_logs table
@@ -27,7 +31,7 @@ func (h *WebhookReplayHandler) Replay(w http.ResponseWriter, r *http.Request) {
 		core.WebhookEventData{WebhookID: logID, Provider: "replay"}))
 
 	writeJSON(w, http.StatusAccepted, map[string]any{
-		"app_id":  appID,
+		"app_id":  app.ID,
 		"log_id":  logID,
 		"status":  "replaying",
 		"message": "webhook delivery replayed — build pipeline triggered",

@@ -28,6 +28,7 @@ func TestDeployTrigger_ImageApp_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.TriggerDeploy(rr, req)
@@ -81,6 +82,7 @@ func TestDeployTrigger_ImageApp_NoRuntime(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.TriggerDeploy(rr, req)
@@ -110,6 +112,7 @@ func TestDeployTrigger_GitApp_Accepted(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app2/deploy", nil)
 	req.SetPathValue("id", "app2")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.TriggerDeploy(rr, req)
@@ -137,6 +140,7 @@ func TestDeployTrigger_AppNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/nonexistent/deploy", nil)
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.TriggerDeploy(rr, req)
@@ -144,5 +148,5 @@ func TestDeployTrigger_AppNotFound(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
-	assertErrorMessage(t, rr, "app not found")
+	assertErrorMessage(t, rr, "application not found")
 }

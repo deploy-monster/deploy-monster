@@ -25,10 +25,12 @@ func TestGetLogs_Success(t *testing.T) {
 		logsData: "2024-01-01 INFO Starting app\n2024-01-01 INFO Listening on :8080\n",
 	}
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewLogHandler(runtime, store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/logs", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.GetLogs(rr, req)
@@ -74,10 +76,12 @@ func TestGetLogs_CustomTail(t *testing.T) {
 		logsData: "line1\n",
 	}
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewLogHandler(runtime, store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/logs?tail=50", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.GetLogs(rr, req)
@@ -100,10 +104,12 @@ func TestGetLogs_InvalidTailFallsBackToDefault(t *testing.T) {
 		logsData: "line1\n",
 	}
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewLogHandler(runtime, store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/logs?tail=abc", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.GetLogs(rr, req)
@@ -116,10 +122,12 @@ func TestGetLogs_InvalidTailFallsBackToDefault(t *testing.T) {
 
 func TestGetLogs_NilRuntime(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewLogHandler(nil, store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/logs", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.GetLogs(rr, req)
@@ -135,10 +143,12 @@ func TestGetLogs_NoContainersFound(t *testing.T) {
 		containers: []core.ContainerInfo{}, // empty
 	}
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewLogHandler(runtime, store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/logs", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.GetLogs(rr, req)
@@ -154,10 +164,12 @@ func TestGetLogs_ListError(t *testing.T) {
 		listErr: errors.New("docker unavailable"),
 	}
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewLogHandler(runtime, store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/logs", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.GetLogs(rr, req)
@@ -180,10 +192,12 @@ func TestGetLogs_LogsReadError(t *testing.T) {
 		logsErr: errors.New("stream error"),
 	}
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	handler := NewLogHandler(runtime, store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/logs", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.GetLogs(rr, req)

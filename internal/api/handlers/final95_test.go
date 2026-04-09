@@ -1305,6 +1305,7 @@ func TestFinal95_ExecHandler_ExecCreateError(t *testing.T) {
 	body := `{"command":"ls"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Exec(rr, req)
 
@@ -1328,6 +1329,7 @@ func TestFinal95_ExecHandler_ExecNonZeroExit(t *testing.T) {
 	body := `{"command":"false"}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/exec", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Exec(rr, req)
 
@@ -1410,11 +1412,14 @@ func TestFinal95_Redirect_Delete_BoltSetError(t *testing.T) {
 
 	// Wrap bolt to fail on Set
 	errBolt := &boltGetOkSetFail{mockBoltStore: bolt}
-	h := NewRedirectHandler(errBolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "App"})
+	h := NewRedirectHandler(store, errBolt)
 
 	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/redirects/r1", nil)
 	req.SetPathValue("id", "app-1")
 	req.SetPathValue("ruleId", "r1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 

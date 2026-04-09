@@ -6,16 +6,20 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── App Metrics History ─────────────────────────────────────────────────────
 
 func TestAppMetrics_DefaultPeriod(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.AppMetrics(rr, req)
@@ -37,10 +41,12 @@ func TestAppMetrics_DefaultPeriod(t *testing.T) {
 
 func TestAppMetrics_1hPeriod(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics?period=1h", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.AppMetrics(rr, req)
@@ -59,10 +65,12 @@ func TestAppMetrics_1hPeriod(t *testing.T) {
 
 func TestAppMetrics_7dPeriod(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics?period=7d", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.AppMetrics(rr, req)
@@ -81,10 +89,12 @@ func TestAppMetrics_7dPeriod(t *testing.T) {
 
 func TestAppMetrics_30dPeriod(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
 	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics?period=30d", nil)
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.AppMetrics(rr, req)
@@ -153,10 +163,13 @@ func TestServerMetrics_CustomPeriod(t *testing.T) {
 // ─── Metrics Export ──────────────────────────────────────────────────────────
 
 func TestMetricsExport_JSONFormat(t *testing.T) {
-	handler := NewMetricsExportHandler(newMockBoltStore(), nil)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app12345", TenantID: "t1", Name: "App"})
+	handler := NewMetricsExportHandler(store, newMockBoltStore(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/metrics/export?format=json", nil)
 	req.SetPathValue("id", "app12345")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Export(rr, req)
@@ -187,10 +200,13 @@ func TestMetricsExport_JSONFormat(t *testing.T) {
 }
 
 func TestMetricsExport_CSVFormat(t *testing.T) {
-	handler := NewMetricsExportHandler(newMockBoltStore(), nil)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app12345", TenantID: "t1", Name: "App"})
+	handler := NewMetricsExportHandler(store, newMockBoltStore(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/metrics/export?format=csv", nil)
 	req.SetPathValue("id", "app12345")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Export(rr, req)
@@ -222,11 +238,14 @@ func TestMetricsExport_CSVFormat(t *testing.T) {
 }
 
 func TestMetricsExport_DefaultFormat(t *testing.T) {
-	handler := NewMetricsExportHandler(newMockBoltStore(), nil)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app12345", TenantID: "t1", Name: "App"})
+	handler := NewMetricsExportHandler(store, newMockBoltStore(), nil)
 
 	// No format param — defaults to JSON
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/metrics/export", nil)
 	req.SetPathValue("id", "app12345")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Export(rr, req)

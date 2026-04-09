@@ -11,12 +11,13 @@ import (
 
 // WebhookTestDeliveryHandler sends a test webhook payload.
 type WebhookTestDeliveryHandler struct {
+	store  core.Store
 	events *core.EventBus
 	bolt   core.BoltStorer
 }
 
-func NewWebhookTestDeliveryHandler(events *core.EventBus, bolt core.BoltStorer) *WebhookTestDeliveryHandler {
-	return &WebhookTestDeliveryHandler{events: events, bolt: bolt}
+func NewWebhookTestDeliveryHandler(store core.Store, events *core.EventBus, bolt core.BoltStorer) *WebhookTestDeliveryHandler {
+	return &WebhookTestDeliveryHandler{store: store, events: events, bolt: bolt}
 }
 
 // webhookTestLog records test delivery results.
@@ -30,7 +31,11 @@ type webhookTestLog struct {
 // TestDeliver handles POST /api/v1/apps/{id}/webhooks/test
 // Sends a fake push event to the app's webhook endpoint.
 func (h *WebhookTestDeliveryHandler) TestDeliver(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	deliveryID := core.GenerateID()
 
 	testPayload := map[string]any{

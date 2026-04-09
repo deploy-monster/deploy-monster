@@ -23,17 +23,14 @@ type cloneRequest struct {
 
 // Clone handles POST /api/v1/apps/{id}/clone
 func (h *CloneHandler) Clone(w http.ResponseWriter, r *http.Request) {
-	sourceID := r.PathValue("id")
-
 	var req cloneRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	source, err := h.store.GetApp(r.Context(), sourceID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "source app not found")
+	source := requireTenantApp(w, r, h.store)
+	if source == nil {
 		return
 	}
 

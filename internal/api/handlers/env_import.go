@@ -47,9 +47,8 @@ func (h *EnvImportHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
 
@@ -67,11 +66,8 @@ func (h *EnvImportHandler) Import(w http.ResponseWriter, r *http.Request) {
 // Export handles GET /api/v1/apps/{id}/env/export
 // Returns env vars as .env file format.
 func (h *EnvImportHandler) Export(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
 

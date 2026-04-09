@@ -221,7 +221,9 @@ func TestSnapshotHandler_Create_NoClaims(t *testing.T) {
 }
 
 func TestSnapshotHandler_Create_Success(t *testing.T) {
-	h := NewSnapshotHandler(newMockStore(), nil, core.NewEventBus(slog.Default()))
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-12345678", TenantID: "t1", Name: "Test", Status: "running"})
+	h := NewSnapshotHandler(store, nil, core.NewEventBus(slog.Default()))
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-12345678/snapshots", nil)
 	req.SetPathValue("id", "app-12345678")
 	req = withClaims(req, "u1", "t1", "admin", "u@e.com")
@@ -233,9 +235,12 @@ func TestSnapshotHandler_Create_Success(t *testing.T) {
 }
 
 func TestSnapshotHandler_List(t *testing.T) {
-	h := NewSnapshotHandler(newMockStore(), nil, core.NewEventBus(nil))
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "Test", Status: "running"})
+	h := NewSnapshotHandler(store, nil, core.NewEventBus(nil))
 	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/snapshots", nil)
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "admin", "u@e.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 	if rr.Code != http.StatusOK {

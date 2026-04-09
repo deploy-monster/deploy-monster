@@ -24,17 +24,15 @@ type resourceLimitsRequest struct {
 
 // SetLimits handles PUT /api/v1/apps/{id}/resources
 func (h *ResourceHandler) SetLimits(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 
 	var req resourceLimitsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
 		return
 	}
 
@@ -60,13 +58,11 @@ func (h *ResourceHandler) SetLimits(w http.ResponseWriter, r *http.Request) {
 
 // GetLimits handles GET /api/v1/apps/{id}/resources
 func (h *ResourceHandler) GetLimits(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	_, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
 
 	// Default limits
 	writeJSON(w, http.StatusOK, map[string]any{

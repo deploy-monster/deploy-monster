@@ -18,11 +18,8 @@ func NewLabelsHandler(store core.Store) *LabelsHandler {
 
 // Get handles GET /api/v1/apps/{id}/labels
 func (h *LabelsHandler) Get(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
 
@@ -39,17 +36,14 @@ func (h *LabelsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/labels
 func (h *LabelsHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
 
 	var labels map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&labels); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body — expected JSON object")
-		return
-	}
-
-	app, err := h.store.GetApp(r.Context(), appID)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "app not found")
 		return
 	}
 

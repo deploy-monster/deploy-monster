@@ -12,12 +12,13 @@ import (
 
 // MetricsExportHandler exports metrics data as CSV or JSON.
 type MetricsExportHandler struct {
+	store   core.Store
 	bolt    core.BoltStorer
 	runtime core.ContainerRuntime
 }
 
-func NewMetricsExportHandler(bolt core.BoltStorer, runtime core.ContainerRuntime) *MetricsExportHandler {
-	return &MetricsExportHandler{bolt: bolt, runtime: runtime}
+func NewMetricsExportHandler(store core.Store, bolt core.BoltStorer, runtime core.ContainerRuntime) *MetricsExportHandler {
+	return &MetricsExportHandler{store: store, bolt: bolt, runtime: runtime}
 }
 
 // metricsPoint is a single metrics data point stored in BBolt.
@@ -30,7 +31,11 @@ type metricsPoint struct {
 
 // Export handles GET /api/v1/apps/{id}/metrics/export?format=csv
 func (h *MetricsExportHandler) Export(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
+		return
+	}
+	appID := app.ID
 	format := r.URL.Query().Get("format")
 	if format == "" {
 		format = "json"
