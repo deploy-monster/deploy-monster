@@ -98,7 +98,7 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 			// Build labels with HTTP routing from domains
 			labels := h.buildDeployLabels(r.Context(), app, version)
 
-			containerName := fmt.Sprintf("monster-%s-%d", app.Name, version)
+			containerName := fmt.Sprintf("dm-%s-%d", app.ID, version)
 			containerID, err := h.runtime.CreateAndStart(r.Context(), core.ContainerOpts{
 				Name:          containerName,
 				Image:         app.SourceURL,

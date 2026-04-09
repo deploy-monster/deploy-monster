@@ -20,11 +20,12 @@ func NewAdminAPIKeyHandler(store core.Store, bolt core.BoltStorer) *AdminAPIKeyH
 
 // apiKeyRecord is persisted in BBolt for each API key.
 type apiKeyRecord struct {
-	Prefix    string    `json:"prefix"`
-	Hash      string    `json:"hash"`
-	Type      string    `json:"type"`
-	CreatedBy string    `json:"created_by"`
-	CreatedAt time.Time `json:"created_at"`
+	Prefix    string     `json:"prefix"`
+	Hash      string     `json:"hash"`
+	Type      string     `json:"type"`
+	CreatedBy string     `json:"created_by"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"` // nil = no expiry
 }
 
 // apiKeyIndex maintains the list of all active API key prefixes.
@@ -94,6 +95,37 @@ func (h *AdminAPIKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
 		"type":    "platform",
 		"message": "Save this key — it will not be shown again",
 	})
+}
+
+// CleanupExpiredKeys removes API keys that have passed their expiry time.
+// Safe to call periodically from a background scheduler.
+func (h *AdminAPIKeyHandler) CleanupExpiredKeys() int {
+	var idx apiKeyIndex
+	if err := h.bolt.Get("api_keys", "_index", &idx); err != nil {
+		return 0
+	}
+
+	now := time.Now()
+	var removed int
+	active := make([]string, 0, len(idx.Prefixes))
+	for _, prefix := range idx.Prefixes {
+		var rec apiKeyRecord
+		if err := h.bolt.Get("api_keys", prefix, &rec); err != nil {
+			continue // key gone, skip
+		}
+		if rec.ExpiresAt != nil && now.After(*rec.ExpiresAt) {
+			_ = h.bolt.Delete("api_keys", prefix)
+			removed++
+		} else {
+			active = append(active, prefix)
+		}
+	}
+
+	if removed > 0 {
+		idx.Prefixes = active
+		_ = h.bolt.Set("api_keys", "_index", idx, 0)
+	}
+	return removed
 }
 
 // Revoke handles DELETE /api/v1/admin/api-keys/{prefix}

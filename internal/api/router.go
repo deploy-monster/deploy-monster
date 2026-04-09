@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/pprof"
 	"time"
@@ -637,6 +638,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/events/stream", protected(http.HandlerFunc(eventStreamer.StreamEvents)))
 
 	// ── Deployment Progress (WebSocket) ──────────────────
+	ws.GetDeployHub().SetAllowedOrigins(r.core.Config.Server.CORSOrigins)
 	r.mux.Handle("GET /api/v1/topology/deploy/{projectId}/progress", protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		projectID := r.PathValue("projectId")
 		if projectID == "" {
@@ -679,6 +681,22 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/admin/api-keys", protected(http.HandlerFunc(adminKeyH.List)))
 	r.mux.Handle("POST /api/v1/admin/api-keys", protected(http.HandlerFunc(adminKeyH.Generate)))
 	r.mux.Handle("DELETE /api/v1/admin/api-keys/{prefix}", protected(http.HandlerFunc(adminKeyH.Revoke)))
+
+	// Background cleanup of expired API keys (every hour)
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-r.serverCtx.Done():
+				return
+			case <-ticker.C:
+				if n := adminKeyH.CleanupExpiredKeys(); n > 0 {
+					slog.Info("cleaned up expired API keys", "count", n)
+				}
+			}
+		}
+	}()
 
 	// ── DB Migrations ─────────────────────────────────
 	migH := handlers.NewMigrationHandler(r.core)

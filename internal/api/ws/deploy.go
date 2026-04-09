@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,24 +36,47 @@ type DeployCompleteMessage struct {
 	Timestamp  int64    `json:"timestamp"`
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 // DeployHub manages WebSocket connections for deployment progress
 type DeployHub struct {
-	clients map[string]map[*websocket.Conn]bool // projectID -> connections
-	mu      sync.RWMutex
-	logger  *slog.Logger
+	clients        map[string]map[*websocket.Conn]bool // projectID -> connections
+	mu             sync.RWMutex
+	logger         *slog.Logger
+	allowedOrigins string // comma-separated allowed origins, "*" for all
 }
 
 // NewDeployHub creates a new deployment hub
 func NewDeployHub() *DeployHub {
 	return &DeployHub{
-		clients: make(map[string]map[*websocket.Conn]bool),
-		logger:  slog.Default(),
+		clients:        make(map[string]map[*websocket.Conn]bool),
+		logger:         slog.Default(),
+		allowedOrigins: "", // strict by default
+	}
+}
+
+// SetAllowedOrigins configures which origins may open WebSocket connections.
+// Pass "*" to allow all, or a comma-separated list of origins.
+func (h *DeployHub) SetAllowedOrigins(origins string) {
+	h.allowedOrigins = origins
+}
+
+func (h *DeployHub) upgrader() websocket.Upgrader {
+	return websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			if h.allowedOrigins == "*" {
+				return true
+			}
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true // same-origin requests have no Origin header
+			}
+			for _, allowed := range strings.Split(h.allowedOrigins, ",") {
+				if strings.TrimSpace(allowed) == origin {
+					return true
+				}
+			}
+			h.logger.Warn("WebSocket origin rejected", "origin", origin)
+			return false
+		},
 	}
 }
 
@@ -148,7 +172,8 @@ func (h *DeployHub) BroadcastComplete(projectID string, success bool, message st
 
 // ServeWS handles WebSocket connections for deployment progress
 func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID string) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	up := h.upgrader()
+	conn, err := up.Upgrade(w, r, nil)
 	if err != nil {
 		h.logger.Error("WebSocket upgrade failed", "error", err)
 		return

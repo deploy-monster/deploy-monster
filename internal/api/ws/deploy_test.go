@@ -247,3 +247,95 @@ func TestServeWS_CleansUpOnDisconnect(t *testing.T) {
 		t.Errorf("expected 0 clients after close, got %d", count)
 	}
 }
+
+func TestDeployHub_OriginValidation_AllowAll(t *testing.T) {
+	hub := NewDeployHub()
+	hub.SetAllowedOrigins("*")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hub.ServeWS(w, r, "proj-origin")
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	header := http.Header{}
+	header.Set("Origin", "http://evil.example.com")
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if err != nil {
+		t.Fatalf("expected connection with * origins, got error: %v", err)
+	}
+	conn.Close()
+}
+
+func TestDeployHub_OriginValidation_AllowedOrigin(t *testing.T) {
+	hub := NewDeployHub()
+	hub.SetAllowedOrigins("http://app.example.com, http://admin.example.com")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hub.ServeWS(w, r, "proj-origin2")
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	header := http.Header{}
+	header.Set("Origin", "http://admin.example.com")
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if err != nil {
+		t.Fatalf("expected connection for allowed origin, got error: %v", err)
+	}
+	conn.Close()
+}
+
+func TestDeployHub_OriginValidation_RejectedOrigin(t *testing.T) {
+	hub := NewDeployHub()
+	hub.SetAllowedOrigins("http://app.example.com")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hub.ServeWS(w, r, "proj-origin3")
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	header := http.Header{}
+	header.Set("Origin", "http://evil.example.com")
+	_, _, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if err == nil {
+		t.Fatal("expected connection to be rejected for disallowed origin")
+	}
+}
+
+func TestDeployHub_OriginValidation_NoOriginHeader(t *testing.T) {
+	hub := NewDeployHub()
+	hub.SetAllowedOrigins("http://app.example.com")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hub.ServeWS(w, r, "proj-origin4")
+	}))
+	defer server.Close()
+
+	// No Origin header — same-origin request, should be allowed
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("expected same-origin (no Origin header) to be allowed, got: %v", err)
+	}
+	conn.Close()
+}
+
+func TestDeployHub_OriginValidation_StrictDefault(t *testing.T) {
+	hub := NewDeployHub()
+	// Default: empty allowedOrigins = strict (no external origins allowed)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hub.ServeWS(w, r, "proj-origin5")
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	header := http.Header{}
+	header.Set("Origin", "http://anything.example.com")
+	_, _, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if err == nil {
+		t.Fatal("expected connection to be rejected with empty allowedOrigins")
+	}
+}
