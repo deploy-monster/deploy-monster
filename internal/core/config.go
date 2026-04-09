@@ -277,6 +277,46 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// secretField describes a config field that may contain a plaintext secret.
+type secretField struct {
+	Path   string // dotted config path
+	Value  string // current value
+	EnvVar string // recommended env var override
+}
+
+// AuditSecrets checks the configuration for plaintext secrets that should be
+// passed via environment variables instead. Returns a list of human-readable
+// warnings. An empty slice means no concerns found.
+func (c *Config) AuditSecrets() []string {
+	fields := []secretField{
+		{"dns.cloudflare_token", c.DNS.CloudflareToken, "MONSTER_CLOUDFLARE_TOKEN"},
+		{"git_sources.github_client_secret", c.GitSources.GitHubClientSecret, "MONSTER_GITHUB_CLIENT_SECRET"},
+		{"git_sources.gitlab_client_secret", c.GitSources.GitLabClientSecret, "MONSTER_GITLAB_CLIENT_SECRET"},
+		{"sso.google_client_secret", c.SSO.GoogleClientSecret, "MONSTER_GOOGLE_CLIENT_SECRET"},
+		{"secrets.encryption_key", c.Secrets.EncryptionKey, "MONSTER_ENCRYPTION_KEY"},
+		{"billing.stripe_secret_key", c.Billing.StripeSecretKey, "MONSTER_STRIPE_SECRET_KEY"},
+		{"billing.stripe_webhook_key", c.Billing.StripeWebhookKey, "MONSTER_STRIPE_WEBHOOK_KEY"},
+		{"enterprise.license_key", c.Enterprise.LicenseKey, "MONSTER_LICENSE_KEY"},
+		{"notifications.slack_webhook", c.Notifications.SlackWebhook, "MONSTER_SLACK_WEBHOOK"},
+		{"notifications.discord_webhook", c.Notifications.DiscordWebhook, "MONSTER_DISCORD_WEBHOOK"},
+		{"notifications.telegram_token", c.Notifications.TelegramToken, "MONSTER_TELEGRAM_TOKEN"},
+		{"backup.s3.access_key", c.Backup.S3.AccessKey, "MONSTER_S3_ACCESS_KEY"},
+		{"backup.s3.secret_key", c.Backup.S3.SecretKey, "MONSTER_S3_SECRET_KEY"},
+		{"swarm.join_token", c.Swarm.JoinToken, "MONSTER_JOIN_TOKEN"},
+	}
+
+	var warnings []string
+	for _, f := range fields {
+		if f.Value != "" && os.Getenv(f.EnvVar) == "" {
+			warnings = append(warnings, fmt.Sprintf(
+				"%s contains a plaintext secret — use %s env var instead",
+				f.Path, f.EnvVar,
+			))
+		}
+	}
+	return warnings
+}
+
 func applyDefaults(cfg *Config) {
 	cfg.Server.Host = "0.0.0.0"
 	cfg.Server.Port = 8443
@@ -344,5 +384,46 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if os.Getenv("MONSTER_ENABLE_PPROF") == "true" {
 		cfg.Server.EnablePprof = true
+	}
+
+	// Secret-bearing fields — env vars replace plaintext YAML values
+	if v := os.Getenv("MONSTER_CLOUDFLARE_TOKEN"); v != "" {
+		cfg.DNS.CloudflareToken = v
+	}
+	if v := os.Getenv("MONSTER_GITHUB_CLIENT_SECRET"); v != "" {
+		cfg.GitSources.GitHubClientSecret = v
+	}
+	if v := os.Getenv("MONSTER_GITLAB_CLIENT_SECRET"); v != "" {
+		cfg.GitSources.GitLabClientSecret = v
+	}
+	if v := os.Getenv("MONSTER_GOOGLE_CLIENT_SECRET"); v != "" {
+		cfg.SSO.GoogleClientSecret = v
+	}
+	if v := os.Getenv("MONSTER_ENCRYPTION_KEY"); v != "" {
+		cfg.Secrets.EncryptionKey = v
+	}
+	if v := os.Getenv("MONSTER_STRIPE_SECRET_KEY"); v != "" {
+		cfg.Billing.StripeSecretKey = v
+	}
+	if v := os.Getenv("MONSTER_STRIPE_WEBHOOK_KEY"); v != "" {
+		cfg.Billing.StripeWebhookKey = v
+	}
+	if v := os.Getenv("MONSTER_LICENSE_KEY"); v != "" {
+		cfg.Enterprise.LicenseKey = v
+	}
+	if v := os.Getenv("MONSTER_SLACK_WEBHOOK"); v != "" {
+		cfg.Notifications.SlackWebhook = v
+	}
+	if v := os.Getenv("MONSTER_DISCORD_WEBHOOK"); v != "" {
+		cfg.Notifications.DiscordWebhook = v
+	}
+	if v := os.Getenv("MONSTER_TELEGRAM_TOKEN"); v != "" {
+		cfg.Notifications.TelegramToken = v
+	}
+	if v := os.Getenv("MONSTER_S3_ACCESS_KEY"); v != "" {
+		cfg.Backup.S3.AccessKey = v
+	}
+	if v := os.Getenv("MONSTER_S3_SECRET_KEY"); v != "" {
+		cfg.Backup.S3.SecretKey = v
 	}
 }

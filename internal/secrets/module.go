@@ -141,6 +141,53 @@ func (m *Module) Resolve(scope, name string) (string, error) {
 	return "", fmt.Errorf("secret %s/%s not found in any scope", scope, name)
 }
 
+// RotateEncryptionKey decrypts all secret versions with the current key and
+// re-encrypts them with a new key. Returns the number of versions rotated.
+// This is an admin-only offline operation (run during maintenance window).
+func (m *Module) RotateEncryptionKey(ctx context.Context, newMasterSecret string) (int, error) {
+	if m.store == nil {
+		return 0, fmt.Errorf("store not initialized")
+	}
+
+	newVault := NewVault(newMasterSecret)
+
+	versions, err := m.store.ListAllSecretVersions(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list secret versions: %w", err)
+	}
+
+	rotated := 0
+	for _, v := range versions {
+		// Decrypt with old key
+		plaintext, err := m.vault.Decrypt(v.ValueEnc)
+		if err != nil {
+			return rotated, fmt.Errorf("decrypt version %s (secret %s): %w", v.ID, v.SecretID, err)
+		}
+
+		// Re-encrypt with new key
+		newEnc, err := newVault.Encrypt(plaintext)
+		if err != nil {
+			return rotated, fmt.Errorf("re-encrypt version %s: %w", v.ID, err)
+		}
+
+		// Update in store
+		if err := m.store.UpdateSecretVersionValue(ctx, v.ID, newEnc); err != nil {
+			return rotated, fmt.Errorf("update version %s: %w", v.ID, err)
+		}
+
+		rotated++
+	}
+
+	// Switch to new vault for runtime
+	m.vault = newVault
+
+	if m.logger != nil {
+		m.logger.Info("encryption key rotated", "versions_rotated", rotated)
+	}
+
+	return rotated, nil
+}
+
 // ResolveAll implements core.SecretResolver.
 // Replaces all ${SECRET:name} references in a template string.
 func (m *Module) ResolveAll(scope, template string) (string, error) {

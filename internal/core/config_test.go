@@ -86,6 +86,52 @@ func validTestConfig() *Config {
 	return cfg
 }
 
+func TestAuditSecrets_NoWarningsWhenClean(t *testing.T) {
+	cfg := validTestConfig()
+	warnings := cfg.AuditSecrets()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings for clean config, got %d: %v", len(warnings), warnings)
+	}
+}
+
+func TestAuditSecrets_WarnsOnPlaintextToken(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.DNS.CloudflareToken = "cf-secret-token-value"
+	cfg.Billing.StripeSecretKey = "sk_live_abc123"
+
+	warnings := cfg.AuditSecrets()
+	if len(warnings) != 2 {
+		t.Fatalf("expected 2 warnings, got %d: %v", len(warnings), warnings)
+	}
+
+	found := map[string]bool{}
+	for _, w := range warnings {
+		if strings.Contains(w, "dns.cloudflare_token") {
+			found["cloudflare"] = true
+		}
+		if strings.Contains(w, "billing.stripe_secret_key") {
+			found["stripe"] = true
+		}
+	}
+	if !found["cloudflare"] {
+		t.Error("expected warning about dns.cloudflare_token")
+	}
+	if !found["stripe"] {
+		t.Error("expected warning about billing.stripe_secret_key")
+	}
+}
+
+func TestAuditSecrets_NoWarningWhenEnvSet(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.DNS.CloudflareToken = "cf-token"
+	t.Setenv("MONSTER_CLOUDFLARE_TOKEN", "cf-token")
+
+	warnings := cfg.AuditSecrets()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings when env var is set, got %d: %v", len(warnings), warnings)
+	}
+}
+
 func TestApplyDefaults(t *testing.T) {
 	cfg := &Config{}
 	applyDefaults(cfg)

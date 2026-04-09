@@ -57,6 +57,8 @@ func main() {
 		runConfigCheck()
 	case "init":
 		runInit()
+	case "rotate-keys":
+		runRotateKeys()
 	case "help", "--help", "-h":
 		printUsage()
 	default:
@@ -91,6 +93,13 @@ func runServe() {
 
 	// Configure structured logger before anything else uses slog
 	core.SetupLogger(cfg.Server.LogLevel, cfg.Server.LogFormat)
+
+	// Audit config for plaintext secrets
+	if warnings := cfg.AuditSecrets(); len(warnings) > 0 {
+		for _, w := range warnings {
+			slog.Warn("config security", "issue", w)
+		}
+	}
 
 	bi := core.BuildInfo{Version: version, Commit: commit, Date: date}
 
@@ -225,6 +234,70 @@ limits:
 	fmt.Println("Created monster.yaml — edit it and run: deploymonster")
 }
 
+func runRotateKeys() {
+	fs := flag.NewFlagSet("rotate-keys", flag.ExitOnError)
+	configPath := fs.String("config", "", "path to monster.yaml config file")
+	newKey := fs.String("new-key", "", "new encryption key (required)")
+	fs.Parse(os.Args[2:])
+
+	if *newKey == "" {
+		fmt.Fprintln(os.Stderr, "rotate-keys requires --new-key flag")
+		os.Exit(1)
+	}
+
+	cfg, err := core.LoadConfig(*configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+		os.Exit(1)
+	}
+
+	core.SetupLogger(cfg.Server.LogLevel, cfg.Server.LogFormat)
+
+	bi := core.BuildInfo{Version: version, Commit: commit, Date: date}
+	app, err := core.NewApp(cfg, bi)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "init error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Initialize modules (db + secrets need to be ready)
+	ctx := context.Background()
+	if err := app.Registry.Resolve(); err != nil {
+		fmt.Fprintf(os.Stderr, "dependency resolution error: %v\n", err)
+		os.Exit(1)
+	}
+	if err := app.Registry.InitAll(ctx, app); err != nil {
+		fmt.Fprintf(os.Stderr, "module init error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Find the secrets module via the registry
+	mod := app.Registry.Get("secrets")
+	if mod == nil {
+		fmt.Fprintln(os.Stderr, "secrets module not found")
+		os.Exit(1)
+	}
+
+	type keyRotator interface {
+		RotateEncryptionKey(ctx context.Context, newMasterSecret string) (int, error)
+	}
+
+	rotator, ok := mod.(keyRotator)
+	if !ok {
+		fmt.Fprintln(os.Stderr, "secrets module does not support key rotation")
+		os.Exit(1)
+	}
+
+	count, err := rotator.RotateEncryptionKey(ctx, *newKey)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "key rotation failed after %d versions: %v\n", count, err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Key rotation complete: %d secret version(s) re-encrypted.\n", count)
+	fmt.Println("Update your config to use the new encryption key and restart the server.")
+}
+
 func printUsage() {
 	fmt.Printf(`DeployMonster %s — Tame Your Deployments
 
@@ -232,10 +305,11 @@ Usage:
   deploymonster [command] [flags]
 
 Commands:
-  serve       Start the DeployMonster server (default)
-  version     Print version information
-  config      Validate and display current configuration
-  help        Show this help
+  serve        Start the DeployMonster server (default)
+  version      Print version information
+  config       Validate and display current configuration
+  rotate-keys  Re-encrypt all secrets with a new encryption key
+  help         Show this help
 
 Flags (serve):
   --agent     Run in agent mode (worker node)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 	"time"
 )
 
@@ -42,7 +43,15 @@ type Core struct {
 	Services   *Services
 	Logger     *slog.Logger
 	Router     *http.ServeMux
+	draining   atomic.Bool // set during graceful shutdown; readiness probe returns 503
 }
+
+// SetDraining marks the application as draining (shutting down).
+// The /readyz endpoint starts returning 503 so load balancers stop routing.
+func (c *Core) SetDraining() { c.draining.Store(true) }
+
+// IsDraining returns true if the application is in drain mode.
+func (c *Core) IsDraining() bool { return c.draining.Load() }
 
 // NewApp creates a new Core application instance.
 func NewApp(cfg *Config, build BuildInfo) (*Core, error) {
@@ -101,8 +110,11 @@ func (c *Core) Run(ctx context.Context) error {
 	// 5. Wait for shutdown signal
 	<-ctx.Done()
 
+	// Mark as draining so /readyz returns 503 — load balancers stop routing
+	c.SetDraining()
+
 	c.Events.PublishAsync(context.Background(), NewEvent(EventSystemStopping, "core", nil))
-	c.Logger.Info("shutting down...")
+	c.Logger.Info("shutting down (draining)...")
 
 	// 6. Graceful shutdown with timeout
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

@@ -83,6 +83,38 @@ func (s *SQLiteDB) GetSecretByScopeAndName(ctx context.Context, scope, name stri
 	return &secret, nil
 }
 
+// ListAllSecretVersions returns every secret version row (for key rotation).
+func (s *SQLiteDB) ListAllSecretVersions(ctx context.Context) ([]core.SecretVersion, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, secret_id, version, value_enc, created_by, created_at
+         FROM secret_versions ORDER BY secret_id, version`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var versions []core.SecretVersion
+	for rows.Next() {
+		var v core.SecretVersion
+		if err := rows.Scan(&v.ID, &v.SecretID, &v.Version, &v.ValueEnc, &v.CreatedBy, &v.CreatedAt); err != nil {
+			return nil, err
+		}
+		versions = append(versions, v)
+	}
+	return versions, rows.Err()
+}
+
+// UpdateSecretVersionValue updates the encrypted value of a secret version (for key rotation).
+func (s *SQLiteDB) UpdateSecretVersionValue(ctx context.Context, id, valueEnc string) error {
+	return s.Tx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx,
+			`UPDATE secret_versions SET value_enc = ? WHERE id = ?`, valueEnc, id,
+		)
+		return err
+	})
+}
+
 // GetLatestSecretVersion returns the most recent version of a secret.
 func (s *SQLiteDB) GetLatestSecretVersion(ctx context.Context, secretID string) (*core.SecretVersion, error) {
 	var version core.SecretVersion

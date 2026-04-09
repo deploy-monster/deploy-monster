@@ -232,6 +232,12 @@ func (m *mockStore) CreateSecretVersion(_ context.Context, _ *core.SecretVersion
 func (m *mockStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) {
 	return nil, nil
 }
+func (m *mockStore) ListAllSecretVersions(_ context.Context) ([]core.SecretVersion, error) {
+	return nil, nil
+}
+func (m *mockStore) UpdateSecretVersionValue(_ context.Context, _, _ string) error {
+	return nil
+}
 
 func (m *mockStore) GetSecretByScopeAndName(_ context.Context, _, _ string) (*core.Secret, error) {
 	return nil, nil

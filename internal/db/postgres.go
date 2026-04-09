@@ -991,6 +991,36 @@ func (p *PostgresDB) GetLatestSecretVersion(ctx context.Context, secretID string
 	return &version, nil
 }
 
+// ListAllSecretVersions returns every secret version row (for key rotation).
+func (p *PostgresDB) ListAllSecretVersions(ctx context.Context) ([]core.SecretVersion, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, secret_id, version, value_enc, created_by, created_at
+		 FROM secret_versions ORDER BY secret_id, version`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var versions []core.SecretVersion
+	for rows.Next() {
+		var v core.SecretVersion
+		if err := rows.Scan(&v.ID, &v.SecretID, &v.Version, &v.ValueEnc, &v.CreatedBy, &v.CreatedAt); err != nil {
+			return nil, err
+		}
+		versions = append(versions, v)
+	}
+	return versions, rows.Err()
+}
+
+// UpdateSecretVersionValue updates the encrypted value of a secret version (for key rotation).
+func (p *PostgresDB) UpdateSecretVersionValue(ctx context.Context, id, valueEnc string) error {
+	_, err := p.db.ExecContext(ctx,
+		`UPDATE secret_versions SET value_enc = $1 WHERE id = $2`, valueEnc, id,
+	)
+	return err
+}
+
 // CreateUsageRecord inserts a new usage record.
 func (p *PostgresDB) CreateUsageRecord(ctx context.Context, record *core.UsageRecord) error {
 	_, err := p.db.ExecContext(ctx,

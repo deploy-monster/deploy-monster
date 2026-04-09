@@ -655,6 +655,12 @@ func (m *mockStore) ListSecretsByTenant(_ context.Context, tenantID string) ([]c
 	defer m.mu.Unlock()
 	return m.secrets[tenantID], nil
 }
+func (m *mockStore) ListAllSecretVersions(_ context.Context) ([]core.SecretVersion, error) {
+	return nil, nil
+}
+func (m *mockStore) UpdateSecretVersionValue(_ context.Context, _, _ string) error {
+	return nil
+}
 
 func (m *mockStore) GetSecretByScopeAndName(_ context.Context, _, _ string) (*core.Secret, error) {
 	return nil, core.ErrNotFound

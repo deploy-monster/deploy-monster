@@ -301,6 +301,12 @@ func (m *pipelineMockStore) CreateSecretVersion(_ context.Context, _ *core.Secre
 func (m *pipelineMockStore) ListSecretsByTenant(_ context.Context, _ string) ([]core.Secret, error) {
 	return nil, nil
 }
+func (m *pipelineMockStore) ListAllSecretVersions(_ context.Context) ([]core.SecretVersion, error) {
+	return nil, nil
+}
+func (m *pipelineMockStore) UpdateSecretVersionValue(_ context.Context, _, _ string) error {
+	return nil
+}
 func (m *pipelineMockStore) GetSecretByScopeAndName(_ context.Context, _, _ string) (*core.Secret, error) {
 	return nil, core.ErrNotFound
 }

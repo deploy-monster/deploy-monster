@@ -62,6 +62,7 @@ func (r *Router) registerRoutes() {
 	// ── Health ──────────────────────────────────────────
 	r.mux.HandleFunc("GET /health", r.handleHealth)
 	r.mux.HandleFunc("GET /api/v1/health", r.handleHealth)
+	r.mux.HandleFunc("GET /readyz", r.handleReadiness)
 	detailedH := handlers.NewDetailedHealthHandler(r.core)
 	r.mux.HandleFunc("GET /health/detailed", detailedH.DetailedHealth)
 
@@ -692,5 +693,20 @@ func (r *Router) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		"status":  status,
 		"version": r.core.Build.Version,
 		"modules": modules,
+	})
+}
+
+// handleReadiness implements the /readyz endpoint for load balancer probing.
+// Returns 200 when the server is ready to accept traffic, 503 when draining.
+// Use this for Kubernetes readinessProbe or cloud load balancer health checks.
+func (r *Router) handleReadiness(w http.ResponseWriter, _ *http.Request) {
+	if r.core.IsDraining() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"status": "draining",
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "ready",
 	})
 }

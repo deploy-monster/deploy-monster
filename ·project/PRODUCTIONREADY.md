@@ -179,8 +179,8 @@
 - [x] Secret key auto-generated on first run
 - [x] `.env` files in `.gitignore`
 - [x] No hardcoded secrets in source code
-- [ ] **CONCERN:** Config file may contain API tokens in plaintext
-- [ ] **MISSING:** Secrets rotation mechanism for master key
+- [x] ~~**CONCERN:**~~ Config file may contain API tokens in plaintext — **FIXED** (AuditSecrets() warns on startup about plaintext secrets, 15 env var overrides for all secret-bearing fields)
+- [x] ~~**MISSING:**~~ Secrets rotation mechanism for master key — **FIXED** (`deploymonster rotate-keys --new-key=X` re-encrypts all secret versions with new key)
 - [ ] **CONCERN:** Docker socket access grants root-level host control
 
 ### 3.5 Security Vulnerabilities Found
@@ -330,7 +330,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] Docker Compose for deployment
 - [x] Multi-platform Docker images via GoReleaser
 - [ ] **MISSING:** Staging environment
-- [ ] **MISSING:** Zero-downtime deployment for the platform itself
+- [x] ~~**MISSING:**~~ Zero-downtime deployment for the platform itself — **FIXED** (drain mode + `/readyz` endpoint returns 503 when shutting down, load balancers stop routing before connections close)
 - [x] ~~**MISSING:**~~ Automated rollback on failed deploy — **FIXED** (AutoRollbackManager subscribes to deploy.failed, rolls back to last stable version with 5-min cooldown)
 
 ---
