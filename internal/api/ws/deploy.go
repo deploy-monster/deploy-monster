@@ -130,6 +130,7 @@ func (h *DeployHub) BroadcastProgress(projectID, stage, message string, progress
 
 	if conns, ok := h.clients[projectID]; ok {
 		for conn := range conns {
+			conn.SetWriteDeadline(time.Now().Add(wsWriteTimeout))
 			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 				h.logger.Warn("Failed to send progress message", "error", err)
 			}
@@ -163,12 +164,19 @@ func (h *DeployHub) BroadcastComplete(projectID string, success bool, message st
 
 	if conns, ok := h.clients[projectID]; ok {
 		for conn := range conns {
+			conn.SetWriteDeadline(time.Now().Add(wsWriteTimeout))
 			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 				h.logger.Warn("Failed to send complete message", "error", err)
 			}
 		}
 	}
 }
+
+const (
+	wsPingInterval = 30 * time.Second
+	wsPongTimeout  = 40 * time.Second // must be > pingInterval
+	wsWriteTimeout = 10 * time.Second
+)
 
 // ServeWS handles WebSocket connections for deployment progress
 func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID string) {
@@ -183,12 +191,20 @@ func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID st
 	h.Register(projectID, conn)
 	defer h.Unregister(projectID, conn)
 
+	// Configure dead-connection detection: if no pong arrives within
+	// wsPongTimeout the read loop will error out and clean up.
+	conn.SetReadDeadline(time.Now().Add(wsPongTimeout))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(wsPongTimeout))
+		return nil
+	})
+
 	// Keep connection alive with ping messages.
 	// done channel ensures the ping goroutine exits when the read loop ends.
 	done := make(chan struct{})
 	defer close(done)
 
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(wsPingInterval)
 	defer ticker.Stop()
 
 	go func() {
@@ -197,6 +213,7 @@ func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID st
 			case <-done:
 				return
 			case <-ticker.C:
+				conn.SetWriteDeadline(time.Now().Add(wsWriteTimeout))
 				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					return
 				}

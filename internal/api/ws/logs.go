@@ -33,7 +33,7 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if ls.runtime == nil {
-		http.Error(w, `{"error":"container runtime not available"}`, http.StatusServiceUnavailable)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "container runtime not available"})
 		return
 	}
 
@@ -46,8 +46,7 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "streaming not supported", http.StatusInternalServerError)
-		return
+		return // response already started; cannot send error status
 	}
 
 	// Find container for this app
@@ -108,8 +107,7 @@ func (es *EventStreamer) StreamEvents(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "streaming not supported", http.StatusInternalServerError)
-		return
+		return // response already started; cannot send error status
 	}
 
 	// Channel to receive events

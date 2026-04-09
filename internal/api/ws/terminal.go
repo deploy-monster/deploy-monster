@@ -37,7 +37,7 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 	appID := r.PathValue("id")
 
 	if t.runtime == nil {
-		http.Error(w, `{"error":"runtime not available"}`, http.StatusServiceUnavailable)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "runtime not available"})
 		return
 	}
 
@@ -45,7 +45,7 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 		"monster.app.id": appID,
 	})
 	if err != nil || len(containers) == 0 {
-		http.Error(w, `{"error":"no container found"}`, http.StatusNotFound)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no container found"})
 		return
 	}
 
