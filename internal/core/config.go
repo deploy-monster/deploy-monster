@@ -209,11 +209,6 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	applyEnvOverrides(cfg)
 
-	// Auto-generate secret key if not set
-	if cfg.Server.SecretKey == "" {
-		cfg.Server.SecretKey = GenerateSecret(32)
-	}
-
 	// Derive CORS origins from server domain if not explicitly set
 	if cfg.Server.CORSOrigins == "" && cfg.Server.Domain != "" {
 		origin := "https://" + cfg.Server.Domain
@@ -389,6 +384,9 @@ func (c *Config) AuditSecrets() []string {
 func applyDefaults(cfg *Config) {
 	cfg.Server.Host = "0.0.0.0"
 	cfg.Server.Port = 8443
+	if cfg.Server.SecretKey == "" {
+		cfg.Server.SecretKey = GenerateSecret(32)
+	}
 	cfg.Database.Driver = "sqlite"
 	cfg.Database.Path = "deploymonster.db"
 	cfg.Ingress.HTTPPort = 80

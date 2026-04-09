@@ -178,17 +178,30 @@ func (s *SQLiteDB) migrate() error {
 			continue
 		}
 
-		// Apply migration
+		// Apply migration inside a transaction for atomicity
 		data, err := migrationsFS.ReadFile("migrations/" + name)
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", name, err)
 		}
 
-		if _, err := s.db.Exec(string(data)); err != nil {
+		tx, err := s.db.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx for migration %s: %w", name, err)
+		}
+
+		if _, err := tx.Exec(string(data)); err != nil {
+			tx.Rollback()
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
 
-		s.db.Exec("INSERT INTO _migrations (version, name) VALUES (?, ?)", version, name)
+		if _, err := tx.Exec("INSERT INTO _migrations (version, name) VALUES (?, ?)", version, name); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("record migration %s: %w", name, err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration %s: %w", name, err)
+		}
 	}
 
 	return nil

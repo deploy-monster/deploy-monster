@@ -28,6 +28,7 @@ type Router struct {
 	globalRL         *middleware.GlobalRateLimiter
 	serverCtx        context.Context    // cancelled on graceful shutdown
 	serverCancel     context.CancelFunc // called by Stop to signal goroutines
+	startedAt        time.Time          // server start time for uptime reporting
 }
 
 // NewRouter creates a new API router with all routes registered.
@@ -49,6 +50,7 @@ func NewRouter(c *core.Core, authMod *auth.Module, store core.Store) *Router {
 		globalRL:         middleware.NewGlobalRateLimiter(rlRate, time.Minute),
 		serverCtx:        ctx,
 		serverCancel:     cancel,
+		startedAt:        time.Now(),
 	}
 	r.apiMetrics.SubscribeEvents(c.Events)
 	r.registerRoutes()
@@ -752,6 +754,7 @@ func (r *Router) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, httpStatus, map[string]any{
 		"status":  status,
 		"version": r.core.Build.Version,
+		"uptime":  time.Since(r.startedAt).Truncate(time.Second).String(),
 		"modules": modules,
 	})
 }

@@ -24,6 +24,10 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("API port (%d) conflicts with HTTPS port", cfg.Server.Port)
 	}
 
+	if len(cfg.Server.SecretKey) < 16 {
+		return fmt.Errorf("server.secret_key must be at least 16 characters (set MONSTER_SECRET_KEY)")
+	}
+
 	if cfg.Database.Driver != "sqlite" && cfg.Database.Driver != "postgres" {
 		return fmt.Errorf("unsupported database driver: %s (use sqlite or postgres)", cfg.Database.Driver)
 	}
