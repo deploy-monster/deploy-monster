@@ -147,6 +147,10 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 			if sErr := h.store.UpdateAppStatus(ctx, appID, "failed"); sErr != nil {
 				slog.Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
 			}
+			h.events.PublishAsync(ctx, core.NewEvent(core.EventBuildFailed, "deploy_trigger", map[string]string{
+				"app_id": appID,
+				"error":  err.Error(),
+			}))
 			return
 		}
 
@@ -157,6 +161,10 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 		version, vErr := h.store.GetNextDeployVersion(ctx, appID)
 		if vErr != nil {
 			slog.Error("deploy: failed to get next version", "app_id", appID, "error", vErr)
+			h.events.PublishAsync(ctx, core.NewEvent(core.EventDeployFailed, "deploy_trigger", map[string]string{
+				"app_id": appID,
+				"error":  vErr.Error(),
+			}))
 			return
 		}
 		dep := &core.Deployment{
@@ -174,8 +182,18 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 		if sErr := h.store.UpdateAppStatus(ctx, appID, "running"); sErr != nil {
 			slog.Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
 		}
-	}, func(_ any) {
+		h.events.PublishAsync(ctx, core.NewEvent(core.EventAppDeployed, "deploy_trigger", map[string]string{
+			"app_id":  appID,
+			"version": fmt.Sprintf("%d", version),
+			"image":   result.ImageTag,
+			"commit":  result.CommitSHA,
+		}))
+	}, func(recovered any) {
 		h.store.UpdateAppStatus(h.serverCtx, appID, "failed")
+		h.events.PublishAsync(h.serverCtx, core.NewEvent(core.EventDeployFailed, "deploy_trigger", map[string]string{
+			"app_id": appID,
+			"error":  fmt.Sprintf("panic: %v", recovered),
+		}))
 	})
 
 	writeJSON(w, http.StatusAccepted, map[string]string{

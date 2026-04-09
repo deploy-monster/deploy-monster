@@ -81,12 +81,13 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(sw, r)
 
+			elapsed := time.Since(start)
 			attrs := []any{
 				"method", r.Method,
 				"path", r.URL.Path,
 				"status", sw.status,
 				"bytes", sw.bytesWritten,
-				"duration", time.Since(start).String(),
+				"duration", elapsed.String(),
 				"ip", realIP(r),
 			}
 			if traceID := GetTraceID(r.Context()); traceID != "" {
@@ -95,7 +96,12 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			if reqID := GetRequestID(r.Context()); reqID != "" {
 				attrs = append(attrs, "request_id", reqID)
 			}
-			logger.Info("request", attrs...)
+			// Warn on slow requests (>5s) so ops can spot bottlenecks
+			if elapsed >= 5*time.Second {
+				logger.Warn("slow request", attrs...)
+			} else {
+				logger.Info("request", attrs...)
+			}
 		})
 	}
 }

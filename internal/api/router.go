@@ -76,7 +76,12 @@ func (r *Router) Handler() http.Handler {
 }
 
 func (r *Router) registerRoutes() {
-	protected := middleware.RequireAuth(r.authMod.JWT(), r.core.DB.Bolt)
+	authMiddleware := middleware.RequireAuth(r.authMod.JWT(), r.core.DB.Bolt)
+	tenantRL := middleware.NewTenantRateLimiter(r.core.DB.Bolt, 100, time.Minute)
+	// protected applies auth then per-tenant rate limiting
+	protected := func(next http.Handler) http.Handler {
+		return authMiddleware(tenantRL.Middleware(next))
+	}
 
 	// ── Health ──────────────────────────────────────────
 	r.mux.HandleFunc("GET /health", r.handleHealth)
@@ -107,8 +112,10 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/auth/change-password", protected(http.HandlerFunc(sessionH.ChangePassword)))
 
 	// ── Webhooks (signature-verified, not JWT) ─────────
+	// Tighter 1MB body limit for external webhook payloads (vs global 10MB)
 	webhookRecv := webhooks.NewReceiver(r.store, r.core.DB.Bolt, r.core.Events, r.core.Logger)
-	r.mux.HandleFunc("POST /hooks/v1/{webhookID}", webhookRecv.HandleWebhook)
+	r.mux.Handle("POST /hooks/v1/{webhookID}",
+		middleware.BodyLimit(1<<20)(http.HandlerFunc(webhookRecv.HandleWebhook)))
 
 	// Track outbound webhook delivery success/failure in BBolt
 	deliveryTracker := webhooks.NewDeliveryTracker(r.core.DB.Bolt, r.core.Events)
