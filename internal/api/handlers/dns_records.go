@@ -38,7 +38,7 @@ func (h *DNSRecordHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	verified, err := p.Verify(r.Context(), domain)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "DNS lookup failed: "+err.Error())
+		internalError(w, "DNS lookup failed", err)
 		return
 	}
 
@@ -76,7 +76,7 @@ func (h *DNSRecordHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := p.CreateRecord(r.Context(), record); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create DNS record: "+err.Error())
+		internalError(w, "failed to create DNS record", err)
 		return
 	}
 
@@ -105,7 +105,7 @@ func (h *DNSRecordHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	record := core.DNSRecord{ID: recordID, Name: name}
 	if err := p.DeleteRecord(r.Context(), record); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed: "+err.Error())
+		internalError(w, "failed to delete DNS record", err)
 		return
 	}
 

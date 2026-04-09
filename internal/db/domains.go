@@ -25,7 +25,7 @@ func (s *SQLiteDB) CreateDomain(ctx context.Context, d *core.Domain) error {
 // GetDomainByFQDN retrieves a domain by its fully qualified domain name.
 func (s *SQLiteDB) GetDomainByFQDN(ctx context.Context, fqdn string) (*core.Domain, error) {
 	d := &core.Domain{}
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
 		 FROM domains WHERE fqdn = ?`, fqdn,
 	).Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider, &d.DNSSynced, &d.Verified, &d.CreatedAt)
@@ -37,7 +37,7 @@ func (s *SQLiteDB) GetDomainByFQDN(ctx context.Context, fqdn string) (*core.Doma
 
 // ListDomainsByApp returns all domains for an application.
 func (s *SQLiteDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.Domain, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
 		 FROM domains WHERE app_id = ? ORDER BY created_at`,
 		appID,
@@ -61,7 +61,7 @@ func (s *SQLiteDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.D
 
 // ListAllDomains returns all domains across all applications.
 func (s *SQLiteDB) ListAllDomains(ctx context.Context) ([]core.Domain, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
 		 FROM domains ORDER BY created_at`,
 	)

@@ -41,7 +41,7 @@ func (s *SQLiteDB) CreateSecretVersion(ctx context.Context, version *core.Secret
 
 // ListSecretsByTenant returns all secret metadata for a tenant (no values).
 func (s *SQLiteDB) ListSecretsByTenant(ctx context.Context, tenantID string) ([]core.Secret, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, COALESCE(tenant_id,''), COALESCE(project_id,''), COALESCE(app_id,''),
                 name, type, description, scope, current_version, created_at, updated_at
          FROM secrets WHERE tenant_id = ? ORDER BY created_at DESC`, tenantID,
@@ -67,7 +67,7 @@ func (s *SQLiteDB) ListSecretsByTenant(ctx context.Context, tenantID string) ([]
 // GetSecretByScopeAndName returns a secret by its scope and name.
 func (s *SQLiteDB) GetSecretByScopeAndName(ctx context.Context, scope, name string) (*core.Secret, error) {
 	var secret core.Secret
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, COALESCE(tenant_id,''), COALESCE(project_id,''), COALESCE(app_id,''),
                 name, type, description, scope, current_version, created_at, updated_at
          FROM secrets WHERE scope = ? AND name = ?`, scope, name,
@@ -85,7 +85,7 @@ func (s *SQLiteDB) GetSecretByScopeAndName(ctx context.Context, scope, name stri
 
 // ListAllSecretVersions returns every secret version row (for key rotation).
 func (s *SQLiteDB) ListAllSecretVersions(ctx context.Context) ([]core.SecretVersion, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, secret_id, version, value_enc, created_by, created_at
          FROM secret_versions ORDER BY secret_id, version`,
 	)
@@ -118,7 +118,7 @@ func (s *SQLiteDB) UpdateSecretVersionValue(ctx context.Context, id, valueEnc st
 // GetLatestSecretVersion returns the most recent version of a secret.
 func (s *SQLiteDB) GetLatestSecretVersion(ctx context.Context, secretID string) (*core.SecretVersion, error) {
 	var version core.SecretVersion
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, secret_id, version, value_enc, created_by, created_at
          FROM secret_versions WHERE secret_id = ? ORDER BY version DESC LIMIT 1`, secretID,
 	).Scan(&version.ID, &version.SecretID, &version.Version, &version.ValueEnc,

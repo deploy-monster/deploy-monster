@@ -67,6 +67,18 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var fieldErrs []FieldError
+	if len(req.FQDN) > 253 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "fqdn", Message: "must be 253 characters or fewer"})
+	}
+	if len(req.DNSProvider) > 50 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "dns_provider", Message: "must be 50 characters or fewer"})
+	}
+	if len(fieldErrs) > 0 {
+		writeValidationErrors(w, "field validation failed", fieldErrs)
+		return
+	}
+
 	// Check if domain already exists
 	if _, err := h.store.GetDomainByFQDN(r.Context(), req.FQDN); err == nil {
 		writeError(w, http.StatusConflict, "domain already exists")

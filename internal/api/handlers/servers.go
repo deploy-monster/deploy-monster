@@ -94,6 +94,27 @@ func (h *ServerHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var fieldErrs []FieldError
+	if len(req.Name) > 100 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "name", Message: "must be 100 characters or fewer"})
+	}
+	if len(req.Provider) > 50 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "provider", Message: "must be 50 characters or fewer"})
+	}
+	if len(req.Region) > 50 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "region", Message: "must be 50 characters or fewer"})
+	}
+	if len(req.Size) > 50 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "size", Message: "must be 50 characters or fewer"})
+	}
+	if len(req.Image) > 100 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "image", Message: "must be 100 characters or fewer"})
+	}
+	if len(fieldErrs) > 0 {
+		writeValidationErrors(w, "field validation failed", fieldErrs)
+		return
+	}
+
 	p := h.services.VPSProvisioner(req.Provider)
 	if p == nil {
 		writeError(w, http.StatusBadRequest, "unknown provider: "+req.Provider)
@@ -112,7 +133,7 @@ func (h *ServerHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		Image:  image,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "provisioning failed: "+err.Error())
+		internalError(w, "provisioning failed", err)
 		return
 	}
 

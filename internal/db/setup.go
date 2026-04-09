@@ -63,7 +63,7 @@ func (s *SQLiteDB) CreateUserWithMembership(ctx context.Context, email, password
 // GetUserMembership returns the team membership (tenant + role) for a user.
 func (s *SQLiteDB) GetUserMembership(ctx context.Context, userID string) (*core.TeamMember, error) {
 	tm := &core.TeamMember{}
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, tenant_id, user_id, role_id, status, created_at
 		 FROM team_members WHERE user_id = ? AND status = 'active' LIMIT 1`, userID,
 	).Scan(&tm.ID, &tm.TenantID, &tm.UserID, &tm.RoleID, &tm.Status, &tm.CreatedAt)
@@ -76,7 +76,7 @@ func (s *SQLiteDB) GetUserMembership(ctx context.Context, userID string) (*core.
 // GetRole retrieves a role by ID.
 func (s *SQLiteDB) GetRole(ctx context.Context, roleID string) (*core.Role, error) {
 	r := &core.Role{}
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, COALESCE(tenant_id,''), name, description, permissions_json, is_builtin, created_at
 		 FROM roles WHERE id = ?`, roleID,
 	).Scan(&r.ID, &r.TenantID, &r.Name, &r.Description, &r.PermissionsJSON, &r.IsBuiltin, &r.CreatedAt)
@@ -88,7 +88,7 @@ func (s *SQLiteDB) GetRole(ctx context.Context, roleID string) (*core.Role, erro
 
 // ListRoles returns all roles for a tenant, including built-in roles.
 func (s *SQLiteDB) ListRoles(ctx context.Context, tenantID string) ([]core.Role, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, COALESCE(tenant_id,''), name, description, permissions_json, is_builtin, created_at
 		 FROM roles WHERE tenant_id = ? OR is_builtin = 1 ORDER BY is_builtin DESC, name`,
 		tenantID,
@@ -128,7 +128,7 @@ func (s *SQLiteDB) CreateProject(ctx context.Context, p *core.Project) error {
 // GetProject retrieves a project by ID.
 func (s *SQLiteDB) GetProject(ctx context.Context, id string) (*core.Project, error) {
 	p := &core.Project{}
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, tenant_id, name, description, environment, created_at, updated_at
 		 FROM projects WHERE id = ?`, id,
 	).Scan(&p.ID, &p.TenantID, &p.Name, &p.Description, &p.Environment, &p.CreatedAt, &p.UpdatedAt)
@@ -140,7 +140,7 @@ func (s *SQLiteDB) GetProject(ctx context.Context, id string) (*core.Project, er
 
 // ListProjectsByTenant returns all projects for a tenant.
 func (s *SQLiteDB) ListProjectsByTenant(ctx context.Context, tenantID string) ([]core.Project, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, tenant_id, name, description, environment, created_at, updated_at
 		 FROM projects WHERE tenant_id = ? ORDER BY name`,
 		tenantID,
@@ -172,7 +172,7 @@ func (s *SQLiteDB) DeleteProject(ctx context.Context, id string) error {
 
 // CreateAuditLog inserts an audit log entry.
 func (s *SQLiteDB) CreateAuditLog(ctx context.Context, entry *core.AuditEntry) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.ExecContext(ctx,
 		`INSERT INTO audit_log (tenant_id, user_id, action, resource_type, resource_id, details_json, ip_address, user_agent)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		entry.TenantID, entry.UserID, entry.Action, entry.ResourceType,
@@ -184,14 +184,14 @@ func (s *SQLiteDB) CreateAuditLog(ctx context.Context, entry *core.AuditEntry) e
 // ListAuditLogs returns audit log entries for a tenant with pagination.
 func (s *SQLiteDB) ListAuditLogs(ctx context.Context, tenantID string, limit, offset int) ([]core.AuditEntry, int, error) {
 	var total int
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM audit_log WHERE tenant_id = ?`, tenantID,
 	).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, tenant_id, user_id, action, resource_type, resource_id, details_json,
 		        ip_address, user_agent, created_at
 		 FROM audit_log WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,

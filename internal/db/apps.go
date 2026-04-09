@@ -26,7 +26,7 @@ func (s *SQLiteDB) CreateApp(ctx context.Context, a *core.Application) error {
 // GetApp retrieves an application by ID.
 func (s *SQLiteDB) GetApp(ctx context.Context, id string) (*core.Application, error) {
 	a := &core.Application{}
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
 		        dockerfile, build_pack, env_vars_enc, labels_json, replicas, status, COALESCE(server_id,''),
 		        created_at, updated_at
@@ -43,14 +43,14 @@ func (s *SQLiteDB) GetApp(ctx context.Context, id string) (*core.Application, er
 // ListAppsByTenant returns all applications for a tenant.
 func (s *SQLiteDB) ListAppsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]core.Application, int, error) {
 	var total int
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM applications WHERE tenant_id = ?`, tenantID,
 	).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
 		        status, replicas, created_at, updated_at
 		 FROM applications WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
@@ -75,7 +75,7 @@ func (s *SQLiteDB) ListAppsByTenant(ctx context.Context, tenantID string, limit,
 
 // ListAppsByProject returns all applications in a project.
 func (s *SQLiteDB) ListAppsByProject(ctx context.Context, projectID string) ([]core.Application, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
 		        status, replicas, created_at, updated_at
 		 FROM applications WHERE project_id = ? ORDER BY name`,
@@ -113,7 +113,7 @@ func (s *SQLiteDB) UpdateApp(ctx context.Context, a *core.Application) error {
 
 // UpdateAppStatus updates an application's status.
 func (s *SQLiteDB) UpdateAppStatus(ctx context.Context, id, status string) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.ExecContext(ctx,
 		`UPDATE applications SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
 		status, id,
 	)

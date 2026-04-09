@@ -25,7 +25,7 @@ func (s *SQLiteDB) CreateInvite(ctx context.Context, invite *core.Invitation) er
 
 // ListInvitesByTenant returns all invitations for a tenant.
 func (s *SQLiteDB) ListInvitesByTenant(ctx context.Context, tenantID string) ([]core.Invitation, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, tenant_id, email, role_id, COALESCE(invited_by,''), token_hash,
 		        expires_at, accepted_at, status, created_at
 		 FROM invitations WHERE tenant_id = ? ORDER BY created_at DESC`, tenantID,
@@ -51,11 +51,11 @@ func (s *SQLiteDB) ListInvitesByTenant(ctx context.Context, tenantID string) ([]
 // ListAllTenants returns all tenants with pagination (admin only).
 func (s *SQLiteDB) ListAllTenants(ctx context.Context, limit, offset int) ([]core.Tenant, int, error) {
 	var total int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM tenants`).Scan(&total); err != nil {
+	if err := s.QueryRowContext(ctx, `SELECT COUNT(*) FROM tenants`).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, name, slug, avatar_url, plan_id, COALESCE(owner_id,''),
 		        status, limits_json, metadata_json, created_at, updated_at
 		 FROM tenants ORDER BY created_at DESC LIMIT ? OFFSET ?`, limit, offset,

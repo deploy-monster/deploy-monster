@@ -76,7 +76,7 @@ func (h *CommitRollbackHandler) RollbackToCommit(w http.ResponseWriter, r *http.
 	// Trigger the actual rollback via the deploy engine
 	dep, err := h.engine.Rollback(r.Context(), appID, target.Version)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "rollback failed: "+err.Error())
+		internalError(w, "rollback failed", err)
 		return
 	}
 

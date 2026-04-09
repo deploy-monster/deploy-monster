@@ -42,7 +42,7 @@ func (h *GitSourceHandler) ListRepos(w http.ResponseWriter, r *http.Request) {
 
 	repos, err := p.ListRepos(r.Context(), page, 20)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list repos: "+err.Error())
+		internalError(w, "failed to list repos", err)
 		return
 	}
 

@@ -47,9 +47,10 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database configuration.
 type DatabaseConfig struct {
-	Driver string `yaml:"driver"`
-	Path   string `yaml:"path"`
-	URL    string `yaml:"url"`
+	Driver          string `yaml:"driver"`
+	Path            string `yaml:"path"`
+	URL             string `yaml:"url"`
+	QueryTimeoutSec int    `yaml:"query_timeout_sec"` // per-query timeout in seconds; 0 = 5s default
 }
 
 // IngressConfig holds ingress gateway configuration.

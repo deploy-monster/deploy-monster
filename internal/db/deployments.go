@@ -26,7 +26,7 @@ func (s *SQLiteDB) CreateDeployment(ctx context.Context, d *core.Deployment) err
 // GetLatestDeployment returns the most recent deployment for an app.
 func (s *SQLiteDB) GetLatestDeployment(ctx context.Context, appID string) (*core.Deployment, error) {
 	d := &core.Deployment{}
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, app_id, version, image, container_id, status, commit_sha, commit_message,
 		        triggered_by, strategy, started_at, finished_at, created_at
 		 FROM deployments WHERE app_id = ? ORDER BY version DESC LIMIT 1`, appID,
@@ -41,7 +41,7 @@ func (s *SQLiteDB) GetLatestDeployment(ctx context.Context, appID string) (*core
 
 // ListDeploymentsByApp returns deployments for an app, newest first.
 func (s *SQLiteDB) ListDeploymentsByApp(ctx context.Context, appID string, limit int) ([]core.Deployment, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, app_id, version, image, container_id, status, commit_sha, commit_message,
 		        triggered_by, strategy, started_at, finished_at, created_at
 		 FROM deployments WHERE app_id = ? ORDER BY version DESC LIMIT ?`,
@@ -68,7 +68,7 @@ func (s *SQLiteDB) ListDeploymentsByApp(ctx context.Context, appID string, limit
 // GetNextDeployVersion returns the next deployment version number for an app.
 func (s *SQLiteDB) GetNextDeployVersion(ctx context.Context, appID string) (int, error) {
 	var maxVersion sql.NullInt64
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT MAX(version) FROM deployments WHERE app_id = ?`, appID,
 	).Scan(&maxVersion)
 	if err != nil {

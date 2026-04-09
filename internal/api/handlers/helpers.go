@@ -158,6 +158,13 @@ func writeValidationErrors(w http.ResponseWriter, message string, fields []Field
 	writeJSON(w, http.StatusBadRequest, resp)
 }
 
+// internalError logs the full error details and returns a sanitized message to the client.
+// Use this instead of writeError(w, 500, "..."+err.Error()) to avoid leaking internal details.
+func internalError(w http.ResponseWriter, userMsg string, err error) {
+	slog.Error(userMsg, "error", err)
+	writeError(w, http.StatusInternalServerError, userMsg)
+}
+
 // safeGo launches a goroutine with panic recovery. If the goroutine panics,
 // it logs the error with stack trace and calls onPanic (if non-nil).
 func safeGo(fn func(), onPanic func(recovered any)) {

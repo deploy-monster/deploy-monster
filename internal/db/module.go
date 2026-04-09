@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -52,9 +53,14 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 		if err != nil {
 			return fmt.Errorf("sqlite: %w", err)
 		}
+		queryTimeout := time.Duration(c.Config.Database.QueryTimeoutSec) * time.Second
+		if queryTimeout <= 0 {
+			queryTimeout = 5 * time.Second
+		}
+		sqliteDB.SetQueryTimeout(queryTimeout)
 		m.sqlite = sqliteDB
 		c.Store = sqliteDB
-		m.logger.Info("sqlite initialized", "path", c.Config.Database.Path)
+		m.logger.Info("sqlite initialized", "path", c.Config.Database.Path, "query_timeout", queryTimeout)
 
 	case "postgres", "postgresql":
 		pgDB, err := NewPostgres(c.Config.Database.URL)

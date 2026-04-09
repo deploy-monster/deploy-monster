@@ -70,6 +70,7 @@ func (r *Router) Handler() http.Handler {
 		middleware.RequestLogger(r.core.Logger),
 		middleware.CORS(r.core.Config.Server.CORSOrigins),
 		middleware.CSRFProtect,
+		middleware.IdempotencyMiddleware(r.core.DB.Bolt),
 		middleware.AuditLog(r.store, r.core.Logger),
 	)
 }

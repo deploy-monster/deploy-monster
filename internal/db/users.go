@@ -25,7 +25,7 @@ func (s *SQLiteDB) CreateUser(ctx context.Context, u *core.User) error {
 // GetUser retrieves a user by ID.
 func (s *SQLiteDB) GetUser(ctx context.Context, id string) (*core.User, error) {
 	u := &core.User{}
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, last_login_at, created_at, updated_at
 		 FROM users WHERE id = ?`, id,
 	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.AvatarURL, &u.Status,
@@ -39,7 +39,7 @@ func (s *SQLiteDB) GetUser(ctx context.Context, id string) (*core.User, error) {
 // GetUserByEmail retrieves a user by email address.
 func (s *SQLiteDB) GetUserByEmail(ctx context.Context, email string) (*core.User, error) {
 	u := &core.User{}
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, last_login_at, created_at, updated_at
 		 FROM users WHERE email = ?`, email,
 	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.AvatarURL, &u.Status,
@@ -74,7 +74,7 @@ func (s *SQLiteDB) UpdatePassword(ctx context.Context, userID, passwordHash stri
 
 // UpdateLastLogin updates the user's last login timestamp.
 func (s *SQLiteDB) UpdateLastLogin(ctx context.Context, userID string) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.ExecContext(ctx,
 		`UPDATE users SET last_login_at=CURRENT_TIMESTAMP WHERE id=?`, userID,
 	)
 	return err
@@ -83,6 +83,6 @@ func (s *SQLiteDB) UpdateLastLogin(ctx context.Context, userID string) error {
 // CountUsers returns the total number of users.
 func (s *SQLiteDB) CountUsers(ctx context.Context) (int, error) {
 	var count int
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count)
+	err := s.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count)
 	return count, err
 }

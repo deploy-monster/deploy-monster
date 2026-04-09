@@ -35,7 +35,7 @@ func (h *ImageTagHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	images, err := h.runtime.ImageList(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list images: "+err.Error())
+		internalError(w, "failed to list images", err)
 		return
 	}
 

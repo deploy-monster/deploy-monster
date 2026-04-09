@@ -28,6 +28,30 @@ func (h *AppHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate field lengths
+	var fieldErrs []FieldError
+	if req.Name != "" {
+		if err := validateAppName(req.Name); err != nil {
+			fieldErrs = append(fieldErrs, FieldError{Field: "name", Message: err.Error()})
+		}
+	}
+	if len(req.SourceURL) > 2048 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "source_url", Message: "must be 2048 characters or fewer"})
+	}
+	if len(req.Branch) > 100 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "branch", Message: "must be 100 characters or fewer"})
+	}
+	if len(req.Dockerfile) > 500 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "dockerfile", Message: "must be 500 characters or fewer"})
+	}
+	if req.Replicas != nil && (*req.Replicas < 0 || *req.Replicas > 100) {
+		fieldErrs = append(fieldErrs, FieldError{Field: "replicas", Message: "must be between 0 and 100"})
+	}
+	if len(fieldErrs) > 0 {
+		writeValidationErrors(w, "field validation failed", fieldErrs)
+		return
+	}
+
 	if req.Name != "" {
 		app.Name = req.Name
 	}

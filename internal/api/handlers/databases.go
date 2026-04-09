@@ -59,6 +59,21 @@ func (h *DatabaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var fieldErrs []FieldError
+	if len(req.Name) > 100 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "name", Message: "must be 100 characters or fewer"})
+	}
+	if len(req.Engine) > 50 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "engine", Message: "must be 50 characters or fewer"})
+	}
+	if len(req.Version) > 50 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "version", Message: "must be 50 characters or fewer"})
+	}
+	if len(fieldErrs) > 0 {
+		writeValidationErrors(w, "field validation failed", fieldErrs)
+		return
+	}
+
 	engine, ok := engines.Get(req.Engine)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "unsupported engine: "+req.Engine)
@@ -77,7 +92,7 @@ func (h *DatabaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Version:  req.Version,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "provisioning failed: "+err.Error())
+		internalError(w, "provisioning failed", err)
 		return
 	}
 

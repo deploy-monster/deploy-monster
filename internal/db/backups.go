@@ -9,7 +9,7 @@ import (
 
 // CreateBackup inserts a new backup record.
 func (s *SQLiteDB) CreateBackup(ctx context.Context, backup *core.Backup) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.ExecContext(ctx,
 		`INSERT INTO backups (id, tenant_id, source_type, source_id, storage_target, file_path, size_bytes, encryption, status, scheduled, retention_days, started_at, completed_at, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		backup.ID, backup.TenantID, backup.SourceType, backup.SourceID, backup.StorageTarget,
@@ -21,7 +21,7 @@ func (s *SQLiteDB) CreateBackup(ctx context.Context, backup *core.Backup) error 
 // ListBackupsByTenant lists backups for a tenant with pagination.
 func (s *SQLiteDB) ListBackupsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]core.Backup, int, error) {
 	var total int
-	if err := s.db.QueryRowContext(ctx,
+	if err := s.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM backups WHERE tenant_id = ?`, tenantID).Scan(&total); err != nil {
 		return nil, 0, err
 	}
@@ -30,7 +30,7 @@ func (s *SQLiteDB) ListBackupsByTenant(ctx context.Context, tenantID string, lim
 		limit = 20
 	}
 
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.QueryContext(ctx,
 		`SELECT id, tenant_id, source_type, source_id, storage_target, file_path, size_bytes, encryption, status, scheduled, retention_days, started_at, completed_at, created_at
 		 FROM backups
 		 WHERE tenant_id = ?
@@ -67,7 +67,7 @@ func (s *SQLiteDB) UpdateBackupStatus(ctx context.Context, id, status string, si
 		now := time.Now().UTC()
 		completedAt = &now
 	}
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.ExecContext(ctx,
 		`UPDATE backups SET status = ?, size_bytes = ?, completed_at = ? WHERE id = ?`,
 		status, sizeBytes, completedAt, id)
 	return err

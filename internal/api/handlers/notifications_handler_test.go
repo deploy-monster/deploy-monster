@@ -113,14 +113,14 @@ func TestNotificationTest_SendError(t *testing.T) {
 
 	handler.Test(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", rr.Code)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
 	}
 
 	var resp map[string]any
 	json.Unmarshal(rr.Body.Bytes(), &resp)
 	errObj, _ := resp["error"].(map[string]any)
-	if errObj == nil || errObj["message"] == "" {
-		t.Error("expected non-empty error message")
+	if errObj == nil || errObj["message"] != "notification failed" {
+		t.Error("expected sanitized error message 'notification failed'")
 	}
 }

@@ -67,6 +67,27 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var fieldErrs []FieldError
+	if len(req.SourceURL) > 2048 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "source_url", Message: "must be 2048 characters or fewer"})
+	}
+	if len(req.Branch) > 100 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "branch", Message: "must be 100 characters or fewer"})
+	}
+	if len(req.Type) > 50 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "type", Message: "must be 50 characters or fewer"})
+	}
+	if len(req.SourceType) > 50 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "source_type", Message: "must be 50 characters or fewer"})
+	}
+	if len(req.ProjectID) > 100 {
+		fieldErrs = append(fieldErrs, FieldError{Field: "project_id", Message: "must be 100 characters or fewer"})
+	}
+	if len(fieldErrs) > 0 {
+		writeValidationErrors(w, "field validation failed", fieldErrs)
+		return
+	}
+
 	appType := req.Type
 	if appType == "" {
 		appType = "service"

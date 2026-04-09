@@ -26,7 +26,7 @@ func (s *SQLiteDB) CreateTenant(ctx context.Context, t *core.Tenant) error {
 func (s *SQLiteDB) GetTenant(ctx context.Context, id string) (*core.Tenant, error) {
 	t := &core.Tenant{}
 	var ignore string // placeholder for reseller_id column
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, name, slug, avatar_url, plan_id, COALESCE(owner_id,''), COALESCE(reseller_id,''),
 		        status, limits_json, metadata_json, created_at, updated_at
 		 FROM tenants WHERE id = ?`, id,
@@ -42,7 +42,7 @@ func (s *SQLiteDB) GetTenant(ctx context.Context, id string) (*core.Tenant, erro
 func (s *SQLiteDB) GetTenantBySlug(ctx context.Context, slug string) (*core.Tenant, error) {
 	t := &core.Tenant{}
 	var ignore string // placeholder for reseller_id column
-	err := s.db.QueryRowContext(ctx,
+	err := s.QueryRowContext(ctx,
 		`SELECT id, name, slug, avatar_url, plan_id, COALESCE(owner_id,''), COALESCE(reseller_id,''),
 		        status, limits_json, metadata_json, created_at, updated_at
 		 FROM tenants WHERE slug = ?`, slug,

@@ -19,7 +19,7 @@ func NewImageCleanupHandler(runtime core.ContainerRuntime) *ImageCleanupHandler 
 func (h *ImageCleanupHandler) DanglingImages(w http.ResponseWriter, r *http.Request) {
 	images, err := h.runtime.ImageList(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list images: "+err.Error())
+		internalError(w, "failed to list images", err)
 		return
 	}
 
@@ -43,7 +43,7 @@ func (h *ImageCleanupHandler) DanglingImages(w http.ResponseWriter, r *http.Requ
 func (h *ImageCleanupHandler) Prune(w http.ResponseWriter, r *http.Request) {
 	images, err := h.runtime.ImageList(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list images: "+err.Error())
+		internalError(w, "failed to list images", err)
 		return
 	}
 

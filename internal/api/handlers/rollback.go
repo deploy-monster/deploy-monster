@@ -40,7 +40,7 @@ func (h *RollbackHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 
 	dep, err := h.engine.Rollback(r.Context(), appID, req.Version)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "rollback failed: "+err.Error())
+		internalError(w, "rollback failed", err)
 		return
 	}
 

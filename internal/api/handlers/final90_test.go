@@ -40,7 +40,7 @@ func TestDeployTrigger_ImageApp_RuntimeError(t *testing.T) {
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d: %s", rr.Code, rr.Body.String())
 	}
-	assertErrorMessage(t, rr, "deploy failed: container start failed")
+	assertErrorMessage(t, rr, "deploy failed")
 
 	if store.updatedStatus["app-err"] != "failed" {
 		t.Errorf("expected status=failed, got %q", store.updatedStatus["app-err"])

@@ -49,7 +49,7 @@ func (h *NotificationHandler) Test(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "notification failed: "+err.Error())
+		internalError(w, "notification failed", err)
 		return
 	}
 

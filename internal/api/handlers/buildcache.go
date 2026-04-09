@@ -33,7 +33,7 @@ func (h *BuildCacheHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	if h.runtime != nil {
 		images, err := h.runtime.ImageList(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to query runtime: "+err.Error())
+			internalError(w, "failed to query runtime", err)
 			return
 		}
 		layerCount = len(images)
@@ -66,7 +66,7 @@ func (h *BuildCacheHandler) Clear(w http.ResponseWriter, r *http.Request) {
 		// Remove dangling images (build cache layers)
 		images, err := h.runtime.ImageList(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to list images: "+err.Error())
+			internalError(w, "failed to list images", err)
 			return
 		}
 

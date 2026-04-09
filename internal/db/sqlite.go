@@ -21,7 +21,8 @@ var migrationsFS embed.FS
 
 // SQLiteDB wraps a sql.DB connection to SQLite with migrations and helpers.
 type SQLiteDB struct {
-	db *sql.DB
+	db           *sql.DB
+	queryTimeout time.Duration // per-query context timeout; 0 means no added timeout
 }
 
 // NewSQLite opens a SQLite database with WAL mode and performance pragmas.
@@ -59,6 +60,21 @@ func NewSQLite(path string) (*SQLiteDB, error) {
 	return s, nil
 }
 
+// SetQueryTimeout configures the per-query context timeout.
+// A zero or negative value disables the added timeout (caller's context is used as-is).
+func (s *SQLiteDB) SetQueryTimeout(d time.Duration) {
+	s.queryTimeout = d
+}
+
+// withTimeout wraps ctx with the configured query timeout if set.
+// If ctx already has an earlier deadline, the earlier one wins.
+func (s *SQLiteDB) withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if s.queryTimeout > 0 {
+		return context.WithTimeout(ctx, s.queryTimeout)
+	}
+	return ctx, func() {}
+}
+
 // DB returns the underlying *sql.DB.
 func (s *SQLiteDB) DB() *sql.DB {
 	return s.db
@@ -66,7 +82,32 @@ func (s *SQLiteDB) DB() *sql.DB {
 
 // Ping verifies the database connection.
 func (s *SQLiteDB) Ping(ctx context.Context) error {
+	ctx, cancel := s.withTimeout(ctx)
+	defer cancel()
 	return s.db.PingContext(ctx)
+}
+
+// QueryRowContext wraps sql.DB.QueryRowContext with the configured query timeout.
+func (s *SQLiteDB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	ctx, cancel := s.withTimeout(ctx)
+	// cancel will be called when the row is scanned or GC'd; for QueryRow this is safe
+	// because the underlying driver completes the query synchronously.
+	_ = cancel
+	return s.db.QueryRowContext(ctx, query, args...)
+}
+
+// QueryContext wraps sql.DB.QueryContext with the configured query timeout.
+func (s *SQLiteDB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	ctx, cancel := s.withTimeout(ctx)
+	defer cancel()
+	return s.db.QueryContext(ctx, query, args...)
+}
+
+// ExecContext wraps sql.DB.ExecContext with the configured query timeout.
+func (s *SQLiteDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	ctx, cancel := s.withTimeout(ctx)
+	defer cancel()
+	return s.db.ExecContext(ctx, query, args...)
 }
 
 // Close closes the database connection.
@@ -76,7 +117,11 @@ func (s *SQLiteDB) Close() error {
 
 // Tx runs a function within a database transaction.
 // The transaction is automatically rolled back on error, committed on success.
+// If a query timeout is configured, the context is wrapped with that deadline.
 func (s *SQLiteDB) Tx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	ctx, cancel := s.withTimeout(ctx)
+	defer cancel()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
