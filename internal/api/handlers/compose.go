@@ -97,22 +97,25 @@ func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Deploy async — server-scoped context outlives request but cancels on shutdown
-	go func() {
+	appID := app.ID
+	safeGo(func() {
 		ctx := h.serverCtx
 		deployer := ic.NewStackDeployer(h.runtime, h.store, h.events, nil)
 		err := deployer.Deploy(ctx, ic.DeployOpts{
-			AppID:     app.ID,
+			AppID:     appID,
 			TenantID:  claims.TenantID,
 			StackName: req.Name,
 			Compose:   cf,
 			EnvVars:   req.EnvVars,
 		})
 		if err != nil {
-			h.store.UpdateAppStatus(ctx, app.ID, "failed")
+			h.store.UpdateAppStatus(ctx, appID, "failed")
 		} else {
-			h.store.UpdateAppStatus(ctx, app.ID, "running")
+			h.store.UpdateAppStatus(ctx, appID, "running")
 		}
-	}()
+	}, func(_ any) {
+		h.store.UpdateAppStatus(h.serverCtx, appID, "failed")
+	})
 
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"app_id":   app.ID,

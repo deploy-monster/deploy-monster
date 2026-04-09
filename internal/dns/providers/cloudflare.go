@@ -115,28 +115,39 @@ func (c *Cloudflare) findZone(ctx context.Context, name string) (string, error) 
 }
 
 func (c *Cloudflare) do(ctx context.Context, method, path string, payload any) ([]byte, error) {
-	var body io.Reader
-	if payload != nil {
-		data, _ := json.Marshal(payload)
-		body = bytes.NewReader(data)
-	}
+	var result []byte
+	err := core.Retry(ctx, core.DefaultRetryConfig(), func() error {
+		var body io.Reader
+		if payload != nil {
+			data, _ := json.Marshal(payload)
+			body = bytes.NewReader(data)
+		}
 
-	req, err := http.NewRequestWithContext(ctx, method, cfAPI+path, body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Content-Type", "application/json")
+		req, err := http.NewRequestWithContext(ctx, method, cfAPI+path, body)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+c.token)
+		req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("cloudflare API: %w", err)
-	}
-	defer resp.Body.Close()
+		resp, err := c.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("cloudflare API: %w", err)
+		}
+		defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("cloudflare API %s: HTTP %d: %s", path, resp.StatusCode, string(respBody))
-	}
-	return respBody, nil
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode >= 500 {
+			// Transient server error — retry
+			return fmt.Errorf("cloudflare API %s: HTTP %d: %s", path, resp.StatusCode, string(respBody))
+		}
+		if resp.StatusCode >= 400 {
+			// Client error — do not retry
+			result = nil
+			return core.ErrNoRetry(fmt.Errorf("cloudflare API %s: HTTP %d: %s", path, resp.StatusCode, string(respBody)))
+		}
+		result = respBody
+		return nil
+	})
+	return result, err
 }

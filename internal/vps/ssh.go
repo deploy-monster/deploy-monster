@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/core"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -33,7 +34,7 @@ func NewSSHPool(logger *slog.Logger) *SSHPool {
 	}
 
 	// Cleanup idle connections every 5 minutes
-	go pool.cleanupLoop()
+	core.SafeGo(logger, "ssh-pool-cleanup", pool.cleanupLoop)
 
 	return pool
 }
@@ -94,12 +95,12 @@ func (p *SSHPool) Upload(ctx context.Context, host string, port int, user string
 		return err
 	}
 
-	go func() {
+	core.SafeGo(p.logger, "scp-upload", func() {
 		defer stdin.Close()
 		fmt.Fprintf(stdin, "C0644 %d %s\n", len(localContent), remotePath)
 		stdin.Write(localContent)
 		fmt.Fprint(stdin, "\x00")
-	}()
+	})
 
 	return session.Run("scp -t " + remotePath)
 }

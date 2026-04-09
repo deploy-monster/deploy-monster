@@ -43,7 +43,7 @@ type ImageUpdate struct {
 
 // Start begins periodic update checking (every 6 hours).
 func (c *ImageUpdateChecker) Start() {
-	go func() {
+	core.SafeGo(c.logger, "image-update-checker", func() {
 		ticker := time.NewTicker(6 * time.Hour)
 		defer ticker.Stop()
 
@@ -55,7 +55,7 @@ func (c *ImageUpdateChecker) Start() {
 				return
 			}
 		}
-	}()
+	})
 	c.logger.Info("image update checker started")
 }
 

@@ -2,10 +2,21 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 )
+
+// noRetryError wraps an error to signal that the retry loop should stop immediately.
+type noRetryError struct{ err error }
+
+func (e *noRetryError) Error() string { return e.err.Error() }
+func (e *noRetryError) Unwrap() error { return e.err }
+
+// ErrNoRetry wraps an error to prevent further retry attempts.
+// Use this for non-transient failures (e.g., 4xx HTTP responses, validation errors).
+func ErrNoRetry(err error) error { return &noRetryError{err: err} }
 
 // RetryConfig configures exponential backoff retry behavior.
 type RetryConfig struct {
@@ -40,6 +51,11 @@ func Retry(ctx context.Context, cfg RetryConfig, op func() error) error {
 		if err := op(); err == nil {
 			return nil
 		} else {
+			// If the error signals no-retry, return immediately
+			var nre *noRetryError
+			if errors.As(err, &nre) {
+				return nre.err // unwrap and return the original error
+			}
 			lastErr = err
 		}
 

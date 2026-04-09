@@ -133,7 +133,7 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Use server-scoped context — outlives the request but cancels on shutdown
-	go func() {
+	safeGo(func() {
 		ctx := h.serverCtx
 		builder := build.NewBuilder(h.runtime, h.events)
 		result, err := builder.Build(ctx, build.BuildOpts{
@@ -174,7 +174,9 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 		if sErr := h.store.UpdateAppStatus(ctx, appID, "running"); sErr != nil {
 			slog.Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
 		}
-	}()
+	}, func(_ any) {
+		h.store.UpdateAppStatus(h.serverCtx, appID, "failed")
+	})
 
 	writeJSON(w, http.StatusAccepted, map[string]string{
 		"status":  "building",

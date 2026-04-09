@@ -39,14 +39,14 @@ func (ar *AutoRestarter) Start() {
 	})
 
 	// Periodic check for crashed containers
-	go func() {
+	core.SafeGo(ar.logger, "autorestart-check", func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 
 		for range ticker.C {
 			ar.checkCrashed()
 		}
-	}()
+	})
 
 	ar.logger.Info("auto-restart monitor started", "max_retries", ar.maxRetries)
 }

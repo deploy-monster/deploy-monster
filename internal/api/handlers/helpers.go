@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -155,4 +156,23 @@ func writeValidationErrors(w http.ResponseWriter, message string, fields []Field
 		resp["request_id"] = rid
 	}
 	writeJSON(w, http.StatusBadRequest, resp)
+}
+
+// safeGo launches a goroutine with panic recovery. If the goroutine panics,
+// it logs the error with stack trace and calls onPanic (if non-nil).
+func safeGo(fn func(), onPanic func(recovered any)) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("goroutine panic recovered",
+					"error", r,
+					"stack", string(debug.Stack()),
+				)
+				if onPanic != nil {
+					onPanic(r)
+				}
+			}
+		}()
+		fn()
+	}()
 }

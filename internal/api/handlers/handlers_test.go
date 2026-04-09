@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -408,5 +410,46 @@ func TestSetServerContext_MarketplaceDeploy(t *testing.T) {
 	case <-h.serverCtx.Done():
 	default:
 		t.Error("expected serverCtx to be cancelled")
+	}
+}
+
+func TestSafeGo_RunsFunction(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	ran := false
+	safeGo(func() {
+		ran = true
+		wg.Done()
+	}, nil)
+	wg.Wait()
+	if !ran {
+		t.Error("expected function to run")
+	}
+}
+
+func TestSafeGo_RecoversPanic(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	safeGo(func() {
+		defer wg.Done()
+		panic("test panic in handler goroutine")
+	}, nil)
+	wg.Wait()
+	// If we reach here, panic was recovered
+}
+
+func TestSafeGo_CallsOnPanic(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	var called atomic.Bool
+	safeGo(func() {
+		panic("boom")
+	}, func(r any) {
+		called.Store(true)
+		wg.Done()
+	})
+	wg.Wait()
+	if !called.Load() {
+		t.Error("expected onPanic to be called")
 	}
 }

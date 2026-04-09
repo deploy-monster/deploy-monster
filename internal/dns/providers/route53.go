@@ -97,17 +97,22 @@ func (r *Route53) changeRecord(ctx context.Context, action string, record core.D
 	req.Header.Set("Content-Type", "application/xml")
 	// AWS SigV4 signing would go here
 
-	resp, err := r.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("route53 API: %w", err)
-	}
-	defer resp.Body.Close()
-	_, _ = io.ReadAll(resp.Body)
+	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
+		resp, err := r.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("route53 API: %w", err)
+		}
+		defer resp.Body.Close()
+		_, _ = io.ReadAll(resp.Body)
 
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("route53: HTTP %d", resp.StatusCode)
-	}
-	return nil
+		if resp.StatusCode >= 500 {
+			return fmt.Errorf("route53: HTTP %d", resp.StatusCode)
+		}
+		if resp.StatusCode >= 400 {
+			return core.ErrNoRetry(fmt.Errorf("route53: HTTP %d", resp.StatusCode))
+		}
+		return nil
+	})
 }
 
 func (r *Route53) findHostedZone(ctx context.Context, domain string) (string, error) {
