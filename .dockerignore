@@ -1,6 +1,7 @@
 # Git
 .git
 .gitignore
+.github
 
 # IDE
 .idea
@@ -14,19 +15,26 @@ dist/
 coverage.out
 coverage.html
 *.out
+loadtest-results.json
 
 # Node
 web/node_modules
 
-# Docs
+# Docs (not needed in image)
 docs/
 ·project/
 
 # Tests (not needed in image)
 **/*_test.go
 **/testdata
+tests/
+web/e2e/
+web/e2e-results/
+web/e2e-report/
+web/test-results/
+web/blob-report/
 
-# Config
+# Config / meta
 .goreleaser.yml
 .golangci.yml
 .editorconfig
@@ -35,3 +43,23 @@ CONTRIBUTING.md
 SECURITY.md
 CHANGELOG.md
 Makefile
+scripts/
+
+# Database files (runtime only)
+*.db
+*.db-wal
+*.db-shm
+*.bolt
+
+# Environment / secrets
+.env
+.env.*
+monster.yaml
+.credentials
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright
+.playwright-mcp/

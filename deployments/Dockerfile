@@ -1,13 +1,13 @@
 # Stage 1: Build React UI
 FROM node:22-alpine AS ui-builder
 WORKDIR /app/web
-COPY web/package*.json ./
-RUN npm ci --silent
+COPY web/package.json web/pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile --silent
 COPY web/ ./
-RUN npm run build
+RUN pnpm run build
 
 # Stage 2: Build Go binary
-FROM golang:1.24-alpine AS go-builder
+FROM golang:1.26-alpine AS go-builder
 RUN apk add --no-cache git
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -23,12 +23,17 @@ RUN CGO_ENABLED=0 go build \
 
 # Stage 3: Final minimal image
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates tzdata curl
+RUN apk add --no-cache ca-certificates tzdata curl \
+    && addgroup -S monster \
+    && adduser -S monster -G monster
 
 COPY --from=go-builder /deploymonster /usr/local/bin/deploymonster
 
 # Create data directory
-RUN mkdir -p /var/lib/deploymonster
+RUN mkdir -p /var/lib/deploymonster && chown monster:monster /var/lib/deploymonster
+
+# Switch to non-root user
+USER monster
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

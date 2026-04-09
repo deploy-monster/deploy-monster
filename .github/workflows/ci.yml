@@ -45,15 +45,19 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Install dependencies
         working-directory: web
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: TypeScript check
         working-directory: web
@@ -61,7 +65,80 @@ jobs:
 
       - name: Run Vitest
         working-directory: web
-        run: npm test
+        run: pnpm test
+
+  test-e2e:
+    name: E2E Tests
+    needs: [test, test-react]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Build React UI
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Copy UI to embed dir
+        run: |
+          rm -rf internal/api/static/*
+          cp -r web/dist/* internal/api/static/
+
+      - name: Build server
+        run: go build -o bin/deploymonster ./cmd/deploymonster
+
+      - name: Start server
+        run: |
+          ./bin/deploymonster serve &
+          sleep 3
+        env:
+          MONSTER_SERVER_ADDRESS: :8443
+          MONSTER_DATABASE_DRIVER: sqlite
+
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8443/health > /dev/null 2>&1; then
+              echo "Server ready"
+              break
+            fi
+            echo "Waiting for server... ($i)"
+            sleep 1
+          done
+
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        working-directory: web
+        run: pnpm test:e2e
+        env:
+          E2E_BASE_URL: http://localhost:8443
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report
+          path: web/e2e-report/
+          retention-days: 7
 
   lint:
     name: Lint
@@ -96,17 +173,21 @@ jobs:
           go-version: '1.26'
           cache: true
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Build React UI
         working-directory: web
         run: |
-          npm ci
-          npm run build
+          pnpm install --frozen-lockfile
+          pnpm run build
 
       - name: Copy UI to embed dir
         run: |

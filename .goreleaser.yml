@@ -40,6 +40,11 @@ archives:
       - CHANGELOG.md
       - monster.example.yaml
 
+sboms:
+  - artifacts: archive
+    documents:
+      - "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.sbom.json"
+
 checksum:
   name_template: "checksums.txt"
 
