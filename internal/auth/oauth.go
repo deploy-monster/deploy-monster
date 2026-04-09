@@ -99,7 +99,9 @@ func (p *OAuthProvider) ExchangeCode(ctx context.Context, code, redirectURI stri
 		AccessToken string `json:"access_token"`
 		Error       string `json:"error"`
 	}
-	json.Unmarshal(body, &tokenResp)
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return "", fmt.Errorf("token response parse: %w", err)
+	}
 
 	if tokenResp.Error != "" {
 		return "", fmt.Errorf("oauth error: %s", tokenResp.Error)
@@ -133,7 +135,9 @@ func (p *OAuthProvider) GetUser(ctx context.Context, accessToken string) (*OAuth
 			Name    string `json:"name"`
 			Picture string `json:"picture"`
 		}
-		json.Unmarshal(body, &g)
+		if err := json.Unmarshal(body, &g); err != nil {
+			return nil, fmt.Errorf("google user parse: %w", err)
+		}
 		user.ID = g.ID
 		user.Email = g.Email
 		user.Name = g.Name
@@ -147,7 +151,9 @@ func (p *OAuthProvider) GetUser(ctx context.Context, accessToken string) (*OAuth
 			Login  string `json:"login"`
 			Avatar string `json:"avatar_url"`
 		}
-		json.Unmarshal(body, &g)
+		if err := json.Unmarshal(body, &g); err != nil {
+			return nil, fmt.Errorf("github user parse: %w", err)
+		}
 		user.ID = fmt.Sprintf("%d", g.ID)
 		user.Email = g.Email
 		user.Name = g.Name

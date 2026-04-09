@@ -110,7 +110,7 @@ func (h *DeployApprovalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Reason string `json:"reason"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	_ = json.NewDecoder(r.Body).Decode(&body) // Reason is optional
 
 	h.mu.Lock()
 	req, exists := h.pending[approvalID]

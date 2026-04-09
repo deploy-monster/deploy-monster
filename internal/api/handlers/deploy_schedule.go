@@ -142,6 +142,9 @@ func (h *DeployScheduleHandler) CancelScheduled(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	_ = h.bolt.Set("deploy_schedule", appID, list, 0)
+	if err := h.bolt.Set("deploy_schedule", appID, list, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to cancel scheduled deploy")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

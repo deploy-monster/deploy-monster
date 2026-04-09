@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -57,7 +58,9 @@ func (h *WildcardSSLHandler) Request(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Also index by domain for lookups
-	_ = h.bolt.Set("wildcard_ssl_domain", req.Domain, cfg, 0)
+	if err := h.bolt.Set("wildcard_ssl_domain", req.Domain, cfg, 0); err != nil {
+		slog.Error("failed to index wildcard cert by domain", "domain", req.Domain, "error", err)
+	}
 
 	writeJSON(w, http.StatusAccepted, cfg)
 }

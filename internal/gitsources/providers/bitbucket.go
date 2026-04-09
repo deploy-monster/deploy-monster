@@ -50,7 +50,9 @@ func (b *Bitbucket) ListRepos(ctx context.Context, page, perPage int) ([]core.Gi
 			IsPrivate bool `json:"is_private"`
 		} `json:"values"`
 	}
-	_ = json.Unmarshal(body, &resp)
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("bitbucket repos parse: %w", err)
+	}
 
 	repos := make([]core.GitRepo, len(resp.Values))
 	for i, r := range resp.Values {
@@ -81,7 +83,9 @@ func (b *Bitbucket) ListBranches(ctx context.Context, repoFullName string) ([]st
 			Name string `json:"name"`
 		} `json:"values"`
 	}
-	_ = json.Unmarshal(body, &resp)
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("bitbucket branches parse: %w", err)
+	}
 
 	branches := make([]string, len(resp.Values))
 	for i, br := range resp.Values {
@@ -103,7 +107,9 @@ func (b *Bitbucket) GetRepoInfo(ctx context.Context, repoFullName string) (*core
 		} `json:"mainbranch"`
 		IsPrivate bool `json:"is_private"`
 	}
-	json.Unmarshal(body, &r)
+	if err := json.Unmarshal(body, &r); err != nil {
+		return nil, fmt.Errorf("bitbucket repo parse: %w", err)
+	}
 
 	return &core.GitRepo{
 		FullName:      r.FullName,
@@ -140,7 +146,9 @@ func (b *Bitbucket) CreateWebhook(ctx context.Context, repoFullName, url, secret
 	var resp struct {
 		UUID string `json:"uuid"`
 	}
-	_ = json.Unmarshal(body, &resp)
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", fmt.Errorf("bitbucket webhook parse: %w", err)
+	}
 	return resp.UUID, nil
 }
 

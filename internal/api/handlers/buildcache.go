@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -82,7 +83,9 @@ func (h *BuildCacheHandler) Clear(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reset persisted stats
-	_ = h.bolt.Set("buildcache", "stats", buildCacheStats{}, 0)
+	if err := h.bolt.Set("buildcache", "stats", buildCacheStats{}, 0); err != nil {
+		slog.Error("failed to reset build cache stats", "error", err)
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":         "cleared",

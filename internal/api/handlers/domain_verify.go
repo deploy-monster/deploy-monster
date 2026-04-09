@@ -54,7 +54,7 @@ func (h *DomainVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		FQDN string `json:"fqdn"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
+	_ = json.NewDecoder(r.Body).Decode(&req) // Intentionally lenient: FQDN may come from bolt lookup
 
 	// If FQDN not provided in body, try to look it up from stored records
 	if req.FQDN == "" {

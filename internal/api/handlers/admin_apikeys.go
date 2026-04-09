@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -114,7 +115,9 @@ func (h *AdminAPIKeyHandler) CleanupExpiredKeys() int {
 			continue // key gone, skip
 		}
 		if rec.ExpiresAt != nil && now.After(*rec.ExpiresAt) {
-			_ = h.bolt.Delete("api_keys", prefix)
+			if err := h.bolt.Delete("api_keys", prefix); err != nil {
+				slog.Error("failed to delete expired API key", "prefix", prefix, "error", err)
+			}
 			removed++
 		} else {
 			active = append(active, prefix)
@@ -123,7 +126,9 @@ func (h *AdminAPIKeyHandler) CleanupExpiredKeys() int {
 
 	if removed > 0 {
 		idx.Prefixes = active
-		_ = h.bolt.Set("api_keys", "_index", idx, 0)
+		if err := h.bolt.Set("api_keys", "_index", idx, 0); err != nil {
+			slog.Error("failed to update API key index after cleanup", "error", err)
+		}
 	}
 	return removed
 }

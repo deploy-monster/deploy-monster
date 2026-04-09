@@ -130,10 +130,16 @@ func (q *SyncQueue) process(job *SyncJob) {
 		"provider", job.Provider,
 	)
 
-	// Verify propagation
+	// Verify propagation after a delay, respecting shutdown
 	go func() {
-		time.Sleep(5 * time.Second)
-		verified, _ := provider.Verify(context.Background(), job.Record.Name)
+		select {
+		case <-time.After(5 * time.Second):
+		case <-q.stopCh:
+			return
+		}
+		verifyCtx, verifyCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer verifyCancel()
+		verified, _ := provider.Verify(verifyCtx, job.Record.Name)
 		if verified {
 			q.logger.Info("DNS verified", "record", job.Record.Name)
 		}

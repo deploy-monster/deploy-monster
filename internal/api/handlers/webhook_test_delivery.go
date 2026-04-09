@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -71,7 +72,9 @@ func (h *WebhookTestDeliveryHandler) TestDeliver(w http.ResponseWriter, r *http.
 		Timestamp: time.Now().Format(time.RFC3339),
 		PayloadID: deliveryID,
 	}
-	_ = h.bolt.Set("webhook_test_logs", deliveryID, log, 86400) // TTL 24h
+	if err := h.bolt.Set("webhook_test_logs", deliveryID, log, 86400); err != nil {
+		slog.Error("failed to persist webhook test log", "delivery_id", deliveryID, "error", err)
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"app_id":      appID,

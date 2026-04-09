@@ -112,7 +112,9 @@ func HasPermission(roleID string, permission string) bool {
 	}
 
 	var perms []string
-	json.Unmarshal([]byte(role.PermissionsJSON), &perms)
+	if err := json.Unmarshal([]byte(role.PermissionsJSON), &perms); err != nil {
+		return false
+	}
 
 	for _, p := range perms {
 		if p == "*" || p == permission {

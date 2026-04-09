@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -48,7 +49,9 @@ func (h *SSLStatusHandler) Check(w http.ResponseWriter, r *http.Request) {
 	result := checkSSL(fqdn)
 
 	// Cache the result for 5 minutes
-	_ = h.bolt.Set("certificates", "ssl_check:"+fqdn, result, 300)
+	if err := h.bolt.Set("certificates", "ssl_check:"+fqdn, result, 300); err != nil {
+		slog.Error("failed to cache SSL check result", "fqdn", fqdn, "error", err)
+	}
 
 	writeJSON(w, http.StatusOK, result)
 }
