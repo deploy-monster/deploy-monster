@@ -3,6 +3,7 @@ import {
   Activity, Cpu, MemoryStick, HardDrive, Wifi, AlertTriangle,
   RefreshCw, Server, Container, Clock, TrendingUp, Zap,
 } from 'lucide-react';
+import type { ServerMetrics, AlertRule } from '@/api/monitoring';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/hooks';
 import { Button } from '@/components/ui/button';
@@ -11,33 +12,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface ServerMetrics {
-  cpu_percent: number;
-  memory_used: number;
-  memory_total: number;
-  disk_used: number;
-  disk_total: number;
-  network_rx: number;
-  network_tx: number;
-  uptime: number;
-  containers_running: number;
-  containers_total: number;
-  load_avg: number[];
-}
-
-interface AlertRule {
-  id: string;
-  name: string;
-  metric: string;
-  threshold: number;
-  status: 'ok' | 'firing' | 'resolved';
-  last_checked: string;
-}
 
 // ---------------------------------------------------------------------------
 // Helpers

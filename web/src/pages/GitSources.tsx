@@ -13,7 +13,7 @@ import {
   GitPullRequest,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api } from '@/api/client';
+import { gitSourcesAPI, type GitProvider } from '@/api/git-sources';
 import { useApi } from '@/hooks';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,19 +25,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface GitProvider {
-  id: string;
-  name: string;
-  type: string;
-  connected: boolean;
-  repo_count: number;
-  url?: string;
-}
 
 // ---------------------------------------------------------------------------
 // Provider configuration with colors
@@ -132,7 +119,7 @@ export function GitSources() {
     setConnecting(true);
     setConnectError('');
     try {
-      await api.post('/git/providers', {
+      await gitSourcesAPI.connect({
         type: selectedType,
         token,
         url: instanceUrl || undefined,
@@ -154,7 +141,7 @@ export function GitSources() {
   const handleDisconnect = async (id: string) => {
     if (!confirm('Disconnect this Git provider?')) return;
     try {
-      await api.delete(`/git/providers/${id}`);
+      await gitSourcesAPI.disconnect(id);
       toast.success('Provider disconnected');
       refetch();
     } catch {

@@ -12,7 +12,7 @@ import {
   AlertTriangle,
   ShieldCheck,
 } from 'lucide-react';
-import { api } from '@/api/client';
+import { backupsAPI, type BackupEntry } from '@/api/backups';
 import { useApi } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,18 +26,6 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface BackupEntry {
-  key: string;
-  size: number;
-  type: string;
-  status: string;
-  created_at: number;
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -144,7 +132,7 @@ export function Backups() {
   const handleCreate = async () => {
     setCreating(true);
     try {
-      await api.post('/backups', { source_type: 'full', source_id: 'all' });
+      await backupsAPI.create({ source_type: 'full', source_id: 'all' });
       toast.success('Backup started');
       refetch();
     } catch {
@@ -157,7 +145,7 @@ export function Backups() {
   const handleRestore = async (key: string) => {
     setRestoring(true);
     try {
-      await api.post(`/backups/${encodeURIComponent(key)}/restore`, {});
+      await backupsAPI.restore(key);
       toast.success('Restore started');
       setRestoreDialog(null);
       refetch();

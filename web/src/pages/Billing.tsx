@@ -8,6 +8,7 @@ import {
   Sparkles,
   ArrowRight,
 } from 'lucide-react';
+import type { Plan, UsageData } from '@/api/billing';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/hooks';
 import { Button } from '@/components/ui/button';
@@ -15,33 +16,6 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface Plan {
-  id: string;
-  name: string;
-  description: string;
-  price_cents: number;
-  currency: string;
-  max_apps: number;
-  max_containers: number;
-  max_ram_mb: number;
-  features: string[];
-}
-
-interface UsageData {
-  apps_used: number;
-  apps_limit: number;
-  containers_used: number;
-  containers_limit: number;
-  ram_used_mb: number;
-  ram_limit_mb: number;
-  plan: { id: string; name: string };
-  quota: { apps_ok: boolean; containers_ok: boolean; ram_ok: boolean };
-}
 
 // ---------------------------------------------------------------------------
 // Helpers

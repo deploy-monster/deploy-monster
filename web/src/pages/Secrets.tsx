@@ -13,7 +13,7 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
-import { api } from '@/api/client';
+import { secretsAPI, type SecretEntry } from '@/api/secrets';
 import { useApi } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -29,18 +29,6 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface SecretEntry {
-  id: string;
-  name: string;
-  scope: string;
-  created_at: string;
-  updated_at: string;
-}
 
 // ---------------------------------------------------------------------------
 // Scope configuration with colors
@@ -126,7 +114,7 @@ export function Secrets() {
     setCreating(true);
     setCreateError('');
     try {
-      await api.post('/secrets', { name, value, scope });
+      await secretsAPI.create({ name, value, scope });
       toast.success('Secret created successfully');
       setName('');
       setValue('');
@@ -144,7 +132,7 @@ export function Secrets() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this secret? This action cannot be undone.')) return;
     try {
-      await api.delete(`/secrets/${id}`);
+      await secretsAPI.delete(id);
       toast.success('Secret deleted');
       refetch();
     } catch {

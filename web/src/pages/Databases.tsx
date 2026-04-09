@@ -10,6 +10,7 @@ import {
   HardDrive,
   Clock,
 } from 'lucide-react';
+import type { DatabaseInstance } from '@/api/databases';
 import { api } from '@/api/client';
 import { useApi } from '@/hooks';
 import { cn } from '@/lib/utils';
@@ -24,21 +25,6 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface DatabaseInstance {
-  id: string;
-  name: string;
-  engine: string;
-  version: string;
-  status: string;
-  connection_string: string;
-  size_mb: number;
-  created_at: string;
-}
 
 // ---------------------------------------------------------------------------
 // Engine configuration with colors

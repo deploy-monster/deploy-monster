@@ -29,6 +29,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { appsAPI, type App } from '../api/apps';
+import type { Deployment, EnvVar } from '@/api/deployments';
 import { useApi } from '../hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -47,26 +48,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tooltip } from '@/components/ui/tooltip';
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                             */
-/* ------------------------------------------------------------------ */
-
-interface Deployment {
-  id: string;
-  version: number;
-  image: string;
-  status: string;
-  commit_sha: string;
-  triggered_by: string;
-  created_at: string;
-}
-
-interface EnvVar {
-  key: string;
-  value: string;
-  isSecret: boolean;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */

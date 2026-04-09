@@ -15,7 +15,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api } from '@/api/client';
+import { adminAPI, type SystemInfo, type Tenant, type AdminSettings } from '@/api/admin';
 import { useApi } from '@/hooks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,39 +30,6 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface SystemInfo {
-  version: string;
-  commit: string;
-  go: string;
-  os: string;
-  arch: string;
-  goroutines: number;
-  memory: { alloc_mb: number; sys_mb: number };
-  modules: Array<{ id: string; status: string }>;
-  events: { published: number; errors: number; subscriptions: number };
-}
-
-interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  plan: string;
-  status: string;
-  members_count: number;
-  created_at: string;
-}
-
-interface AdminSettings {
-  registration_mode: string;
-  auto_ssl: boolean;
-  telemetry: boolean;
-  backup_retention_days: number;
-}
 
 // ---------------------------------------------------------------------------
 // Stat card config
@@ -225,7 +192,7 @@ export function Admin() {
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     try {
-      await api.put('/admin/settings', settings);
+      await adminAPI.saveSettings(settings);
       toast.success('Settings saved');
     } catch {
       toast.error('Failed to save settings');

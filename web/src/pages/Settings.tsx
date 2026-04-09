@@ -23,6 +23,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/theme';
 import { cn } from '@/lib/utils';
 import { api } from '@/api/client';
+import { adminAPI } from '@/api/admin';
 import { toast } from '@/stores/toastStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -154,7 +155,7 @@ export function Settings() {
   const handleGenerateKey = async () => {
     setGeneratingKey(true);
     try {
-      const result = await api.post<{ key: string }>('/admin/api-keys');
+      const result = await adminAPI.generateApiKey();
       setGeneratedKey(result.key);
       toast.success('API key generated -- save it now!');
     } catch {

@@ -11,6 +11,7 @@ import {
   MapPin,
   Clock,
 } from 'lucide-react';
+import type { ServerNode } from '@/api/servers';
 import { api } from '@/api/client';
 import { useApi } from '@/hooks';
 import { cn } from '@/lib/utils';
@@ -25,22 +26,6 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface ServerNode {
-  id: string;
-  hostname: string;
-  ip_address: string;
-  provider: string;
-  region: string;
-  size: string;
-  status: string;
-  role: string;
-  created_at: string;
-}
 
 // ---------------------------------------------------------------------------
 // Provider configuration with colors

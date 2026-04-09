@@ -15,7 +15,7 @@ import {
   Sparkles,
   Filter,
 } from 'lucide-react';
-import { api } from '../api/client';
+import { marketplaceAPI, type Template, type MarketplaceResponse } from '@/api/marketplace';
 import { useApi } from '../hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -33,27 +33,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface Template {
-  slug: string;
-  name: string;
-  description: string;
-  category: string;
-  tags: string[];
-  version: string;
-  featured: boolean;
-  verified: boolean;
-  min_resources: { memory_mb: number };
-}
-
-interface MarketplaceResponse {
-  data: Template[];
-  categories: string[];
-}
 
 // ---------------------------------------------------------------------------
 // Category color mapping
@@ -181,7 +160,7 @@ export function Marketplace() {
     setDeployError('');
 
     try {
-      const result = await api.post<{ app_id: string }>('/marketplace/deploy', {
+      const result = await marketplaceAPI.deploy({
         slug: deploying.slug,
         name: deployName,
         config: deployConfig,

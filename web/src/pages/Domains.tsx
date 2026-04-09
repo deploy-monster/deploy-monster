@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Search,
 } from 'lucide-react';
+import type { Domain } from '@/api/domains';
 import { api } from '@/api/client';
 import { useApi } from '@/hooks';
 import { Button } from '@/components/ui/button';
@@ -28,21 +29,6 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface Domain {
-  id: string;
-  app_id: string;
-  fqdn: string;
-  type: string;
-  dns_provider: string;
-  dns_synced: boolean;
-  verified: boolean;
-  created_at: string;
-}
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -13,7 +13,7 @@ import {
   UserCog,
   Key,
 } from 'lucide-react';
-import { api } from '@/api/client';
+import { teamAPI, type TeamMember, type AuditEntry } from '@/api/team';
 import { useApi } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -32,29 +32,6 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  avatar_url?: string;
-  joined_at: string;
-}
-
-interface AuditEntry {
-  id: number;
-  action: string;
-  user_name: string;
-  resource_type: string;
-  resource_id: string;
-  ip_address: string;
-  created_at: string;
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -177,7 +154,7 @@ export function Team() {
   const handleInvite = async () => {
     if (!inviteEmail) return;
     try {
-      await api.post('/team/invites', { email: inviteEmail, role_id: inviteRole });
+      await teamAPI.invite({ email: inviteEmail, role_id: inviteRole });
       toast.success('Invite sent');
       setInviteEmail('');
       setDialogOpen(false);
@@ -190,7 +167,7 @@ export function Team() {
   const handleRemove = async (id: string) => {
     if (!confirm('Remove this team member?')) return;
     try {
-      await api.delete(`/team/members/${id}`);
+      await teamAPI.removeMember(id);
       toast.success('Member removed');
       refetchMembers();
     } catch {
