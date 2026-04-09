@@ -107,7 +107,7 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 
 	// Start new container with old image
 	if r.runtime != nil {
-		containerName := fmt.Sprintf("monster-%s-%d", app.Name, newVersion)
+		containerName := fmt.Sprintf("dm-%s-%d", app.ID, newVersion)
 		containerID, err := r.runtime.CreateAndStart(ctx, core.ContainerOpts{
 			Name:          containerName,
 			Image:         targetDeploy.Image,
@@ -116,7 +116,11 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 			RestartPolicy: "unless-stopped",
 		})
 		if err != nil {
+			deployment.Status = "failed"
 			r.store.UpdateAppStatus(ctx, appID, "failed")
+			// Attempt cleanup of partially created container
+			r.runtime.Stop(ctx, containerName, 10)
+			r.runtime.Remove(ctx, containerName, true)
 			return nil, fmt.Errorf("rollback deploy: %w", err)
 		}
 		deployment.ContainerID = containerID

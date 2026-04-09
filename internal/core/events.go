@@ -150,11 +150,15 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 					}
 				}()
 				if err := s.handler(ctx, event); err != nil {
-					eb.mu.Lock()
-					eb.errorCount++
-					eb.mu.Unlock()
-					if eb.onError != nil {
-						eb.onError(event, s, err)
+					// Retry once after a short delay before giving up
+					time.Sleep(500 * time.Millisecond)
+					if retryErr := s.handler(ctx, event); retryErr != nil {
+						eb.mu.Lock()
+						eb.errorCount++
+						eb.mu.Unlock()
+						if eb.onError != nil {
+							eb.onError(event, s, retryErr)
+						}
 					}
 				}
 			}(sub)

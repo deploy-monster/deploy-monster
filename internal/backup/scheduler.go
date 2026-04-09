@@ -163,16 +163,25 @@ func (s *Scheduler) runBackups() {
 			}
 
 			key := fmt.Sprintf("%s/%s/%s.json", tenant.ID, app.ID, backupID)
-			if err := storage.Upload(ctx, key, bytes.NewReader(payload), int64(len(payload))); err != nil {
+			backupSize := int64(len(payload))
+			if backupSize == 0 {
+				s.logger.Warn("backup payload is empty, skipping", "app", app.ID)
+				_ = s.store.UpdateBackupStatus(ctx, backupID, "failed", 0)
+				failed++
+				continue
+			}
+
+			if err := storage.Upload(ctx, key, bytes.NewReader(payload), backupSize); err != nil {
 				s.logger.Error("failed to upload backup", "app", app.ID, "error", err)
 				_ = s.store.UpdateBackupStatus(ctx, backupID, "failed", 0)
 				failed++
 				continue
 			}
 
-			if err := s.store.UpdateBackupStatus(ctx, backupID, "completed", int64(len(payload))); err != nil {
+			if err := s.store.UpdateBackupStatus(ctx, backupID, "completed", backupSize); err != nil {
 				s.logger.Error("failed to update backup status", "app", app.ID, "error", err)
 			}
+			s.logger.Debug("backup completed", "app", app.ID, "key", key, "size", backupSize)
 			backedUp++
 		}
 
