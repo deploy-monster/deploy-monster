@@ -212,9 +212,34 @@ else
 fi
 
 # ============================================
-# 7. Security Scan
+# 7. Playwright E2E Tests
 # ============================================
-section "7. Security Scan"
+section "7. Playwright E2E Tests"
+
+if [[ "$QUICK" == "true" ]]; then
+    skip "Playwright E2E tests (quick mode)"
+else
+    if [ ! -f "web/playwright.config.ts" ]; then
+        skip "No Playwright config found"
+    else
+        # Check if server is running
+        if curl -s http://localhost:8443/health >/dev/null 2>&1; then
+            echo -e "  ${BLUE}Running Playwright E2E tests...${NC}"
+            if (cd web && npx playwright test 2>&1); then
+                pass "Playwright E2E tests passed"
+            else
+                fail "Playwright E2E tests failed"
+            fi
+        else
+            skip "Playwright E2E tests (server not running on :8443)"
+        fi
+    fi
+fi
+
+# ============================================
+# 8. Security Scan
+# ============================================
+section "8. Security Scan"
 
 if command -v govulncheck &>/dev/null; then
     echo -e "  ${BLUE}Running govulncheck...${NC}"
@@ -230,9 +255,9 @@ else
 fi
 
 # ============================================
-# 8. Git Status
+# 9. Git Status
 # ============================================
-section "8. Git Status"
+section "9. Git Status"
 
 # Check for staged changes
 staged=$(git diff --cached --stat 2>/dev/null | wc -l)
@@ -252,9 +277,9 @@ else
 fi
 
 # ============================================
-# 9. Large Files Check
+# 10. Large Files Check
 # ============================================
-section "9. Large Files Check"
+section "10. Large Files Check"
 
 # Check for files > 500KB
 large_files=$(find . -type f -size +500k -not -path "./.git/*" -not -path "./web/node_modules/*" -not -path "*.db" -not -path "*.db-shm" 2>/dev/null | head -5)
@@ -270,9 +295,9 @@ else
 fi
 
 # ============================================
-# 10. CI Workflow Simulation
+# 11. CI Workflow Simulation
 # ============================================
-section "10. CI Workflow Simulation"
+section "11. CI Workflow Simulation"
 
 echo -e "  ${BLUE}Simulating GitHub Actions CI steps...${NC}"
 

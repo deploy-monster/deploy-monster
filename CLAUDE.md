@@ -34,6 +34,8 @@ cd web && pnpm install && pnpm run build   # Build React UI
 cd web && pnpm run dev                     # Dev server with HMR
 cd web && pnpm run lint                    # ESLint
 cd web && pnpm vitest run                  # Run tests
+cd web && pnpm test:e2e                    # Playwright E2E (requires running server on :8443)
+cd web && pnpm test:e2e --ui              # Playwright with interactive UI
 ```
 
 ## Architecture

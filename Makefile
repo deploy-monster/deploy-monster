@@ -1,4 +1,4 @@
-.PHONY: build dev test lint clean docker docker-compose fmt vet tidy bench coverage release install help
+.PHONY: build dev test lint clean docker docker-compose fmt vet tidy bench coverage release install help test-e2e
 
 # Variables
 BINARY_NAME := deploymonster
@@ -68,6 +68,11 @@ test-integration:
 bench:
 	@echo "Running benchmarks..."
 	$(GOTEST) -bench=. -benchmem ./...
+
+## test-e2e: Run Playwright end-to-end tests (requires running server)
+test-e2e:
+	@echo "Running Playwright E2E tests (ensure server is running on :8443)..."
+	cd web && pnpm test:e2e
 
 ## loadtest: Run HTTP load test against a running instance
 loadtest:

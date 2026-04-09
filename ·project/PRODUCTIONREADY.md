@@ -246,7 +246,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] Benchmark tests — 38 functions
 - [x] Frontend tests — 14 files, 104 tests (stores, hooks, API client, components, utils)
 - [x] ~~**MISSING:**~~ Integration tests (real Docker) — **FIXED** (9 tests in `internal/deploy/docker_integration_test.go`: connectivity, image pull, container lifecycle, restart, logs, network lifecycle, container-in-network, volume list, image list)
-- [ ] **MISSING:** End-to-end tests (Playwright)
+- [x] ~~**MISSING:**~~ End-to-end tests (Playwright) — **FIXED** (4 spec files: auth, dashboard, apps, navigation; 40+ tests covering auth flows, all protected routes, page rendering, session persistence)
 - [x] ~~**MISSING:**~~ Load test harness (`tests/loadtest/`, `make loadtest`) — **FIXED**
 - [ ] **MISSING:** Chaos engineering tests
 
@@ -416,7 +416,7 @@ Items fixed in tier 12:
 Remaining (future improvements, not blocking production):
 1. ~~OpenTelemetry distributed tracing~~ — **DONE** (W3C Trace Context propagation)
 2. ~~PostgreSQL Store implementation~~ — **DONE** (1126-line implementation with all 12 sub-interfaces)
-3. Playwright end-to-end tests
+3. ~~Playwright end-to-end tests~~ — **DONE** (4 spec files, 40+ tests: auth flows, dashboard, apps, navigation across all 15 routes)
 
 ### Go/No-Go Recommendation
 

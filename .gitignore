@@ -32,6 +32,7 @@ Thumbs.db
 .env.local
 .env.*.local
 monster.yaml
+.credentials
 
 # Go
 vendor/
@@ -47,8 +48,13 @@ loadtest.exe
 # Load test output
 loadtest-results.json
 
-# Playwright MCP logs
+# Playwright
 .playwright-mcp/
+web/e2e-results/
+web/e2e-report/
+web/e2e/.auth/user.json
+web/test-results/
+web/blob-report/
 
 # Screenshots (development only)
 screenshots/
