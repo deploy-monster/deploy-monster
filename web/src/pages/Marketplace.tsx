@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
+import { useDebouncedValue } from '../hooks';
 import {
   Search,
   Rocket,
@@ -144,15 +145,17 @@ export function Marketplace() {
   const [deployLoading, setDeployLoading] = useState(false);
   const [deployError, setDeployError] = useState('');
 
+  const debouncedSearch = useDebouncedValue(search, 300);
+
   const params = new URLSearchParams();
-  if (search) params.set('q', search);
+  if (debouncedSearch) params.set('q', debouncedSearch);
   if (category) params.set('category', category);
 
   const { data: marketplaceData, loading } = useApi<MarketplaceResponse>(`/marketplace?${params}`);
   const templates = marketplaceData?.data || [];
   const categories = marketplaceData?.categories || [];
 
-  const featuredCount = templates.filter((t) => t.featured).length;
+  const featuredCount = useMemo(() => templates.filter((t) => t.featured).length, [templates]);
 
   const handleDeploy = async () => {
     if (!deploying || !deployName) return;

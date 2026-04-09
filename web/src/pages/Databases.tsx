@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useDebouncedValue } from '../hooks';
 import {
   Database,
   Plus,
@@ -147,6 +148,7 @@ export function Databases() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebouncedValue(searchQuery);
 
   const selectedEngine = getEngineConfig(engine);
 
@@ -181,14 +183,14 @@ export function Databases() {
   };
 
   const list = databases || [];
-  const filtered = searchQuery
+  const filtered = useMemo(() => debouncedSearch
     ? list.filter((db) =>
-        db.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        db.engine.toLowerCase().includes(searchQuery.toLowerCase())
+        db.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        db.engine.toLowerCase().includes(debouncedSearch.toLowerCase())
       )
-    : list;
+    : list, [list, debouncedSearch]);
 
-  const runningCount = list.filter((db) => db.status === 'running').length;
+  const runningCount = useMemo(() => list.filter((db) => db.status === 'running').length, [list]);
 
   return (
     <div className="space-y-8">
@@ -439,7 +441,7 @@ export function Databases() {
       )}
 
       {/* No search results */}
-      {!loading && list.length > 0 && filtered.length === 0 && searchQuery && (
+      {!loading && list.length > 0 && filtered.length === 0 && debouncedSearch && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="rounded-full bg-muted p-4 mb-3">
             <Search className="size-6 text-muted-foreground" />

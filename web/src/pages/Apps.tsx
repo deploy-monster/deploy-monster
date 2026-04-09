@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router';
 import {
   Rocket,
@@ -14,7 +14,7 @@ import {
   Container,
   Store,
 } from 'lucide-react';
-import { useApi } from '../hooks';
+import { useApi, useDebouncedValue } from '../hooks';
 import { appsAPI, type App } from '../api/apps';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/lib/utils';
@@ -151,26 +151,27 @@ export function Apps() {
 
   const [filter, setFilter] = useState<FilterKey>('all');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const filteredApps = allApps.filter((app) => {
+  const filteredApps = useMemo(() => allApps.filter((app) => {
     const matchesFilter =
       filter === 'all' ||
       app.status === filter ||
       (filter === 'deploying' && app.status === 'building');
     const matchesSearch =
-      !search ||
-      app.name.toLowerCase().includes(search.toLowerCase()) ||
-      app.type.toLowerCase().includes(search.toLowerCase());
+      !debouncedSearch ||
+      app.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      app.type.toLowerCase().includes(debouncedSearch.toLowerCase());
     return matchesFilter && matchesSearch;
-  });
+  }), [allApps, filter, debouncedSearch]);
 
-  const filterCounts = {
+  const filterCounts = useMemo(() => ({
     all: allApps.length,
     running: allApps.filter((a) => a.status === 'running').length,
     stopped: allApps.filter((a) => a.status === 'stopped').length,
     deploying: allApps.filter((a) => a.status === 'deploying' || a.status === 'building').length,
-  };
+  }), [allApps]);
 
   const handleAction = async (
     e: React.MouseEvent,
@@ -202,7 +203,7 @@ export function Apps() {
     }
   };
 
-  const emptyKey = search ? 'search' : filter;
+  const emptyKey = debouncedSearch ? 'search' : filter;
   const emptyMsg = EMPTY_MESSAGES[emptyKey] || EMPTY_MESSAGES['all'];
 
   return (

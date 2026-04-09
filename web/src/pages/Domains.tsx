@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useDebouncedValue } from '../hooks';
 import {
   Globe,
   Plus,
@@ -83,6 +84,7 @@ export function Domains() {
   const [addError, setAddError] = useState('');
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebouncedValue(searchQuery);
 
   const handleAdd = async () => {
     if (!newFQDN) return;
@@ -134,12 +136,12 @@ export function Domains() {
   };
 
   const list = domains || [];
-  const filtered = searchQuery
-    ? list.filter((d) => d.fqdn.toLowerCase().includes(searchQuery.toLowerCase()))
-    : list;
+  const filtered = useMemo(() => debouncedSearch
+    ? list.filter((d) => d.fqdn.toLowerCase().includes(debouncedSearch.toLowerCase()))
+    : list, [list, debouncedSearch]);
 
-  const sslActive = list.filter((d) => d.verified).length;
-  const sslPending = list.filter((d) => !d.verified).length;
+  const sslActive = useMemo(() => list.filter((d) => d.verified).length, [list]);
+  const sslPending = useMemo(() => list.filter((d) => !d.verified).length, [list]);
 
   return (
     <div className="space-y-8">
@@ -445,7 +447,7 @@ export function Domains() {
       )}
 
       {/* No search results */}
-      {!loading && list.length > 0 && filtered.length === 0 && searchQuery && (
+      {!loading && list.length > 0 && filtered.length === 0 && debouncedSearch && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="rounded-full bg-muted p-4 mb-3">
             <Search className="size-6 text-muted-foreground" />
