@@ -14,15 +14,19 @@ import (
 
 // MarketplaceDeployHandler deploys marketplace templates.
 type MarketplaceDeployHandler struct {
-	registry *marketplace.TemplateRegistry
-	runtime  core.ContainerRuntime
-	store    core.Store
-	events   *core.EventBus
+	registry  *marketplace.TemplateRegistry
+	runtime   core.ContainerRuntime
+	store     core.Store
+	events    *core.EventBus
+	serverCtx context.Context
 }
 
 func NewMarketplaceDeployHandler(registry *marketplace.TemplateRegistry, runtime core.ContainerRuntime, store core.Store, events *core.EventBus) *MarketplaceDeployHandler {
-	return &MarketplaceDeployHandler{registry: registry, runtime: runtime, store: store, events: events}
+	return &MarketplaceDeployHandler{registry: registry, runtime: runtime, store: store, events: events, serverCtx: context.Background()}
 }
+
+// SetServerContext sets the server-lifetime context used by background goroutines.
+func (h *MarketplaceDeployHandler) SetServerContext(ctx context.Context) { h.serverCtx = ctx }
 
 type deployTemplateRequest struct {
 	Slug   string            `json:"slug"`
@@ -94,9 +98,9 @@ func (h *MarketplaceDeployHandler) Deploy(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Deploy via compose deployer (async) - use background context to avoid cancellation
+	// Deploy via compose deployer (async) — server-scoped context
 	go func() {
-		ctx := context.Background()
+		ctx := h.serverCtx
 		deployer := compose.NewStackDeployer(h.runtime, h.store, h.events, nil)
 		err := deployer.Deploy(ctx, compose.DeployOpts{
 			AppID:     app.ID,

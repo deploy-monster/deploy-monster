@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -346,5 +347,66 @@ func TestInviteRequest_Parse(t *testing.T) {
 	}
 	if req.RoleID != "role_developer" {
 		t.Errorf("role_id = %q", req.RoleID)
+	}
+}
+
+func TestSetServerContext_DeployTrigger(t *testing.T) {
+	h := NewDeployTriggerHandler(nil, nil, nil)
+	// Default should be non-nil (context.Background)
+	if h.serverCtx == nil {
+		t.Fatal("expected non-nil default serverCtx")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	h.SetServerContext(ctx)
+
+	if h.serverCtx != ctx {
+		t.Error("SetServerContext did not set the context")
+	}
+
+	// Cancelling should propagate
+	cancel()
+	select {
+	case <-h.serverCtx.Done():
+		// OK — context cancelled
+	default:
+		t.Error("expected serverCtx to be cancelled")
+	}
+}
+
+func TestSetServerContext_Compose(t *testing.T) {
+	h := NewComposeHandler(nil, nil, nil)
+	if h.serverCtx == nil {
+		t.Fatal("expected non-nil default serverCtx")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	h.SetServerContext(ctx)
+
+	cancel()
+	select {
+	case <-h.serverCtx.Done():
+	default:
+		t.Error("expected serverCtx to be cancelled")
+	}
+}
+
+func TestSetServerContext_MarketplaceDeploy(t *testing.T) {
+	h := NewMarketplaceDeployHandler(nil, nil, nil, nil)
+	if h.serverCtx == nil {
+		t.Fatal("expected non-nil default serverCtx")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	h.SetServerContext(ctx)
+
+	cancel()
+	select {
+	case <-h.serverCtx.Done():
+	default:
+		t.Error("expected serverCtx to be cancelled")
 	}
 }

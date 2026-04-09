@@ -13,14 +13,18 @@ import (
 
 // DeployTriggerHandler triggers manual builds and deployments.
 type DeployTriggerHandler struct {
-	store   core.Store
-	runtime core.ContainerRuntime
-	events  *core.EventBus
+	store     core.Store
+	runtime   core.ContainerRuntime
+	events    *core.EventBus
+	serverCtx context.Context // cancelled on graceful shutdown; goroutines should select on this
 }
 
 func NewDeployTriggerHandler(store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *DeployTriggerHandler {
-	return &DeployTriggerHandler{store: store, runtime: runtime, events: events}
+	return &DeployTriggerHandler{store: store, runtime: runtime, events: events, serverCtx: context.Background()}
 }
+
+// SetServerContext sets the server-lifetime context used by background goroutines.
+func (h *DeployTriggerHandler) SetServerContext(ctx context.Context) { h.serverCtx = ctx }
 
 // buildDeployLabels creates container labels including HTTP routing labels from domains.
 func (h *DeployTriggerHandler) buildDeployLabels(ctx context.Context, app *core.Application, version int) map[string]string {
@@ -128,9 +132,9 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 		slog.Error("deploy: failed to update app status", "app_id", appID, "error", err)
 	}
 
-	// Use background context to avoid cancellation when request completes
+	// Use server-scoped context — outlives the request but cancels on shutdown
 	go func() {
-		ctx := context.Background()
+		ctx := h.serverCtx
 		builder := build.NewBuilder(h.runtime, h.events)
 		result, err := builder.Build(ctx, build.BuildOpts{
 			AppID:     app.ID,

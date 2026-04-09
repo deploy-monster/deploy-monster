@@ -75,10 +75,31 @@ func (m *Module) Start(_ context.Context) error {
 func (m *Module) Stop(ctx context.Context) error {
 	if m.server != nil {
 		m.logger.Info("shutting down API server")
+
+		// Cancel server-scoped context so background goroutines (deploys, builds) stop
+		if m.router != nil && m.router.serverCancel != nil {
+			m.router.serverCancel()
+		}
+
 		// Signal drain mode — new requests get 503, in-flight requests complete
 		if m.router != nil && m.router.gracefulShutdown != nil {
 			m.router.gracefulShutdown.StartDraining()
+
+			// Wait for in-flight requests to finish (poll every 100ms, respect ctx deadline)
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
+			for m.router.gracefulShutdown.InFlight() > 0 {
+				select {
+				case <-ctx.Done():
+					m.logger.Warn("drain timeout exceeded, forcing shutdown", "in_flight", m.router.gracefulShutdown.InFlight())
+					goto shutdown
+				case <-ticker.C:
+				}
+			}
+			m.logger.Info("all in-flight requests drained")
 		}
+
+	shutdown:
 		return m.server.Shutdown(ctx)
 	}
 	return nil

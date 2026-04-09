@@ -63,9 +63,7 @@ func (rl *AuthRateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 			w.Header().Set("Retry-After", fmt.Sprintf("%d", retryAfter))
 			w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", rl.rate))
 			w.Header().Set("X-RateLimit-Remaining", "0")
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusTooManyRequests)
-			fmt.Fprint(w, `{"error":"rate limit exceeded"}`)
+			writeErrorJSON(w, http.StatusTooManyRequests, "rate limit exceeded")
 			return
 		}
 

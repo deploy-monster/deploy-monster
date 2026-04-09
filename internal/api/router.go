@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/pprof"
 	"time"
@@ -23,10 +24,20 @@ type Router struct {
 	store            core.Store
 	apiMetrics       *middleware.APIMetrics
 	gracefulShutdown *middleware.GracefulShutdown
+	globalRL         *middleware.GlobalRateLimiter
+	serverCtx        context.Context    // cancelled on graceful shutdown
+	serverCancel     context.CancelFunc // called by Stop to signal goroutines
 }
 
 // NewRouter creates a new API router with all routes registered.
 func NewRouter(c *core.Core, authMod *auth.Module, store core.Store) *Router {
+	ctx, cancel := context.WithCancel(context.Background())
+	// Global rate limit: default 120 req/min per IP if not configured
+	rlRate := c.Config.Server.RateLimitPerMinute
+	if rlRate == 0 {
+		rlRate = 120
+	}
+
 	r := &Router{
 		mux:              http.NewServeMux(),
 		core:             c,
@@ -34,6 +45,9 @@ func NewRouter(c *core.Core, authMod *auth.Module, store core.Store) *Router {
 		store:            store,
 		apiMetrics:       middleware.NewAPIMetrics(),
 		gracefulShutdown: middleware.NewGracefulShutdown(),
+		globalRL:         middleware.NewGlobalRateLimiter(rlRate, time.Minute),
+		serverCtx:        ctx,
+		serverCancel:     cancel,
 	}
 	r.apiMetrics.SubscribeEvents(c.Events)
 	r.registerRoutes()
@@ -46,6 +60,7 @@ func (r *Router) Handler() http.Handler {
 		r.mux,
 		middleware.RequestID,
 		r.gracefulShutdown.Middleware,
+		r.globalRL.Middleware,
 		middleware.SecurityHeaders,
 		r.apiMetrics.Middleware,
 		middleware.APIVersion(r.core.Build.Version),
@@ -116,6 +131,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/stop", protected(http.HandlerFunc(appH.Stop)))
 	r.mux.Handle("POST /api/v1/apps/{id}/start", protected(http.HandlerFunc(appH.Start)))
 	deployTriggerH := handlers.NewDeployTriggerHandler(r.store, r.core.Services.Container, r.core.Events)
+	deployTriggerH.SetServerContext(r.serverCtx)
 	r.mux.Handle("POST /api/v1/apps/{id}/deploy", protected(http.HandlerFunc(deployTriggerH.TriggerDeploy)))
 
 	// ── App Suspend/Resume & Transfer ────────────────
@@ -493,6 +509,7 @@ func (r *Router) registerRoutes() {
 
 	// ── Compose Stacks ────────────────────────────────
 	composeH := handlers.NewComposeHandler(r.store, r.core.Services.Container, r.core.Events)
+	composeH.SetServerContext(r.serverCtx)
 	r.mux.Handle("POST /api/v1/stacks", protected(http.HandlerFunc(composeH.Deploy)))
 	r.mux.Handle("POST /api/v1/stacks/validate", protected(http.HandlerFunc(composeH.Validate)))
 
@@ -535,6 +552,7 @@ func (r *Router) registerRoutes() {
 		r.mux.HandleFunc("GET /api/v1/marketplace", middleware.ETag(mpH.List))
 		r.mux.HandleFunc("GET /api/v1/marketplace/{slug}", middleware.ETag(mpH.Get))
 		mpDeployH := handlers.NewMarketplaceDeployHandler(reg, r.core.Services.Container, r.store, r.core.Events)
+		mpDeployH.SetServerContext(r.serverCtx)
 		r.mux.Handle("POST /api/v1/marketplace/deploy", protected(http.HandlerFunc(mpDeployH.Deploy)))
 	}
 

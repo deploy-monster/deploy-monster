@@ -39,7 +39,7 @@ func QuotaEnforcement(store core.Store, logger *slog.Logger) func(http.Handler) 
 				// Default limit: 100 (from free plan)
 				if total >= 100 {
 					logger.Warn("quota exceeded", "tenant", claims.TenantID, "resource", "apps", "count", total)
-					http.Error(w, `{"error":"app quota exceeded — upgrade your plan"}`, http.StatusForbidden)
+					writeErrorJSON(w, http.StatusForbidden, "app quota exceeded — upgrade your plan")
 					return
 				}
 			}

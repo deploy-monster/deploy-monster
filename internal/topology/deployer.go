@@ -3,6 +3,7 @@ package topology
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -83,7 +84,7 @@ func (d *Deployer) Deploy(ctx context.Context, compose *ComposeConfig, caddyfile
 	// Pull images first
 	if err := d.pullImages(ctx); err != nil {
 		// Non-fatal - build will happen if needed
-		fmt.Printf("Warning: failed to pull images: %v\n", err)
+		slog.Warn("failed to pull images, will attempt build", "error", err)
 	}
 
 	// Deploy with compose

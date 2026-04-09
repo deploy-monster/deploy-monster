@@ -22,7 +22,7 @@ func (gs *GracefulShutdown) Middleware(next http.Handler) http.Handler {
 		if gs.draining.Load() {
 			w.Header().Set("Connection", "close")
 			w.Header().Set("Retry-After", "5")
-			http.Error(w, `{"error":"server is shutting down"}`, http.StatusServiceUnavailable)
+			writeErrorJSON(w, http.StatusServiceUnavailable, "server is shutting down")
 			return
 		}
 

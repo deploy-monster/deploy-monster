@@ -14,14 +14,18 @@ import (
 
 // ComposeHandler manages Docker Compose stacks.
 type ComposeHandler struct {
-	store   core.Store
-	runtime core.ContainerRuntime
-	events  *core.EventBus
+	store     core.Store
+	runtime   core.ContainerRuntime
+	events    *core.EventBus
+	serverCtx context.Context
 }
 
 func NewComposeHandler(store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *ComposeHandler {
-	return &ComposeHandler{store: store, runtime: runtime, events: events}
+	return &ComposeHandler{store: store, runtime: runtime, events: events, serverCtx: context.Background()}
 }
+
+// SetServerContext sets the server-lifetime context used by background goroutines.
+func (h *ComposeHandler) SetServerContext(ctx context.Context) { h.serverCtx = ctx }
 
 // Deploy handles POST /api/v1/stacks
 // Accepts compose YAML in the request body and deploys all services.
@@ -92,9 +96,9 @@ func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Deploy async - use background context to avoid cancellation when request completes
+	// Deploy async — server-scoped context outlives request but cancels on shutdown
 	go func() {
-		ctx := context.Background()
+		ctx := h.serverCtx
 		deployer := ic.NewStackDeployer(h.runtime, h.store, h.events, nil)
 		err := deployer.Deploy(ctx, ic.DeployOpts{
 			AppID:     app.ID,

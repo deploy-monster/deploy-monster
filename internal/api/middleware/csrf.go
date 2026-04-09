@@ -44,7 +44,7 @@ func CSRFProtect(next http.Handler) http.Handler {
 		// Validate: X-CSRF-Token header must match the cookie value
 		headerToken := r.Header.Get(csrfHeaderName)
 		if headerToken == "" || headerToken != cookie.Value {
-			http.Error(w, `{"error":"CSRF token mismatch"}`, http.StatusForbidden)
+			writeErrorJSON(w, http.StatusForbidden, "CSRF token mismatch")
 			return
 		}
 

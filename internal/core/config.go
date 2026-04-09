@@ -37,11 +37,12 @@ type ServerConfig struct {
 	Port               int      `yaml:"port"`
 	Domain             string   `yaml:"domain"`
 	SecretKey          string   `yaml:"secret_key"`
-	PreviousSecretKeys []string `yaml:"previous_secret_keys"` // old keys kept for graceful JWT rotation
-	CORSOrigins        string   `yaml:"cors_origins"`         // comma-separated allowed origins; empty = derive from domain
-	EnablePprof        bool     `yaml:"enable_pprof"`         // opt-in: expose /debug/pprof/* endpoints (auth-protected)
-	LogLevel           string   `yaml:"log_level"`            // debug, info, warn, error (default: info)
-	LogFormat          string   `yaml:"log_format"`           // text or json (default: text)
+	PreviousSecretKeys []string `yaml:"previous_secret_keys"`  // old keys kept for graceful JWT rotation
+	CORSOrigins        string   `yaml:"cors_origins"`          // comma-separated allowed origins; empty = derive from domain
+	EnablePprof        bool     `yaml:"enable_pprof"`          // opt-in: expose /debug/pprof/* endpoints (auth-protected)
+	LogLevel           string   `yaml:"log_level"`             // debug, info, warn, error (default: info)
+	LogFormat          string   `yaml:"log_format"`            // text or json (default: text)
+	RateLimitPerMinute int      `yaml:"rate_limit_per_minute"` // global per-IP rate limit; 0 = disabled (default: 120)
 }
 
 // DatabaseConfig holds database configuration.

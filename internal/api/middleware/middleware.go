@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"crypto/subtle"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -11,6 +12,39 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+// errorCodeMap maps HTTP status codes to machine-readable error codes.
+var errorCodeMap = map[int]string{
+	http.StatusBadRequest:          "bad_request",
+	http.StatusUnauthorized:        "unauthorized",
+	http.StatusForbidden:           "forbidden",
+	http.StatusNotFound:            "not_found",
+	http.StatusConflict:            "conflict",
+	http.StatusTooManyRequests:     "rate_limited",
+	http.StatusInternalServerError: "internal_error",
+	http.StatusServiceUnavailable:  "unavailable",
+}
+
+// writeErrorJSON writes a structured JSON error response matching the handler error format.
+func writeErrorJSON(w http.ResponseWriter, status int, message string) {
+	code := errorCodeMap[status]
+	if code == "" {
+		code = "error"
+	}
+	resp := map[string]any{
+		"success": false,
+		"error": map[string]string{
+			"code":    code,
+			"message": message,
+		},
+	}
+	if rid := w.Header().Get("X-Request-ID"); rid != "" {
+		resp["request_id"] = rid
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(resp)
+}
 
 // Chain applies middlewares in order (last applied runs first).
 func Chain(handler http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
@@ -31,7 +65,7 @@ func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 						"stack", string(debug.Stack()),
 						"path", r.URL.Path,
 					)
-					http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+					writeErrorJSON(w, http.StatusInternalServerError, "internal server error")
 				}
 			}()
 			next.ServeHTTP(w, r)
@@ -112,7 +146,7 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 				tokenStr := strings.TrimPrefix(header, "Bearer ")
 				claims, err := jwtSvc.ValidateAccessToken(tokenStr)
 				if err != nil {
-					http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+					writeErrorJSON(w, http.StatusUnauthorized, "invalid token")
 					return
 				}
 				ctx := auth.ContextWithClaims(r.Context(), claims)
@@ -124,7 +158,7 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 			if c, err := r.Cookie("dm_access"); err == nil && c.Value != "" {
 				claims, err := jwtSvc.ValidateAccessToken(c.Value)
 				if err != nil {
-					http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+					writeErrorJSON(w, http.StatusUnauthorized, "invalid token")
 					return
 				}
 				ctx := auth.ContextWithClaims(r.Context(), claims)
@@ -137,19 +171,19 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 			if apiKey != "" {
 				// Validate API key format
 				if !strings.HasPrefix(apiKey, "dm_") {
-					http.Error(w, `{"error":"invalid api key format"}`, http.StatusUnauthorized)
+					writeErrorJSON(w, http.StatusUnauthorized, "invalid api key format")
 					return
 				}
 
 				// Extract prefix (first 8 chars) for lookup
 				if len(apiKey) < 12 {
-					http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+					writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
 					return
 				}
 
 				// Check if bolt store is available for API key lookup
 				if bolt == nil {
-					http.Error(w, `{"error":"api key authentication not available"}`, http.StatusUnauthorized)
+					writeErrorJSON(w, http.StatusUnauthorized, "api key authentication not available")
 					return
 				}
 
@@ -158,19 +192,19 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 				// Lookup API key by prefix using BoltStorer
 				storedKey, err := bolt.GetAPIKeyByPrefix(r.Context(), keyPrefix)
 				if err != nil {
-					http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+					writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
 					return
 				}
 
 				// Verify the full key using constant-time comparison to prevent timing attacks
 				if subtle.ConstantTimeCompare([]byte(apiKey), []byte(storedKey.KeyHash)) != 1 {
-					http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+					writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
 					return
 				}
 
 				// Check if key is expired
 				if storedKey.ExpiresAt != nil && time.Now().After(*storedKey.ExpiresAt) {
-					http.Error(w, `{"error":"api key expired"}`, http.StatusUnauthorized)
+					writeErrorJSON(w, http.StatusUnauthorized, "api key expired")
 					return
 				}
 
@@ -186,7 +220,7 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 				return
 			}
 
-			http.Error(w, `{"error":"missing authorization — use Bearer token or X-API-Key"}`, http.StatusUnauthorized)
+			writeErrorJSON(w, http.StatusUnauthorized, "missing authorization — use Bearer token or X-API-Key")
 		})
 	}
 }
@@ -198,25 +232,25 @@ func RequireAPIKey(bolt core.BoltStorer) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.Header.Get("X-API-Key")
 			if apiKey == "" {
-				http.Error(w, `{"error":"api key required"}`, http.StatusUnauthorized)
+				writeErrorJSON(w, http.StatusUnauthorized, "api key required")
 				return
 			}
 
 			// Validate API key format
 			if !strings.HasPrefix(apiKey, "dm_") {
-				http.Error(w, `{"error":"invalid api key format"}`, http.StatusUnauthorized)
+				writeErrorJSON(w, http.StatusUnauthorized, "invalid api key format")
 				return
 			}
 
 			// Extract prefix (first 8 chars) for lookup
 			if len(apiKey) < 12 {
-				http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+				writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
 				return
 			}
 
 			// Check if bolt store is available
 			if bolt == nil {
-				http.Error(w, `{"error":"api key authentication not available"}`, http.StatusUnauthorized)
+				writeErrorJSON(w, http.StatusUnauthorized, "api key authentication not available")
 				return
 			}
 
@@ -225,19 +259,19 @@ func RequireAPIKey(bolt core.BoltStorer) func(http.Handler) http.Handler {
 			// Lookup API key by prefix using BoltStorer
 			storedKey, err := bolt.GetAPIKeyByPrefix(r.Context(), keyPrefix)
 			if err != nil {
-				http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+				writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
 				return
 			}
 
 			// Verify the full key using constant-time comparison
 			if subtle.ConstantTimeCompare([]byte(apiKey), []byte(storedKey.KeyHash)) != 1 {
-				http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+				writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
 				return
 			}
 
 			// Check if key is expired
 			if storedKey.ExpiresAt != nil && time.Now().After(*storedKey.ExpiresAt) {
-				http.Error(w, `{"error":"api key expired"}`, http.StatusUnauthorized)
+				writeErrorJSON(w, http.StatusUnauthorized, "api key expired")
 				return
 			}
 
