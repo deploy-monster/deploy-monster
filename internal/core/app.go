@@ -31,16 +31,17 @@ type BuildInfo struct {
 // Core is the central application orchestrator.
 // It holds the configuration, module registry, event bus, and shared resources.
 type Core struct {
-	Config    *Config
-	Build     BuildInfo
-	Registry  *Registry
-	Events    *EventBus
-	Scheduler *Scheduler
-	DB        *Database
-	Store     Store
-	Services  *Services
-	Logger    *slog.Logger
-	Router    *http.ServeMux
+	Config     *Config
+	ConfigPath string // Path used to load config (for hot-reload)
+	Build      BuildInfo
+	Registry   *Registry
+	Events     *EventBus
+	Scheduler  *Scheduler
+	DB         *Database
+	Store      Store
+	Services   *Services
+	Logger     *slog.Logger
+	Router     *http.ServeMux
 }
 
 // NewApp creates a new Core application instance.
@@ -109,6 +110,68 @@ func (c *Core) Run(ctx context.Context) error {
 
 	c.Scheduler.Stop()
 	return c.Registry.StopAll(shutdownCtx)
+}
+
+// ReloadConfig re-reads the config file and applies safe-to-reload fields
+// (log level, log format, CORS origins, registration mode) without restart.
+// Fields that require restart (port, database, docker host) are NOT changed.
+func (c *Core) ReloadConfig() error {
+	newCfg, err := LoadConfig(c.ConfigPath)
+	if err != nil {
+		return fmt.Errorf("reload config: %w", err)
+	}
+
+	var changed []string
+
+	// Log level
+	if newCfg.Server.LogLevel != c.Config.Server.LogLevel {
+		changed = append(changed, "server.log_level")
+		c.Config.Server.LogLevel = newCfg.Server.LogLevel
+	}
+	// Log format
+	if newCfg.Server.LogFormat != c.Config.Server.LogFormat {
+		changed = append(changed, "server.log_format")
+		c.Config.Server.LogFormat = newCfg.Server.LogFormat
+	}
+	// CORS origins
+	if newCfg.Server.CORSOrigins != c.Config.Server.CORSOrigins {
+		changed = append(changed, "server.cors_origins")
+		c.Config.Server.CORSOrigins = newCfg.Server.CORSOrigins
+	}
+	// Registration mode
+	if newCfg.Registration.Mode != c.Config.Registration.Mode {
+		changed = append(changed, "registration.mode")
+		c.Config.Registration.Mode = newCfg.Registration.Mode
+	}
+	// Backup schedule
+	if newCfg.Backup.Schedule != c.Config.Backup.Schedule {
+		changed = append(changed, "backup.schedule")
+		c.Config.Backup.Schedule = newCfg.Backup.Schedule
+	}
+	// Limits
+	if newCfg.Limits.MaxAppsPerTenant != c.Config.Limits.MaxAppsPerTenant {
+		changed = append(changed, "limits.max_apps_per_tenant")
+		c.Config.Limits.MaxAppsPerTenant = newCfg.Limits.MaxAppsPerTenant
+	}
+	if newCfg.Limits.MaxConcurrentBuilds != c.Config.Limits.MaxConcurrentBuilds {
+		changed = append(changed, "limits.max_concurrent_builds")
+		c.Config.Limits.MaxConcurrentBuilds = newCfg.Limits.MaxConcurrentBuilds
+	}
+
+	if len(changed) == 0 {
+		c.Logger.Info("config reload: no changes detected")
+		return nil
+	}
+
+	// Apply logger changes immediately
+	SetupLogger(c.Config.Server.LogLevel, c.Config.Server.LogFormat)
+
+	c.Logger.Info("config reloaded", "changed", changed)
+	c.Events.PublishAsync(context.Background(), NewEvent(EventConfigReloaded, "core", map[string]any{
+		"changed_fields": changed,
+	}))
+
+	return nil
 }
 
 // registerAllModules registers all application modules.

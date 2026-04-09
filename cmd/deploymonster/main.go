@@ -107,6 +107,19 @@ func runServe() {
 		fmt.Fprintf(os.Stderr, "init error: %v\n", err)
 		os.Exit(1)
 	}
+	app.ConfigPath = *configPath
+
+	// SIGHUP handler for config hot-reload
+	sighup := make(chan os.Signal, 1)
+	signal.Notify(sighup, syscall.SIGHUP)
+	go func() {
+		for range sighup {
+			slog.Info("received SIGHUP, reloading configuration...")
+			if err := app.ReloadConfig(); err != nil {
+				slog.Error("config reload failed", "error", err)
+			}
+		}
+	}()
 
 	if err := app.Run(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "fatal: %v\n", err)

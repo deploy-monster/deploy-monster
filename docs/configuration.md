@@ -100,10 +100,17 @@ docker:
 
 ```yaml
 backup:
-  schedule: ""               # Cron schedule for automated backups
+  schedule: ""               # Daily backup time (HH:MM format, default: 02:00)
   retention_days: 30         # Days to keep backups
   storage_path: "/var/lib/deploymonster/backups"  # Local backup storage
   encryption: true           # Encrypt backups at rest
+  s3:                        # S3-compatible storage (optional, registers alongside local)
+    bucket: ""               # S3 bucket name (empty = S3 disabled)
+    region: "us-east-1"      # AWS region
+    endpoint: ""             # Custom endpoint for MinIO/R2 (empty = AWS default)
+    access_key: ""           # AWS access key ID
+    secret_key: ""           # AWS secret access key
+    path_style: false        # Use path-style URLs (required for MinIO)
 ```
 
 ### notifications
@@ -234,6 +241,32 @@ acme:
 ```
 
 Everything else uses sensible defaults. The secret key is auto-generated on first run if not specified.
+
+## Hot Reload
+
+DeployMonster supports config hot-reload via the `SIGHUP` signal. Safe-to-reload fields are applied without restart:
+
+| Reloadable Field | YAML Path |
+|------------------|-----------|
+| Log level | `server.log_level` |
+| Log format | `server.log_format` |
+| CORS origins | `server.cors_origins` |
+| Registration mode | `registration.mode` |
+| Backup schedule | `backup.schedule` |
+| Max apps per tenant | `limits.max_apps_per_tenant` |
+| Max concurrent builds | `limits.max_concurrent_builds` |
+
+Fields that require restart (port, database, Docker host, secret key) are **not** changed on reload.
+
+```bash
+# Reload configuration
+kill -SIGHUP $(pidof deploymonster)
+
+# Or if running via systemd
+systemctl reload deploymonster
+```
+
+A `system.config_reloaded` event is published on successful reload, containing the list of changed fields.
 
 ## Log Rotation
 

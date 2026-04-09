@@ -48,6 +48,21 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	m.RegisterStorage("local", local)
 	c.Services.RegisterBackupStorage("local", local)
 
+	// Register S3 storage if configured
+	if s3Cfg := c.Config.Backup.S3; s3Cfg.Bucket != "" {
+		s3 := NewS3Storage(S3Config{
+			Endpoint:  s3Cfg.Endpoint,
+			Bucket:    s3Cfg.Bucket,
+			Region:    s3Cfg.Region,
+			AccessKey: s3Cfg.AccessKey,
+			SecretKey: s3Cfg.SecretKey,
+			PathStyle: s3Cfg.PathStyle,
+		}, m.logger)
+		m.RegisterStorage("s3", s3)
+		c.Services.RegisterBackupStorage("s3", s3)
+		m.logger.Info("S3 backup storage registered", "bucket", s3Cfg.Bucket)
+	}
+
 	return nil
 }
 

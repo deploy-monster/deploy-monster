@@ -82,10 +82,21 @@ type DockerConfig struct {
 
 // BackupConfig holds backup configuration.
 type BackupConfig struct {
-	Schedule      string `yaml:"schedule"`
-	RetentionDays int    `yaml:"retention_days"`
-	StoragePath   string `yaml:"storage_path"`
-	Encryption    bool   `yaml:"encryption"`
+	Schedule      string         `yaml:"schedule"`
+	RetentionDays int            `yaml:"retention_days"`
+	StoragePath   string         `yaml:"storage_path"`
+	Encryption    bool           `yaml:"encryption"`
+	S3            BackupS3Config `yaml:"s3"`
+}
+
+// BackupS3Config holds S3 backup storage configuration.
+type BackupS3Config struct {
+	Bucket    string `yaml:"bucket"`
+	Region    string `yaml:"region"`
+	Endpoint  string `yaml:"endpoint"` // Custom endpoint for MinIO/R2
+	AccessKey string `yaml:"access_key"`
+	SecretKey string `yaml:"secret_key"`
+	PathStyle bool   `yaml:"path_style"` // Required for MinIO
 }
 
 // NotificationConfig holds notification channel configuration.

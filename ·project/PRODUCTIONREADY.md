@@ -281,7 +281,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] Prometheus metrics endpoint for ingress (request count, latency)
 - [x] ~~**MISSING:**~~ Prometheus metrics for API layer (`/metrics/api` endpoint) — **FIXED**
 - [x] ~~**MISSING:**~~ Business metrics (deploys_total, builds_total, apps_created/deleted, eventbus stats) — **FIXED**
-- [ ] **MISSING:** Resource utilization metrics via API
+- [x] ~~**MISSING:**~~ Resource utilization metrics via API — **FIXED** (collection loop persists container+server metrics to BBolt ring buffer, powering /metrics history endpoints)
 - [ ] **MISSING:** Alerting thresholds and notification integration
 
 ### 6.3 Tracing
@@ -312,7 +312,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] Auto-generated secret key on first run
 - [x] .env.example provided
 - [x] ~~**MISSING:**~~ Config validation on startup (`Validate()` checks ports, secret length, driver, registration mode) — **FIXED**
-- [ ] **MISSING:** Config file hot-reload
+- [x] ~~**MISSING:**~~ Config hot-reload — **FIXED** (SIGHUP handler reloads safe fields: log level/format, CORS, registration mode, backup schedule, limits)
 - [x] ~~**BUG:**~~ `--config` CLI flag now wired to `LoadConfig(path)` — **FIXED**
 
 ### 7.3 Database & State
@@ -321,7 +321,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] SQLite WAL mode for concurrent reads
 - [x] BBolt crash-safe storage
 - [x] ~~**MISSING:**~~ Migration rollback (`Rollback(steps)` + `.down.sql` files) — **FIXED**
-- [ ] **MISSING:** Database backup automation (built-in cron)
+- [x] ~~**MISSING:**~~ Database backup automation (built-in cron) — **ALREADY IMPLEMENTED** (backup scheduler runs at configurable HH:MM, default 02:00, with retention cleanup; S3 storage now auto-registered when configured)
 - [ ] **MISSING:** Point-in-time recovery
 
 ### 7.4 Infrastructure

@@ -303,6 +303,76 @@ func TestLoadConfig_ValidYAML(t *testing.T) {
 // Scheduler.Start — covers scheduler.go:62 (the ticker/stopCh select, 87.5% → 100%)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ReloadConfig — covers app.go ReloadConfig hot-reload behavior
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestReloadConfig_AppliesSafeFields(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "monster.yaml")
+
+	// Initial config
+	os.WriteFile(yamlPath, []byte("server:\n  port: 8443\n  host: 0.0.0.0\n  log_level: info\n"), 0644)
+
+	c := &Core{
+		Config: &Config{},
+		Logger: discardLogger(),
+		Events: NewEventBus(discardLogger()),
+	}
+	applyDefaults(c.Config)
+	c.Config.Server.LogLevel = "info"
+	c.Config.Server.LogFormat = "text"
+	c.ConfigPath = yamlPath
+
+	// Modify the YAML file
+	os.WriteFile(yamlPath, []byte("server:\n  port: 8443\n  host: 0.0.0.0\n  log_level: debug\n  log_format: json\n"), 0644)
+
+	if err := c.ReloadConfig(); err != nil {
+		t.Fatalf("ReloadConfig: %v", err)
+	}
+
+	if c.Config.Server.LogLevel != "debug" {
+		t.Errorf("log_level = %q, want debug", c.Config.Server.LogLevel)
+	}
+	if c.Config.Server.LogFormat != "json" {
+		t.Errorf("log_format = %q, want json", c.Config.Server.LogFormat)
+	}
+}
+
+func TestReloadConfig_NoChanges(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "monster.yaml")
+	os.WriteFile(yamlPath, []byte("server:\n  port: 8443\n  host: 0.0.0.0\n"), 0644)
+
+	c := &Core{
+		Config: &Config{},
+		Logger: discardLogger(),
+		Events: NewEventBus(discardLogger()),
+	}
+	applyDefaults(c.Config)
+	c.ConfigPath = yamlPath
+
+	// No changes — should succeed with "no changes detected"
+	if err := c.ReloadConfig(); err != nil {
+		t.Fatalf("ReloadConfig: %v", err)
+	}
+}
+
+func TestReloadConfig_InvalidFile(t *testing.T) {
+	c := &Core{
+		Config: &Config{},
+		Logger: discardLogger(),
+		Events: NewEventBus(discardLogger()),
+	}
+	applyDefaults(c.Config)
+	c.ConfigPath = "/nonexistent/monster.yaml"
+
+	err := c.ReloadConfig()
+	if err == nil {
+		t.Fatal("ReloadConfig should fail with invalid file path")
+	}
+}
+
 func TestScheduler_Start_StopImmediately(t *testing.T) {
 	s := NewScheduler(discardLogger())
 

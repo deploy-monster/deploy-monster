@@ -345,6 +345,7 @@ const (
 	// System
 	EventSystemStarted       = "system.started"
 	EventSystemStopping      = "system.stopping"
+	EventConfigReloaded      = "system.config_reloaded"
 	EventModuleHealthChanged = "module.health_changed"
 )
 
