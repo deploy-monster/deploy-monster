@@ -11,13 +11,14 @@ import (
 // Event represents something that happened in the system.
 // Events are the primary communication channel between modules.
 type Event struct {
-	ID        string    // Unique event ID for tracing
-	Type      string    // Dot-namespaced event type (e.g., "app.deployed")
-	Source    string    // Module ID that emitted this event
-	Timestamp time.Time // When the event was created
-	TenantID  string    // Tenant context (empty for system events)
-	UserID    string    // User who triggered the action (empty for system events)
-	Data      any       // Event-specific payload
+	ID            string    // Unique event ID for tracing
+	Type          string    // Dot-namespaced event type (e.g., "app.deployed")
+	Source        string    // Module ID that emitted this event
+	Timestamp     time.Time // When the event was created
+	TenantID      string    // Tenant context (empty for system events)
+	UserID        string    // User who triggered the action (empty for system events)
+	CorrelationID string    // Links related events across modules (e.g., request ID)
+	Data          any       // Event-specific payload
 }
 
 // EventHandler binds an event type to a named handler function.
@@ -36,27 +37,33 @@ type Subscription struct {
 	handler   func(ctx context.Context, event Event) error
 }
 
+// DefaultAsyncWorkers is the default max concurrent async event handlers.
+const DefaultAsyncWorkers = 64
+
 // EventBus is the central event system for inter-module communication.
 // It supports synchronous and asynchronous handlers, wildcard subscriptions,
 // prefix matching, error callbacks, and event history for debugging.
+// Async handlers are bounded by a semaphore to prevent goroutine explosion.
 type EventBus struct {
 	mu            sync.RWMutex
 	subscriptions []*Subscription
 	logger        *slog.Logger
 	onError       func(event Event, sub *Subscription, err error)
+	asyncSem      chan struct{} // semaphore bounding concurrent async handlers
 
 	// Metrics
 	publishCount int64
 	errorCount   int64
 }
 
-// NewEventBus creates a new EventBus.
+// NewEventBus creates a new EventBus with a bounded async worker pool.
 func NewEventBus(logger *slog.Logger) *EventBus {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &EventBus{
-		logger: logger,
+		logger:   logger,
+		asyncSem: make(chan struct{}, DefaultAsyncWorkers),
 		onError: func(event Event, sub *Subscription, err error) {
 			logger.Error("event handler failed",
 				"event", event.Type,
@@ -124,8 +131,10 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 
 	for _, sub := range subs {
 		if sub.Async {
-			// Fire and forget — errors are logged via onError
+			// Fire and forget with bounded concurrency — errors logged via onError
+			eb.asyncSem <- struct{}{} // acquire semaphore slot
 			go func(s *Subscription) {
+				defer func() { <-eb.asyncSem }() // release slot
 				if err := s.handler(ctx, event); err != nil {
 					eb.mu.Lock()
 					eb.errorCount++
@@ -196,6 +205,8 @@ func (eb *EventBus) Stats() EventBusStats {
 		SubscriptionCount: len(eb.subscriptions),
 		PublishCount:      eb.publishCount,
 		ErrorCount:        eb.errorCount,
+		AsyncPoolSize:     cap(eb.asyncSem),
+		AsyncPoolActive:   len(eb.asyncSem),
 	}
 }
 
@@ -204,6 +215,8 @@ type EventBusStats struct {
 	SubscriptionCount int   `json:"subscription_count"`
 	PublishCount      int64 `json:"publish_count"`
 	ErrorCount        int64 `json:"error_count"`
+	AsyncPoolSize     int   `json:"async_pool_size"`
+	AsyncPoolActive   int   `json:"async_pool_active"`
 }
 
 func cutSuffix(s, suffix string) (string, bool) {
@@ -419,7 +432,26 @@ type UserEventData struct {
 	Action string `json:"action"`
 }
 
-// Helper to create a context-enriched event from a request context
+type correlationKeyType struct{}
+
+var correlationKey correlationKeyType
+
+// WithCorrelationID returns a context carrying the given correlation ID.
+// Middleware sets this from the request's X-Request-ID header so that all
+// events emitted during a request share the same correlation ID.
+func WithCorrelationID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, correlationKey, id)
+}
+
+// CorrelationIDFromContext extracts the correlation ID, or "" if not set.
+func CorrelationIDFromContext(ctx context.Context) string {
+	if v, ok := ctx.Value(correlationKey).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// NewEvent creates an event, pulling correlation ID from context if available.
 func NewEvent(eventType, source string, data any) Event {
 	return Event{
 		ID:        GenerateID(),
@@ -427,6 +459,18 @@ func NewEvent(eventType, source string, data any) Event {
 		Source:    source,
 		Timestamp: time.Now(),
 		Data:      data,
+	}
+}
+
+// NewEventFromCtx creates an event with correlation ID from the context.
+func NewEventFromCtx(ctx context.Context, eventType, source string, data any) Event {
+	return Event{
+		ID:            GenerateID(),
+		Type:          eventType,
+		Source:        source,
+		Timestamp:     time.Now(),
+		CorrelationID: CorrelationIDFromContext(ctx),
+		Data:          data,
 	}
 }
 
@@ -443,8 +487,26 @@ func NewTenantEvent(eventType, source, tenantID, userID string, data any) Event 
 	}
 }
 
+// NewTenantEventFromCtx creates a tenant event with correlation ID from the context.
+func NewTenantEventFromCtx(ctx context.Context, eventType, source, tenantID, userID string, data any) Event {
+	return Event{
+		ID:            GenerateID(),
+		Type:          eventType,
+		Source:        source,
+		Timestamp:     time.Now(),
+		TenantID:      tenantID,
+		UserID:        userID,
+		CorrelationID: CorrelationIDFromContext(ctx),
+		Data:          data,
+	}
+}
+
 // DebugString returns a human-readable representation of the event.
 func (e Event) DebugString() string {
-	return fmt.Sprintf("[%s] %s from %s (tenant=%s user=%s)",
-		e.ID[:8], e.Type, e.Source, e.TenantID, e.UserID)
+	corr := ""
+	if e.CorrelationID != "" {
+		corr = " corr=" + e.CorrelationID
+	}
+	return fmt.Sprintf("[%s] %s from %s (tenant=%s user=%s%s)",
+		e.ID[:8], e.Type, e.Source, e.TenantID, e.UserID, corr)
 }

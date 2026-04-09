@@ -180,6 +180,14 @@ func (m *APIMetrics) Handler() http.HandlerFunc {
 			sb.WriteString("\n# HELP eventbus_subscriptions Active event subscriptions\n")
 			sb.WriteString("# TYPE eventbus_subscriptions gauge\n")
 			sb.WriteString(fmt.Sprintf("eventbus_subscriptions %d\n", stats.SubscriptionCount))
+
+			sb.WriteString("\n# HELP eventbus_async_pool_size Max concurrent async handlers\n")
+			sb.WriteString("# TYPE eventbus_async_pool_size gauge\n")
+			sb.WriteString(fmt.Sprintf("eventbus_async_pool_size %d\n", stats.AsyncPoolSize))
+
+			sb.WriteString("\n# HELP eventbus_async_pool_active Currently active async handlers\n")
+			sb.WriteString("# TYPE eventbus_async_pool_active gauge\n")
+			sb.WriteString(fmt.Sprintf("eventbus_async_pool_active %d\n", stats.AsyncPoolActive))
 		}
 
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")

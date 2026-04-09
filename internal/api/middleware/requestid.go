@@ -21,6 +21,9 @@ func RequestID(next http.Handler) http.Handler {
 
 		w.Header().Set("X-Request-ID", id)
 		ctx := context.WithValue(r.Context(), requestIDKey{}, id)
+		// Also set as event correlation ID so events emitted during
+		// this request share the same trace.
+		ctx = core.WithCorrelationID(ctx, id)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
