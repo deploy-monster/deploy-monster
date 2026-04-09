@@ -104,7 +104,10 @@ func (h *CronJobHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	appID := app.ID
-	jobID := r.PathValue("jobId")
+	jobID, ok := requirePathParam(w, r, "jobId")
+	if !ok {
+		return
+	}
 
 	var list cronJobList
 	if err := h.bolt.Get("cronjobs", appID, &list); err != nil {

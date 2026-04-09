@@ -43,7 +43,10 @@ func (h *TenantRateLimitHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantID := r.PathValue("id")
+	tenantID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var cfg RateLimitConfig
 	if err := h.bolt.Get("tenant_ratelimit", tenantID, &cfg); err != nil {
@@ -62,7 +65,10 @@ func (h *TenantRateLimitHandler) Update(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	tenantID := r.PathValue("id")
+	tenantID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var cfg RateLimitConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {

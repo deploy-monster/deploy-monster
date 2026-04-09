@@ -64,7 +64,10 @@ func (h *DeployApprovalHandler) Approve(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	approvalID := r.PathValue("id")
+	approvalID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	h.mu.Lock()
 	req, exists := h.pending[approvalID]
@@ -99,7 +102,10 @@ func (h *DeployApprovalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	approvalID := r.PathValue("id")
+	approvalID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var body struct {
 		Reason string `json:"reason"`

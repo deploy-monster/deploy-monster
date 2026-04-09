@@ -57,7 +57,10 @@ func (h *EnvironmentHandler) ApplyPreset(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	projectID := r.PathValue("id")
+	projectID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 	var req struct {
 		Environment string `json:"environment"`
 	}

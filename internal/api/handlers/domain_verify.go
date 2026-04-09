@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -39,7 +40,16 @@ type domainVerifyRecord struct {
 
 // Verify handles POST /api/v1/domains/{id}/verify
 func (h *DomainVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
-	domainID := r.PathValue("id")
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	domainID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var req struct {
 		FQDN string `json:"fqdn"`

@@ -130,6 +130,12 @@ func (h *AdminAPIKeyHandler) CleanupExpiredKeys() int {
 
 // Revoke handles DELETE /api/v1/admin/api-keys/{prefix}
 func (h *AdminAPIKeyHandler) Revoke(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil || claims.RoleID != "role_super_admin" {
+		writeError(w, http.StatusForbidden, "super admin required")
+		return
+	}
+
 	prefix, ok := requirePathParam(w, r, "prefix")
 	if !ok {
 		return

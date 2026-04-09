@@ -23,7 +23,10 @@ type restartPolicyRequest struct {
 
 // Update handles PUT /api/v1/apps/{id}/restart-policy
 func (h *RestartPolicyHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	appID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var req restartPolicyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

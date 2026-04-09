@@ -14,10 +14,12 @@ func init() {
 
 // Module implements the deployment module.
 type Module struct {
-	core   *core.Core
-	docker *DockerManager
-	store  core.Store
-	logger *slog.Logger
+	core         *core.Core
+	docker       *DockerManager
+	store        core.Store
+	logger       *slog.Logger
+	autoRestart  *AutoRestarter
+	imageChecker *ImageUpdateChecker
 }
 
 // New creates a new deploy module.
@@ -76,12 +78,12 @@ func (m *Module) Start(ctx context.Context) error {
 		m.cleanOrphanContainers(ctx)
 
 		// Start auto-restart monitor
-		autoRestart := NewAutoRestarter(m.docker, m.store, m.core.Events, m.logger)
-		autoRestart.Start()
+		m.autoRestart = NewAutoRestarter(m.docker, m.store, m.core.Events, m.logger)
+		m.autoRestart.Start()
 
 		// Start image update checker
-		imageChecker := NewImageUpdateChecker(m.store, m.core.Events, m.logger)
-		imageChecker.Start()
+		m.imageChecker = NewImageUpdateChecker(m.store, m.core.Events, m.logger)
+		m.imageChecker.Start()
 
 		// Start auto-rollback on failed deployments
 		autoRollback := NewAutoRollbackManager(m.store, m.docker, m.core.Events, m.logger)
@@ -136,6 +138,12 @@ func (m *Module) cleanOrphanContainers(ctx context.Context) {
 }
 
 func (m *Module) Stop(_ context.Context) error {
+	if m.autoRestart != nil {
+		m.autoRestart.Stop()
+	}
+	if m.imageChecker != nil {
+		m.imageChecker.Stop()
+	}
 	if m.docker != nil {
 		return m.docker.Close()
 	}

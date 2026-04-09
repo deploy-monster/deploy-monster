@@ -121,6 +121,7 @@ func TestFinal95_DomainVerify_FQDNFromBolt(t *testing.T) {
 	body := `{}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/domain-1/verify", strings.NewReader(body))
 	req.SetPathValue("id", "domain-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Verify(rr, req)
 
@@ -146,6 +147,7 @@ func TestFinal95_DomainVerify_NoFQDNAnywhere(t *testing.T) {
 	body := `{}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/domain-1/verify", strings.NewReader(body))
 	req.SetPathValue("id", "domain-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Verify(rr, req)
 
@@ -877,6 +879,7 @@ func TestFinal95_DomainVerify_FQDNInBody(t *testing.T) {
 	body := `{"fqdn":"this-domain-does-not-exist-xyz.invalid"}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/d1/verify", strings.NewReader(body))
 	req.SetPathValue("id", "d1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Verify(rr, req)
 
@@ -1454,6 +1457,7 @@ func TestFinal95_EventWebhook_Delete_BoltSetError(t *testing.T) {
 
 	req := httptest.NewRequest("DELETE", "/api/v1/webhooks/outbound/wh1", nil)
 	req.SetPathValue("id", "wh1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 

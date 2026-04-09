@@ -140,6 +140,7 @@ func TestAdminAPIKeyHandler_Revoke_Success(t *testing.T) {
 
 	req := httptest.NewRequest("DELETE", "/api/v1/admin/api-keys/pfx-x", nil)
 	req.SetPathValue("prefix", "pfx-x")
+	req = withClaims(req, "u1", "t1", "role_super_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Revoke(rr, req)
 
@@ -163,6 +164,7 @@ func TestAdminAPIKeyHandler_Revoke_NoIndex(t *testing.T) {
 
 	req := httptest.NewRequest("DELETE", "/api/v1/admin/api-keys/pfx-z", nil)
 	req.SetPathValue("prefix", "pfx-z")
+	req = withClaims(req, "u1", "t1", "role_super_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Revoke(rr, req)
 
@@ -2518,6 +2520,7 @@ func TestEventWebhookHandler_Delete_BoltError(t *testing.T) {
 	h := NewEventWebhookHandler(newMockStore(), core.NewEventBus(slog.Default()), eb)
 	req := httptest.NewRequest("DELETE", "/api/v1/webhooks/events/wh-1", nil)
 	req.SetPathValue("id", "wh-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 	// Even with bolt error, delete should handle it gracefully

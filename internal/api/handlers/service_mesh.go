@@ -98,7 +98,10 @@ func (h *ServiceMeshHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	appID := app.ID
-	targetID := r.PathValue("targetId")
+	targetID, ok := requirePathParam(w, r, "targetId")
+	if !ok {
+		return
+	}
 
 	var list serviceLinkList
 	if err := h.bolt.Get("service_mesh", appID, &list); err != nil {

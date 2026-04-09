@@ -22,7 +22,10 @@ func (h *WebhookReplayHandler) Replay(w http.ResponseWriter, r *http.Request) {
 	if app == nil {
 		return
 	}
-	logID := r.PathValue("logId")
+	logID, ok := requirePathParam(w, r, "logId")
+	if !ok {
+		return
+	}
 
 	// Would look up the original webhook payload from webhook_logs table
 	// and re-dispatch it through the build→deploy pipeline

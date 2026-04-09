@@ -89,7 +89,10 @@ func (h *MetricsHistoryHandler) AppMetrics(w http.ResponseWriter, r *http.Reques
 
 // ServerMetrics handles GET /api/v1/servers/{id}/metrics
 func (h *MetricsHistoryHandler) ServerMetrics(w http.ResponseWriter, r *http.Request) {
-	serverID := r.PathValue("id")
+	serverID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 	period := r.URL.Query().Get("period")
 	if period == "" {
 		period = "24h"

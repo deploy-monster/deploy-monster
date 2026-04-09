@@ -281,6 +281,7 @@ func TestDeleteDomain_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/domains/d1", nil)
 	req.SetPathValue("id", "d1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Delete(rr, req)
@@ -301,6 +302,7 @@ func TestDeleteDomain_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/domains/nonexistent", nil)
 	req.SetPathValue("id", "nonexistent")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Delete(rr, req)
@@ -320,6 +322,7 @@ func TestDeleteDomain_StoreError(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/domains/d1", nil)
 	req.SetPathValue("id", "d1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Delete(rr, req)
@@ -353,6 +356,7 @@ func TestCreateThenDeleteDomain_Integration(t *testing.T) {
 	// Delete
 	delReq := httptest.NewRequest(http.MethodDelete, "/api/v1/domains/"+created.ID, nil)
 	delReq.SetPathValue("id", created.ID)
+	delReq = withClaims(delReq, "u1", "t1", "role_admin", "a@b.com")
 	delRR := httptest.NewRecorder()
 	handler.Delete(delRR, delReq)
 
@@ -363,6 +367,7 @@ func TestCreateThenDeleteDomain_Integration(t *testing.T) {
 	// Verify domain is gone — attempting to delete again should 404.
 	delReq2 := httptest.NewRequest(http.MethodDelete, "/api/v1/domains/"+created.ID, nil)
 	delReq2.SetPathValue("id", created.ID)
+	delReq2 = withClaims(delReq2, "u1", "t1", "role_admin", "a@b.com")
 	delRR2 := httptest.NewRecorder()
 	handler.Delete(delRR2, delReq2)
 

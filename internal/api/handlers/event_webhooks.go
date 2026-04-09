@@ -100,7 +100,16 @@ func (h *EventWebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /api/v1/webhooks/outbound/{id}
 func (h *EventWebhookHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	id, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var list eventWebhookList
 	if err := h.bolt.Get("event_webhooks", "all", &list); err != nil {

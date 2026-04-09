@@ -124,7 +124,10 @@ func (h *DeployScheduleHandler) CancelScheduled(w http.ResponseWriter, r *http.R
 		return
 	}
 	appID := app.ID
-	scheduleID := r.PathValue("scheduleId")
+	scheduleID, ok := requirePathParam(w, r, "scheduleId")
+	if !ok {
+		return
+	}
 
 	var list scheduledDeployList
 	if err := h.bolt.Get("deploy_schedule", appID, &list); err != nil {

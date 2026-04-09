@@ -41,7 +41,10 @@ func (h *MarketplaceHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Get handles GET /api/v1/marketplace/{slug}
 func (h *MarketplaceHandler) Get(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("slug")
+	slug, ok := requirePathParam(w, r, "slug")
+	if !ok {
+		return
+	}
 	tmpl := h.registry.Get(slug)
 	if tmpl == nil {
 		writeError(w, http.StatusNotFound, "template not found")

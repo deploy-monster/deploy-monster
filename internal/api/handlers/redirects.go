@@ -115,7 +115,10 @@ func (h *RedirectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	appID := app.ID
-	ruleID := r.PathValue("ruleId")
+	ruleID, ok := requirePathParam(w, r, "ruleId")
+	if !ok {
+		return
+	}
 
 	var list redirectList
 	if err := h.bolt.Get("redirects", appID, &list); err != nil {

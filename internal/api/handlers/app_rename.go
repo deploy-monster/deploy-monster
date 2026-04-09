@@ -19,7 +19,10 @@ func NewRenameHandler(store core.Store, events *core.EventBus) *RenameHandler {
 
 // Rename handles POST /api/v1/apps/{id}/rename
 func (h *RenameHandler) Rename(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	appID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var req struct {
 		Name string `json:"name"`

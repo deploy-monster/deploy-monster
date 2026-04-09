@@ -1118,6 +1118,7 @@ func TestDomainVerifyHandler_Verify_EmptyFQDN(t *testing.T) {
 	body := `{"fqdn":""}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/dom-1/verify", strings.NewReader(body))
 	req.SetPathValue("id", "dom-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Verify(rr, req)
 
@@ -1133,6 +1134,7 @@ func TestDomainVerifyHandler_Verify_WithFQDN(t *testing.T) {
 	body := `{"fqdn":"localhost"}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/dom-1/verify", strings.NewReader(body))
 	req.SetPathValue("id", "dom-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Verify(rr, req)
 

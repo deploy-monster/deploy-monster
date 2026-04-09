@@ -25,7 +25,10 @@ type rollbackRequest struct {
 
 // Rollback handles POST /api/v1/apps/{id}/rollback
 func (h *RollbackHandler) Rollback(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	appID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var req rollbackRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -52,7 +55,10 @@ func (h *RollbackHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 
 // ListVersions handles GET /api/v1/apps/{id}/versions
 func (h *RollbackHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	appID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	versions, err := h.engine.ListVersions(r.Context(), appID, 20)
 	if err != nil {

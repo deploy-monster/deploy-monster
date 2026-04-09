@@ -41,7 +41,10 @@ func (h *ServerHandler) ListProviders(w http.ResponseWriter, _ *http.Request) {
 
 // ListRegions handles GET /api/v1/servers/providers/{provider}/regions
 func (h *ServerHandler) ListRegions(w http.ResponseWriter, r *http.Request) {
-	providerName := r.PathValue("provider")
+	providerName, ok := requirePathParam(w, r, "provider")
+	if !ok {
+		return
+	}
 	p := h.services.VPSProvisioner(providerName)
 	if p == nil {
 		writeError(w, http.StatusNotFound, "provider not found")
@@ -59,7 +62,10 @@ func (h *ServerHandler) ListRegions(w http.ResponseWriter, r *http.Request) {
 
 // ListSizes handles GET /api/v1/servers/providers/{provider}/sizes
 func (h *ServerHandler) ListSizes(w http.ResponseWriter, r *http.Request) {
-	providerName := r.PathValue("provider")
+	providerName, ok := requirePathParam(w, r, "provider")
+	if !ok {
+		return
+	}
 	p := h.services.VPSProvisioner(providerName)
 	if p == nil {
 		writeError(w, http.StatusNotFound, "provider not found")

@@ -90,7 +90,10 @@ func (h *AgentStatusHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // GetAgent handles GET /api/v1/agents/{id}
 func (h *AgentStatusHandler) GetAgent(w http.ResponseWriter, r *http.Request) {
-	serverID := r.PathValue("id")
+	serverID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	if serverID == "local" {
 		// Redirect to the local agent info

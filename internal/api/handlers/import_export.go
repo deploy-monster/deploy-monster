@@ -152,16 +152,14 @@ func (m *AppManifest) Validate() []string {
 
 // Export handles GET /api/v1/apps/{id}/export
 func (h *ImportExportHandler) Export(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
-
 	app := requireTenantApp(w, r, h.store)
 	if app == nil {
 		return
 	}
 
-	domains, err := h.store.ListDomainsByApp(r.Context(), appID)
+	domains, err := h.store.ListDomainsByApp(r.Context(), app.ID)
 	if err != nil {
-		slog.Warn("export: failed to list domains", "app_id", appID, "error", err)
+		slog.Warn("export: failed to list domains", "app_id", app.ID, "error", err)
 	}
 	domainNames := make([]string, len(domains))
 	for i, d := range domains {

@@ -38,7 +38,10 @@ func (h *MCPHandler) ListTools(w http.ResponseWriter, _ *http.Request) {
 
 // CallTool handles POST /mcp/v1/tools/{name}
 func (h *MCPHandler) CallTool(w http.ResponseWriter, r *http.Request) {
-	toolName := r.PathValue("name")
+	toolName, ok := requirePathParam(w, r, "name")
+	if !ok {
+		return
+	}
 
 	var input json.RawMessage
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {

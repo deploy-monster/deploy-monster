@@ -18,6 +18,7 @@ type AutoRestarter struct {
 	events     *core.EventBus
 	logger     *slog.Logger
 	maxRetries int
+	stopCh     chan struct{}
 }
 
 // NewAutoRestarter creates an auto-restart monitor.
@@ -28,6 +29,7 @@ func NewAutoRestarter(runtime core.ContainerRuntime, store core.Store, events *c
 		events:     events,
 		logger:     logger,
 		maxRetries: 5,
+		stopCh:     make(chan struct{}),
 	}
 }
 
@@ -45,12 +47,22 @@ func (ar *AutoRestarter) Start() {
 		ticker := time.NewTicker(autoRestartCheckInterval)
 		defer ticker.Stop()
 
-		for range ticker.C {
-			ar.checkCrashed()
+		for {
+			select {
+			case <-ticker.C:
+				ar.checkCrashed()
+			case <-ar.stopCh:
+				return
+			}
 		}
 	})
 
 	ar.logger.Info("auto-restart monitor started", "max_retries", ar.maxRetries)
+}
+
+// Stop signals the auto-restart check goroutine to exit.
+func (ar *AutoRestarter) Stop() {
+	close(ar.stopCh)
 }
 
 func (ar *AutoRestarter) handleCrash(ctx context.Context, appID, containerID string) {

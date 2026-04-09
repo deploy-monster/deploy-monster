@@ -112,6 +112,7 @@ func TestAdminAPIKeys_Revoke_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/api-keys/dm_abc12345", nil)
 	req.SetPathValue("prefix", "dm_abc12345")
+	req = withClaims(req, "u1", "t1", "role_super_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Revoke(rr, req)

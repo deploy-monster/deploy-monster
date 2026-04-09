@@ -31,7 +31,10 @@ func (h *TransferHandler) TransferApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	appID := r.PathValue("id")
+	appID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 	var req transferRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")

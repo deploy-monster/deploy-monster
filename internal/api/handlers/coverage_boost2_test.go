@@ -256,6 +256,7 @@ func TestEventWebhookHandler_Delete_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest("DELETE", "/api/v1/webhooks/outbound/wh-1", nil)
 	req.SetPathValue("id", "wh-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 
@@ -278,6 +279,7 @@ func TestEventWebhookHandler_Delete_Success(t *testing.T) {
 
 	req := httptest.NewRequest("DELETE", "/api/v1/webhooks/outbound/wh-1", nil)
 	req.SetPathValue("id", "wh-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Delete(rr, req)
 

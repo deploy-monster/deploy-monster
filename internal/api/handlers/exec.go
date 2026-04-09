@@ -123,7 +123,10 @@ type execResponse struct {
 //
 //	{"output": "...", "exit_code": 0, "container_id": "abc123"}
 func (h *ExecHandler) Exec(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	appID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	if h.runtime == nil {
 		writeError(w, http.StatusServiceUnavailable, "container runtime not available")

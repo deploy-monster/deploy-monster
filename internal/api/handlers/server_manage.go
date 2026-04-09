@@ -20,7 +20,10 @@ func NewServerManageHandler(services *core.Services, store core.Store, events *c
 // Decommission handles POST /api/v1/servers/{id}/decommission
 // Drains workloads, removes from swarm, optionally destroys VPS.
 func (h *ServerManageHandler) Decommission(w http.ResponseWriter, r *http.Request) {
-	serverID := r.PathValue("id")
+	serverID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 	destroy := r.URL.Query().Get("destroy") == "true"
 
 	h.events.Publish(r.Context(), core.NewEvent(core.EventServerRemoved, "api",
@@ -40,7 +43,10 @@ func (h *ServerManageHandler) Decommission(w http.ResponseWriter, r *http.Reques
 
 // Reboot handles POST /api/v1/servers/{id}/reboot
 func (h *ServerManageHandler) Reboot(w http.ResponseWriter, r *http.Request) {
-	serverID := r.PathValue("id")
+	serverID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"server_id": serverID,

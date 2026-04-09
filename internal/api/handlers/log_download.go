@@ -19,7 +19,10 @@ func NewLogDownloadHandler(runtime core.ContainerRuntime) *LogDownloadHandler {
 
 // Download handles GET /api/v1/apps/{id}/logs/download
 func (h *LogDownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	appID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	if h.runtime == nil {
 		writeError(w, http.StatusServiceUnavailable, "container runtime not available")

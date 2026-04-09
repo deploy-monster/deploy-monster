@@ -118,7 +118,16 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /api/v1/domains/{id}
 func (h *DomainHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	id, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	if err := h.store.DeleteDomain(r.Context(), id); err != nil {
 		if errors.Is(err, core.ErrNotFound) {

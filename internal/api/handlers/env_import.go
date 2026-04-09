@@ -21,7 +21,10 @@ func NewEnvImportHandler(store core.Store) *EnvImportHandler {
 // Import handles POST /api/v1/apps/{id}/env/import
 // Accepts .env file format (KEY=VALUE per line) or JSON array.
 func (h *EnvImportHandler) Import(w http.ResponseWriter, r *http.Request) {
-	appID := r.PathValue("id")
+	appID, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB max
 	if err != nil {

@@ -28,7 +28,10 @@ func (h *GitSourceHandler) ListProviders(w http.ResponseWriter, _ *http.Request)
 
 // ListRepos handles GET /api/v1/git/{provider}/repos
 func (h *GitSourceHandler) ListRepos(w http.ResponseWriter, r *http.Request) {
-	providerName := r.PathValue("provider")
+	providerName, ok := requirePathParam(w, r, "provider")
+	if !ok {
+		return
+	}
 	p := h.services.GitProvider(providerName)
 	if p == nil {
 		writeError(w, http.StatusNotFound, "provider not configured")
@@ -51,8 +54,14 @@ func (h *GitSourceHandler) ListRepos(w http.ResponseWriter, r *http.Request) {
 
 // ListBranches handles GET /api/v1/git/{provider}/repos/{repo}/branches
 func (h *GitSourceHandler) ListBranches(w http.ResponseWriter, r *http.Request) {
-	providerName := r.PathValue("provider")
-	repo := r.PathValue("repo")
+	providerName, ok := requirePathParam(w, r, "provider")
+	if !ok {
+		return
+	}
+	repo, ok2 := requirePathParam(w, r, "repo")
+	if !ok2 {
+		return
+	}
 
 	p := h.services.GitProvider(providerName)
 	if p == nil {

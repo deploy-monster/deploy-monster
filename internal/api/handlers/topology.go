@@ -148,11 +148,12 @@ func (h *TopologyHandler) Load(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectID := r.PathValue("projectId")
-	environment := r.PathValue("environment")
-
-	if projectID == "" || environment == "" {
-		writeError(w, http.StatusBadRequest, "projectId and environment are required")
+	projectID, ok := requirePathParam(w, r, "projectId")
+	if !ok {
+		return
+	}
+	environment, ok2 := requirePathParam(w, r, "environment")
+	if !ok2 {
 		return
 	}
 
