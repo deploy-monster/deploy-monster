@@ -71,6 +71,14 @@ func (h *RedirectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "source and destination required")
 		return
 	}
+	if len(rule.Source) > 2048 {
+		writeError(w, http.StatusBadRequest, "source must be 2048 characters or less")
+		return
+	}
+	if len(rule.Destination) > 2048 {
+		writeError(w, http.StatusBadRequest, "destination must be 2048 characters or less")
+		return
+	}
 
 	if rule.StatusCode == 0 {
 		rule.StatusCode = 301
@@ -87,6 +95,11 @@ func (h *RedirectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := h.bolt.Set("redirects", appID, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save redirect rule")
 		return
+	}
+
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventRedirectCreated, "api",
+			map[string]string{"app_id": appID, "rule_id": rule.ID}))
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{

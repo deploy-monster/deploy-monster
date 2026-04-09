@@ -58,6 +58,14 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
+	if len(req.Name) > 100 {
+		writeError(w, http.StatusBadRequest, "name must be 100 characters or less")
+		return
+	}
+	if len(req.Description) > 500 {
+		writeError(w, http.StatusBadRequest, "description must be 500 characters or less")
+		return
+	}
 
 	env := req.Environment
 	if env == "" {
@@ -74,6 +82,11 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.CreateProject(r.Context(), project); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create project")
 		return
+	}
+
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventProjectCreated, "api",
+			map[string]string{"id": project.ID, "name": project.Name}))
 	}
 
 	writeJSON(w, http.StatusCreated, project)

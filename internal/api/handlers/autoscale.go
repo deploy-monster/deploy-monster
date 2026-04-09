@@ -9,13 +9,17 @@ import (
 
 // AutoscaleHandler manages autoscaling rules per app.
 type AutoscaleHandler struct {
-	store core.Store
-	bolt  core.BoltStorer
+	store  core.Store
+	bolt   core.BoltStorer
+	events *core.EventBus
 }
 
 func NewAutoscaleHandler(store core.Store, bolt core.BoltStorer) *AutoscaleHandler {
 	return &AutoscaleHandler{store: store, bolt: bolt}
 }
+
+// SetEvents sets the event bus for audit event emission.
+func (h *AutoscaleHandler) SetEvents(events *core.EventBus) { h.events = events }
 
 // AutoscaleConfig defines autoscaling behavior.
 type AutoscaleConfig struct {
@@ -81,6 +85,11 @@ func (h *AutoscaleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err := h.bolt.Set("autoscale", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save autoscale config")
 		return
+	}
+
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventAutoscaleUpdated, "api",
+			map[string]string{"app_id": appID}))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"app_id": appID, "config": cfg, "status": "updated"})

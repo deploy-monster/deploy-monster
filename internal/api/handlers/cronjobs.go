@@ -86,6 +86,11 @@ func (h *CronJobHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventCronJobCreated, "api",
+			map[string]string{"app_id": appID, "job_id": req.ID, "schedule": req.Schedule}))
+	}
+
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"app_id": appID,
 		"job":    req,

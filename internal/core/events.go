@@ -367,6 +367,7 @@ const (
 	EventProjectDeleted = "project.deleted"
 
 	// CronJob
+	EventCronJobCreated = "cronjob.created"
 	EventCronJobDeleted = "cronjob.deleted"
 
 	// DNS Record
@@ -376,10 +377,16 @@ const (
 	EventEventWebhookDeleted = "event_webhook.deleted"
 
 	// Redirect
+	EventRedirectCreated = "redirect.created"
 	EventRedirectDeleted = "redirect.deleted"
 
 	// Service Mesh
 	EventServiceMeshDeleted = "service_mesh.deleted"
+
+	// Config changes (security/operational)
+	EventAutoscaleUpdated = "autoscale.updated"
+	EventBasicAuthUpdated = "basicauth.updated"
+	EventGPUConfigUpdated = "gpu.updated"
 
 	// System
 	EventSystemStarted       = "system.started"

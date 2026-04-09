@@ -14,11 +14,15 @@ type GPUHandler struct {
 	store   core.Store
 	runtime core.ContainerRuntime
 	bolt    core.BoltStorer
+	events  *core.EventBus
 }
 
 func NewGPUHandler(store core.Store, runtime core.ContainerRuntime, bolt core.BoltStorer) *GPUHandler {
 	return &GPUHandler{store: store, runtime: runtime, bolt: bolt}
 }
+
+// SetEvents sets the event bus for audit event emission.
+func (h *GPUHandler) SetEvents(events *core.EventBus) { h.events = events }
 
 // GPUConfig holds GPU passthrough settings.
 type GPUConfig struct {
@@ -85,6 +89,11 @@ func (h *GPUHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err := h.bolt.Set("gpu_config", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save GPU config")
 		return
+	}
+
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventGPUConfigUpdated, "api",
+			map[string]string{"app_id": appID, "driver": cfg.Driver}))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

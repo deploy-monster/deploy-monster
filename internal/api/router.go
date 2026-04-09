@@ -160,6 +160,7 @@ func (r *Router) registerRoutes() {
 
 	// ── GPU Config ────────────────────────────────────
 	gpuH := handlers.NewGPUHandler(r.store, r.core.Services.Container, r.core.DB.Bolt)
+	gpuH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Update)))
 
@@ -299,6 +300,7 @@ func (r *Router) registerRoutes() {
 
 	// ── Autoscale ─────────────────────────────────────
 	asH := handlers.NewAutoscaleHandler(r.store, r.core.DB.Bolt)
+	asH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Update)))
 
@@ -318,6 +320,7 @@ func (r *Router) registerRoutes() {
 
 	// ── Basic Auth ────────────────────────────────────
 	baH := handlers.NewBasicAuthHandler(r.store, r.core.DB.Bolt)
+	baH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Get)))
 	r.mux.Handle("PUT /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Update)))
 

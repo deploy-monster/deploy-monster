@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -10,13 +11,17 @@ import (
 // BasicAuthHandler manages HTTP Basic Auth protection per app.
 // When enabled, the ingress adds a Basic Auth challenge before proxying.
 type BasicAuthHandler struct {
-	store core.Store
-	bolt  core.BoltStorer
+	store  core.Store
+	bolt   core.BoltStorer
+	events *core.EventBus
 }
 
 func NewBasicAuthHandler(store core.Store, bolt core.BoltStorer) *BasicAuthHandler {
 	return &BasicAuthHandler{store: store, bolt: bolt}
 }
+
+// SetEvents sets the event bus for audit event emission.
+func (h *BasicAuthHandler) SetEvents(events *core.EventBus) { h.events = events }
 
 // BasicAuthConfig holds per-app basic auth settings.
 type BasicAuthConfig struct {
@@ -58,10 +63,29 @@ func (h *BasicAuthHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if cfg.Realm == "" {
 		cfg.Realm = "Restricted"
 	}
+	if len(cfg.Realm) > 100 {
+		writeError(w, http.StatusBadRequest, "realm must be 100 characters or less")
+		return
+	}
+	if len(cfg.Users) > 50 {
+		writeError(w, http.StatusBadRequest, "maximum 50 users allowed")
+		return
+	}
+	for username := range cfg.Users {
+		if len(username) > 100 {
+			writeError(w, http.StatusBadRequest, "username must be 100 characters or less")
+			return
+		}
+	}
 
 	if err := h.bolt.Set("basic_auth", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save basic auth config")
 		return
+	}
+
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventBasicAuthUpdated, "api",
+			map[string]string{"app_id": appID, "enabled": fmt.Sprintf("%t", cfg.Enabled)}))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
