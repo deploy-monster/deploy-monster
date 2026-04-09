@@ -32,7 +32,9 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": projects, "total": len(projects)})
+	pg := parsePagination(r)
+	page, total := paginateSlice(projects, pg)
+	writePaginatedJSON(w, page, total, pg)
 }
 
 // Create handles POST /api/v1/projects
@@ -95,5 +97,11 @@ func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to delete project")
 		return
 	}
+
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventProjectDeleted, "api",
+			map[string]string{"id": id}))
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }

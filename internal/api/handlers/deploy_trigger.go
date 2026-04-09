@@ -108,9 +108,9 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 			})
 			if err != nil {
 				if sErr := h.store.UpdateAppStatus(r.Context(), appID, "failed"); sErr != nil {
-					slog.Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
+					ctxLogger(r.Context()).Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
 				}
-				internalError(w, "deploy failed", err)
+				internalErrorCtx(r.Context(), w, "deploy failed", err)
 				return
 			}
 			dep.ContainerID = containerID

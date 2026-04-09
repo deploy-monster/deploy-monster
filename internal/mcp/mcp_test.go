@@ -45,6 +45,10 @@ func (m *mockStore) GetApp(_ context.Context, id string) (*core.Application, err
 	return nil, fmt.Errorf("app %q not found", id)
 }
 
+func (m *mockStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
+	return nil, core.ErrNotFound
+}
+
 func (m *mockStore) CreateDomain(_ context.Context, _ *core.Domain) error {
 	return nil
 }
@@ -52,6 +56,11 @@ func (m *mockStore) CreateDomain(_ context.Context, _ *core.Domain) error {
 func (m *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
+
+func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) {
+	return 0, nil
+}
+
 func (m *mockStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
 	return []core.Tenant{{ID: "tenant-1", Name: "Default"}}, 1, nil
 }

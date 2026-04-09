@@ -121,6 +121,7 @@ func (c *Core) Run(ctx context.Context) error {
 	defer cancel()
 
 	c.Scheduler.Stop()
+	c.Events.Drain() // wait for in-flight async event handlers
 	return c.Registry.StopAll(shutdownCtx)
 }
 

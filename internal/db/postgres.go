@@ -494,6 +494,22 @@ func (p *PostgresDB) UpdateAppStatus(ctx context.Context, id, status string) err
 	return err
 }
 
+func (p *PostgresDB) GetAppByName(ctx context.Context, tenantID, name string) (*core.Application, error) {
+	a := &core.Application{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
+		        dockerfile, build_pack, env_vars_enc, labels_json, replicas, status, COALESCE(server_id,''),
+		        created_at, updated_at
+		 FROM applications WHERE tenant_id = $1 AND name = $2`, tenantID, name,
+	).Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType, &a.SourceURL, &a.Branch,
+		&a.Dockerfile, &a.BuildPack, &a.EnvVarsEnc, &a.LabelsJSON, &a.Replicas, &a.Status, &a.ServerID,
+		&a.CreatedAt, &a.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return a, err
+}
+
 func (p *PostgresDB) DeleteApp(ctx context.Context, id string) error {
 	_, err := p.db.ExecContext(ctx, `DELETE FROM applications WHERE id = $1`, id)
 	return err
@@ -624,6 +640,15 @@ func (p *PostgresDB) ListDomainsByApp(ctx context.Context, appID string) ([]core
 func (p *PostgresDB) DeleteDomain(ctx context.Context, id string) error {
 	_, err := p.db.ExecContext(ctx, `DELETE FROM domains WHERE id = $1`, id)
 	return err
+}
+
+func (p *PostgresDB) DeleteDomainsByApp(ctx context.Context, appID string) (int, error) {
+	result, err := p.db.ExecContext(ctx, `DELETE FROM domains WHERE app_id = $1`, appID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := result.RowsAffected()
+	return int(n), nil
 }
 
 func (p *PostgresDB) ListAllDomains(ctx context.Context) ([]core.Domain, error) {

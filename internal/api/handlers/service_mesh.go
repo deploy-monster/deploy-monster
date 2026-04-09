@@ -9,13 +9,17 @@ import (
 
 // ServiceMeshHandler configures inter-service communication rules.
 type ServiceMeshHandler struct {
-	store core.Store
-	bolt  core.BoltStorer
+	store  core.Store
+	bolt   core.BoltStorer
+	events *core.EventBus
 }
 
 func NewServiceMeshHandler(store core.Store, bolt core.BoltStorer) *ServiceMeshHandler {
 	return &ServiceMeshHandler{store: store, bolt: bolt}
 }
+
+// SetEvents sets the event bus for audit event emission.
+func (h *ServiceMeshHandler) SetEvents(events *core.EventBus) { h.events = events }
 
 // ServiceLink defines a connection between two apps.
 type ServiceLink struct {
@@ -113,6 +117,11 @@ func (h *ServiceMeshHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.bolt.Set("service_mesh", appID, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update service links")
 		return
+	}
+
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventServiceMeshDeleted, "api",
+			map[string]string{"app_id": appID, "target_id": targetID}))
 	}
 
 	w.WriteHeader(http.StatusNoContent)

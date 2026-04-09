@@ -217,6 +217,10 @@ func (m *mockStore) DeleteDomain(_ context.Context, _ string) error {
 	return nil
 }
 
+func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) {
+	return 0, nil
+}
+
 func (m *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
 	return nil, nil
 }

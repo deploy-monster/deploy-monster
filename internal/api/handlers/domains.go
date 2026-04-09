@@ -51,7 +51,9 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": domains, "total": len(domains)})
+	pg := parsePagination(r)
+	page, total := paginateSlice(domains, pg)
+	writePaginatedJSON(w, page, total, pg)
 }
 
 // Create handles POST /api/v1/domains

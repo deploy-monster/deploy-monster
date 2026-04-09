@@ -100,6 +100,9 @@ func (s *mockStore) CreateApp(_ context.Context, _ *core.Application) error { re
 func (s *mockStore) GetApp(_ context.Context, _ string) (*core.Application, error) {
 	return nil, nil
 }
+func (s *mockStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
+	return nil, core.ErrNotFound
+}
 func (s *mockStore) UpdateApp(_ context.Context, _ *core.Application) error { return nil }
 func (s *mockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
 	return nil, 0, nil
@@ -129,6 +132,7 @@ func (s *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain
 	return nil, nil
 }
 func (s *mockStore) DeleteDomain(_ context.Context, _ string) error { return nil }
+func (s *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
 func (s *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
 	return nil, nil
 }

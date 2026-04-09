@@ -78,6 +78,14 @@ func (m *mockStore) GetApp(_ context.Context, id string) (*core.Application, err
 	return nil, fmt.Errorf("not found")
 }
 
+func (m *mockStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
+	return nil, core.ErrNotFound
+}
+
+func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) {
+	return 0, nil
+}
+
 // flushRecorder wraps httptest.ResponseRecorder to implement http.Flusher.
 type flushRecorder struct {
 	*httptest.ResponseRecorder

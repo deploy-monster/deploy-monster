@@ -183,6 +183,7 @@ func (r *Router) registerRoutes() {
 
 	// ── Service Links (Mesh) ──────────────────────────
 	meshH := handlers.NewServiceMeshHandler(r.store, r.core.DB.Bolt)
+	meshH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/links", protected(http.HandlerFunc(meshH.List)))
 	r.mux.Handle("POST /api/v1/apps/{id}/links", protected(http.HandlerFunc(meshH.Create)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/links/{targetId}", protected(http.HandlerFunc(meshH.Delete)))
@@ -274,6 +275,7 @@ func (r *Router) registerRoutes() {
 
 	// ── Redirects ─────────────────────────────────────
 	redirH := handlers.NewRedirectHandler(r.store, r.core.DB.Bolt)
+	redirH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.List)))
 	r.mux.Handle("POST /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.Create)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/redirects/{ruleId}", protected(http.HandlerFunc(redirH.Delete)))
@@ -322,6 +324,7 @@ func (r *Router) registerRoutes() {
 
 	// ── Cron Jobs ─────────────────────────────────────
 	cronH := handlers.NewCronJobHandler(r.store, r.core.DB.Bolt)
+	cronH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/cron", protected(http.HandlerFunc(cronH.List)))
 	r.mux.Handle("POST /api/v1/apps/{id}/cron", protected(http.HandlerFunc(cronH.Create)))
 	r.mux.Handle("DELETE /api/v1/apps/{id}/cron/{jobId}", protected(http.HandlerFunc(cronH.Delete)))
@@ -382,6 +385,7 @@ func (r *Router) registerRoutes() {
 
 	// ── DNS Records ───────────────────────────────────
 	dnsRecH := handlers.NewDNSRecordHandler(r.core.Services)
+	dnsRecH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/dns/records", protected(http.HandlerFunc(dnsRecH.List)))
 	r.mux.Handle("POST /api/v1/dns/records", protected(http.HandlerFunc(dnsRecH.Create)))
 	r.mux.Handle("DELETE /api/v1/dns/records/{id}", protected(http.HandlerFunc(dnsRecH.Delete)))

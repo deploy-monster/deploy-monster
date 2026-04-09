@@ -57,6 +57,7 @@ type UserStore interface {
 type AppStore interface {
 	CreateApp(ctx context.Context, app *Application) error
 	GetApp(ctx context.Context, id string) (*Application, error)
+	GetAppByName(ctx context.Context, tenantID, name string) (*Application, error)
 	UpdateApp(ctx context.Context, app *Application) error
 	ListAppsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]Application, int, error)
 	ListAppsByProject(ctx context.Context, projectID string) ([]Application, error)
@@ -78,6 +79,7 @@ type DomainStore interface {
 	GetDomainByFQDN(ctx context.Context, fqdn string) (*Domain, error)
 	ListDomainsByApp(ctx context.Context, appID string) ([]Domain, error)
 	DeleteDomain(ctx context.Context, id string) error
+	DeleteDomainsByApp(ctx context.Context, appID string) (int, error)
 	ListAllDomains(ctx context.Context) ([]Domain, error)
 }
 

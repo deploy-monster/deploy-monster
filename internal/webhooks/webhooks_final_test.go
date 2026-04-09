@@ -540,7 +540,10 @@ func (m *finalMockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int)
 func (m *finalMockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
 	return nil, nil
 }
-func (m *finalMockStore) DeleteApp(_ context.Context, _ string) error          { return nil }
+func (m *finalMockStore) DeleteApp(_ context.Context, _ string) error { return nil }
+func (m *finalMockStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
+	return nil, core.ErrNotFound
+}
 func (m *finalMockStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
 func (m *finalMockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, core.ErrNotFound
@@ -551,7 +554,8 @@ func (m *finalMockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.D
 func (m *finalMockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
 	return nil, nil
 }
-func (m *finalMockStore) DeleteDomain(_ context.Context, _ string) error { return nil }
+func (m *finalMockStore) DeleteDomain(_ context.Context, _ string) error            { return nil }
+func (m *finalMockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
 func (m *finalMockStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) {
 	return nil, core.ErrNotFound
 }

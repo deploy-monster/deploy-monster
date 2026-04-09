@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/api/handlers"
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -98,6 +99,9 @@ func (m *Module) Stop(ctx context.Context) error {
 			}
 			m.logger.Info("all in-flight requests drained")
 		}
+
+		// Wait for background goroutines (safeGo) to complete
+		handlers.WaitForBackground()
 
 	shutdown:
 		return m.server.Shutdown(ctx)

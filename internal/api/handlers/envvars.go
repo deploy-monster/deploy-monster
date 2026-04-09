@@ -60,12 +60,29 @@ func (h *EnvVarHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate keys
+	// Validate keys and sizes
+	const maxKeyLen = 256
+	const maxValueLen = 64 * 1024  // 64 KB per value
+	const maxTotalLen = 512 * 1024 // 512 KB total payload
+	var totalSize int
 	for _, v := range req.Vars {
 		if v.Key == "" {
 			writeError(w, http.StatusBadRequest, "empty key not allowed")
 			return
 		}
+		if len(v.Key) > maxKeyLen {
+			writeError(w, http.StatusBadRequest, "env var key exceeds 256 characters")
+			return
+		}
+		if len(v.Value) > maxValueLen {
+			writeError(w, http.StatusBadRequest, "env var value exceeds 64KB limit")
+			return
+		}
+		totalSize += len(v.Key) + len(v.Value)
+	}
+	if totalSize > maxTotalLen {
+		writeError(w, http.StatusBadRequest, "total env vars payload exceeds 512KB limit")
+		return
 	}
 
 	// Serialize and store

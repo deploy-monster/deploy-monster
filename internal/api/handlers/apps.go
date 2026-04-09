@@ -101,6 +101,12 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 		branch = "main"
 	}
 
+	// Check for duplicate app name within tenant
+	if _, err := h.store.GetAppByName(r.Context(), claims.TenantID, req.Name); err == nil {
+		writeError(w, http.StatusConflict, "application with this name already exists")
+		return
+	}
+
 	app := &core.Application{
 		ProjectID:  req.ProjectID,
 		TenantID:   claims.TenantID,
@@ -147,6 +153,17 @@ func (h *AppHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if app == nil {
 		return
 	}
+
+	// Stop and remove containers if runtime is available
+	if rt := h.core.Services.Container; rt != nil {
+		containerName := "dm-" + app.ID
+		_ = rt.Stop(r.Context(), containerName, 10)
+		_ = rt.Remove(r.Context(), containerName, true)
+	}
+
+	// Cascade: delete associated domains
+	h.store.DeleteDomainsByApp(r.Context(), app.ID)
+
 	if err := h.store.DeleteApp(r.Context(), app.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete application")
 		return
@@ -181,6 +198,12 @@ func (h *AppHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	if app == nil {
 		return
 	}
+
+	// Stop container if runtime is available
+	if rt := h.core.Services.Container; rt != nil {
+		_ = rt.Stop(r.Context(), "dm-"+app.ID, 10)
+	}
+
 	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "stopped"); err != nil {
 		writeError(w, http.StatusInternalServerError, "stop failed")
 		return

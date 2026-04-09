@@ -323,6 +323,17 @@ func (m *mockStore) GetApp(_ context.Context, id string) (*core.Application, err
 	return a, nil
 }
 
+func (m *mockStore) GetAppByName(_ context.Context, tenantID, name string) (*core.Application, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, a := range m.apps {
+		if a.TenantID == tenantID && a.Name == name {
+			return a, nil
+		}
+	}
+	return nil, core.ErrNotFound
+}
+
 func (m *mockStore) UpdateApp(_ context.Context, app *core.Application) error {
 	if m.errUpdateApp != nil {
 		return m.errUpdateApp
@@ -572,6 +583,10 @@ func (m *mockStore) DeleteDomain(_ context.Context, id string) error {
 	delete(m.domainsByFQDN, d.FQDN)
 	m.deletedDomainID = id
 	return nil
+}
+
+func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) {
+	return 0, nil
 }
 
 func (m *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {

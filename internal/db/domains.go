@@ -59,6 +59,16 @@ func (s *SQLiteDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.D
 	return domains, rows.Err()
 }
 
+// DeleteDomainsByApp removes all domains for an application. Returns the count deleted.
+func (s *SQLiteDB) DeleteDomainsByApp(ctx context.Context, appID string) (int, error) {
+	result, err := s.ExecContext(ctx, `DELETE FROM domains WHERE app_id = ?`, appID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := result.RowsAffected()
+	return int(n), nil
+}
+
 // ListAllDomains returns all domains across all applications.
 func (s *SQLiteDB) ListAllDomains(ctx context.Context) ([]core.Domain, error) {
 	rows, err := s.QueryContext(ctx,

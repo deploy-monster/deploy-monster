@@ -176,6 +176,10 @@ func (s *mockStore) GetApp(_ context.Context, id string) (*core.Application, err
 	return nil, fmt.Errorf("app not found: %s", id)
 }
 
+func (s *mockStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
+	return nil, core.ErrNotFound
+}
+
 func (s *mockStore) UpdateApp(_ context.Context, _ *core.Application) error { return nil }
 
 func (s *mockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
@@ -230,6 +234,8 @@ func (s *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain
 }
 
 func (s *mockStore) DeleteDomain(_ context.Context, _ string) error { return nil }
+
+func (s *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
 
 func (s *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) { return nil, nil }
 

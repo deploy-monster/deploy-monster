@@ -258,7 +258,10 @@ func (m *pipelineMockStore) ListAppsByTenant(_ context.Context, _ string, _, _ i
 func (m *pipelineMockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
 	return nil, nil
 }
-func (m *pipelineMockStore) DeleteApp(_ context.Context, _ string) error          { return nil }
+func (m *pipelineMockStore) DeleteApp(_ context.Context, _ string) error { return nil }
+func (m *pipelineMockStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
+	return nil, core.ErrNotFound
+}
 func (m *pipelineMockStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
 func (m *pipelineMockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, core.ErrNotFound
@@ -269,7 +272,8 @@ func (m *pipelineMockStore) ListDomainsByApp(_ context.Context, _ string) ([]cor
 func (m *pipelineMockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
 	return nil, nil
 }
-func (m *pipelineMockStore) DeleteDomain(_ context.Context, _ string) error { return nil }
+func (m *pipelineMockStore) DeleteDomain(_ context.Context, _ string) error            { return nil }
+func (m *pipelineMockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
 func (m *pipelineMockStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) {
 	return nil, core.ErrNotFound
 }

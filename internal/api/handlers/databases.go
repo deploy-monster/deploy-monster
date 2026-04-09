@@ -92,7 +92,7 @@ func (h *DatabaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Version:  req.Version,
 	})
 	if err != nil {
-		internalError(w, "provisioning failed", err)
+		internalErrorCtx(r.Context(), w, "provisioning failed", err)
 		return
 	}
 

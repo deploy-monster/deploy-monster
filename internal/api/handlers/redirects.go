@@ -9,13 +9,17 @@ import (
 
 // RedirectHandler manages per-app URL redirect/rewrite rules.
 type RedirectHandler struct {
-	store core.Store
-	bolt  core.BoltStorer
+	store  core.Store
+	bolt   core.BoltStorer
+	events *core.EventBus
 }
 
 func NewRedirectHandler(store core.Store, bolt core.BoltStorer) *RedirectHandler {
 	return &RedirectHandler{store: store, bolt: bolt}
 }
+
+// SetEvents sets the event bus for audit event emission.
+func (h *RedirectHandler) SetEvents(events *core.EventBus) { h.events = events }
 
 // RedirectRule defines a URL redirect or rewrite.
 type RedirectRule struct {
@@ -117,6 +121,11 @@ func (h *RedirectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.bolt.Set("redirects", appID, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update redirects")
 		return
+	}
+
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventRedirectDeleted, "api",
+			map[string]string{"app_id": appID, "rule_id": ruleID}))
 	}
 
 	w.WriteHeader(http.StatusNoContent)

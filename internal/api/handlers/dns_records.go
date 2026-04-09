@@ -10,11 +10,15 @@ import (
 // DNSRecordHandler manages individual DNS records.
 type DNSRecordHandler struct {
 	services *core.Services
+	events   *core.EventBus
 }
 
 func NewDNSRecordHandler(services *core.Services) *DNSRecordHandler {
 	return &DNSRecordHandler{services: services}
 }
+
+// SetEvents sets the event bus for audit event emission.
+func (h *DNSRecordHandler) SetEvents(events *core.EventBus) { h.events = events }
 
 // List handles GET /api/v1/dns/records?domain=example.com
 func (h *DNSRecordHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +42,7 @@ func (h *DNSRecordHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	verified, err := p.Verify(r.Context(), domain)
 	if err != nil {
-		internalError(w, "DNS lookup failed", err)
+		internalErrorCtx(r.Context(), w, "DNS lookup failed", err)
 		return
 	}
 
@@ -76,7 +80,7 @@ func (h *DNSRecordHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := p.CreateRecord(r.Context(), record); err != nil {
-		internalError(w, "failed to create DNS record", err)
+		internalErrorCtx(r.Context(), w, "failed to create DNS record", err)
 		return
 	}
 
@@ -105,8 +109,13 @@ func (h *DNSRecordHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	record := core.DNSRecord{ID: recordID, Name: name}
 	if err := p.DeleteRecord(r.Context(), record); err != nil {
-		internalError(w, "failed to delete DNS record", err)
+		internalErrorCtx(r.Context(), w, "failed to delete DNS record", err)
 		return
+	}
+
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventDNSRecordDeleted, "api",
+			map[string]string{"id": recordID, "name": name}))
 	}
 
 	w.WriteHeader(http.StatusNoContent)

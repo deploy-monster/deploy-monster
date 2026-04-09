@@ -40,6 +40,23 @@ func (s *SQLiteDB) GetApp(ctx context.Context, id string) (*core.Application, er
 	return a, err
 }
 
+// GetAppByName retrieves an application by tenant ID and name.
+func (s *SQLiteDB) GetAppByName(ctx context.Context, tenantID, name string) (*core.Application, error) {
+	a := &core.Application{}
+	err := s.QueryRowContext(ctx,
+		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
+		        dockerfile, build_pack, env_vars_enc, labels_json, replicas, status, COALESCE(server_id,''),
+		        created_at, updated_at
+		 FROM applications WHERE tenant_id = ? AND name = ?`, tenantID, name,
+	).Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType, &a.SourceURL, &a.Branch,
+		&a.Dockerfile, &a.BuildPack, &a.EnvVarsEnc, &a.LabelsJSON, &a.Replicas, &a.Status, &a.ServerID,
+		&a.CreatedAt, &a.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return a, err
+}
+
 // ListAppsByTenant returns all applications for a tenant.
 func (s *SQLiteDB) ListAppsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]core.Application, int, error) {
 	var total int

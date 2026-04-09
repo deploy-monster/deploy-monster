@@ -113,5 +113,10 @@ func (h *EventWebhookHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventEventWebhookDeleted, "api",
+			map[string]string{"id": id}))
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }

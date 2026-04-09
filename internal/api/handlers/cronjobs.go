@@ -9,13 +9,17 @@ import (
 
 // CronJobHandler manages per-app scheduled tasks.
 type CronJobHandler struct {
-	store core.Store
-	bolt  core.BoltStorer
+	store  core.Store
+	bolt   core.BoltStorer
+	events *core.EventBus
 }
 
 func NewCronJobHandler(store core.Store, bolt core.BoltStorer) *CronJobHandler {
 	return &CronJobHandler{store: store, bolt: bolt}
 }
+
+// SetEvents sets the event bus for audit event emission.
+func (h *CronJobHandler) SetEvents(events *core.EventBus) { h.events = events }
 
 // CronJobConfig represents a scheduled task for an app.
 type CronJobConfig struct {
@@ -114,6 +118,11 @@ func (h *CronJobHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.bolt.Set("cronjobs", appID, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update cron jobs")
 		return
+	}
+
+	if h.events != nil {
+		h.events.Publish(r.Context(), core.NewEvent(core.EventCronJobDeleted, "api",
+			map[string]string{"app_id": appID, "job_id": jobID}))
 	}
 
 	w.WriteHeader(http.StatusNoContent)

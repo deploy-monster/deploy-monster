@@ -112,7 +112,10 @@ func (m *mockSecretStore) ListAppsByProject(_ context.Context, _ string) ([]core
 	return nil, nil
 }
 func (m *mockSecretStore) UpdateAppStatus(_ context.Context, _, _ string) error         { return nil }
-func (m *mockSecretStore) DeleteApp(_ context.Context, _ string) error                  { return nil }
+func (m *mockSecretStore) DeleteApp(_ context.Context, _ string) error { return nil }
+func (m *mockSecretStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
+	return nil, core.ErrNotFound
+}
 func (m *mockSecretStore) CreateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
 func (m *mockSecretStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) {
 	return nil, core.ErrNotFound
@@ -130,8 +133,9 @@ func (m *mockSecretStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Do
 func (m *mockSecretStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (m *mockSecretStore) DeleteDomain(_ context.Context, _ string) error          { return nil }
-func (m *mockSecretStore) ListAllDomains(_ context.Context) ([]core.Domain, error) { return nil, nil }
+func (m *mockSecretStore) DeleteDomain(_ context.Context, _ string) error            { return nil }
+func (m *mockSecretStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
+func (m *mockSecretStore) ListAllDomains(_ context.Context) ([]core.Domain, error)  { return nil, nil }
 func (m *mockSecretStore) CreateProject(_ context.Context, _ *core.Project) error  { return nil }
 func (m *mockSecretStore) GetProject(_ context.Context, _ string) (*core.Project, error) {
 	return nil, core.ErrNotFound

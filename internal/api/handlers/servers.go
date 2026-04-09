@@ -133,7 +133,7 @@ func (h *ServerHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		Image:  image,
 	})
 	if err != nil {
-		internalError(w, "provisioning failed", err)
+		internalErrorCtx(r.Context(), w, "provisioning failed", err)
 		return
 	}
 

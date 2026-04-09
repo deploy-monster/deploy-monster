@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -49,7 +50,8 @@ type EventBus struct {
 	subscriptions []*Subscription
 	logger        *slog.Logger
 	onError       func(event Event, sub *Subscription, err error)
-	asyncSem      chan struct{} // semaphore bounding concurrent async handlers
+	asyncSem      chan struct{}  // semaphore bounding concurrent async handlers
+	asyncWG       sync.WaitGroup // tracks in-flight async handlers for graceful drain
 
 	// Metrics
 	publishCount int64
@@ -133,8 +135,20 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 		if sub.Async {
 			// Fire and forget with bounded concurrency — errors logged via onError
 			eb.asyncSem <- struct{}{} // acquire semaphore slot
+			eb.asyncWG.Add(1)
 			go func(s *Subscription) {
+				defer eb.asyncWG.Done()
 				defer func() { <-eb.asyncSem }() // release slot
+				defer func() {
+					if r := recover(); r != nil {
+						eb.mu.Lock()
+						eb.errorCount++
+						eb.mu.Unlock()
+						eb.logger.Error("async event handler panicked",
+							"event", event.Type, "subscriber", s.ID,
+							"panic", r, "stack", string(debug.Stack()))
+					}
+				}()
 				if err := s.handler(ctx, event); err != nil {
 					eb.mu.Lock()
 					eb.errorCount++
@@ -208,6 +222,12 @@ func (eb *EventBus) Stats() EventBusStats {
 		AsyncPoolSize:     cap(eb.asyncSem),
 		AsyncPoolActive:   len(eb.asyncSem),
 	}
+}
+
+// Drain waits for all in-flight async handlers to complete.
+// Call this during graceful shutdown to ensure no events are lost.
+func (eb *EventBus) Drain() {
+	eb.asyncWG.Wait()
 }
 
 // EventBusStats holds event bus metrics.
@@ -341,6 +361,25 @@ const (
 	// Notification (sent by notification module)
 	EventNotificationSent   = "notification.sent"
 	EventNotificationFailed = "notification.failed"
+
+	// Project
+	EventProjectCreated = "project.created"
+	EventProjectDeleted = "project.deleted"
+
+	// CronJob
+	EventCronJobDeleted = "cronjob.deleted"
+
+	// DNS Record
+	EventDNSRecordDeleted = "dns_record.deleted"
+
+	// Event Webhook
+	EventEventWebhookDeleted = "event_webhook.deleted"
+
+	// Redirect
+	EventRedirectDeleted = "redirect.deleted"
+
+	// Service Mesh
+	EventServiceMeshDeleted = "service_mesh.deleted"
 
 	// System
 	EventSystemStarted       = "system.started"
