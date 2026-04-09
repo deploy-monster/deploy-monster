@@ -85,12 +85,41 @@ func TestValidateVolumePaths(t *testing.T) {
 		{"dot-dot only", map[string]string{"..": "/app"}, true},
 	}
 
+	// Docker socket tests use Unix paths — only run on Linux where containers execute
+	if runtime.GOOS != "windows" {
+		tests = append(tests,
+			struct {
+				name    string
+				volumes map[string]string
+				wantErr bool
+			}{"docker socket blocked", map[string]string{"/var/run/docker.sock": "/var/run/docker.sock"}, true},
+			struct {
+				name    string
+				volumes map[string]string
+				wantErr bool
+			}{"docker socket alt path blocked", map[string]string{"/run/docker.sock": "/var/run/docker.sock"}, true},
+		)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := &ContainerOpts{Volumes: tt.volumes}
 			err := opts.ValidateVolumePaths()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidateVolumePaths() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+
+	// Docker socket allowed when AllowDockerSocket is set (Linux only)
+	if runtime.GOOS != "windows" {
+		t.Run("docker socket allowed with flag", func(t *testing.T) {
+			opts := &ContainerOpts{
+				Volumes:           map[string]string{"/var/run/docker.sock": "/var/run/docker.sock"},
+				AllowDockerSocket: true,
+			}
+			if err := opts.ValidateVolumePaths(); err != nil {
+				t.Errorf("ValidateVolumePaths() with AllowDockerSocket should pass, got: %v", err)
 			}
 		})
 	}

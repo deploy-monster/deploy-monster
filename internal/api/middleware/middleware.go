@@ -47,13 +47,20 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(sw, r)
 
-			logger.Info("request",
+			attrs := []any{
 				"method", r.Method,
 				"path", r.URL.Path,
 				"status", sw.status,
 				"duration", time.Since(start).String(),
 				"ip", realIP(r),
-			)
+			}
+			if traceID := GetTraceID(r.Context()); traceID != "" {
+				attrs = append(attrs, "trace_id", traceID)
+			}
+			if reqID := GetRequestID(r.Context()); reqID != "" {
+				attrs = append(attrs, "request_id", reqID)
+			}
+			logger.Info("request", attrs...)
 		})
 	}
 }

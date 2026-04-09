@@ -181,7 +181,7 @@
 - [x] No hardcoded secrets in source code
 - [x] ~~**CONCERN:**~~ Config file may contain API tokens in plaintext — **FIXED** (AuditSecrets() warns on startup about plaintext secrets, 15 env var overrides for all secret-bearing fields)
 - [x] ~~**MISSING:**~~ Secrets rotation mechanism for master key — **FIXED** (`deploymonster rotate-keys --new-key=X` re-encrypts all secret versions with new key)
-- [ ] **CONCERN:** Docker socket access grants root-level host control
+- [x] ~~**CONCERN:**~~ Docker socket access grants root-level host control — **FIXED** (ValidateVolumePaths blocks socket mounts by default, AllowDockerSocket flag for marketplace apps, containers run with dropped capabilities + no-new-privileges)
 
 ### 3.5 Security Vulnerabilities Found
 
@@ -287,7 +287,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 ### 6.3 Tracing
 
 - [x] Request ID for correlation within a request
-- [ ] **MISSING:** Distributed tracing (OpenTelemetry)
+- [x] ~~**MISSING:**~~ Distributed tracing — **FIXED** (W3C Trace Context propagation: `traceparent` header parsed/generated, trace_id in all log lines, span ID generated per request)
 - [x] ~~**MISSING:**~~ pprof endpoints for profiling (`/debug/pprof/*`, opt-in via `enable_pprof`, auth-protected) — **FIXED**
 - [x] ~~**MISSING:**~~ Cross-module event tracing (CorrelationID on Event, propagated from request ID via context) — **FIXED**
 
@@ -322,7 +322,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] BBolt crash-safe storage
 - [x] ~~**MISSING:**~~ Migration rollback (`Rollback(steps)` + `.down.sql` files) — **FIXED**
 - [x] ~~**MISSING:**~~ Database backup automation (built-in cron) — **ALREADY IMPLEMENTED** (backup scheduler runs at configurable HH:MM, default 02:00, with retention cleanup; S3 storage now auto-registered when configured)
-- [ ] **MISSING:** Point-in-time recovery
+- [x] ~~**MISSING:**~~ Point-in-time recovery — **FIXED** (SQLite WAL checkpoint + `VACUUM INTO` for consistent snapshot, DBSnapshotter interface, backup scheduler auto-uploads DB snapshots to storage)
 
 ### 7.4 Infrastructure
 

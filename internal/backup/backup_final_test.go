@@ -99,7 +99,7 @@ func TestScheduler_Loop_StopCh(t *testing.T) {
 		"local": &mockBackupStorage{},
 	}
 
-	s := NewScheduler(nil, storages, events, "02:00", testLogger())
+	s := NewScheduler(nil, storages, events, nil, "02:00", testLogger())
 	s.Start()
 
 	// Give the goroutine time to start
@@ -126,7 +126,7 @@ func TestScheduler_RunBackups_EmitsCorrectEvents(t *testing.T) {
 	}
 
 	store := &mockStore{}
-	s := NewScheduler(store, storages, events, "02:00", testLogger())
+	s := NewScheduler(store, storages, events, nil, "02:00", testLogger())
 	s.runBackups()
 
 	if len(published) != 2 {

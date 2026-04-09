@@ -146,6 +146,33 @@ func (s *SQLiteDB) migrate() error {
 	return nil
 }
 
+// Checkpoint forces a WAL checkpoint, flushing all WAL content into the main database file.
+// This should be called before creating a file-level backup to ensure consistency.
+// Uses TRUNCATE mode: writes all WAL pages to DB then truncates the WAL file to zero bytes.
+func (s *SQLiteDB) Checkpoint() error {
+	_, err := s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+	return err
+}
+
+// SnapshotBackup creates a consistent point-in-time copy of the database.
+// It first checkpoints the WAL, then copies the database file to destPath.
+// The copy is safe because SQLite in WAL mode allows concurrent reads during checkpoint.
+func (s *SQLiteDB) SnapshotBackup(ctx context.Context, destPath string) error {
+	// Force WAL checkpoint first to ensure all data is in the main DB file
+	if err := s.Checkpoint(); err != nil {
+		return fmt.Errorf("checkpoint before backup: %w", err)
+	}
+
+	// Use SQLite's built-in backup API via VACUUM INTO (available since SQLite 3.27.0)
+	// This creates a complete, consistent copy without holding locks for the entire duration.
+	_, err := s.db.ExecContext(ctx, "VACUUM INTO ?", destPath)
+	if err != nil {
+		return fmt.Errorf("vacuum into %s: %w", destPath, err)
+	}
+
+	return nil
+}
+
 // Rollback reverts the last n applied migrations by executing their .down.sql counterparts.
 // If steps <= 0, it rolls back all migrations.
 func (s *SQLiteDB) Rollback(steps int) error {

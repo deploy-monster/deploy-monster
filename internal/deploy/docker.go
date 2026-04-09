@@ -82,8 +82,24 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 		Labels: opts.Labels,
 	}
 
-	// Host config
-	hostCfg := &container.HostConfig{}
+	// Host config with security hardening
+	hostCfg := &container.HostConfig{
+		SecurityOpt: []string{"no-new-privileges"},
+	}
+
+	if opts.Privileged {
+		hostCfg.Privileged = true
+		hostCfg.SecurityOpt = nil // Privileged mode overrides security opts
+	} else {
+		// Drop all capabilities, add back only what's needed for typical web apps
+		hostCfg.CapDrop = []string{"ALL"}
+		hostCfg.CapAdd = []string{
+			"CHOWN", "SETUID", "SETGID", // File ownership + process identity
+			"NET_BIND_SERVICE", // Bind ports < 1024
+			"DAC_OVERRIDE",     // Read/write files regardless of permission
+		}
+	}
+
 	if opts.CPUQuota > 0 {
 		hostCfg.Resources.CPUQuota = opts.CPUQuota
 	}

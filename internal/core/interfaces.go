@@ -42,20 +42,30 @@ type ContainerRuntime interface {
 
 // ContainerOpts holds options for creating a container.
 type ContainerOpts struct {
-	Name          string
-	Image         string
-	Env           []string
-	Labels        map[string]string
-	Ports         map[string]string // "containerPort": "hostPort"
-	Volumes       map[string]string // "hostPath": "containerPath"
-	Network       string
-	CPUQuota      int64
-	MemoryMB      int64
-	RestartPolicy string
+	Name              string
+	Image             string
+	Env               []string
+	Labels            map[string]string
+	Ports             map[string]string // "containerPort": "hostPort"
+	Volumes           map[string]string // "hostPath": "containerPath"
+	Network           string
+	CPUQuota          int64
+	MemoryMB          int64
+	RestartPolicy     string
+	AllowDockerSocket bool // Explicitly allow Docker socket mount (marketplace apps only)
+	Privileged        bool // Run in privileged mode (marketplace apps only)
 }
 
-// ValidateVolumePaths checks volume mount host paths for path traversal attacks.
-// It rejects paths containing "..", relative paths, and null bytes.
+// dangerousPaths contains host paths that tenant containers must never mount
+// unless explicitly allowed. The Docker socket grants root-level host control.
+var dangerousPaths = []string{
+	"/var/run/docker.sock",
+	"/run/docker.sock",
+	"/var/run/docker",
+}
+
+// ValidateVolumePaths checks volume mount host paths for path traversal attacks
+// and blocks access to sensitive host paths (Docker socket).
 func (o *ContainerOpts) ValidateVolumePaths() error {
 	for hostPath := range o.Volumes {
 		if strings.Contains(hostPath, "\x00") {
@@ -65,6 +75,18 @@ func (o *ContainerOpts) ValidateVolumePaths() error {
 		if strings.Contains(cleaned, "..") {
 			return fmt.Errorf("volume host path %q contains path traversal", hostPath)
 		}
+
+		// Block Docker socket mounts unless explicitly allowed.
+		// Use forward-slash normalized path for cross-platform comparison.
+		normalizedPath := strings.ReplaceAll(cleaned, "\\", "/")
+		if !o.AllowDockerSocket {
+			for _, dangerous := range dangerousPaths {
+				if normalizedPath == dangerous {
+					return fmt.Errorf("volume host path %q is blocked — Docker socket access requires AllowDockerSocket", hostPath)
+				}
+			}
+		}
+
 		if !filepath.IsAbs(cleaned) {
 			return fmt.Errorf("volume host path %q must be absolute", hostPath)
 		}
@@ -298,8 +320,15 @@ type GitRepo struct {
 
 // Database wraps the SQLite and BBolt stores as a unified data access layer.
 type Database struct {
-	SQL  *sql.DB
-	Bolt BoltStorer
+	SQL         *sql.DB
+	Bolt        BoltStorer
+	Snapshotter DBSnapshotter // optional, set when the DB supports snapshot backup
+}
+
+// DBSnapshotter creates consistent point-in-time database copies.
+// Implemented by SQLiteDB via WAL checkpoint + VACUUM INTO.
+type DBSnapshotter interface {
+	SnapshotBackup(ctx context.Context, destPath string) error
 }
 
 // BoltBatchItem represents a single write in a batch operation.

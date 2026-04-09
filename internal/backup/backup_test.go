@@ -793,7 +793,7 @@ func TestS3Storage_List_ReturnsError(t *testing.T) {
 func TestNewScheduler(t *testing.T) {
 	storages := map[string]core.BackupStorage{}
 	events := core.NewEventBus(testLogger())
-	s := NewScheduler(nil, storages, events, "03:00", testLogger())
+	s := NewScheduler(nil, storages, events, nil, "03:00", testLogger())
 
 	if s == nil {
 		t.Fatal("NewScheduler() returned nil")
@@ -806,7 +806,7 @@ func TestNewScheduler(t *testing.T) {
 func TestScheduler_StartAndStop(t *testing.T) {
 	storages := map[string]core.BackupStorage{}
 	events := core.NewEventBus(testLogger())
-	s := NewScheduler(nil, storages, events, "02:00", testLogger())
+	s := NewScheduler(nil, storages, events, nil, "02:00", testLogger())
 
 	s.Start()
 
@@ -988,7 +988,7 @@ func TestScheduler_RunBackups(t *testing.T) {
 	}
 
 	store := &mockStore{}
-	s := NewScheduler(store, storages, events, "02:00", testLogger())
+	s := NewScheduler(store, storages, events, nil, "02:00", testLogger())
 	s.runBackups()
 
 	// Should have published backup.started and backup.completed

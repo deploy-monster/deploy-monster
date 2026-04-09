@@ -72,7 +72,11 @@ func (m *Module) Start(_ context.Context) error {
 	if schedule == "" {
 		schedule = "02:00"
 	}
-	m.scheduler = NewScheduler(m.store, m.storages, m.core.Events, schedule, m.logger)
+	var snapshotter core.DBSnapshotter
+	if m.core.DB != nil {
+		snapshotter = m.core.DB.Snapshotter
+	}
+	m.scheduler = NewScheduler(m.store, m.storages, m.core.Events, snapshotter, schedule, m.logger)
 	m.scheduler.Start()
 
 	m.logger.Info("backup engine started", "storages", m.StorageNames(), "schedule", schedule)

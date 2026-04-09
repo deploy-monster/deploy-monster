@@ -84,6 +84,7 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	}
 	if m.sqlite != nil {
 		c.DB.SQL = m.sqlite.DB()
+		c.DB.Snapshotter = m.sqlite
 	}
 
 	return nil

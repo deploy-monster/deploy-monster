@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -15,23 +16,25 @@ import (
 
 // Scheduler runs backup jobs on a cron schedule.
 type Scheduler struct {
-	store    core.Store
-	storages map[string]core.BackupStorage
-	events   *core.EventBus
-	schedule string // cron expression (simplified: "HH:MM" daily)
-	logger   *slog.Logger
-	stopCh   chan struct{}
+	store       core.Store
+	storages    map[string]core.BackupStorage
+	events      *core.EventBus
+	snapshotter core.DBSnapshotter
+	schedule    string // cron expression (simplified: "HH:MM" daily)
+	logger      *slog.Logger
+	stopCh      chan struct{}
 }
 
 // NewScheduler creates a backup scheduler.
-func NewScheduler(store core.Store, storages map[string]core.BackupStorage, events *core.EventBus, schedule string, logger *slog.Logger) *Scheduler {
+func NewScheduler(store core.Store, storages map[string]core.BackupStorage, events *core.EventBus, snapshotter core.DBSnapshotter, schedule string, logger *slog.Logger) *Scheduler {
 	return &Scheduler{
-		store:    store,
-		storages: storages,
-		events:   events,
-		schedule: schedule,
-		logger:   logger,
-		stopCh:   make(chan struct{}),
+		store:       store,
+		storages:    storages,
+		events:      events,
+		snapshotter: snapshotter,
+		schedule:    schedule,
+		logger:      logger,
+		stopCh:      make(chan struct{}),
 	}
 }
 
@@ -85,6 +88,31 @@ func (s *Scheduler) runBackups() {
 	if storage == nil {
 		s.logger.Error("no backup storage configured")
 		return
+	}
+
+	// Create database snapshot if snapshotter is available
+	if s.snapshotter != nil {
+		snapshotName := fmt.Sprintf("db-snapshot-%s.db", time.Now().Format("20060102-150405"))
+		snapshotPath := fmt.Sprintf("/tmp/%s", snapshotName)
+		if err := s.snapshotter.SnapshotBackup(ctx, snapshotPath); err != nil {
+			s.logger.Error("database snapshot failed", "error", err)
+		} else {
+			// Upload snapshot to storage
+			if storage != nil {
+				key := fmt.Sprintf("_system/db/%s", snapshotName)
+				if data, readErr := os.Open(snapshotPath); readErr == nil {
+					if fi, statErr := data.Stat(); statErr == nil {
+						if uploadErr := storage.Upload(ctx, key, data, fi.Size()); uploadErr != nil {
+							s.logger.Error("snapshot upload failed", "error", uploadErr)
+						} else {
+							s.logger.Info("database snapshot uploaded", "key", key, "size", fi.Size())
+						}
+					}
+					data.Close()
+				}
+				os.Remove(snapshotPath)
+			}
+		}
 	}
 
 	// Iterate all tenants and their apps
