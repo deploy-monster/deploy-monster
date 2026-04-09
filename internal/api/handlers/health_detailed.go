@@ -6,16 +6,23 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/api/middleware"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // DetailedHealthHandler provides deep health checks for each subsystem.
 type DetailedHealthHandler struct {
-	core *core.Core
+	core      *core.Core
+	rateLimit *middleware.GlobalRateLimiter
 }
 
 func NewDetailedHealthHandler(c *core.Core) *DetailedHealthHandler {
 	return &DetailedHealthHandler{core: c}
+}
+
+// SetRateLimiter sets the global rate limiter for stats reporting.
+func (h *DetailedHealthHandler) SetRateLimiter(rl *middleware.GlobalRateLimiter) {
+	h.rateLimit = rl
 }
 
 // DetailedHealth handles GET /health/detailed
@@ -64,6 +71,16 @@ func (h *DetailedHealthHandler) DetailedHealth(w http.ResponseWriter, r *http.Re
 		"published":     evStats.PublishCount,
 		"errors":        evStats.ErrorCount,
 		"subscriptions": evStats.SubscriptionCount,
+	}
+
+	// Rate limiter
+	if h.rateLimit != nil {
+		rlStats := h.rateLimit.Stats()
+		checks["rate_limiter"] = map[string]any{
+			"healthy":         true,
+			"rate_per_minute": rlStats.Rate,
+			"active_clients":  rlStats.ActiveClients,
+		}
 	}
 
 	// Runtime

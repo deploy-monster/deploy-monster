@@ -136,6 +136,44 @@ func TestStatusWriter_DefaultStatus(t *testing.T) {
 	}
 }
 
+func TestStatusWriter_TracksBytesWritten(t *testing.T) {
+	rr := httptest.NewRecorder()
+	sw := &statusWriter{ResponseWriter: rr, status: http.StatusOK}
+
+	n1, err := sw.Write([]byte("hello"))
+	if err != nil {
+		t.Fatalf("Write error: %v", err)
+	}
+	if n1 != 5 {
+		t.Errorf("Write returned %d, want 5", n1)
+	}
+
+	n2, err := sw.Write([]byte(" world"))
+	if err != nil {
+		t.Fatalf("Write error: %v", err)
+	}
+	if n2 != 6 {
+		t.Errorf("Write returned %d, want 6", n2)
+	}
+
+	if sw.bytesWritten != 11 {
+		t.Errorf("bytesWritten = %d, want 11", sw.bytesWritten)
+	}
+
+	if rr.Body.String() != "hello world" {
+		t.Errorf("body = %q, want 'hello world'", rr.Body.String())
+	}
+}
+
+func TestStatusWriter_ZeroBytesDefault(t *testing.T) {
+	rr := httptest.NewRecorder()
+	sw := &statusWriter{ResponseWriter: rr, status: http.StatusOK}
+
+	if sw.bytesWritten != 0 {
+		t.Errorf("bytesWritten should be 0 initially, got %d", sw.bytesWritten)
+	}
+}
+
 // ── IsDraining test ─────────────────────────────────────────────────────────
 
 func TestGracefulShutdown_IsDraining(t *testing.T) {

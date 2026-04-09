@@ -83,6 +83,23 @@ func (rl *GlobalRateLimiter) setRateLimitHeaders(w http.ResponseWriter, remainin
 	w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", resetAt.Unix()))
 }
 
+// RateLimitStats holds point-in-time rate limiter statistics.
+type RateLimitStats struct {
+	Rate          int `json:"rate_per_window"`
+	ActiveClients int `json:"active_clients"`
+}
+
+// Stats returns current rate limiter statistics.
+func (rl *GlobalRateLimiter) Stats() RateLimitStats {
+	rl.mu.Lock()
+	n := len(rl.clients)
+	rl.mu.Unlock()
+	return RateLimitStats{
+		Rate:          rl.rate,
+		ActiveClients: n,
+	}
+}
+
 // Stop terminates the background cleanup goroutine.
 func (rl *GlobalRateLimiter) Stop() {
 	close(rl.stopCh)

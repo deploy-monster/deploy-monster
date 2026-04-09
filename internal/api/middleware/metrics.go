@@ -18,6 +18,7 @@ type APIMetrics struct {
 	activeRequests atomic.Int64
 	totalErrors    atomic.Int64
 	totalLatencyUS atomic.Int64 // microseconds cumulative
+	totalBytesOut  atomic.Int64 // total response bytes
 	statusCounts   sync.Map     // status code string -> *atomic.Int64
 	endpointCounts sync.Map     // "METHOD /path" -> *atomic.Int64
 
@@ -79,6 +80,7 @@ func (m *APIMetrics) Middleware(next http.Handler) http.Handler {
 		m.activeRequests.Add(-1)
 		m.totalRequests.Add(1)
 		m.totalLatencyUS.Add(time.Since(start).Microseconds())
+		m.totalBytesOut.Add(int64(sw.bytesWritten))
 
 		if sw.status >= 500 {
 			m.totalErrors.Add(1)
@@ -126,6 +128,10 @@ func (m *APIMetrics) Handler() http.HandlerFunc {
 		sb.WriteString("\n# HELP api_latency_avg_microseconds Average request latency\n")
 		sb.WriteString("# TYPE api_latency_avg_microseconds gauge\n")
 		sb.WriteString(fmt.Sprintf("api_latency_avg_microseconds %.2f\n", avgLatency))
+
+		sb.WriteString("\n# HELP api_response_bytes_total Total response bytes sent\n")
+		sb.WriteString("# TYPE api_response_bytes_total counter\n")
+		sb.WriteString(fmt.Sprintf("api_response_bytes_total %d\n", m.totalBytesOut.Load()))
 
 		sb.WriteString("\n# HELP api_requests_by_status Total requests by status code\n")
 		sb.WriteString("# TYPE api_requests_by_status counter\n")

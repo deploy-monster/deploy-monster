@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -251,5 +252,74 @@ func TestGlobalRateLimiter_XForwardedFor(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusTooManyRequests {
 		t.Errorf("same forwarded IP should be rate limited, got %d", rr.Code)
+	}
+}
+
+func TestGlobalRateLimiter_Stats(t *testing.T) {
+	rl := NewGlobalRateLimiter(10, time.Minute)
+	defer rl.Stop()
+
+	stats := rl.Stats()
+	if stats.ActiveClients != 0 {
+		t.Errorf("initial ActiveClients = %d, want 0", stats.ActiveClients)
+	}
+	if stats.Rate != 10 {
+		t.Errorf("Rate = %d, want 10", stats.Rate)
+	}
+
+	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Make requests from 3 different IPs
+	for _, ip := range []string{"1.1.1.1:1", "2.2.2.2:2", "3.3.3.3:3"} {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.RemoteAddr = ip
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+	}
+
+	stats = rl.Stats()
+	if stats.ActiveClients != 3 {
+		t.Errorf("ActiveClients = %d, want 3", stats.ActiveClients)
+	}
+}
+
+func TestAPIMetrics_TracksBytesOut(t *testing.T) {
+	m := NewAPIMetrics()
+	handler := m.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("hello world")) // 11 bytes
+	}))
+
+	req := httptest.NewRequest("GET", "/api/v1/apps", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if m.totalBytesOut.Load() != 11 {
+		t.Errorf("totalBytesOut = %d, want 11", m.totalBytesOut.Load())
+	}
+
+	// Second request
+	req = httptest.NewRequest("GET", "/api/v1/apps", nil)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if m.totalBytesOut.Load() != 22 {
+		t.Errorf("totalBytesOut = %d, want 22", m.totalBytesOut.Load())
+	}
+}
+
+func TestRequestLogger_IncludesBytes(t *testing.T) {
+	handler := RequestLogger(slog.Default())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("test"))
+	}))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	// Just verify it doesn't panic and response is correct
+	if rr.Body.String() != "test" {
+		t.Errorf("body = %q, want 'test'", rr.Body.String())
 	}
 }

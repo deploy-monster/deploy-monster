@@ -82,6 +82,7 @@ func (r *Router) registerRoutes() {
 	r.mux.HandleFunc("GET /api/v1/health", r.handleHealth)
 	r.mux.HandleFunc("GET /readyz", r.handleReadiness)
 	detailedH := handlers.NewDetailedHealthHandler(r.core)
+	detailedH.SetRateLimiter(r.globalRL)
 	r.mux.HandleFunc("GET /health/detailed", detailedH.DetailedHealth)
 
 	// ── OpenAPI Spec (cacheable) ──────────────────────

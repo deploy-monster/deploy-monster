@@ -85,6 +85,7 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 				"method", r.Method,
 				"path", r.URL.Path,
 				"status", sw.status,
+				"bytes", sw.bytesWritten,
 				"duration", time.Since(start).String(),
 				"ip", realIP(r),
 			}
@@ -288,15 +289,22 @@ func RequireAPIKey(bolt core.BoltStorer) func(http.Handler) http.Handler {
 	}
 }
 
-// statusWriter wraps ResponseWriter to capture the status code.
+// statusWriter wraps ResponseWriter to capture the status code and bytes written.
 type statusWriter struct {
 	http.ResponseWriter
-	status int
+	status       int
+	bytesWritten int
 }
 
 func (sw *statusWriter) WriteHeader(code int) {
 	sw.status = code
 	sw.ResponseWriter.WriteHeader(code)
+}
+
+func (sw *statusWriter) Write(b []byte) (int, error) {
+	n, err := sw.ResponseWriter.Write(b)
+	sw.bytesWritten += n
+	return n, err
 }
 
 func realIP(r *http.Request) string {
