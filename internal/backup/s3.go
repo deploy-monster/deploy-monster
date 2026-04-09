@@ -186,6 +186,7 @@ func (s *S3Storage) Download(ctx context.Context, key string) (io.ReadCloser, er
 			return fmt.Errorf("S3 download: %w", err)
 		}
 		if resp.StatusCode >= 400 {
+			io.Copy(io.Discard, resp.Body)
 			resp.Body.Close()
 			return fmt.Errorf("S3 download failed: HTTP %d", resp.StatusCode)
 		}

@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
-	mrand "math/rand/v2"
+	"math/big"
 )
 
 // GenerateID returns a 16-character hex random ID.
@@ -29,8 +29,13 @@ func GenerateSecret(length int) string {
 func GeneratePassword(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
+	max := big.NewInt(int64(len(charset)))
 	for i := range b {
-		b[i] = charset[mrand.IntN(len(charset))]
+		n, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			panic("crypto/rand failed: " + err.Error())
+		}
+		b[i] = charset[n.Int64()]
 	}
 	return string(b)
 }

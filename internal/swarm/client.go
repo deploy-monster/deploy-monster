@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -137,6 +138,7 @@ func (c *AgentClient) dial(ctx context.Context) error {
 		conn.Close()
 		return fmt.Errorf("read upgrade response: %w", err)
 	}
+	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {

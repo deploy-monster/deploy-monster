@@ -101,6 +101,7 @@ func (s *Scheduler) runBackups() {
 			if storage != nil {
 				key := fmt.Sprintf("_system/db/%s", snapshotName)
 				if data, readErr := os.Open(snapshotPath); readErr == nil {
+					defer data.Close()
 					if fi, statErr := data.Stat(); statErr == nil {
 						if uploadErr := storage.Upload(ctx, key, data, fi.Size()); uploadErr != nil {
 							s.logger.Error("snapshot upload failed", "error", uploadErr)
@@ -108,7 +109,6 @@ func (s *Scheduler) runBackups() {
 							s.logger.Info("database snapshot uploaded", "key", key, "size", fi.Size())
 						}
 					}
-					data.Close()
 				}
 				os.Remove(snapshotPath)
 			}
