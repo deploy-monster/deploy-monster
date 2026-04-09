@@ -10,6 +10,8 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/ingress"
 )
 
+const watcherSyncInterval = 10 * time.Second
+
 // Watcher monitors container changes and updates the route table.
 type Watcher struct {
 	runtime    core.ContainerRuntime
@@ -39,7 +41,7 @@ func (w *Watcher) Start(ctx context.Context) {
 	w.syncRoutes(ctx)
 
 	// Periodic resync every 10 seconds
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(watcherSyncInterval)
 	defer ticker.Stop()
 
 	for {

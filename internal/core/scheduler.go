@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const schedulerTickInterval = 30 * time.Second
+
 // CronJob represents a scheduled recurring task.
 type CronJob struct {
 	ID       string
@@ -66,7 +68,7 @@ func (s *Scheduler) Start() {
 				s.logger.Error("panic in scheduler", "error", r)
 			}
 		}()
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(schedulerTickInterval)
 		defer ticker.Stop()
 
 		for {

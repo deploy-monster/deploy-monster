@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const acmeRenewalInterval = 24 * time.Hour
+
 // ACMEManager handles automatic SSL certificate provisioning via Let's Encrypt.
 // Uses HTTP-01 challenge by default. Certificates are cached in CertStore.
 type ACMEManager struct {
@@ -102,7 +104,7 @@ func (a *ACMEManager) issueCertificate(domain string) {
 
 // RenewalLoop checks all certificates daily and renews those expiring within 30 days.
 func (a *ACMEManager) RenewalLoop(ctx context.Context) {
-	ticker := time.NewTicker(24 * time.Hour)
+	ticker := time.NewTicker(acmeRenewalInterval)
 	defer ticker.Stop()
 
 	for {

@@ -69,6 +69,11 @@ func (m *Module) Start(_ context.Context) error {
 	}
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				m.logger.Error("panic in ingress HTTP server", "error", r)
+			}
+		}()
 		m.logger.Info("ingress HTTP listening", "addr", httpAddr)
 		ln, err := net.Listen("tcp", httpAddr)
 		if err != nil {
@@ -93,6 +98,11 @@ func (m *Module) Start(_ context.Context) error {
 		}
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					m.logger.Error("panic in ingress HTTPS server", "error", r)
+				}
+			}()
 			m.logger.Info("ingress HTTPS listening", "addr", httpsAddr)
 			ln, err := net.Listen("tcp", httpsAddr)
 			if err != nil {

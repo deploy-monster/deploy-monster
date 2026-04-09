@@ -93,7 +93,10 @@ func (h *AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Dismiss handles DELETE /api/v1/admin/announcements/{id}
 func (h *AnnouncementHandler) Dismiss(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	id, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
 
 	var list announcementList
 	if err := h.bolt.Get("announcements", "all", &list); err != nil {
@@ -108,6 +111,9 @@ func (h *AnnouncementHandler) Dismiss(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_ = h.bolt.Set("announcements", "all", list, 0)
+	if err := h.bolt.Set("announcements", "all", list, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update announcement")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

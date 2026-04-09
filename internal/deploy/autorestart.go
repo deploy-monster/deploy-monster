@@ -8,6 +8,8 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
+const autoRestartCheckInterval = 30 * time.Second
+
 // AutoRestarter monitors containers and restarts crashed ones.
 // Listens for container.died events and attempts restart with backoff.
 type AutoRestarter struct {
@@ -40,7 +42,7 @@ func (ar *AutoRestarter) Start() {
 
 	// Periodic check for crashed containers
 	core.SafeGo(ar.logger, "autorestart-check", func() {
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(autoRestartCheckInterval)
 		defer ticker.Stop()
 
 		for range ticker.C {

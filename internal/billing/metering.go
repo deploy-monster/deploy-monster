@@ -8,6 +8,8 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
+const meterCollectInterval = 60 * time.Second
+
 // Meter collects resource usage per tenant for billing.
 // Every 60 seconds it samples Docker stats and records usage.
 type Meter struct {
@@ -35,7 +37,7 @@ func (m *Meter) Start() {
 				m.logger.Error("panic in metering loop", "error", r)
 			}
 		}()
-		ticker := time.NewTicker(60 * time.Second)
+		ticker := time.NewTicker(meterCollectInterval)
 		defer ticker.Stop()
 
 		for {

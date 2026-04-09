@@ -12,6 +12,8 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
+const imageCheckInterval = 6 * time.Hour
+
 // ImageUpdateChecker polls Docker registries for newer image versions.
 type ImageUpdateChecker struct {
 	store  core.Store
@@ -44,7 +46,7 @@ type ImageUpdate struct {
 // Start begins periodic update checking (every 6 hours).
 func (c *ImageUpdateChecker) Start() {
 	core.SafeGo(c.logger, "image-update-checker", func() {
-		ticker := time.NewTicker(6 * time.Hour)
+		ticker := time.NewTicker(imageCheckInterval)
 		defer ticker.Stop()
 
 		for {

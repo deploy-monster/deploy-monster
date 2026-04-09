@@ -11,6 +11,8 @@ import (
 const (
 	// maxRingPoints is the maximum number of data points kept per app per period.
 	maxRingPoints = 288 // 24h at 30s intervals = 2880, we keep 288 (5-min resolution by dropping)
+	// resourceCollectInterval is how often resource metrics are collected.
+	resourceCollectInterval = 30 * time.Second
 )
 
 func init() {
@@ -156,7 +158,7 @@ func (m *Module) appendPoint(key string, point metricsPoint) metricsRing {
 }
 
 func (m *Module) collectionLoop() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(resourceCollectInterval)
 	defer ticker.Stop()
 
 	for {
