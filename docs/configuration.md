@@ -28,7 +28,8 @@ All environment variables use the `MONSTER_` prefix.
 | `MONSTER_DOCKER_HOST` | `docker.host` | `unix:///var/run/docker.sock` | Docker daemon socket/host |
 | `MONSTER_ACME_EMAIL` | `acme.email` | _(empty)_ | Email for Let's Encrypt certificate registration |
 | `MONSTER_REGISTRATION_MODE` | `registration.mode` | `open` | User registration mode (see below) |
-| `MONSTER_LOG_LEVEL` | — | `info` | Log level (debug, info, warn, error) |
+| `MONSTER_LOG_LEVEL` | `server.log_level` | `info` | Log level (debug, info, warn, error) |
+| `MONSTER_LOG_FORMAT` | `server.log_format` | `text` | Log format: `text` (human-readable) or `json` (structured) |
 | `MONSTER_ADMIN_EMAIL` | — | `admin@deploymonster.local` | Initial admin email (first-run setup only) |
 | `MONSTER_ADMIN_PASSWORD` | — | _(auto-generated)_ | Initial admin password (first-run setup only) |
 
@@ -45,6 +46,8 @@ server:
   previous_secret_keys: []   # Old signing keys for graceful JWT rotation
   cors_origins: ""           # Comma-separated origins (auto-derived from domain if empty)
   enable_pprof: false        # Enable Go pprof profiling endpoints
+  log_level: "info"          # debug, info, warn, error
+  log_format: "text"         # text (human-readable) or json (structured, for log aggregators)
 ```
 
 ### database
@@ -231,3 +234,88 @@ acme:
 ```
 
 Everything else uses sensible defaults. The secret key is auto-generated on first run if not specified.
+
+## Log Rotation
+
+DeployMonster writes logs to stdout/stderr. Use your platform's native log management to handle rotation and retention.
+
+### systemd (recommended for bare-metal)
+
+```ini
+# /etc/systemd/system/deploymonster.service
+[Service]
+ExecStart=/usr/local/bin/deploymonster
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=deploymonster
+```
+
+Query logs:
+```bash
+journalctl -u deploymonster --since "1 hour ago"
+journalctl -u deploymonster -f              # follow
+journalctl -u deploymonster -o json         # JSON output for parsing
+```
+
+Configure retention in `/etc/systemd/journald.conf`:
+```ini
+[Journal]
+SystemMaxUse=500M
+MaxRetentionSec=30day
+```
+
+### logrotate (traditional)
+
+If running with output redirected to a file:
+
+```
+# /etc/logrotate.d/deploymonster
+/var/log/deploymonster/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+```
+
+### Docker
+
+When running DeployMonster in a container, configure the Docker logging driver:
+
+```bash
+docker run -d \
+  --log-driver json-file \
+  --log-opt max-size=50m \
+  --log-opt max-file=5 \
+  ghcr.io/deploy-monster/deploy-monster:latest
+```
+
+Or set defaults in `/etc/docker/daemon.json`:
+```json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "5"
+  }
+}
+```
+
+### Structured JSON logs
+
+For log aggregators (ELK, Loki, Datadog), enable JSON format:
+
+```yaml
+server:
+  log_format: "json"
+```
+
+Or via environment variable:
+```bash
+export MONSTER_LOG_FORMAT=json
+```
+
+Each log line includes `time`, `level`, `msg`, `module`, and contextual fields like `request_id` and `correlation_id`.
