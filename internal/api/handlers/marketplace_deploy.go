@@ -70,7 +70,7 @@ func (h *MarketplaceDeployHandler) Deploy(w http.ResponseWriter, r *http.Request
 	// Parse the compose file
 	cf, err := compose.Parse(yamlData)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid template compose: "+err.Error())
+		writeError(w, http.StatusBadRequest, "invalid template compose")
 		return
 	}
 

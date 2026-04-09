@@ -71,7 +71,7 @@ func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 
 	cf, err := ic.Parse(yamlData)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid compose yaml: "+err.Error())
+		writeError(w, http.StatusBadRequest, "invalid compose yaml")
 		return
 	}
 

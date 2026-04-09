@@ -47,8 +47,14 @@ func (h *DBBackupHandler) Backup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
 
+	ctx := r.Context()
 	buf := make([]byte, 32*1024)
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		n, err := f.Read(buf)
 		if n > 0 {
 			w.Write(buf[:n])

@@ -87,8 +87,14 @@ func (h *BackupHandler) Download(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename="+key)
 
+	ctx := r.Context()
 	buf := make([]byte, 32*1024)
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		n, err := reader.Read(buf)
 		if n > 0 {
 			w.Write(buf[:n])

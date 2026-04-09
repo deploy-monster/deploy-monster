@@ -77,7 +77,7 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	// Validate cert/key pair
 	cert, err := tls.X509KeyPair([]byte(req.CertPEM), []byte(req.KeyPEM))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid certificate/key pair: "+err.Error())
+		writeError(w, http.StatusBadRequest, "invalid certificate/key pair")
 		return
 	}
 
