@@ -54,3 +54,39 @@ func TestSecurityHeaders_CallsNext(t *testing.T) {
 		t.Errorf("expected 201, got %d", rec.Code)
 	}
 }
+
+func TestSecurityHeaders_NoCacheOnAPIRoutes(t *testing.T) {
+	handler := SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// API route should have no-cache headers
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control = %q, want %q for API route", got, "no-store")
+	}
+	if got := rec.Header().Get("Pragma"); got != "no-cache" {
+		t.Errorf("Pragma = %q, want %q for API route", got, "no-cache")
+	}
+}
+
+func TestSecurityHeaders_NoCacheNotOnStaticRoutes(t *testing.T) {
+	handler := SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Non-API route should NOT have no-cache headers (allow browser caching of static assets)
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Cache-Control"); got != "" {
+		t.Errorf("Cache-Control = %q, want empty for non-API route", got)
+	}
+	if got := rec.Header().Get("Pragma"); got != "" {
+		t.Errorf("Pragma = %q, want empty for non-API route", got)
+	}
+}

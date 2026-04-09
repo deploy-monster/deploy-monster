@@ -96,12 +96,17 @@ func CheckDockerHubTag(ctx context.Context, image, tag string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
 
 	var result struct {
 		Digest      string `json:"digest"`
 		LastUpdated string `json:"last_updated"`
 	}
-	json.Unmarshal(body, &result)
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", err
+	}
 	return result.Digest, nil
 }

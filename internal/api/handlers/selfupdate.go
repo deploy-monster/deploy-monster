@@ -47,6 +47,9 @@ func (h *SelfUpdateHandler) CheckUpdate(w http.ResponseWriter, _ *http.Request) 
 	})
 }
 
+// updateClient is a dedicated HTTP client for update checks with transport-level timeout.
+var updateClient = &http.Client{Timeout: 15 * time.Second}
+
 func checkLatestRelease() (version, url string, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -57,17 +60,23 @@ func checkLatestRelease() (version, url string, err error) {
 		return "", "", err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := updateClient.Do(req)
 	if err != nil {
 		return "", "", err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", err
+	}
 
 	var release struct {
 		TagName string `json:"tag_name"`
 		HTMLURL string `json:"html_url"`
 	}
-	json.Unmarshal(body, &release)
+	if err := json.Unmarshal(body, &release); err != nil {
+		return "", "", err
+	}
 	return release.TagName, release.HTMLURL, nil
 }
