@@ -414,8 +414,8 @@ Items fixed in tier 12:
 - ~~Log rotation documentation~~ — **FIXED**: `docs/configuration.md` updated with systemd journal, logrotate, Docker logging driver, and structured JSON log guidance
 
 Remaining (future improvements, not blocking production):
-1. OpenTelemetry distributed tracing
-2. PostgreSQL Store implementation
+1. ~~OpenTelemetry distributed tracing~~ — **DONE** (W3C Trace Context propagation)
+2. ~~PostgreSQL Store implementation~~ — **DONE** (1126-line implementation with all 12 sub-interfaces)
 3. Playwright end-to-end tests
 
 ### Go/No-Go Recommendation

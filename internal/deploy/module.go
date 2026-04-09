@@ -50,6 +50,14 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	}
 	m.docker = docker
 
+	// Apply container resource defaults from config
+	if c.Config.Docker.DefaultCPUQuota > 0 || c.Config.Docker.DefaultMemoryMB > 0 {
+		docker.SetResourceDefaults(c.Config.Docker.DefaultCPUQuota, c.Config.Docker.DefaultMemoryMB)
+		m.logger.Info("container resource defaults set",
+			"cpu_quota", c.Config.Docker.DefaultCPUQuota,
+			"memory_mb", c.Config.Docker.DefaultMemoryMB)
+	}
+
 	// Register container runtime in service registry
 	c.Services.Container = docker
 

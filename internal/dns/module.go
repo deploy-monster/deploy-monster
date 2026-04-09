@@ -78,4 +78,9 @@ func (m *Module) Stop(_ context.Context) error {
 	}
 	return nil
 }
-func (m *Module) Health() core.HealthStatus { return core.HealthOK }
+func (m *Module) Health() core.HealthStatus {
+	if m.syncQueue == nil {
+		return core.HealthDegraded
+	}
+	return core.HealthOK
+}

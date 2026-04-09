@@ -90,6 +90,11 @@ func (r *Router) registerRoutes() {
 	webhookRecv := webhooks.NewReceiver(r.store, r.core.DB.Bolt, r.core.Events, r.core.Logger)
 	r.mux.HandleFunc("POST /hooks/v1/{webhookID}", webhookRecv.HandleWebhook)
 
+	// Track outbound webhook delivery success/failure in BBolt
+	deliveryTracker := webhooks.NewDeliveryTracker(r.core.DB.Bolt, r.core.Events)
+	deliveryTracker.Start()
+	_ = deliveryTracker // tracked via event subscriptions, no direct reference needed
+
 	// ── Dashboard ─────────────────────────────────────
 	dashH := handlers.NewDashboardHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.Handle("GET /api/v1/dashboard/stats", protected(http.HandlerFunc(dashH.Stats)))

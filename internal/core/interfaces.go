@@ -94,6 +94,17 @@ func (o *ContainerOpts) ValidateVolumePaths() error {
 	return nil
 }
 
+// ApplyResourceDefaults sets CPU and memory limits from config defaults
+// when the caller hasn't specified them. This prevents unbounded containers.
+func (o *ContainerOpts) ApplyResourceDefaults(defaultCPU, defaultMemoryMB int64) {
+	if o.CPUQuota <= 0 && defaultCPU > 0 {
+		o.CPUQuota = defaultCPU
+	}
+	if o.MemoryMB <= 0 && defaultMemoryMB > 0 {
+		o.MemoryMB = defaultMemoryMB
+	}
+}
+
 // ContainerInfo holds basic container information.
 type ContainerInfo struct {
 	ID      string

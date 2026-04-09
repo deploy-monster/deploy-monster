@@ -22,7 +22,9 @@ var _ core.ContainerRuntime = (*DockerManager)(nil)
 
 // DockerManager wraps the Docker SDK client for container operations.
 type DockerManager struct {
-	cli *client.Client
+	cli          *client.Client
+	defaultCPU   int64 // Default CPU quota (microseconds per 100ms period)
+	defaultMemMB int64 // Default memory limit in MB
 }
 
 // NewDockerManager creates a new Docker manager with API version negotiation.
@@ -48,6 +50,13 @@ func NewDockerManager(host string) (*DockerManager, error) {
 	return &DockerManager{cli: cli}, nil
 }
 
+// SetResourceDefaults configures default CPU and memory limits applied to
+// containers that don't specify their own limits.
+func (d *DockerManager) SetResourceDefaults(cpuQuota, memoryMB int64) {
+	d.defaultCPU = cpuQuota
+	d.defaultMemMB = memoryMB
+}
+
 // Ping verifies the Docker connection.
 func (d *DockerManager) Ping() error {
 	_, err := d.cli.Ping(context.Background())
@@ -62,6 +71,9 @@ func (d *DockerManager) Close() error {
 // CreateAndStart implements core.ContainerRuntime.
 // It pulls the image, creates the container, and starts it.
 func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerOpts) (string, error) {
+	// Apply resource defaults for containers that don't specify limits
+	opts.ApplyResourceDefaults(d.defaultCPU, d.defaultMemMB)
+
 	// Validate volume paths before doing anything
 	if err := opts.ValidateVolumePaths(); err != nil {
 		return "", fmt.Errorf("invalid container opts: %w", err)

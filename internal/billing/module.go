@@ -55,4 +55,9 @@ func (m *Module) Stop(_ context.Context) error {
 	}
 	return nil
 }
-func (m *Module) Health() core.HealthStatus { return core.HealthOK }
+func (m *Module) Health() core.HealthStatus {
+	if m.core != nil && m.core.Config.Billing.Enabled && m.meter == nil {
+		return core.HealthDegraded
+	}
+	return core.HealthOK
+}

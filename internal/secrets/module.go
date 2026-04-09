@@ -58,7 +58,12 @@ func (m *Module) Start(_ context.Context) error {
 }
 
 func (m *Module) Stop(_ context.Context) error { return nil }
-func (m *Module) Health() core.HealthStatus    { return core.HealthOK }
+func (m *Module) Health() core.HealthStatus {
+	if m.vault == nil {
+		return core.HealthDown
+	}
+	return core.HealthOK
+}
 
 // Vault returns the encryption vault.
 func (m *Module) Vault() *Vault { return m.vault }

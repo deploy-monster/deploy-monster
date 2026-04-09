@@ -259,8 +259,9 @@ func TestModule_Events(t *testing.T) {
 
 func TestModule_Health(t *testing.T) {
 	m := New()
-	if h := m.Health(); h != core.HealthOK {
-		t.Errorf("Health() = %v, want HealthOK", h)
+	// Before Start(), syncQueue is nil → Degraded
+	if h := m.Health(); h != core.HealthDegraded {
+		t.Errorf("Health() before start = %v, want HealthDegraded", h)
 	}
 }
 

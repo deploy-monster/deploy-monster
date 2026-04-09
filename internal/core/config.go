@@ -75,9 +75,11 @@ type DNSConfig struct {
 
 // DockerConfig holds Docker connection configuration.
 type DockerConfig struct {
-	Host       string `yaml:"host"`
-	APIVersion string `yaml:"api_version"`
-	TLSVerify  bool   `yaml:"tls_verify"`
+	Host            string `yaml:"host"`
+	APIVersion      string `yaml:"api_version"`
+	TLSVerify       bool   `yaml:"tls_verify"`
+	DefaultCPUQuota int64  `yaml:"default_cpu_quota"` // Default CPU quota per container (microseconds per 100ms period, 100000 = 1 core)
+	DefaultMemoryMB int64  `yaml:"default_memory_mb"` // Default memory limit per container in MB
 }
 
 // BackupConfig holds backup configuration.
@@ -328,6 +330,8 @@ func applyDefaults(cfg *Config) {
 	cfg.ACME.Staging = false
 	cfg.ACME.Provider = "http-01"
 	cfg.Docker.Host = "unix:///var/run/docker.sock"
+	cfg.Docker.DefaultCPUQuota = 100000 // 1 CPU core
+	cfg.Docker.DefaultMemoryMB = 512    // 512 MB
 	cfg.Backup.RetentionDays = 30
 	cfg.Backup.StoragePath = "/var/lib/deploymonster/backups"
 	cfg.Backup.Encryption = true
@@ -366,6 +370,16 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("MONSTER_DOCKER_HOST"); v != "" {
 		cfg.Docker.Host = v
+	}
+	if v := os.Getenv("MONSTER_DOCKER_CPU_QUOTA"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			cfg.Docker.DefaultCPUQuota = n
+		}
+	}
+	if v := os.Getenv("MONSTER_DOCKER_MEMORY_MB"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			cfg.Docker.DefaultMemoryMB = n
+		}
 	}
 	if v := os.Getenv("MONSTER_LOG_LEVEL"); v != "" {
 		cfg.Server.LogLevel = v

@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ---------------------------------------------------------------------------
@@ -259,9 +261,9 @@ func TestModule_Identity(t *testing.T) {
 
 func TestModule_Health(t *testing.T) {
 	m := New()
-	// Before Init, Health should still return HealthOK
-	if m.Health() != 0 { // core.HealthOK == 0
-		t.Errorf("Health: expected HealthOK (0), got %d", m.Health())
+	// Before Init, vault is nil → HealthDown
+	if m.Health() != core.HealthDown {
+		t.Errorf("Health before Init: expected HealthDown, got %d", m.Health())
 	}
 }
 

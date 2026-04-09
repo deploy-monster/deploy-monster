@@ -137,8 +137,14 @@ func TestModuleEvents(t *testing.T) {
 
 func TestModuleHealth(t *testing.T) {
 	m := New()
+	// Empty storages → Degraded
+	if h := m.Health(); h != core.HealthDegraded {
+		t.Errorf("Health() with no storages = %v, want HealthDegraded", h)
+	}
+	// With storage → OK
+	m.RegisterStorage("local", &mockBackupStorage{})
 	if h := m.Health(); h != core.HealthOK {
-		t.Errorf("Health() = %v, want HealthOK", h)
+		t.Errorf("Health() with storage = %v, want HealthOK", h)
 	}
 }
 
