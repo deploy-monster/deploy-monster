@@ -1280,6 +1280,7 @@ func (s *testStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core
 type testBoltStore struct{}
 
 func (b *testBoltStore) Set(_, _ string, _ any, _ int64) error { return nil }
+func (b *testBoltStore) BatchSet(_ []core.BoltBatchItem) error { return nil }
 func (b *testBoltStore) Get(_, _ string, _ any) error          { return fmt.Errorf("key not found") }
 func (b *testBoltStore) Delete(_, _ string) error              { return nil }
 func (b *testBoltStore) List(_ string) ([]string, error)       { return nil, nil }

@@ -105,6 +105,7 @@ type NotificationConfig struct {
 	SlackWebhook   string `yaml:"slack_webhook"`
 	DiscordWebhook string `yaml:"discord_webhook"`
 	TelegramToken  string `yaml:"telegram_token"`
+	TelegramChatID string `yaml:"telegram_chat_id"`
 }
 
 // SwarmConfig holds Docker Swarm configuration.

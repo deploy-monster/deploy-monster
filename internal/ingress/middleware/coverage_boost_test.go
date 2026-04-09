@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
@@ -232,6 +233,15 @@ func (m *mockBoltStorer) Set(bucket, key string, value any, _ int64) error {
 	}
 	// Store as-is (mock)
 	m.data[bucket][key] = nil
+	return nil
+}
+
+func (m *mockBoltStorer) BatchSet(items []core.BoltBatchItem) error {
+	for _, item := range items {
+		if err := m.Set(item.Bucket, item.Key, item.Value, item.TTL); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

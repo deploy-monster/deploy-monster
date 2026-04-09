@@ -91,64 +91,68 @@ func (m *Module) collectOnce() {
 	metrics := m.collector.CollectServer(ctx)
 	if metrics != nil {
 		m.alerter.Evaluate(ctx, metrics)
-		m.storeServerMetrics(metrics)
 	}
 
 	containerMetrics := m.collector.CollectContainers(ctx)
-	for _, cm := range containerMetrics {
-		if cm.AppID != "" {
-			m.storeAppMetrics(cm)
+
+	// Batch all metrics into a single BBolt transaction
+	m.batchStoreMetrics(metrics, containerMetrics)
+}
+
+// batchStoreMetrics persists all collected metrics to BBolt in a single transaction.
+func (m *Module) batchStoreMetrics(server *core.ServerMetrics, containers []core.ContainerMetrics) {
+	if m.bolt == nil {
+		return
+	}
+
+	var items []core.BoltBatchItem
+
+	// Server metrics
+	if server != nil {
+		key := "server:" + server.ServerID + ":24h"
+		ring := m.appendPoint(key, metricsPoint{
+			Timestamp:  server.Timestamp,
+			CPUPercent: server.CPUPercent,
+			MemoryMB:   server.RAMUsedMB,
+		})
+		items = append(items, core.BoltBatchItem{Bucket: "metrics_ring", Key: key, Value: ring})
+	}
+
+	// Container metrics
+	for _, cm := range containers {
+		if cm.AppID == "" {
+			continue
 		}
+		key := cm.AppID + ":24h"
+		ring := m.appendPoint(key, metricsPoint{
+			Timestamp:  cm.Timestamp,
+			CPUPercent: cm.CPUPercent,
+			MemoryMB:   cm.RAMUsedMB,
+			NetworkRx:  cm.NetworkRxMB,
+			NetworkTx:  cm.NetworkTxMB,
+		})
+		items = append(items, core.BoltBatchItem{Bucket: "metrics_ring", Key: key, Value: ring})
 	}
-}
 
-// storeServerMetrics persists server-level metrics to BBolt for the history API.
-func (m *Module) storeServerMetrics(sm *core.ServerMetrics) {
-	if m.bolt == nil {
+	if len(items) == 0 {
 		return
 	}
 
-	key := "server:" + sm.ServerID + ":24h"
-	point := metricsPoint{
-		Timestamp:  sm.Timestamp,
-		CPUPercent: sm.CPUPercent,
-		MemoryMB:   sm.RAMUsedMB,
+	if err := m.bolt.BatchSet(items); err != nil {
+		m.logger.Debug("failed to batch-persist metrics", "count", len(items), "error", err)
 	}
-	m.appendToRing(key, point)
 }
 
-// storeAppMetrics persists per-app container metrics to BBolt for the history API.
-func (m *Module) storeAppMetrics(cm core.ContainerMetrics) {
-	if m.bolt == nil {
-		return
-	}
-
-	key := cm.AppID + ":24h"
-	point := metricsPoint{
-		Timestamp:  cm.Timestamp,
-		CPUPercent: cm.CPUPercent,
-		MemoryMB:   cm.RAMUsedMB,
-		NetworkRx:  cm.NetworkRxMB,
-		NetworkTx:  cm.NetworkTxMB,
-	}
-	m.appendToRing(key, point)
-}
-
-// appendToRing appends a data point to a ring buffer in BBolt, capping at maxRingPoints.
-func (m *Module) appendToRing(key string, point metricsPoint) {
+// appendPoint reads the existing ring, appends a point, trims to max, and returns the updated ring.
+func (m *Module) appendPoint(key string, point metricsPoint) metricsRing {
 	var ring metricsRing
 	_ = m.bolt.Get("metrics_ring", key, &ring) // ignore error if not found
 
 	ring.Points = append(ring.Points, point)
-
-	// Trim to max ring size
 	if len(ring.Points) > maxRingPoints {
 		ring.Points = ring.Points[len(ring.Points)-maxRingPoints:]
 	}
-
-	if err := m.bolt.Set("metrics_ring", key, ring, 0); err != nil {
-		m.logger.Debug("failed to persist metrics", "key", key, "error", err)
-	}
+	return ring
 }
 
 func (m *Module) collectionLoop() {

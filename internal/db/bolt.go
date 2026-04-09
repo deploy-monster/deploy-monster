@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
 	bolt "go.etcd.io/bbolt"
 )
@@ -103,6 +104,43 @@ func (b *BoltStore) Set(bucket, key string, value any, ttlSeconds int64) error {
 			return fmt.Errorf("bucket %q not found", bucket)
 		}
 		return bkt.Put([]byte(key), raw)
+	})
+}
+
+// BatchSet writes multiple key-value pairs in a single transaction.
+// All items are committed atomically — if any write fails, the entire batch is rolled back.
+func (b *BoltStore) BatchSet(items []core.BoltBatchItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	return b.db.Update(func(tx *bolt.Tx) error {
+		for _, item := range items {
+			bkt := tx.Bucket([]byte(item.Bucket))
+			if bkt == nil {
+				return fmt.Errorf("bucket %q not found", item.Bucket)
+			}
+
+			data, err := json.Marshal(item.Value)
+			if err != nil {
+				return fmt.Errorf("marshal value for %s/%s: %w", item.Bucket, item.Key, err)
+			}
+
+			entry := boltEntry{Data: data}
+			if item.TTL > 0 {
+				entry.ExpiresAt = time.Now().Unix() + item.TTL
+			}
+
+			raw, err := json.Marshal(entry)
+			if err != nil {
+				return fmt.Errorf("marshal entry for %s/%s: %w", item.Bucket, item.Key, err)
+			}
+
+			if err := bkt.Put([]byte(item.Key), raw); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

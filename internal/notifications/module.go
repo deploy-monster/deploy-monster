@@ -38,6 +38,27 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 
 	m.dispatcher = NewDispatcher()
 
+	// Auto-register providers from configuration
+	if c.Config != nil {
+		cfg := c.Config.Notifications
+		if cfg.SlackWebhook != "" {
+			m.dispatcher.RegisterProvider(NewSlackProvider(cfg.SlackWebhook))
+			m.logger.Info("slack provider registered")
+		}
+		if cfg.DiscordWebhook != "" {
+			m.dispatcher.RegisterProvider(NewDiscordProvider(cfg.DiscordWebhook))
+			m.logger.Info("discord provider registered")
+		}
+		if cfg.TelegramToken != "" {
+			chatID := c.Config.Notifications.TelegramChatID
+			if chatID == "" {
+				chatID = "0" // placeholder, admin configures via API
+			}
+			m.dispatcher.RegisterProvider(NewTelegramProvider(cfg.TelegramToken, chatID))
+			m.logger.Info("telegram provider registered")
+		}
+	}
+
 	// Register the dispatcher as the notification sender in Services
 	c.Services.Notifications = m
 
@@ -49,8 +70,7 @@ func (m *Module) Start(_ context.Context) error {
 	// Each event type can be configured with notification rules
 	// (which channels, which recipients) in the future.
 	m.core.Events.SubscribeAsync("alert.*", func(ctx context.Context, event core.Event) error {
-		m.logger.Info("alert event received", "type", event.Type)
-		// In future phases, this will dispatch to configured channels
+		m.dispatchAlert(ctx, event)
 		return nil
 	})
 
@@ -115,4 +135,38 @@ func (m *Module) Send(ctx context.Context, notification core.Notification) error
 func (m *Module) RegisterProvider(provider Provider) {
 	m.dispatcher.RegisterProvider(provider)
 	m.logger.Info("notification provider registered", "provider", provider.Name())
+}
+
+// dispatchAlert extracts alert data and sends notifications to all registered providers.
+func (m *Module) dispatchAlert(ctx context.Context, event core.Event) {
+	data, ok := event.Data.(core.AlertEventData)
+	if !ok {
+		m.logger.Warn("alert event has unexpected data type", "type", event.Type)
+		return
+	}
+
+	severityIcon := map[string]string{
+		"critical": "[CRITICAL]",
+		"warning":  "[WARNING]",
+		"info":     "[INFO]",
+	}
+	icon := severityIcon[data.Severity]
+	if icon == "" {
+		icon = "[ALERT]"
+	}
+
+	subject := fmt.Sprintf("%s %s", icon, data.Name)
+	body := fmt.Sprintf("%s\nResource: %s\nSeverity: %s", data.Message, data.Resource, data.Severity)
+
+	// Send to all registered providers
+	for _, name := range m.dispatcher.Providers() {
+		if err := m.Send(ctx, core.Notification{
+			Channel: name,
+			Subject: subject,
+			Body:    body,
+			Format:  "text",
+		}); err != nil {
+			m.logger.Warn("alert notification failed", "channel", name, "alert", data.Name, "error", err)
+		}
+	}
 }

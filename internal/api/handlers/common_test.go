@@ -900,6 +900,15 @@ func (m *mockBoltStore) Set(bucket, key string, value any, _ int64) error {
 	return nil
 }
 
+func (m *mockBoltStore) BatchSet(items []core.BoltBatchItem) error {
+	for _, item := range items {
+		if err := m.Set(item.Bucket, item.Key, item.Value, item.TTL); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *mockBoltStore) Get(bucket, key string, dest any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

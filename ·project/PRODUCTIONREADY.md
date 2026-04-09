@@ -199,7 +199,7 @@
 ### 4.1 Known Performance Issues
 
 - **SQLite single-writer:** MaxOpenConns=1. Writes serialize. Under heavy write load (many concurrent deploys), DB becomes bottleneck.
-- **BBolt serialization:** All BBolt operations are serialized. Metrics writes at 1-second intervals could contend with config reads.
+- **BBolt serialization:** BBolt operations are serialized, but metrics now use BatchSet (single transaction per collection cycle) to minimize lock contention.
 - **Image pull blocking:** Docker image pull blocks the handler until complete. No streaming progress to UI during pull.
 - ~~**No HTTP caching:**~~ **FIXED** — ETag middleware on marketplace list, marketplace detail, and OpenAPI spec endpoints. CacheControl middleware helper available.
 
@@ -210,7 +210,7 @@
 - [x] SQLite connection limits (MaxOpenConns=1, MaxIdleConns=2)
 - [x] ~~**MISSING:**~~ Bounded goroutine pool for async event handlers (semaphore, default 64 workers) — **FIXED**
 - [x] ~~**MISSING:**~~ HTTP client timeouts for external API calls — already present (15-30s on all 13+ clients)
-- [ ] **MISSING:** BBolt write batching for metrics
+- [x] ~~**MISSING:**~~ BBolt write batching for metrics — **FIXED** (BatchSet method on BoltStorer, resource module batches all server+container metrics into single transaction)
 
 ### 4.3 Frontend Performance
 
@@ -282,7 +282,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] ~~**MISSING:**~~ Prometheus metrics for API layer (`/metrics/api` endpoint) — **FIXED**
 - [x] ~~**MISSING:**~~ Business metrics (deploys_total, builds_total, apps_created/deleted, eventbus stats) — **FIXED**
 - [x] ~~**MISSING:**~~ Resource utilization metrics via API — **FIXED** (collection loop persists container+server metrics to BBolt ring buffer, powering /metrics history endpoints)
-- [ ] **MISSING:** Alerting thresholds and notification integration
+- [x] ~~**MISSING:**~~ Alerting thresholds and notification integration — **FIXED** (AlertEngine evaluates CPU/RAM/disk thresholds, emits alert.* events; notification module subscribes and dispatches to all registered providers: Slack, Discord, Telegram)
 
 ### 6.3 Tracing
 
@@ -331,7 +331,7 @@ The high coverage numbers are genuine — table-driven tests with comprehensive 
 - [x] Multi-platform Docker images via GoReleaser
 - [ ] **MISSING:** Staging environment
 - [ ] **MISSING:** Zero-downtime deployment for the platform itself
-- [ ] **MISSING:** Automated rollback on failed deploy
+- [x] ~~**MISSING:**~~ Automated rollback on failed deploy — **FIXED** (AutoRollbackManager subscribes to deploy.failed, rolls back to last stable version with 5-min cooldown)
 
 ---
 

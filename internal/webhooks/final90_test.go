@@ -235,7 +235,8 @@ type mockBoltWithSecret struct {
 	err    error
 }
 
-func (m *mockBoltWithSecret) Set(_, _ string, _ any, _ int64) error { return nil }
+func (m *mockBoltWithSecret) Set(_, _ string, _ any, _ int64) error    { return nil }
+func (m *mockBoltWithSecret) BatchSet(_ []core.BoltBatchItem) error    { return nil }
 func (m *mockBoltWithSecret) Get(_, _ string, _ any) error { return fmt.Errorf("not found") }
 func (m *mockBoltWithSecret) Delete(_, _ string) error { return nil }
 func (m *mockBoltWithSecret) List(_ string) ([]string, error) { return nil, nil }

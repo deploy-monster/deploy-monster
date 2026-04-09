@@ -74,6 +74,10 @@ func (m *Module) Start(ctx context.Context) error {
 		// Start image update checker
 		imageChecker := NewImageUpdateChecker(m.store, m.core.Events, m.logger)
 		imageChecker.Start()
+
+		// Start auto-rollback on failed deployments
+		autoRollback := NewAutoRollbackManager(m.store, m.docker, m.core.Events, m.logger)
+		autoRollback.Start()
 	}
 
 	m.logger.Info("deploy module started")

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
@@ -29,6 +30,15 @@ func newFullMockBoltStorer() *fullMockBoltStorer {
 	return &fullMockBoltStorer{
 		data: make(map[string]map[string][]byte),
 	}
+}
+
+func (m *fullMockBoltStorer) BatchSet(items []core.BoltBatchItem) error {
+	for _, item := range items {
+		if err := m.Set(item.Bucket, item.Key, item.Value, item.TTL); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *fullMockBoltStorer) Set(bucket, key string, value any, _ int64) error {

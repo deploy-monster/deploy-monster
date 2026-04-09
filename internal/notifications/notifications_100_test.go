@@ -291,5 +291,6 @@ func setupFinalCore(t *testing.T) *core.Core {
 		Logger:   slog.Default(),
 		Events:   events,
 		Services: &core.Services{},
+		Config:   &core.Config{},
 	}
 }

@@ -302,9 +302,18 @@ type Database struct {
 	Bolt BoltStorer
 }
 
+// BoltBatchItem represents a single write in a batch operation.
+type BoltBatchItem struct {
+	Bucket string
+	Key    string
+	Value  any
+	TTL    int64 // seconds, 0 = no expiry
+}
+
 // BoltStorer is the interface for BBolt key-value operations.
 type BoltStorer interface {
 	Set(bucket, key string, value any, ttlSeconds int64) error
+	BatchSet(items []BoltBatchItem) error // write multiple keys in one transaction
 	Get(bucket, key string, dest any) error
 	Delete(bucket, key string) error
 	List(bucket string) ([]string, error)

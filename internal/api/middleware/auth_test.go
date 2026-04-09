@@ -43,6 +43,10 @@ func (m *mockBoltStore) Set(bucket, key string, value any, ttlSeconds int64) err
 	return nil
 }
 
+func (m *mockBoltStore) BatchSet(_ []core.BoltBatchItem) error {
+	return nil
+}
+
 func (m *mockBoltStore) Get(bucket, key string, dest any) error {
 	return nil
 }
