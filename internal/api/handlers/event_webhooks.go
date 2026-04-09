@@ -69,6 +69,14 @@ func (h *EventWebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "url and events are required")
 		return
 	}
+	if len(req.URL) > 2048 {
+		writeError(w, http.StatusBadRequest, "url must be 2048 characters or less")
+		return
+	}
+	if len(req.Events) > 50 {
+		writeError(w, http.StatusBadRequest, "events list must have 50 entries or less")
+		return
+	}
 
 	req.ID = core.GenerateID()
 	req.Active = true

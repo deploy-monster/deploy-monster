@@ -83,8 +83,9 @@ func TestModuleEvents(t *testing.T) {
 
 func TestModuleHealth(t *testing.T) {
 	m := New()
-	if h := m.Health(); h != core.HealthOK {
-		t.Errorf("Health() = %v, want HealthOK", h)
+	// Uninitialized module has no container runtime — should be degraded
+	if h := m.Health(); h != core.HealthDegraded {
+		t.Errorf("Health() = %v, want HealthDegraded (no runtime)", h)
 	}
 }
 

@@ -17,6 +17,13 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/webhooks"
 )
 
+const (
+	maxBodySize        = 10 << 20 // 10MB global request body limit
+	maxWebhookBody     = 1 << 20  // 1MB for inbound webhook payloads
+	requestTimeout     = 30 * time.Second
+	apiKeyCleanupEvery = 1 * time.Hour
+)
+
 // Router sets up all HTTP routes for the API.
 type Router struct {
 	mux              *http.ServeMux
@@ -67,8 +74,8 @@ func (r *Router) Handler() http.Handler {
 		middleware.SecurityHeaders,
 		r.apiMetrics.Middleware,
 		middleware.APIVersion(r.core.Build.Version),
-		middleware.BodyLimit(10<<20),       // 10MB max request body
-		middleware.Timeout(30*time.Second), // 30s request timeout
+		middleware.BodyLimit(maxBodySize),
+		middleware.Timeout(requestTimeout),
 		middleware.Recovery(r.core.Logger),
 		middleware.RequestLogger(r.core.Logger),
 		middleware.CORS(r.core.Config.Server.CORSOrigins),
@@ -118,7 +125,7 @@ func (r *Router) registerRoutes() {
 	// Tighter 1MB body limit for external webhook payloads (vs global 10MB)
 	webhookRecv := webhooks.NewReceiver(r.store, r.core.DB.Bolt, r.core.Events, r.core.Logger)
 	r.mux.Handle("POST /hooks/v1/{webhookID}",
-		middleware.BodyLimit(1<<20)(http.HandlerFunc(webhookRecv.HandleWebhook)))
+		middleware.BodyLimit(maxWebhookBody)(http.HandlerFunc(webhookRecv.HandleWebhook)))
 
 	// Track outbound webhook delivery success/failure in BBolt
 	deliveryTracker := webhooks.NewDeliveryTracker(r.core.DB.Bolt, r.core.Events)
@@ -698,7 +705,7 @@ func (r *Router) registerRoutes() {
 				slog.Error("panic in API key cleanup", "error", r)
 			}
 		}()
-		ticker := time.NewTicker(1 * time.Hour)
+		ticker := time.NewTicker(apiKeyCleanupEvery)
 		defer ticker.Stop()
 		for {
 			select {

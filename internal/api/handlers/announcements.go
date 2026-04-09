@@ -65,6 +65,15 @@ func (h *AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(a.Title) > 200 {
+		writeError(w, http.StatusBadRequest, "title must be 200 characters or less")
+		return
+	}
+	if len(a.Body) > 10000 {
+		writeError(w, http.StatusBadRequest, "body must be 10000 characters or less")
+		return
+	}
+
 	a.ID = core.GenerateID()
 	a.Active = true
 	a.CreatedAt = time.Now()

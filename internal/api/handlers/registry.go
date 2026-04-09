@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -100,10 +101,12 @@ func (h *RegistryHandler) Add(w http.ResponseWriter, r *http.Request) {
 
 	// Store credentials separately (password never in the list response)
 	if req.Password != "" {
-		_ = h.bolt.Set("registry_creds", newReg.ID, map[string]string{
+		if err := h.bolt.Set("registry_creds", newReg.ID, map[string]string{
 			"username": req.Username,
 			"password": req.Password,
-		}, 0)
+		}, 0); err != nil {
+			slog.Error("failed to store registry credentials", "registry_id", newReg.ID, "error", err)
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{

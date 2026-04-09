@@ -47,9 +47,9 @@ func TestModule_FullLifecycle(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	// Health
-	if h := m.Health(); h != core.HealthOK {
-		t.Errorf("Health() = %v, want HealthOK", h)
+	// Health — no container runtime configured, should be degraded
+	if h := m.Health(); h != core.HealthDegraded {
+		t.Errorf("Health() = %v, want HealthDegraded (no container runtime)", h)
 	}
 
 	// Stop

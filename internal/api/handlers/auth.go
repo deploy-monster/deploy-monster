@@ -286,7 +286,9 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	// Revoke the old refresh token (rotation)
 	if h.bolt != nil && rtClaims.JTI != "" {
-		_ = h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds)
+		if err := h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
+			slog.Error("failed to revoke refresh token", "jti", rtClaims.JTI, "error", err)
+		}
 	}
 
 	// Generate new token pair
@@ -335,7 +337,9 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	// Revoke the token
 	if h.bolt != nil && rtClaims.JTI != "" {
-		_ = h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds)
+		if err := h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
+			slog.Error("failed to revoke refresh token on logout", "jti", rtClaims.JTI, "error", err)
+		}
 	}
 
 	clearTokenCookies(w)

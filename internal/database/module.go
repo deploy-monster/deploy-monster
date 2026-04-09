@@ -41,4 +41,10 @@ func (m *Module) Start(_ context.Context) error {
 }
 
 func (m *Module) Stop(_ context.Context) error { return nil }
-func (m *Module) Health() core.HealthStatus    { return core.HealthOK }
+
+func (m *Module) Health() core.HealthStatus {
+	if m.core == nil || m.core.Services == nil || m.core.Services.Container == nil {
+		return core.HealthDegraded
+	}
+	return core.HealthOK
+}

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -67,7 +68,9 @@ func (h *DomainVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		Verified:  result.Verified,
 		CheckedAt: result.CheckedAt,
 	}
-	_ = h.bolt.Set("domain_verify", domainID, record, 0)
+	if err := h.bolt.Set("domain_verify", domainID, record, 0); err != nil {
+		slog.Error("failed to persist domain verification", "domain_id", domainID, "error", err)
+	}
 
 	writeJSON(w, http.StatusOK, result)
 }

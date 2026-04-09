@@ -59,6 +59,15 @@ func (h *TenantSettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.Name) > 100 {
+		writeError(w, http.StatusBadRequest, "name must be 100 characters or less")
+		return
+	}
+	if len(req.Metadata) > 64*1024 {
+		writeError(w, http.StatusBadRequest, "metadata must be 64KB or less")
+		return
+	}
+
 	tenant, err := h.store.GetTenant(r.Context(), claims.TenantID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")

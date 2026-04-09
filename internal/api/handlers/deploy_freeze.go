@@ -142,7 +142,10 @@ func (h *DeployFreezeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_ = h.bolt.Set("deploy_freeze", claims.TenantID, list, 0)
+	if err := h.bolt.Set("deploy_freeze", claims.TenantID, list, 0); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update freeze window")
+		return
+	}
 
 	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.freeze.deleted", "api",
 		map[string]string{"freeze_id": freezeID}))
