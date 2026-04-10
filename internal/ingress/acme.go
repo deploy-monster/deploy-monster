@@ -15,6 +15,25 @@ const acmeRenewalInterval = 24 * time.Hour
 
 // ACMEManager handles automatic SSL certificate provisioning via Let's Encrypt.
 // Uses HTTP-01 challenge by default. Certificates are cached in CertStore.
+//
+// Lifecycle notes for Tier 73:
+//
+//   - GetCertificate used to spawn `go a.issueCertificate(domain)` as
+//     a fire-and-forget goroutine with no tracking whatsoever. Under
+//     shutdown these could leak and hold the mu lock while running,
+//     which meant a subsequent GetCertificate was blocked by a
+//     previous issuance that nobody was waiting on. wg now tracks
+//     every dispatched goroutine so Wait() drains them.
+//   - issueCertificate had no defer/recover. A panic inside the
+//     ECDSA key generation or future ACME HTTP call would crash the
+//     entire ingress gateway. Each dispatch now has its own
+//     defer/recover.
+//   - NewACMEManager tolerates a nil logger by falling back to
+//     slog.Default, matching the Tier 68/69/70/71/72 style.
+//   - RenewalLoop is unchanged — it already selects on ctx.Done, but
+//     the caller at ingress/module.go:119 used context.Background so
+//     the loop ran forever. That caller is now plumbed with a
+//     Stop-cancellable context.
 type ACMEManager struct {
 	mu         sync.Mutex
 	certStore  *CertStore
@@ -22,10 +41,20 @@ type ACMEManager struct {
 	staging    bool              // Use Let's Encrypt staging for testing
 	challenges map[string]string // token -> keyAuth for HTTP-01
 	logger     *slog.Logger
+
+	// wg tracks fire-and-forget goroutines spawned by GetCertificate so
+	// Wait() can drain them on module Stop. Pre-Tier-73 these were
+	// completely untracked.
+	wg sync.WaitGroup
 }
 
-// NewACMEManager creates an ACME certificate manager.
+// NewACMEManager creates an ACME certificate manager. A nil logger is
+// tolerated and replaced with slog.Default() — the pre-Tier-73 code
+// would NPE inside the panic recovery branch on a nil logger.
 func NewACMEManager(certStore *CertStore, email string, staging bool, logger *slog.Logger) *ACMEManager {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &ACMEManager{
 		certStore:  certStore,
 		email:      email,
@@ -49,9 +78,12 @@ func (a *ACMEManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certifica
 		return cert, nil
 	}
 
-	// Auto-issue in background for real domains (not localhost)
+	// Auto-issue in background for real domains (not localhost). Tracked
+	// by wg so Module.Stop can drain in-flight issuance attempts before
+	// the parent module is torn down.
 	if domain != "localhost" && domain != "127.0.0.1" {
-		go a.issueCertificate(domain)
+		a.wg.Add(1)
+		go a.issueCertificateAsync(domain)
 	}
 
 	// Generate temporary self-signed cert
@@ -71,6 +103,19 @@ func (a *ACMEManager) HandleHTTPChallenge(token string) (string, bool) {
 
 	keyAuth, ok := a.challenges[token]
 	return keyAuth, ok
+}
+
+// issueCertificateAsync is the wg-tracked dispatch wrapper around
+// issueCertificate. Separated from the caller so the wg bookkeeping
+// and panic recovery are in one place.
+func (a *ACMEManager) issueCertificateAsync(domain string) {
+	defer a.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			a.logger.Error("panic in ACME certificate issuance", "domain", domain, "error", r)
+		}
+	}()
+	a.issueCertificate(domain)
 }
 
 // issueCertificate requests a certificate from Let's Encrypt.
@@ -102,8 +147,22 @@ func (a *ACMEManager) issueCertificate(domain string) {
 	a.logger.Info("ACME certificate issuance queued", "domain", domain)
 }
 
+// Wait blocks until every in-flight issueCertificate goroutine
+// returns. Called by Module.Stop after the RenewalLoop context is
+// cancelled so the gateway does not tear down while an issuance is
+// still holding locks.
+func (a *ACMEManager) Wait() {
+	a.wg.Wait()
+}
+
 // RenewalLoop checks all certificates daily and renews those expiring within 30 days.
 func (a *ACMEManager) RenewalLoop(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			a.logger.Error("panic in ACME renewal loop", "error", r)
+		}
+	}()
+
 	ticker := time.NewTicker(acmeRenewalInterval)
 	defer ticker.Stop()
 

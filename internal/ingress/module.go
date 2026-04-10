@@ -19,6 +19,17 @@ func init() {
 // Module implements the Ingress Gateway — DeployMonster's built-in reverse proxy.
 // It listens on :80 (HTTP) and :443 (HTTPS) and routes traffic to backend containers
 // based on host/path matching rules discovered from Docker labels.
+//
+// Lifecycle notes for Tier 73:
+//
+//   - ACMEManager.RenewalLoop used to be spawned with
+//     context.Background(), so the renewal ticker ran forever. Every
+//     module restart during tests leaked a goroutine. Stop now cancels
+//     a module-scoped stopCtx that the renewal loop selects on.
+//   - Stop used to skip draining the ACME fire-and-forget
+//     issueCertificate goroutines. If shutdown raced with a TLS
+//     handshake that triggered issuance, the issuance goroutine
+//     outlived the module. Stop now waits on acme.Wait().
 type Module struct {
 	core       *core.Core
 	router     *RouteTable
@@ -28,6 +39,12 @@ type Module struct {
 	httpServer *http.Server
 	tlsServer  *http.Server
 	logger     *slog.Logger
+
+	// stopCtx is cancelled by Stop so the ACME renewal loop (and any
+	// future background workers on the ingress module) can unblock
+	// cleanly instead of being left running until process exit.
+	stopCtx    context.Context
+	stopCancel context.CancelFunc
 }
 
 func New() *Module {
@@ -57,6 +74,11 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 
 func (m *Module) Start(_ context.Context) error {
 	cfg := m.core.Config.Ingress
+
+	// Derive a module-scoped cancellable context. Pre-Tier-73 the
+	// RenewalLoop was spawned with context.Background() and could
+	// never be stopped.
+	m.stopCtx, m.stopCancel = context.WithCancel(context.Background())
 
 	// HTTP server (:80) — redirects to HTTPS + ACME challenge handler
 	httpAddr := fmt.Sprintf(":%d", cfg.HTTPPort)
@@ -115,14 +137,24 @@ func (m *Module) Start(_ context.Context) error {
 			}
 		}()
 
-		// Start ACME certificate renewal loop
-		go m.acme.RenewalLoop(context.Background())
+		// Start ACME certificate renewal loop. The context is cancelled
+		// by Module.Stop so the loop exits cleanly instead of leaking.
+		go m.acme.RenewalLoop(m.stopCtx)
 	}
 
 	return nil
 }
 
 func (m *Module) Stop(ctx context.Context) error {
+	// Cancel module-scoped context first so the ACME renewal loop
+	// unblocks and any in-flight issueCertificateAsync goroutines
+	// observe the cancellation before we start tearing down the
+	// listeners. Pre-Tier-73 the renewal loop was born with
+	// context.Background() and leaked forever.
+	if m.stopCancel != nil {
+		m.stopCancel()
+	}
+
 	var firstErr error
 	if m.httpServer != nil {
 		if err := m.httpServer.Shutdown(ctx); err != nil {
@@ -133,6 +165,14 @@ func (m *Module) Stop(ctx context.Context) error {
 		if err := m.tlsServer.Shutdown(ctx); err != nil && firstErr == nil {
 			firstErr = err
 		}
+	}
+
+	// Drain in-flight ACME issuance goroutines. Pre-Tier-73 these
+	// were completely untracked — a TLS handshake that raced with
+	// shutdown could leave a goroutine still holding the ACME mutex
+	// after Module.Stop returned.
+	if m.acme != nil {
+		m.acme.Wait()
 	}
 	return firstErr
 }
