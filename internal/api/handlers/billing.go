@@ -57,8 +57,10 @@ func (h *BillingHandler) GetUsage(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("billing: failed to list apps", "error", err)
 	}
 
-	// Quota check
-	status, err := billing.QuotaCheck(h.store, claims.TenantID, *currentPlan)
+	// Quota check — use the ctx-aware variant so a client disconnect
+	// cancels the probe instead of letting it run against a dead
+	// HTTP response writer.
+	status, err := billing.QuotaCheckCtx(r.Context(), h.store, claims.TenantID, *currentPlan)
 	if err != nil {
 		slog.Warn("billing: failed quota check", "error", err)
 	}
