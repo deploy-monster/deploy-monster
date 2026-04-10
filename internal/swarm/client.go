@@ -31,6 +31,7 @@ type AgentClient struct {
 	decoder   *json.Decoder
 	sendMu    sync.Mutex
 	logger    *slog.Logger
+	sys       core.SysMetricsReader
 }
 
 // NewAgentClient creates a new agent-side client.
@@ -42,6 +43,7 @@ func NewAgentClient(masterURL, serverID, token, version string, rt core.Containe
 		version:   version,
 		runtime:   rt,
 		logger:    logger.With("component", "agent-client"),
+		sys:       core.NewSysMetricsReader(),
 	}
 }
 
@@ -309,20 +311,27 @@ func (c *AgentClient) handleImagePull(ctx context.Context, msg core.AgentMessage
 }
 
 func (c *AgentClient) handleMetricsCollect(ctx context.Context, _ core.AgentMessage) (core.ServerMetrics, error) {
-	hostname, _ := os.Hostname()
-	return core.ServerMetrics{
-			ServerID:  c.serverID,
-			Timestamp: time.Now(),
-			// Real metrics would be collected from /proc or runtime
-			CPUPercent: 0,
-			RAMUsedMB:  0,
-			RAMTotalMB: 0,
-			Containers: 0,
-			LoadAvg:    [3]float64{0, 0, 0},
-		}, func() error {
-			_ = hostname
-			return nil
-		}()
+	snap, _ := c.sys.Read()
+
+	metrics := core.ServerMetrics{
+		ServerID:    c.serverID,
+		Timestamp:   time.Now(),
+		CPUPercent:  snap.CPUPercent,
+		RAMUsedMB:   snap.RAMUsedMB,
+		RAMTotalMB:  snap.RAMTotalMB,
+		DiskUsedMB:  snap.DiskUsedMB,
+		DiskTotalMB: snap.DiskTotalMB,
+		LoadAvg:     snap.LoadAvg,
+	}
+
+	// Container count — best-effort, only what DeployMonster manages.
+	if c.runtime != nil {
+		if containers, err := c.runtime.ListByLabels(ctx, map[string]string{"monster.enable": "true"}); err == nil {
+			metrics.Containers = len(containers)
+		}
+	}
+
+	return metrics, nil
 }
 
 func (c *AgentClient) handleHealthCheck(_ context.Context) (map[string]any, error) {

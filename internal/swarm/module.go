@@ -76,6 +76,13 @@ func (m *Module) Start(_ context.Context) error {
 		m.logger.Info("swarm mode disabled")
 		return nil
 	}
+
+	// Start the master-side heartbeat monitor so dead agents are cleaned up
+	// deterministically instead of waiting for the 90s read deadline.
+	if m.agentServer != nil {
+		m.agentServer.StartHeartbeat()
+	}
+
 	m.logger.Info("swarm orchestrator started",
 		"agents", len(m.agentServer.ConnectedAgents()),
 	)

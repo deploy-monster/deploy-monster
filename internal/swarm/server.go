@@ -30,6 +30,17 @@ type AgentServer struct {
 	onConnect      []func(core.AgentInfo)
 	onDisconnectMu sync.RWMutex
 	onDisconnect   []func(string)
+
+	// Heartbeat configuration. Set via SetHeartbeat before Start.
+	// interval is how often the master pings each connected agent.
+	// deadAfter is how long an agent can go without any message (including
+	// a pong) before the master considers it dead and force-closes the conn.
+	heartbeatInterval time.Duration
+	heartbeatDead     time.Duration
+
+	// stop is closed by Stop to unblock the heartbeat loop.
+	stop     chan struct{}
+	stopOnce sync.Once
 }
 
 // AgentConn represents a single connected agent.
@@ -43,19 +54,93 @@ type AgentConn struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 
+	// lastSeen is updated on every message received from this agent (pong,
+	// result, metrics report, etc.). The heartbeat monitor uses it to detect
+	// silent connections.
+	lastSeen   time.Time
+	lastSeenMu sync.RWMutex
+
+	// lastMetrics is the most recent ServerMetrics report the agent pushed
+	// on its own (via AgentMsgMetricsReport) or the response to a collect
+	// request. May be nil if the agent has never reported.
+	lastMetrics   *core.ServerMetrics
+	lastMetricsMu sync.RWMutex
+
 	// pending tracks in-flight requests waiting for a response.
 	pending   map[string]chan core.AgentMessage
 	pendingMu sync.Mutex
 }
 
+// touch marks that a message from this agent was just observed.
+func (ac *AgentConn) touch(now time.Time) {
+	ac.lastSeenMu.Lock()
+	ac.lastSeen = now
+	ac.lastSeenMu.Unlock()
+}
+
+// LastSeen returns when the last message from this agent was received.
+// Returns the connection's original "now" if nothing has arrived yet.
+func (ac *AgentConn) LastSeen() time.Time {
+	ac.lastSeenMu.RLock()
+	defer ac.lastSeenMu.RUnlock()
+	return ac.lastSeen
+}
+
+// setLastMetrics records the most recent ServerMetrics report.
+func (ac *AgentConn) setLastMetrics(m *core.ServerMetrics) {
+	if m == nil {
+		return
+	}
+	cp := *m
+	ac.lastMetricsMu.Lock()
+	ac.lastMetrics = &cp
+	ac.lastMetricsMu.Unlock()
+}
+
+// LastMetrics returns a copy of the most recent ServerMetrics report, or nil.
+func (ac *AgentConn) LastMetrics() *core.ServerMetrics {
+	ac.lastMetricsMu.RLock()
+	defer ac.lastMetricsMu.RUnlock()
+	if ac.lastMetrics == nil {
+		return nil
+	}
+	cp := *ac.lastMetrics
+	return &cp
+}
+
+// Default heartbeat cadence and death threshold. The interval must be
+// significantly shorter than the connection read deadline (90s) so that a
+// single missed ping does not trip the read-loop before the monitor gets a
+// chance to decide.
+const (
+	defaultHeartbeatInterval = 30 * time.Second
+	defaultHeartbeatDead     = 90 * time.Second
+)
+
 // NewAgentServer creates a new master-side agent connection manager.
 func NewAgentServer(events *core.EventBus, token string, logger *slog.Logger) *AgentServer {
 	return &AgentServer{
-		agents:        make(map[string]*AgentConn),
-		events:        events,
-		expectedToken: token,
-		logger:        logger.With("component", "agent-server"),
+		agents:            make(map[string]*AgentConn),
+		events:            events,
+		expectedToken:     token,
+		logger:            logger.With("component", "agent-server"),
+		heartbeatInterval: defaultHeartbeatInterval,
+		heartbeatDead:     defaultHeartbeatDead,
+		stop:              make(chan struct{}),
 	}
+}
+
+// SetHeartbeat overrides the default heartbeat interval and death threshold.
+// Must be called before StartHeartbeat; both values must be positive, and
+// dead must be >= interval. Invalid inputs are ignored.
+func (s *AgentServer) SetHeartbeat(interval, dead time.Duration) {
+	if interval <= 0 || dead <= 0 || dead < interval {
+		return
+	}
+	s.mu.Lock()
+	s.heartbeatInterval = interval
+	s.heartbeatDead = dead
+	s.mu.Unlock()
 }
 
 // SetLocal sets the local node executor so the master itself is available
@@ -100,12 +185,13 @@ func (s *AgentServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	// 3. Create agent connection
 	ctx, cancel := context.WithCancel(context.Background())
 	ac := &AgentConn{
-		conn:    conn,
-		encoder: json.NewEncoder(conn),
-		decoder: json.NewDecoder(bufio.NewReader(conn)),
-		ctx:     ctx,
-		cancel:  cancel,
-		pending: make(map[string]chan core.AgentMessage),
+		conn:     conn,
+		encoder:  json.NewEncoder(conn),
+		decoder:  json.NewDecoder(bufio.NewReader(conn)),
+		ctx:      ctx,
+		cancel:   cancel,
+		pending:  make(map[string]chan core.AgentMessage),
+		lastSeen: time.Now(),
 	}
 
 	// 4. Read initial AgentInfo message (with timeout)
@@ -197,11 +283,21 @@ func (s *AgentServer) readLoop(ac *AgentConn) {
 
 // handleAgentMessage dispatches an incoming message from an agent.
 func (s *AgentServer) handleAgentMessage(ac *AgentConn, msg core.AgentMessage) {
+	// Any inbound message is evidence the agent is alive. Update lastSeen
+	// before dispatching so the heartbeat monitor sees fresh state even when
+	// the handler below blocks on something slow.
+	ac.touch(time.Now())
+
 	switch msg.Type {
 	case core.AgentMsgPong:
 		s.logger.Debug("pong received", "server_id", ac.ServerID)
 
 	case core.AgentMsgResult, core.AgentMsgError:
+		// If this result is a metrics response, record it as the most
+		// recent snapshot before routing it to the pending waiter.
+		if metrics, ok := tryDecodeServerMetrics(msg.Payload); ok {
+			ac.setLastMetrics(metrics)
+		}
 		// Route to pending request
 		ac.pendingMu.Lock()
 		ch, ok := ac.pending[msg.ID]
@@ -214,6 +310,9 @@ func (s *AgentServer) handleAgentMessage(ac *AgentConn, msg core.AgentMessage) {
 		}
 
 	case core.AgentMsgMetricsReport:
+		if metrics, ok := tryDecodeServerMetrics(msg.Payload); ok {
+			ac.setLastMetrics(metrics)
+		}
 		if s.events != nil {
 			s.events.PublishAsync(ac.ctx, core.NewEvent("agent.metrics", "swarm", msg.Payload))
 		}
@@ -236,6 +335,26 @@ func (s *AgentServer) handleAgentMessage(ac *AgentConn, msg core.AgentMessage) {
 	default:
 		s.logger.Warn("unknown agent message type", "type", msg.Type, "server_id", ac.ServerID)
 	}
+}
+
+// tryDecodeServerMetrics attempts to decode a payload as core.ServerMetrics.
+// Returns (nil, false) if the payload isn't a metrics report — callers should
+// treat that as "not a metrics message" rather than an error.
+func tryDecodeServerMetrics(payload any) (*core.ServerMetrics, bool) {
+	if payload == nil {
+		return nil, false
+	}
+	m, err := decodePayload[core.ServerMetrics](payload)
+	if err != nil {
+		return nil, false
+	}
+	// ServerID is the cheapest field to use as a "is this really a metrics
+	// report" check — a zero-value decoded struct from an unrelated payload
+	// will have empty ServerID.
+	if m.ServerID == "" {
+		return nil, false
+	}
+	return &m, true
 }
 
 // removeAgent cleans up after an agent disconnects.
@@ -395,8 +514,10 @@ func (s *AgentServer) ConnectedAgents() []core.AgentInfo {
 	return agents
 }
 
-// Stop gracefully shuts down all agent connections.
+// Stop gracefully shuts down all agent connections and the heartbeat monitor.
 func (s *AgentServer) Stop() {
+	s.stopOnce.Do(func() { close(s.stop) })
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -406,6 +527,122 @@ func (s *AgentServer) Stop() {
 		delete(s.agents, id)
 	}
 	s.logger.Info("all agent connections closed")
+}
+
+// StartHeartbeat launches the background heartbeat monitor. It pings each
+// connected agent once per heartbeatInterval, and disconnects any agent whose
+// LastSeen is older than heartbeatDead. The loop stops when Stop() is called.
+// Safe to call from Module.Start once the server is ready to accept agents.
+func (s *AgentServer) StartHeartbeat() {
+	go s.heartbeatLoop()
+}
+
+// heartbeatLoop is the background monitor. It runs until the stop channel is
+// closed. On every tick it snapshots the current agent list, sends a ping to
+// each one, and force-closes any whose last-seen exceeds the dead threshold.
+// Ping sends use a short per-request context so a wedged agent can't block
+// the monitor past one interval.
+func (s *AgentServer) heartbeatLoop() {
+	s.mu.RLock()
+	interval := s.heartbeatInterval
+	dead := s.heartbeatDead
+	s.mu.RUnlock()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.stop:
+			return
+		case <-ticker.C:
+			s.heartbeatTick(dead)
+		}
+	}
+}
+
+// heartbeatTick performs a single sweep across connected agents: deadline-
+// check each one, then send an async ping to the rest. Exposed so tests can
+// drive it synchronously without waiting for the ticker.
+func (s *AgentServer) heartbeatTick(dead time.Duration) {
+	now := time.Now()
+
+	// Snapshot the current agents under the read lock so we can release it
+	// before touching connection state.
+	s.mu.RLock()
+	snapshot := make([]*AgentConn, 0, len(s.agents))
+	for _, ac := range s.agents {
+		snapshot = append(snapshot, ac)
+	}
+	s.mu.RUnlock()
+
+	for _, ac := range snapshot {
+		if now.Sub(ac.LastSeen()) > dead {
+			s.logger.Warn("agent heartbeat timeout, disconnecting",
+				"server_id", ac.ServerID,
+				"last_seen", ac.LastSeen(),
+				"dead_after", dead,
+			)
+			// removeAgent handles the cleanup + event emission. The read
+			// loop will observe the cancel/close and return naturally.
+			ac.cancel()
+			_ = ac.conn.Close()
+			continue
+		}
+
+		// Fire a ping with a short context. We don't care about the return —
+		// if the agent responds the read loop will touch lastSeen; if it
+		// doesn't, the next tick will catch the dead threshold.
+		go func(target *AgentConn) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			msg := core.AgentMessage{
+				ID:        core.GenerateID(),
+				Type:      core.AgentMsgPing,
+				ServerID:  target.ServerID,
+				Timestamp: time.Now(),
+			}
+			_, _ = s.Send(ctx, target, msg)
+		}(ac)
+	}
+}
+
+// AgentHealth is a point-in-time view of one connected agent.
+type AgentHealth struct {
+	ServerID    string              `json:"server_id"`
+	Info        core.AgentInfo      `json:"info"`
+	LastSeen    time.Time           `json:"last_seen"`
+	SecondsIdle int64               `json:"seconds_idle"`
+	Healthy     bool                `json:"healthy"`
+	LastMetrics *core.ServerMetrics `json:"last_metrics,omitempty"`
+}
+
+// Snapshot returns a sorted-by-ServerID view of all connected agents with
+// their heartbeat + metrics state. Safe to call from HTTP handlers.
+func (s *AgentServer) Snapshot() []AgentHealth {
+	s.mu.RLock()
+	dead := s.heartbeatDead
+	out := make([]AgentHealth, 0, len(s.agents))
+	for _, ac := range s.agents {
+		last := ac.LastSeen()
+		out = append(out, AgentHealth{
+			ServerID:    ac.ServerID,
+			Info:        ac.Info,
+			LastSeen:    last,
+			SecondsIdle: int64(time.Since(last).Seconds()),
+			Healthy:     time.Since(last) <= dead,
+			LastMetrics: ac.LastMetrics(),
+		})
+	}
+	s.mu.RUnlock()
+
+	// Stable, lexicographic order — makes tests and UIs deterministic.
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j-1].ServerID > out[j].ServerID; j-- {
+			out[j-1], out[j] = out[j], out[j-1]
+		}
+	}
+	return out
 }
 
 // decodePayload converts an any payload (typically map from JSON) into a typed struct.

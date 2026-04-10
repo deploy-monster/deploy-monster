@@ -3,6 +3,7 @@ package swarm
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -12,6 +13,7 @@ import (
 type LocalExecutor struct {
 	runtime  core.ContainerRuntime
 	serverID string
+	sys      core.SysMetricsReader
 }
 
 // Ensure LocalExecutor implements NodeExecutor.
@@ -19,7 +21,11 @@ var _ core.NodeExecutor = (*LocalExecutor)(nil)
 
 // NewLocalExecutor creates a local executor wrapping the master's container runtime.
 func NewLocalExecutor(runtime core.ContainerRuntime, serverID string) *LocalExecutor {
-	return &LocalExecutor{runtime: runtime, serverID: serverID}
+	return &LocalExecutor{
+		runtime:  runtime,
+		serverID: serverID,
+		sys:      core.NewSysMetricsReader(),
+	}
 }
 
 func (l *LocalExecutor) ServerID() string { return l.serverID }
@@ -56,11 +62,32 @@ func (l *LocalExecutor) Exec(ctx context.Context, command string) (string, error
 	return l.runtime.Exec(ctx, "", []string{"sh", "-c", command})
 }
 
-func (l *LocalExecutor) Metrics(_ context.Context) (*core.ServerMetrics, error) {
-	// Collect local server metrics
-	return &core.ServerMetrics{
-		ServerID: l.serverID,
-	}, nil
+func (l *LocalExecutor) Metrics(ctx context.Context) (*core.ServerMetrics, error) {
+	// Pull a host-level snapshot from the OS. Failures here are non-fatal —
+	// we still want to return whatever we can (container count, serverID).
+	snap, _ := l.sys.Read()
+
+	metrics := &core.ServerMetrics{
+		ServerID:    l.serverID,
+		Timestamp:   time.Now(),
+		CPUPercent:  snap.CPUPercent,
+		RAMUsedMB:   snap.RAMUsedMB,
+		RAMTotalMB:  snap.RAMTotalMB,
+		DiskUsedMB:  snap.DiskUsedMB,
+		DiskTotalMB: snap.DiskTotalMB,
+		LoadAvg:     snap.LoadAvg,
+	}
+
+	// Count containers managed by DeployMonster. An empty label filter will
+	// list all running containers; restrict to ours via the monster.enable=true
+	// label that the deploy pipeline stamps on every managed container.
+	if l.runtime != nil {
+		if containers, err := l.runtime.ListByLabels(ctx, map[string]string{"monster.enable": "true"}); err == nil {
+			metrics.Containers = len(containers)
+		}
+	}
+
+	return metrics, nil
 }
 
 func (l *LocalExecutor) Ping(_ context.Context) error {
