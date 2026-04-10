@@ -15,8 +15,13 @@ type Collector struct {
 	logger  *slog.Logger
 }
 
-// NewCollector creates a new metrics collector.
+// NewCollector creates a new metrics collector. A nil logger is
+// tolerated and replaced with slog.Default() so the Tier 75 module
+// panic-recovery branch cannot NPE on a struct-literal collector.
 func NewCollector(cr core.ContainerRuntime, logger *slog.Logger) *Collector {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Collector{runtime: cr, logger: logger}
 }
 

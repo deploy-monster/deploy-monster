@@ -71,15 +71,19 @@ func TestCollectionLoop_DirectInvocation(t *testing.T) {
 		t.Fatalf("Init() error = %v", err)
 	}
 
-	// Launch collectionLoop directly
+	// Launch collectionLoop directly. Tier 75: wg.Add must precede
+	// the goroutine spawn so the loop's defer wg.Done does not
+	// underflow the counter.
+	m.wg.Add(1)
 	go m.collectionLoop()
 
 	// Give the goroutine time to start and enter the select
 	time.Sleep(50 * time.Millisecond)
 
-	// Stop terminates the loop via stopCh
-	close(m.stopCh)
-	time.Sleep(50 * time.Millisecond)
+	// Stop terminates the loop via stopCh and drains the wg.
+	if err := m.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
 }
 
 // TestCollectionLoop_FullSimulation exercises every line of the collectionLoop

@@ -38,8 +38,13 @@ type AlertEngine struct {
 	logger *slog.Logger
 }
 
-// NewAlertEngine creates a new alert engine.
+// NewAlertEngine creates a new alert engine. A nil logger is
+// tolerated and replaced with slog.Default() so the Tier 75 module
+// panic-recovery branch cannot NPE on a struct-literal engine.
 func NewAlertEngine(events *core.EventBus, logger *slog.Logger) *AlertEngine {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	ae := &AlertEngine{
 		states: make(map[string]*AlertState),
 		events: events,
