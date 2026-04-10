@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -12,6 +13,11 @@ const autoRestartCheckInterval = 30 * time.Second
 
 // AutoRestarter monitors containers and restarts crashed ones.
 // Listens for container.died events and attempts restart with backoff.
+//
+// Lifecycle note for Tier 74: Stop used to call close(stopCh) with
+// no sync.Once guard — a second Stop crashed the deploy module with
+// "close of closed channel". stopOnce now serializes the close so
+// Module.Stop is idempotent across retries.
 type AutoRestarter struct {
 	runtime    core.ContainerRuntime
 	store      core.Store
@@ -19,10 +25,15 @@ type AutoRestarter struct {
 	logger     *slog.Logger
 	maxRetries int
 	stopCh     chan struct{}
+	stopOnce   sync.Once
 }
 
-// NewAutoRestarter creates an auto-restart monitor.
+// NewAutoRestarter creates an auto-restart monitor. A nil logger is
+// tolerated and replaced with slog.Default().
 func NewAutoRestarter(runtime core.ContainerRuntime, store core.Store, events *core.EventBus, logger *slog.Logger) *AutoRestarter {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &AutoRestarter{
 		runtime:    runtime,
 		store:      store,
@@ -60,9 +71,12 @@ func (ar *AutoRestarter) Start() {
 	ar.logger.Info("auto-restart monitor started", "max_retries", ar.maxRetries)
 }
 
-// Stop signals the auto-restart check goroutine to exit.
+// Stop signals the auto-restart check goroutine to exit. Safe to
+// call multiple times — the second and subsequent calls are no-ops.
 func (ar *AutoRestarter) Stop() {
-	close(ar.stopCh)
+	ar.stopOnce.Do(func() {
+		close(ar.stopCh)
+	})
 }
 
 func (ar *AutoRestarter) handleCrash(ctx context.Context, appID, containerID string) {

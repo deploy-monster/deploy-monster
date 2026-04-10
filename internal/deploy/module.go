@@ -13,6 +13,14 @@ func init() {
 }
 
 // Module implements the deployment module.
+//
+// Lifecycle note for Tier 74: pre-Tier-74 autoRollback was created
+// as a local variable inside Start() and never retained, so its
+// SubscribeAsync closure kept the manager alive while Module.Stop
+// had no handle to drain it. During shutdown a deploy.failed event
+// could trigger a rollback that raced with Docker.Close. autoRollback
+// is now a Module field and Module.Stop drains it before closing
+// Docker.
 type Module struct {
 	core         *core.Core
 	docker       *DockerManager
@@ -20,6 +28,7 @@ type Module struct {
 	logger       *slog.Logger
 	autoRestart  *AutoRestarter
 	imageChecker *ImageUpdateChecker
+	autoRollback *AutoRollbackManager
 }
 
 // New creates a new deploy module.
@@ -85,9 +94,10 @@ func (m *Module) Start(ctx context.Context) error {
 		m.imageChecker = NewImageUpdateChecker(m.store, m.core.Events, m.logger)
 		m.imageChecker.Start()
 
-		// Start auto-rollback on failed deployments
-		autoRollback := NewAutoRollbackManager(m.store, m.docker, m.core.Events, m.logger)
-		autoRollback.Start()
+		// Start auto-rollback on failed deployments. Tier 74: keep a
+		// handle on the Module so Stop can drain in-flight rollbacks.
+		m.autoRollback = NewAutoRollbackManager(m.store, m.docker, m.core.Events, m.logger)
+		m.autoRollback.Start()
 	}
 
 	m.logger.Info("deploy module started")
@@ -138,6 +148,13 @@ func (m *Module) cleanOrphanContainers(ctx context.Context) {
 }
 
 func (m *Module) Stop(_ context.Context) error {
+	// Tier 74: drain autoRollback BEFORE closing Docker. Pre-Tier-74
+	// autoRollback had no Stop at all, so a deploy.failed event
+	// published during shutdown could race with docker.Close and
+	// dereference a closed client.
+	if m.autoRollback != nil {
+		m.autoRollback.Stop()
+	}
 	if m.autoRestart != nil {
 		m.autoRestart.Stop()
 	}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -15,16 +16,26 @@ import (
 const imageCheckInterval = 6 * time.Hour
 
 // ImageUpdateChecker polls Docker registries for newer image versions.
+//
+// Lifecycle note for Tier 74: Stop used to call close(stopCh) with
+// no sync.Once guard. A second Stop crashed the deploy module with
+// "close of closed channel". stopOnce now serializes the close so
+// Module.Stop is idempotent across shutdown retries.
 type ImageUpdateChecker struct {
-	store  core.Store
-	events *core.EventBus
-	client *http.Client
-	logger *slog.Logger
-	stopCh chan struct{}
+	store    core.Store
+	events   *core.EventBus
+	client   *http.Client
+	logger   *slog.Logger
+	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
-// NewImageUpdateChecker creates an image update checker.
+// NewImageUpdateChecker creates an image update checker. A nil
+// logger is tolerated and replaced with slog.Default().
 func NewImageUpdateChecker(store core.Store, events *core.EventBus, logger *slog.Logger) *ImageUpdateChecker {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &ImageUpdateChecker{
 		store:  store,
 		events: events,
@@ -61,9 +72,12 @@ func (c *ImageUpdateChecker) Start() {
 	c.logger.Info("image update checker started")
 }
 
-// Stop halts the checker.
+// Stop halts the checker. Safe to call multiple times — the second
+// and subsequent calls are no-ops.
 func (c *ImageUpdateChecker) Stop() {
-	close(c.stopCh)
+	c.stopOnce.Do(func() {
+		close(c.stopCh)
+	})
 }
 
 func (c *ImageUpdateChecker) checkAll() {
