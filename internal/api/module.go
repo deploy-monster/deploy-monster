@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/api/handlers"
+	"github.com/deploy-monster/deploy-monster/internal/api/ws"
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -104,6 +105,15 @@ func (m *Module) Stop(ctx context.Context) error {
 
 		// Wait for background goroutines (safeGo) to complete
 		handlers.WaitForBackground()
+
+		// Tier 77: drain WebSocket DeployHub handlers before shutting
+		// down the HTTP server. The hub owns hijacked connections that
+		// http.Server.Shutdown cannot see, so without this call
+		// ServeWS goroutines would outlive the module's lifecycle and
+		// race with the log/DB teardown that follows.
+		if err := ws.Shutdown(ctx); err != nil {
+			m.logger.Warn("deploy hub shutdown did not drain cleanly", "error", err)
+		}
 
 	shutdown:
 		// Tier 72: the global rate limiter spawns a cleanup goroutine
