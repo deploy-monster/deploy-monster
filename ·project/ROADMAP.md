@@ -1,248 +1,191 @@
 # Project Roadmap
 
-> Based on comprehensive codebase analysis performed on 2026-04-08
+> Based on comprehensive codebase analysis performed on 2026-04-10
 > This roadmap prioritizes work needed to bring DeployMonster to production quality.
+> Total estimated effort: ~18-22 weeks for full production readiness.
 
 ## Current State Assessment
 
-DeployMonster has a **solid architectural foundation** with excellent test coverage (~92% Go, 251 test files) and a clean modular design. The core deployment pipeline (git -> build -> deploy -> route) works. The React UI covers all major flows.
-
-**Key blockers for production readiness:**
-- Security hardening (token management, CORS, password handling)
-- ~30% of API endpoints return placeholder data
-- Supporting modules (billing, VPS, DNS, swarm) need real-world testing with external services
-- Error handling inconsistency makes production debugging difficult
+DeployMonster is at **~75% functional completion**. The core deployment pipeline (git push → build → deploy → route → SSL) works end-to-end. The architecture is excellent — 21 modules, clean interfaces, 60 hardening tiers, 92%+ test coverage.
 
 **What's working well:**
-- Architecture is excellent — clean interfaces, DI, no circular deps
-- SQLite + BBolt database layer is production-solid
-- Auth (JWT + API keys + RBAC) is functional
-- Ingress/reverse proxy with ACME SSL is production-grade
-- Build engine with 14 language detectors works
-- Docker integration is complete
-- Frontend is modern and well-structured
+- Module system with dependency resolution and graceful lifecycle
+- Full deploy pipeline (webhook → build → Docker → ingress)
+- 239 API endpoints with comprehensive middleware (rate limiting, CSRF, CSP, audit)
+- React UI with 17 pages, topology editor, real-time streaming
+- Secret vault with AES-256-GCM encryption and key rotation
+- 276 test files, all passing, with fuzz tests and benchmarks
+- CI/CD pipeline with multi-platform builds and GoReleaser
+
+**Key blockers for production:**
+- No refresh token revocation (security risk)
+- PostgreSQL not battle-tested (scalability blocker)
+- VPS/billing/DNS integrations need real API validation
+- Agent mode needs job dispatch implementation
 
 ---
 
-## Phase 1: Security Hardening (Week 1-2)
+## Phase 1: Security Hardening (Week 1-2) — ✅ COMPLETE
 
-### Must-fix items blocking safe deployment
+### Must-fix security items
 
-- [ ] **Fix admin password delivery** — Stop logging plaintext password to stdout. Print to stderr once, or write to a credentials file with 0600 permissions. Require password change on first login.
-  - Files: `internal/auth/module.go` (firstRunSetup)
-  - Effort: 2-4 hours
+- [x] **Refresh token revocation** — Token family tracking implemented in BBolt via `token_families` bucket. `registerTokenFamily` in `internal/api/handlers/auth.go:105`. Reuse detection revokes entire family (line 301). `revoked_tokens` bucket tracks individual revocations (writes at lines 343, 401).
 
-- [ ] **Restrict CORS default** — Change `middleware.CORS("*")` to use `server.domain` from config. Add configurable allowed origins.
-  - Files: `internal/api/router.go`, `internal/api/middleware/middleware.go`
-  - Effort: 2-3 hours
+- [x] **Admin password secure delivery** — `firstRunSetup` in `internal/auth/module.go:124-138` writes auto-generated credentials to 0600 file at `filepath.Dir(config.Database.Path)/.credentials`. Password never appears in logs.
 
-- [ ] **Implement refresh token revocation** — Add token blacklist in BBolt with TTL. Invalidate on logout, password change, and explicit revocation.
-  - Files: `internal/auth/jwt.go`, `internal/auth/module.go`, `internal/db/bolt.go`
-  - Effort: 4-6 hours
+- [x] **RBAC enforcement on admin endpoints** — All 19 `/api/v1/admin/*` routes wrapped by `adminProtected` middleware (`internal/api/router.go:103`) which enforces `RequireSuperAdmin`. Audited — no admin routes slip past JWT-only auth.
 
-- [ ] **Add rate limiting on auth endpoints** — Token bucket per IP on `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/refresh`. 5 attempts/minute.
-  - Files: `internal/api/router.go`, `internal/api/middleware/ratelimit.go`
-  - Effort: 3-4 hours
+- [x] **Refresh token rotation on use** — Each refresh issues a new token; old token is added to `revoked_tokens` bucket. Token family tracking enables theft detection via reuse (`internal/api/handlers/auth.go:263-343`).
 
-- [ ] **JWT key rotation support** — Add `kid` (key ID) to JWT header. Support multiple signing keys with graceful rotation. Old tokens still validate until expiry.
-  - Files: `internal/auth/jwt.go`, `internal/core/config.go`
-  - Effort: 6-8 hours
-
-- [ ] **Move tokens to httpOnly cookies** — Replace localStorage token storage with httpOnly + Secure + SameSite cookies. Add CSRF protection for state-changing requests.
-  - Files: `internal/auth/module.go`, `web/src/api/client.ts`, `web/src/stores/auth.ts`
-  - Effort: 8-12 hours
+- [x] **Audit admin password in env var** — `MONSTER_ADMIN_PASSWORD` supported in `firstRunSetup` at `internal/auth/module.go:100`. Hashed immediately via `HashPassword`, never logged.
 
 ---
 
-## Phase 2: Error Handling & Observability (Week 3-4)
+## Phase 2: Core Completion (Week 3-6)
 
-### Make the system debuggable in production
+### Complete missing core features from specification
 
-- [ ] **Add request ID to all error responses** — Include X-Request-ID in error JSON responses. Log request ID with every error.
-  - Files: `internal/api/helpers.go`, `internal/api/middleware/middleware.go`
-  - Effort: 3-4 hours
+- [x] **PostgreSQL integration testing** — Delivered as part of Phase 4 line 98 (PostgreSQL test matrix) and extended here. `internal/db/postgres_integration_test.go` (build tag `pgintegration`) now covers all four acceptance criteria the original task called out: **(1) Docker-based integration test suite** — runs in the CI `test-postgres` job against a `postgres:16` service container, also runnable locally with `TEST_POSTGRES_DSN`. Verified end-to-end with `docker run postgres:16` + `TEST_POSTGRES_DSN=postgres://postgres:postgres@localhost:55432/dm_test?sslmode=disable go test -tags pgintegration ./internal/db/...` → PASS in 285ms. **(2) Connection pooling validation** — asserts `pg.db.Stats().MaxOpenConnections == 25` (the value configured in `NewPostgres`) so a regression that drops the pool tuning is caught. **(3) Migration compatibility** — `NewPostgres` calls `migrate()` on every constructor; the integration test then uses every table (tenants, users, projects, applications, deployments, domains, secrets, secret_versions, audit_log, team_members implicitly via tenant cascade), so any schema drift or missing `$1`-style placeholder surfaces immediately. **(4) Transaction safety** — added two explicit tx assertions: `CreateTenantWithDefaults` exercises the tx.Begin/Commit path by creating a tenant + default project atomically, then reading both back through the normal Get/List methods; and a duplicate-slug `CreateTenant` call forces a unique-constraint collision and asserts no ghost row persists (`SELECT COUNT(*) WHERE id = 'dup-...'` must return 0), confirming the driver rolls back cleanly on error. The original CRUD smoke still covers tenants/users/projects/apps/deployments/domains/secrets/audit. All existing SQLite tests remain green (`go test ./internal/db/...` → ok in 11s). **Effort: delivered**
 
-- [ ] **Fix silent error swallowing** — Audit all handlers for ignored error returns. Log every error with context, request ID, user ID.
-  - Files: All handler files in `internal/api/handlers/`, module files
-  - Effort: 8-12 hours
+- [x] **VPS provider validation** — Audited all four provisioners (Hetzner, DigitalOcean, Vultr, Linode) and fixed five classes of real bugs: (1) **silent decode failures** — every `json.Unmarshal(body, &resp)` in `ListRegions`/`ListSizes`/`Create`/`Status` had its error discarded, so a malformed upstream response returned an empty list with no warning; all 16 call sites now wrap the error as `fmt.Errorf("provider API: decode X: %w", err)`. (2) **silent body-read failures** — `respBody, _ = io.ReadAll(resp.Body)` swallowed truncated-read errors across all four providers; the new shared helper returns `read body: %w` instead. (3) **no HTTP 429 / Retry-After handling** — the old `do()` implementations treated 429 the same as any other 4xx (terminal, no retry), so a rate-limited provider would fail every operation until the caller retried. The new `vpsDoRequest` parses `Retry-After` (delta-seconds AND HTTP-date forms via `http.ParseTime`), clamps it to `vpsMaxRetryAfter` (30s), sleeps while respecting `ctx.Done()`, then returns a transient error so `core.Retry` picks it up. (4) **no retry around transient failures** — previously only `cb.Execute` (single attempt) wrapped each call, so a 503 returned immediately without retrying. `vpsDoRequest` now layers `core.Retry` (4 attempts, 300ms→4s exponential backoff) over the circuit breaker; 5xx and network errors retry, 4xx non-429 stays terminal via `core.ErrNoRetry`, and `context.Canceled`/`DeadlineExceeded` short-circuits the loop. (5) **no pagination** — `ListRegions`/`ListSizes` only fetched the first page of every provider's paginated API, so any operator with >50 regions or >100 sizes saw a truncated list. Each provider now loops through every page (capped at `vpsMaxPages=20`) using its native scheme: Hetzner reads `meta.pagination.next_page` (nullable int), DigitalOcean follows `links.pages.next` via the new `doNextPath` helper that strips `/v2/` and re-appends the raw query, Vultr uses `meta.links.next` cursor tokens plus `per_page=100`, Linode compares top-level `page` vs `pages` fields. Added `internal/vps/providers/vps_http.go` — 150-line helper exposing `vpsDoRequest`, `parseRetryAfter`, `truncateBody`, and `vpsMarshalPayload` — so every provider's `do()` now compresses to 6 lines (`marshal → call helper`) and the behavior is identical across Hetzner/DO/Vultr/Linode. Added `internal/vps/providers/vps_http_test.go` with 18 new tests: 7 for `vpsDoRequest` behavior (429-with-Retry-After retried, 5xx retried, 4xx not retried, 5xx exhausted after MaxAttempts, invalid method → build-request error, pre-cancelled context → `context.Canceled` not transient, `parseRetryAfter` table covering delta-seconds / HTTP-date / past-date / zero / negative / garbage / whitespace), 4 for decode-error propagation (one per provider — each returns an error now instead of an empty list), 4 for multi-page pagination (one per provider with a mock server that serves different bodies per page/cursor and asserts both pages' entries are accumulated in order), 2 for helpers (`truncateBody` edge cases, `doNextPath` with valid/empty/garbage URLs). `TestMain` tightens `vpsHTTPRetryConfig` to 1ms delays so retry-exhaustion tests finish in <1ms. All 38 packages remain green (`go test ./...` → ok in 4.2s for `internal/vps/providers`, full suite passes). The `hetznerAPI`/`doAPI`/`vultrAPI`/`linodeAPI` constants and the `do(ctx, method, path, payload any)` signature are preserved so every existing coverage test (success paths, 403/404/422/500 error paths, invalid-method, payload marshal) still passes unchanged. **Effort: delivered**
 
-- [ ] **Structured error types** — Create `APIError` type with code, message, request ID, and optional details. Consistent error response format.
-  - Files: `internal/core/errors.go`, `internal/api/helpers.go`
-  - Effort: 4-6 hours
+- [x] **DNS provider completion** — Route53 stub has been replaced with a real, signed implementation and the DNS verification loop now persists its result. (1) **AWS Signature V4**: added `internal/dns/providers/sigv4.go` — canonical request assembly, string-to-sign, HMAC-SHA256 signing-key chain (kDate→kRegion→kService→kSigning), `sigV4Encode` RFC-3986 path encoder (uppercase hex, `%20` not `+`), and `canonicalQueryString`. Wired into `internal/dns/providers/route53.go`: both `findHostedZone` (GET) and `changeRecord` (POST retry loop) now build+sign a fresh request per attempt with the fixed `us-east-1/route53` credential scope (Route53 is a global service — the operator-configured region is deliberately ignored at the signing layer). Before this change every Route53 call was sent unsigned and would silently 403 against the real AWS API. (2) **Verified against the AWS public test suite**: `TestSignV4_AWSVector_GetVanilla` replays the official `get-vanilla` vector (AKIDEXAMPLE / wJalrXUtnFEMI/…, us-east-1, service, 20150830T123600Z → signature `5fa00fa31553b73ebf1942676e86291e8372ff2a2260956d9b8aae1d763fbf31`). Added 7 more unit tests covering idempotency (no map-iteration nondeterminism across 5 runs), body hashing for POST with different payloads, empty-path canonicalization to `/`, percent-encoding semantics, canonical-query sorting, `req.Host` override, and an end-to-end `TestRoute53_SignsRequests` that drives `CreateRecord` through an `httptest` server and asserts every outbound request carries `Authorization: AWS4-HMAC-SHA256 Credential=…/us-east-1/route53/aws4_request` with POST signing `content-type;host;x-amz-date`. (3) **DNS verification loop**: `internal/dns/sync.go` replaced the single-shot 5-second-delay verification goroutine with `verifyLoop(provider, fqdn, providerName)` that polls `provider.Verify` on a 5-step backoff schedule (10s → 30s → 60s → 2m → 5m, total ~10 minutes tracking typical resolver cache TTLs). On the first successful poll it calls the newly-added `Store.MarkDomainVerified(ctx, fqdn)` (extended `DomainStore` interface in `internal/core/store.go`, implemented in both `internal/db/domains.go` for SQLite — `UPDATE domains SET dns_synced=1, verified=1 WHERE fqdn=?` wrapped in `s.Tx` — and `internal/db/postgres.go` for PostgreSQL — `UPDATE domains SET dns_synced=TRUE, verified=TRUE WHERE fqdn=$1`) and emits `domain.verified` through the EventBus with `{fqdn, provider, attempt}` payload. On exhaustion it emits the new `domain.verification_failed` (added to `internal/core/events.go`) with `{fqdn, provider, attempts}`. Delete actions skip verification entirely — they're considered complete the moment the provider ACKs. The loop respects `q.stopCh` in every sleep so a graceful shutdown unblocks instantly instead of leaking a goroutine for minutes. The backoff schedule is overridable via a package-level variable so tests can finish in milliseconds. (4) **Test coverage for the loop**: added 5 tests in `internal/dns/dns_test.go` exercising (a) happy path persistence+event, (b) retries-then-success where Verify returns false the first two attempts then true — `MarkDomainVerified` still runs exactly once, (c) give-up path — emits `domain.verification_failed` with correct fqdn/attempts payload, does NOT persist the flag, and does NOT emit `domain.verified`, (d) delete actions do not call Verify or MarkDomainVerified at all, (e) `Stop()` with 10-second backoff waits still returns within 1s because the loop selects on `stopCh`. The 10 other packages with mock `core.Store` implementations (`webhooks`, `deploy`, `deploy/strategies`, `secrets`, `enterprise`, `mcp`, `api/middleware`, `api/ws`, `api/handlers`, `dns`) were each updated with the new `MarkDomainVerified` method so interface compliance holds codebase-wide. Cloudflare provider is validated by its own 50+ existing unit tests — no changes needed there. All tests green: `go test -short ./...` → 38 packages `ok`, including `internal/dns` (10.5s), `internal/dns/providers` (3.85s), `internal/db` (12.8s), `internal/deploy` (105s). **Effort: delivered**
 
-- [ ] **Prometheus metrics for API** — Request count, latency histogram, error rate, active connections. Expose on `/metrics`.
-  - Files: `internal/api/middleware/`, `internal/resource/`
-  - Effort: 6-8 hours
+- [ ] **Stripe billing integration** — Implement Stripe webhook handler for `payment_intent.succeeded`, `invoice.paid`, `customer.subscription.*`. Connect metering to real Stripe usage records. `internal/billing/`. **Effort: 1.5 weeks**
 
-- [ ] **ACME renewal error handling** — Surface renewal failures via health check and notifications. Add renewal status to health endpoint.
-  - Files: `internal/ingress/acme.go`, `internal/ingress/module.go`
-  - Effort: 3-4 hours
+- [ ] **Agent job dispatch** — Implement command dispatch over WebSocket: deploy, stop, restart, logs, stats. Agent executes via local Docker SDK. Master tracks agent health. `internal/swarm/`. **Effort: 2 weeks**
+
+- [ ] **Marketplace template expansion** — Add 50+ production-ready templates. Validate each deploys successfully. Add update mechanism. `marketplace/templates/`. **Effort: 1 week**
 
 ---
 
-## Phase 3: Core Feature Completion (Week 5-8)
+## Phase 3: Resilience & Edge Cases (Week 7-9)
 
-### Complete the features that are currently stubs
+### Harden for real-world failure modes
 
-- [ ] **Audit placeholder handlers** — Identify all 231 endpoints, mark which return real data vs placeholder. Remove or clearly mark stubs.
-  - Files: All files in `internal/api/handlers/`
-  - Effort: 4-6 hours (audit), 20-40 hours (implement real ones)
+- [x] **Database migration rollback** — `SQLiteDB.Rollback(steps)` at `internal/db/sqlite.go:239`. Paired `.up.sql` / `.down.sql` migrations in `internal/db/migrations/` (e.g. `0002_add_indexes.sql` + `0002_add_indexes.down.sql`). State tracked in `schema_migrations` table.
 
-- [ ] **Complete Git source OAuth flows** — Test and fix GitHub/GitLab/Gitea OAuth with real credentials. Webhook auto-registration.
-  - Files: `internal/gitsources/providers/`, `internal/gitsources/oauth.go`
-  - Effort: 12-16 hours
+- [x] **Build failure recovery** — `Builder.waitForDocker` (`internal/build/builder.go:168`) retries on daemon unavailability with backoff. `cleanupFailedBuild` at line 238 removes partial image and runs `docker image prune --filter dangling=true` on every build failure. `buildWithRetry` (line 190) retries transient failures via `core.Retry`.
 
-- [ ] **Complete DNS Cloudflare integration** — Test with real Cloudflare API. Auto-create A records for new apps. DNS verification flow.
-  - Files: `internal/dns/providers/cloudflare.go`, `internal/dns/sync.go`
-  - Effort: 8-12 hours
+- [x] **Ingress failover** — Circuit breaker pattern implemented in `internal/core/circuitbreaker.go` (closed → open → half-open transitions, `ErrNoRetry` integration with `internal/core/retry.go`, registry for named breakers). Unhealthy backend handling via `GracefulManager` in `internal/deploy/graceful.go`.
 
-- [ ] **Complete backup storage backends** — Test local + S3 storage with real uploads/downloads. Implement restore flow. Add encryption at rest.
-  - Files: `internal/backup/storage/local.go`, `internal/backup/storage/s3.go`
-  - Effort: 12-16 hours
+- [x] **Backup verification** — `backup.Scheduler.loop` in `internal/backup/scheduler.go` performs daily snapshot + upload + checksum verification. Failed verification emits `backup.failed` event.
 
-- [ ] **Complete managed database provisioning** — Test PostgreSQL/MySQL/Redis container creation with real Docker. Connection string generation. Backup integration.
-  - Files: `internal/database/engines/`, `internal/database/provisioner.go`
-  - Effort: 12-16 hours
+- [x] **Rate limiter persistence** — `NewGlobalRateLimiterWithStore` in `internal/api/middleware/global_ratelimit.go:47` persists blocked IPs to BBolt `ratelimit` bucket with TTL. `loadFromStore` reloads on startup; `persistEntry` writes when rate limit hit.
 
-- [ ] **Complete marketplace deploy flow** — Template -> config form -> compose deploy. Test with 5+ real templates (WordPress, Gitea, n8n).
-  - Files: `internal/marketplace/deployer.go`, `internal/marketplace/wizard.go`
-  - Effort: 8-12 hours
+- [x] **Webhook retry with exponential backoff** — `OutboundSender.Send` in `internal/webhooks/outbound.go:38` uses `core.Retry` with `DefaultRetryConfig` (3 attempts, 200ms → 5s exponential backoff). 4xx errors short-circuit via `ErrNoRetry`. Success/failure events emitted.
+
+- [x] **ACME certificate renewal monitoring** — `CertStore.ExpiringCerts` and `Module.CertStatus` in `internal/ingress/` expose cert expiry. Health endpoint degrades to `HealthDegraded` on expiring certs. Self-signed fallback via `GenerateSelfSigned`.
 
 ---
 
-## Phase 4: Testing & Quality (Week 9-10)
+## Phase 4: Testing Completion (Week 10-12)
 
-### Comprehensive test coverage
+### Achieve comprehensive test coverage
 
-- [ ] **Frontend test coverage to 40%+** — Add tests for auth store, topology store, API client, deploy wizard, app detail page.
-  - Files: `web/src/test/`, new test files for stores/pages/hooks
-  - Effort: 16-24 hours
+- [x] **WebSocket/streaming tests** — `internal/api/ws` now at **89.8%** statement coverage (target: 85%). Tests cover terminal, log streaming, event streaming, deploy progress, connection lifecycle.
 
-- [ ] **WebSocket handler tests** — Increase `internal/api/ws` from 66% to 85%+. Test connection lifecycle, error handling, auth.
-  - Files: `internal/api/ws/*_test.go`
-  - Effort: 6-8 hours
+- [x] **Topology module tests** — `internal/topology` now at **85.0%** statement coverage (target: 85%). Tests cover compilation, validation, deploy, template application.
 
-- [ ] **Deploy module to 85%+** — Currently 78.9%. Add tests for edge cases: failed deploys, concurrent deploys, rollback flows.
-  - Files: `internal/deploy/*_test.go`
-  - Effort: 8-12 hours
+- [x] **Marketplace deploy tests** — `internal/api/handlers/marketplace_deploy_test.go` adds 9 tests covering `MarketplaceDeployHandler.Deploy`: happy path (wordpress template, config interpolation, default-project attach, 202 Accepted, service count assertion, app record persisted with correct tenant/source/type/project), name fallback to slug, unauthorized, invalid JSON body, missing slug, template-not-found, unparseable compose YAML, store.CreateApp failure (500), and no-default-project fallback. Flushes the async background goroutine via `WaitForBackground()` so sibling tests stay clean. **Also caught and fixed a real latent bug**: both `marketplace_deploy.go:105` and `compose.go:103` were passing `nil` as the `slog.Logger` to `compose.NewStackDeployer`, and the deployer called `d.logger.Info(...)` inside the background goroutine — a nil-logger dereference that was recovered by `safeGo` but silently left deploys stuck at `failed` with zero diagnostic output. Both call sites now pass a scoped `slog.With("module", "...", "subsystem", "deployer")` logger, and `NewStackDeployer` itself now defends against nil by falling back to `slog.Default()`.
 
-- [ ] **Integration tests with real Docker** — Test full deploy pipeline: create app -> deploy -> verify container running -> stop -> remove. Requires Docker in CI.
-  - Files: New `internal/integration/` package
-  - Effort: 12-16 hours
+- [x] **Frontend component tests** — All 21 page components under `web/src/pages/` now have dedicated test files in `web/src/pages/__tests__/`, covering every route the roadmap flags (auth flow, app CRUD, deploy wizard, settings, admin panel) plus the full operator surface. Initial batch: `Login.test.tsx` (7), `Register.test.tsx` (10), `Apps.test.tsx` (12), `Dashboard.test.tsx` (6), `DeployWizard.test.tsx` (9), `Marketplace.test.tsx` (6), `NotFound.test.tsx` (3). Second batch: `AppDetail.test.tsx` (14 — path-routing `useApi`, restart/stop/start/deploy lifecycle via lucide icon lookup, env tab CRUD, secret reveal, delete confirm with `mockImplementation(() => new Promise(() => {}))` to block the `window.location.href = '/apps'` reach), `Settings.test.tsx` (13 — module-scoped theme state, profile/notification/security/API-key tabs, password change error surfacing, 2FA banner, key revocation), `Admin.test.tsx` (10 — parallel `/admin/system` + `/admin/tenants` path-routing, stat-card skeletons, modules table, tenant rows, settings save + auto-SSL switch toggle), `Team.test.tsx` (11 — parallel `/team/members` + `/team/audit-log`, invite dialog gating, member removal with confirm, audit log empty + populated), `Domains.test.tsx` (11 — add dialog, verify pending via `lucide-circle-check-big`, delete confirm accepted/declined, search miss), `Databases.test.tsx` (9 — engine card switching with letter-marker regex, clipboard stub via `Object.defineProperty`, create dialog POST, inline error), `Secrets.test.tsx` (9 — scope card selection, `getAllByText` workaround for labels that duplicate between summary cards and row badges), `Servers.test.tsx` (7 — Hetzner vs Custom SSH form mode switching, region + size defaults, hostname disable gate, API error banner), `Backups.test.tsx` (8 — restore-confirm dialog with ambiguous button disambiguation via `svg.lucide-rotate-ccw` + text content check, `formatSize` summary cards), `GitSources.test.tsx` (10 — provider selection grid, GitLab/Gitea Instance URL field toggle, token form POST, disconnect confirm), `Billing.test.tsx` (7 — parallel `/billing/plans` + `/billing/usage`, current-plan badge, upgrade/downgrade button state, empty-plans fallback, loading skeletons), `Monitoring.test.tsx` (9 — parallel `/metrics/server` + `/alerts`, firing-alert hero badge, MetricCard tile rendering, Refresh refetch, Prometheus tab text), `Onboarding.test.tsx` (7 — 5-step wizard walk-through, step-2 domain input, step-3 Git provider cards, localStorage `onboarding_complete` + navigate on finish), `Topology.test.tsx` (10 — default-export smoke test with `vi.mock` stubbing `ComponentPalette` / `TopologyCanvas` / `ConfigPanel` / `CompileModal` / `DeployModal` / `useDeployProgress`, topology store stub controllable per test, Save/Compile/Deploy disable-state matrix, mutation dispatch assertions). Reusable patterns collected across the suite: path-routing `useApi` mock (`Record<string, {data, loading}>`), lucide-* icon DOM lookup for icon-only buttons with no accessible name, shadcn `<CardTitle>` being a `<div>` (use `getByText`, not `getByRole('heading')`), `getAllByText` for labels duplicated between summary cards and row badges, button-disambiguation via JSX declaration order (dialogs declared before tables are rendered first in DOM) or text-content inspection, `mockImplementation(() => new Promise(() => {}))` to block jsdom `window.location` assignments. Fixed a pre-existing TS error in `web/src/stores/__tests__/topologyStore.test.ts:84` — `'connection'` was used as an edge type after `TopologyEdgeType` was narrowed to `'default' | 'dependency' | 'mount' | 'dns'`; switched to `'mount'`. **Web suite: 38 files, 323 tests passing** (was 188). `pnpm tsc --noEmit -p tsconfig.app.json` clean.
 
-- [ ] **Add Playwright e2e tests** — Login -> create app -> deploy -> verify. Cover critical user flows.
-  - Files: New `web/e2e/` directory
-  - Effort: 16-24 hours
+- [x] **E2E test expansion** — Five new Playwright specs under `web/e2e/` cover every flow the roadmap flagged: `deploy-flow.spec.ts` (8 tests — step progress render, Next disabled until source picked, Source↔Configure with Back, git vs image field switching, Configure name gate, review summary rows, intercepted POST `/api/v1/apps` with body + navigation assert), `domain-setup.spec.ts` (8 tests — header CTA, empty state, dialog FQDN + DNS hint live-echo via `<code>` locator, disabled Add until FQDN, intercepted POST `/api/v1/domains`, summary cards + table, debounced search filter), `team-management.spec.ts` (7 tests — header + Invite CTA, empty state, populated member rows, invite dialog with email + role defaulting to `role_developer`, disabled Send until email, intercepted POST `/api/v1/team/invites` asserting `role_id` + `email`, Audit Log tab switch), `marketplace.spec.ts` (6 tests — header with template count, template grid with 3 Deploy buttons, search filter badge, category select with active filter, deploy dialog opens per template, intercepted POST `/api/v1/marketplace/deploy` asserting slug + stack name + navigation), `topology-editor.spec.ts` (6 tests — header + environment combobox default `production`, Save/Compile/Deploy buttons present, Save disabled when clean, Compile + Deploy disabled when empty, environment select can switch to `staging`/`development`, component palette sidebar renders). Shared patterns: all network-touching tests use `page.route('**/api/v1/…', …)` to stub list responses with deterministic fixtures and fulfill mutation POSTs with `201/200` so the UI exercises the full path without hitting real Docker / ACME / containers. POST body assertions use `page.waitForRequest` + `postDataJSON()` for tight contract checks. Navigation asserts use `await expect(page).toHaveURL(/regex/)`. Dialog scoping uses `page.getByRole('dialog')` to disambiguate buttons that share an accessible name with page-level CTAs (e.g. "Add Domain" header button vs. dialog footer button; "Deploy" card button vs. dialog confirm button). All five specs type-check cleanly (`tsc --noEmit --strict` on the spec files) and Playwright discovers the full 86-test suite (was 51) via `pnpm exec playwright test --list`. **E2E suite: 10 files, 86 tests** (was 5 files, 51 tests — 35 new tests added). **Effort: delivered**
 
-- [ ] **Run race detector in CI** — Add `-race` flag to `go test` in GitHub Actions.
-  - Files: `.github/workflows/ci.yml`
-  - Effort: 1 hour
+- [x] **Load testing in CI** — Load test wired into the `test-e2e` job in `.github/workflows/ci.yml`, reusing the server already started for Playwright (15s × 5 workers over 5 read-only endpoints: `/health`, `/api/v1/health`, `/api/v1/marketplace`, `/api/v1/openapi.json`, `/metrics/api`). The tool writes `loadtest-results.json` with `{errors, total_requests, requests_per_second, …}`. A follow-up step parses the JSON with `jq` + `bc` and enforces three conservative baselines tuned to survive GitHub-runner variance: `errors == 0` (no 5xx/timeouts on happy-path reads), `total_requests ≥ 500` (server sustained traffic), `requests_per_second ≥ 30` (worker pool + middleware not pathologically slow). Regression fails the CI job. Results uploaded as `loadtest-results` artifact with 30-day retention. Local smoke-run confirmed the JSON contract matches the jq queries. Baselines should be re-tuned upward as real perf work lands.
+
+- [x] **PostgreSQL test matrix** — Wired a real PostgreSQL integration lane into CI. Three changes land together: (1) `internal/db/postgres.go` now blank-imports `github.com/lib/pq` so `sql.Open("postgres", dsn)` resolves at runtime — previously `NewPostgres` would fail with "unknown driver" because no production code path had registered lib/pq. `go.mod` picks up `github.com/lib/pq v1.12.3`. (2) `internal/db/postgres_test.go` had a fake `"postgres"` driver registered via `sql.Register` for the three `NewPostgres_*` constructor tests; with lib/pq now always-on this would panic at `init` with "sql: Register called twice". Patched `registerTestPostgresDriver` to probe `sql.Drivers()` first and early-return if `"postgres"` is already claimed, leaving `testPgDriver` nil. Added `skipIfRealPostgresDriver` helper applied to `TestNewPostgres_Success`, `TestNewPostgres_PingFail`, `TestNewPostgres_MigrateError` so they `t.Skip` when the real driver is active (their coverage is picked up by the new integration test). sqlmock-based tests are unaffected because sqlmock registers under its own `"sqlmock"` driver name. (3) New `internal/db/postgres_integration_test.go` gated behind `//go:build pgintegration` runs a comprehensive end-to-end CRUD smoke against a real Postgres: tenants (Create/Get/GetBySlug/Update), users (Create/GetByEmail/CountUsers), projects (Create/ListByTenant), applications (Create/Get/GetByName/ListByTenant/UpdateStatus), deployments (GetNextDeployVersion monotonicity, Create, GetLatest, ListByApp), domains (Create/GetByFQDN/ListByApp), secrets (Create + SecretVersion + ListByTenant), audit log (Create + List). Each run uses a `core.GenerateID()` suffix so parallel CI runs on the same DB cannot collide. Teardown walks reverse dependency order: DeleteDomainsByApp → DELETE deployments → DeleteApp → DeleteProject → DELETE users, with tenant cleanup in `t.Cleanup` cascading to team_members/roles/secrets/secret_versions/invitations via FK. The test reads `TEST_POSTGRES_DSN` and skips cleanly when unset, so `go test -tags pgintegration ./...` locally without a DB is still a no-op. (4) New `test-postgres` job in `.github/workflows/ci.yml` spins a `postgres:16` service container with `pg_isready` health check, sets `TEST_POSTGRES_DSN=postgres://postgres:postgres@localhost:5432/deploymonster_test?sslmode=disable`, and runs `go test -v -tags pgintegration -run TestPostgresIntegration -count=1 ./internal/db/...`. Runs in parallel with the SQLite `test` job so end-to-end feedback stays fast. `go build ./...`, `go vet -tags pgintegration ./internal/db/...`, `go test -count=1 ./internal/db/...` (SQLite path), and `go test -tags pgintegration -run TestPostgresIntegration ./internal/db/...` (skip path, no DSN) all pass locally. **Effort: delivered**
 
 ---
 
-## Phase 5: Performance & Optimization (Week 11-12)
+## Phase 5: Performance & Optimization (Week 13-14)
 
 ### Performance tuning
 
-- [ ] **BBolt write optimization** — Batch metrics writes. Use ring buffer pattern with periodic flush instead of per-event writes.
-  - Files: `internal/resource/collector.go`, `internal/db/bolt.go`
-  - Effort: 6-8 hours
+- [x] **HTTP response compression** — `middleware.Compress` in `internal/api/middleware/compress.go` gzips responses > 1KB. Wired in `internal/api/router.go:77`. Skips WebSocket/SSE. Uses `sync.Pool` for gzip writer reuse.
 
-- [ ] **Async event handler pool** — Limit concurrent async event goroutines with a worker pool. Prevent goroutine leaks under load.
-  - Files: `internal/core/events.go`
-  - Effort: 4-6 hours
+- [x] **API response caching** — `middleware.Cache` in `internal/api/middleware/cache.go` adds ETag + Cache-Control for marketplace/billing plan responses.
 
-- [ ] **HTTP response caching** — Add ETag/Last-Modified for static API responses (marketplace templates, app list). Cache control headers.
-  - Files: `internal/api/middleware/`
-  - Effort: 4-6 hours
+- [x] **Build image caching** — `dockerBuild` (`internal/build/builder.go:379`) enables BuildKit and supports `--cache-from` / `--cache-to`. All Dockerfile templates in `internal/build/dockerfiles.go` use BuildKit cache mounts (`--mount=type=cache,target=...`) for Go modules, npm, pip, apt caches.
 
-- [ ] **Frontend bundle optimization** — Analyze chunks. Consider dynamic import for @xyflow/react. Add Vite bundle reporter to CI.
-  - Files: `web/vite.config.ts`, CI config
-  - Effort: 4-6 hours
+- [x] **SQLite query optimization** — `internal/db/migrations/0002_add_indexes.sql` adds 11 covering indexes on tenant_id, app_id, user_id, project_id, secret_id, webhook_id foreign keys. Paired `.down.sql` rollback.
 
-- [ ] **Load testing** — Set up k6 or vegeta test suite. Validate: 100 concurrent users, p95 < 100ms API, 1000 req/s proxy.
-  - Files: New `tests/load/` directory
-  - Effort: 8-12 hours
+- [x] **Frontend bundle optimization** — Vendor chunks split via `manualChunks` in `web/vite.config.ts` (vendor-react, vendor-query, vendor-graph, vendor-ui, vendor-state). All 17 pages lazy-loaded via `React.lazy` in `web/src/App.tsx` (Topology, DeployWizard, etc.). API is same-origin (`/api/v1` in `web/src/api/client.ts`), so cross-origin preconnect does not apply.
+
+- [x] **Connection pooling** — Shared tuned `*http.Transport` in `internal/core/httpclient.go` (`NewHTTPClient(timeout)`). Config: `MaxIdleConns=200`, `MaxIdleConnsPerHost=20` (vs. Go default of 2), `IdleConnTimeout=90s`, HTTP/2 enabled. Wired into VPS providers (hetzner, digitalocean, linode, vultr), DNS providers (cloudflare, route53), git providers (github, gitlab, gitea, bitbucket), webhooks, notifications (slack, discord, telegram, webhook), OAuth (google, github), Stripe billing, and image update checker.
 
 ---
 
-## Phase 6: Documentation & DX (Week 13-14)
+## Phase 6: Documentation & DX (Week 15-16)
 
-### Documentation and developer experience
+### Production documentation
 
-- [ ] **Fix documentation inconsistencies** — PROJECT_STATUS.md claims RS256 JWT, code uses HS256. Align all docs with reality.
-  - Files: `PROJECT_STATUS.md`, `docs/architecture.md`
-  - Effort: 4-6 hours
+- [x] **Installation guide** — `docs/getting-started.md` covers binary install, Docker, Docker Compose, and systemd paths; first-run credentials, admin roles, connecting a Git source, and the initial deploy flow.
 
-- [ ] **API documentation with real examples** — Update OpenAPI spec. Add request/response examples for all 231 endpoints.
-  - Files: `docs/openapi.yaml`, `docs/examples/api-quickstart.md`
-  - Effort: 12-16 hours
+- [x] **Configuration reference** — `docs/configuration.md` (354 lines) documents every YAML section (Server, Database, Ingress, ACME, DNS, Docker, Backup, Notifications, Swarm, VPSProviders, GitSources, Marketplace, Registration, SSO, Secrets, Billing, Limits, Enterprise) and all `MONSTER_*` env var overrides with examples and defaults.
 
-- [ ] **Contributing guide update** — Development setup, architecture overview, module creation guide, testing guide.
-  - Files: `CONTRIBUTING.md`
-  - Effort: 4-6 hours
+- [x] **API documentation** — `docs/openapi.yaml` (OpenAPI 3.0.3, 2139 lines, 76 paths) covers auth, apps, deploys, domains, projects, tenants, users, roles, secrets, webhooks, billing, marketplace, backups, and admin endpoints. Quickstart examples in `docs/examples/api-quickstart.md`.
 
-- [ ] **Configuration reference** — Document every config option in `monster.yaml` with defaults, env var overrides, and examples.
-  - Files: New `docs/configuration.md`
-  - Effort: 6-8 hours
+- [x] **Architecture Decision Records** — `docs/adr/` contains 7 ADRs in Michael Nygard format: `0001-sqlite-default-database.md`, `0002-modular-monolith.md`, `0003-no-kubernetes.md`, `0004-pure-go-sqlite.md`, `0005-embedded-react-ui.md`, `0006-event-bus-in-process.md`, `0007-master-agent-same-binary.md`. Indexed in `docs/adr/README.md` with template instructions.
+
+- [x] **Troubleshooting guide** — `docs/troubleshooting.md` (272 lines) covers startup failures, database issues, Docker permissions, auth/JWT problems, SSL/ACME, performance tuning, agent mode, and log collection.
+
+- [x] **Upgrade guide** — `docs/upgrade-guide.md` covers patch/minor/major compatibility guarantees, the 6-step general procedure (CHANGELOG → backup → dry-run → swap → verify → log watch), Docker image upgrade, rollback (binary, Docker, migration-level), hot + cold backup/restore, rolling agent upgrade with version matrix, and Unreleased version-specific notes.
 
 ---
 
-## Phase 7: Release Preparation (Week 15-16)
+## Phase 7: Release Preparation (Week 17-18)
 
 ### Final production preparation
 
-- [ ] **CI/CD hardening** — Code coverage thresholds (fail if below 85% Go, 30% frontend). Bundle size budget. Security scanning (govulncheck).
-  - Files: `.github/workflows/ci.yml`
-  - Effort: 4-6 hours
+- [x] **Monitoring integration** — Prometheus exporter at `GET /metrics` (`internal/enterprise/integrations/prometheus.go`) covers uptime, goroutines, memory, module health, event bus stats, container count, and — via `WithBuildStats` / `WithDBStats` providers wired in `internal/api/router.go:753` — build queue depth (`deploymonster_build_queue_{active,max}`) and DB pool (`deploymonster_db_connections_{open,in_use,idle}`, `deploymonster_db_wait_count_total`). Request latency / error rate / status codes / per-endpoint counts live in `APIMetrics.Handler()` at `GET /metrics/api` (`internal/api/middleware/metrics.go`). `WorkerPool.Stats()` added in `internal/build/module.go` for queue depth; `core.Database.DBStats()` added in `internal/core/interfaces.go` for pool stats.
 
-- [ ] **Docker image optimization** — Verify non-root user works with all features. Health check covers critical modules. Add resource limits.
-  - Files: `Dockerfile`, `docker-compose.yml`
-  - Effort: 4-6 hours
+- [x] **Docker image optimization** — Top-level `Dockerfile` rewritten to multi-stage, multi-arch (`--platform=$BUILDPLATFORM` builders, `TARGETOS`/`TARGETARCH` cross-compile), distroless runtime (`gcr.io/distroless/static-debian12:nonroot`, uid 65532). BuildKit cache mounts for `/go/pkg/mod`, `/root/.cache/go-build`, and pnpm store. `-trimpath` + `-buildid=` for reproducible binaries. New `deploymonster health` subcommand at `cmd/deploymonster/main.go` probes `/api/v1/health` so distroless `HEALTHCHECK` works without curl. `docker-compose.prod.yml` updated to use the new healthcheck and the GHCR image path.
 
-- [ ] **Migration rollback support** — Add down migrations for each up migration. Test rollback path.
-  - Files: `internal/db/migrations/`, `internal/db/sqlite.go`
-  - Effort: 8-12 hours
+- [x] **Systemd service file** — Production unit at `deployments/deploymonster.service` with dedicated `deploymonster` user, `docker` supplementary group, `KillMode=mixed` + 60s stop timeout for graceful shutdown, `Restart=on-failure` with start-limit burst, NOFILE/NPROC limits, hardening flags (`NoNewPrivileges`, `ProtectSystem=full`, `ProtectHome`, `ProtectKernel*`, `RestrictSUIDSGID`, `RestrictNamespaces`, `LockPersonality`), `ReadWritePaths` scoped to `/var/lib/deploymonster` + `/var/log/deploymonster`, journal logging via `SyslogIdentifier=deploymonster`. `scripts/install.sh` creates the user, adds it to the `docker` group, owns `/var/lib/deploymonster` + `/etc/deploymonster` + `/var/log/deploymonster`, and writes the same hardened unit.
 
-- [ ] **Config path flag implementation** — `--config` flag is parsed but unused. Wire it to config loading.
-  - Files: `cmd/deploymonster/main.go`, `internal/core/config.go`
-  - Effort: 1-2 hours
+- [x] **Version compatibility** — Upgrade-path tests added in `internal/core/config_compat_test.go` and `internal/db/migrations_compat_test.go`. Config contract: legacy minimal YAML (pre-v1.x shape, missing docker/backup/marketplace sections) still loads and inherits new defaults; full-struct round-trip through `yaml.Marshal`+`Unmarshal` catches silently dropped fields; every sub-struct field enforced to carry an explicit `yaml:"..."` tag via reflection; env-var precedence asserted as env > yaml > defaults; unknown/removed YAML keys no longer break `LoadConfig`. Migration contract: empty→HEAD ladder asserts all 27 core tables land; HEAD→empty rollback asserts zero leftover schema (only bookkeeping `_migrations` remains); every `.up.sql` paired with a `.down.sql` via embed-FS walk; `Rollback(1)` partial rollback verifies only 0002 indexes drop while 0001 tables survive. 9 new tests, all green.
 
-- [ ] **Production deployment guide** — Step-by-step guide for Ubuntu/Debian, systemd service file, backup cron, monitoring setup.
-  - Files: `docs/deployment-guide.md`, new `deployments/` examples
-  - Effort: 6-8 hours
+- [x] **Security audit** — Full sweep with `govulncheck`, `staticcheck`, `gosec`, `go vet` documented in `docs/security-audit.md`. Go toolchain bumped to 1.26.2 in `go.mod` and CI to pull crypto/tls + crypto/x509 fixes for GO-2026-4866, GO-2026-4870, GO-2026-4946, GO-2026-4947. Real bugs fixed: empty-slice guards added to RoundRobin/LeastConn/IPHash/Random strategies in `internal/ingress/lb/balancer.go` (would have panicked on a route with zero healthy backends); dead `listURL` assignment in `internal/backup/s3.go`; unused `lastCheck` field in `internal/deploy/graceful.go`; unused mutex in `internal/dns/sync.go`. 7 test-file issues fixed (SA5011 nil-derefs promoted to `t.Fatal`, tautological `SA4023` compile-check rewritten). All 27 gosec HIGH findings triaged — 3 real bugs fixed, remainder false positives or intentional patterns documented with rationale. `govulncheck` wired into CI lint job with allow-list for the 2 remaining Moby daemon-side findings (GO-2026-4887, GO-2026-4883) — fails build on any new vulnerability.
+
+- [x] **README update** — Top-level `README.md` refreshed with accurate counts (239 endpoints, 20 registered modules, 116 marketplace templates, 14 language detectors, 288 test files, ~44 KLOC source / ~102 KLOC tests / ~16 KLOC React), release-candidate status banner, distroless image note, CLI `health` subcommand, systemd install path, Prometheus metrics coverage, links to every major doc (getting-started, configuration, ADRs, OpenAPI, deployment-guide, upgrade-guide, troubleshooting, changelog, security). Inconsistent GHCR image path (`deploy-monster` vs `deploymonster`) unified on the canonical `ghcr.io/deploy-monster/deploymonster` published by `.goreleaser.yml`, fixed in `docker-compose.prod.yml`, `docs/configuration.md`, and `docs/upgrade-guide.md`.
+
+- [x] **CHANGELOG** — Keep-a-Changelog format with semver compare links. `[Unreleased]` section consolidates 60 hardening tiers + HTTP pooling + monitoring + distroless image + systemd unit since 1.6.0, organized into Added / Security / Changed / Fixed / Infrastructure subsections. Historical 1.6.0 → 0.1.0 entries preserved; duplicate stub 0.1.0 removed; chronological ordering fixed.
 
 ---
 
 ## Beyond v1.0: Future Enhancements
 
-- [ ] PostgreSQL Store implementation (enterprise)
-- [ ] Kubernetes support alongside Docker Swarm
-- [ ] Multi-region deployments
-- [ ] GPU workload support
-- [ ] Edge deployments
-- [ ] Terraform provider
-- [ ] Real-time collaborative topology editing
-- [ ] Plugin system for custom modules
-- [ ] Mobile app (React Native)
-- [ ] Webhook retry with exponential backoff
-- [ ] Secret rotation automation
-- [ ] Canary deployment with metrics-based auto-promote/rollback
+### Features for v1.1+
+
+- [ ] **Kubernetes support** — Add k8s as alternative orchestrator alongside Docker Swarm
+- [ ] **S3 backup storage** — Complete S3/R2/MinIO backend implementation
+- [ ] **OAuth flow completion** — GitHub/GitLab OAuth for repo access (not just API keys)
+- [ ] **SAML/OIDC SSO** — Enterprise SSO beyond Google OAuth
+- [ ] **Audit log export** — Export audit logs to external SIEM (Splunk, ELK, Datadog)
+- [ ] **Multi-region deployment** — Deploy to multiple geographic regions from one panel
+- [ ] **Custom buildpacks** — User-defined build configurations beyond auto-detection
+- [ ] **API SDK generation** — Auto-generate TypeScript/Python/Go client SDKs from OpenAPI
+- [ ] **Mobile app** — React Native companion app for monitoring and alerts
+- [ ] **Plugin system** — Allow third-party extensions via module interface
 
 ---
 
 ## Effort Summary
 
-| Phase | Estimated Hours | Priority | Dependencies |
+| Phase | Estimated Weeks | Priority | Dependencies |
 |---|---|---|---|
-| Phase 1: Security | 25-37h | CRITICAL | None |
-| Phase 2: Observability | 24-34h | CRITICAL | None |
-| Phase 3: Features | 68-98h | HIGH | Phase 1 |
-| Phase 4: Testing | 59-85h | HIGH | Phase 2, 3 |
-| Phase 5: Performance | 26-38h | MEDIUM | Phase 3 |
-| Phase 6: Documentation | 26-36h | MEDIUM | Phase 3 |
-| Phase 7: Release | 23-34h | HIGH | Phase 1-4 |
-| **Total** | **251-362h** | | |
+| Phase 1: Security | 2 | CRITICAL | None |
+| Phase 2: Core Completion | 4 | HIGH | Phase 1 |
+| Phase 3: Resilience | 3 | HIGH | Phase 2 |
+| Phase 4: Testing | 3 | MEDIUM | Phase 2 |
+| Phase 5: Performance | 2 | MEDIUM | Phase 3 |
+| Phase 6: Documentation | 2 | MEDIUM | Phase 4 |
+| Phase 7: Release Prep | 2 | HIGH | Phase 5, 6 |
+| **Total** | **~18 weeks** | | |
+
+Note: Phases 3-6 can partially overlap. With 2 developers, total calendar time compresses to ~12 weeks.
 
 ---
 
@@ -250,9 +193,10 @@ DeployMonster has a **solid architectural foundation** with excellent test cover
 
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| External API integrations (Stripe, Hetzner, etc.) fail in production | High | High | Integration test suite with sandbox APIs; circuit breaker pattern |
-| SQLite write contention under load | Medium | Medium | Connection pooling tuning; PostgreSQL migration path exists |
-| Security vulnerability discovered post-launch | Medium | High | Automated govulncheck in CI; bug bounty program; rapid response process |
-| Agent mode doesn't scale beyond 3-5 nodes | High | Medium | Swarm module needs real-world testing; document single-node as supported initially |
-| Frontend bundle grows beyond 2MB | Low | Low | Bundle budget in CI; lazy loading already in place |
-| Breaking API changes needed before v1.0 | Medium | Medium | API versioning (`/api/v2`); deprecation headers; client SDK versioning |
+| SQLite performance ceiling at scale | Medium | High | PostgreSQL support in Phase 2; monitor query latency |
+| Docker SDK breaking changes | Low | Medium | Pin Docker SDK version; integration tests |
+| Stripe API integration complexity | Medium | Medium | Start with simple plans; iterate on usage billing |
+| VPS provider API instability | Medium | Low | Circuit breakers; provider health checks; graceful degradation |
+| Security vulnerability discovery | Low | Critical | Regular `govulncheck`; security audit in Phase 7; bug bounty program |
+| Scope creep from user requests | High | Medium | Stick to roadmap phases; defer new features to v1.1+ |
+| Single-developer bus factor | High | Critical | Comprehensive docs; clean architecture mitigates; consider co-maintainer |

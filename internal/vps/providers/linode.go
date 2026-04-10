@@ -1,11 +1,9 @@
 package providers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -14,69 +12,108 @@ import (
 
 const linodeAPI = "https://api.linode.com/v4"
 
+// linodePageSize is the per-page count requested from paginated endpoints.
+// Linode's documented maximum is 500; 100 keeps response sizes modest.
+const linodePageSize = 100
+
 // Linode implements core.VPSProvisioner for Akamai/Linode.
 type Linode struct {
 	token  string
 	client *http.Client
+	cb     *core.CircuitBreaker
 }
 
 func NewLinode(apiToken string) core.VPSProvisioner {
 	return &Linode{
 		token:  apiToken,
-		client: &http.Client{Timeout: 30 * time.Second},
+		client: core.NewHTTPClient(30 * time.Second),
+		cb:     core.NewCircuitBreaker("linode", core.DefaultCircuitBreakerConfig()),
 	}
 }
 
 func (l *Linode) Name() string { return "linode" }
 
-func (l *Linode) ListRegions(ctx context.Context) ([]core.VPSRegion, error) {
-	body, err := l.get(ctx, "/regions")
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Data []struct {
-			ID    string `json:"id"`
-			Label string `json:"label"`
-		} `json:"data"`
-	}
-	json.Unmarshal(body, &resp)
+// linodePageMeta matches the top-level pagination fields returned by Linode
+// list endpoints. The caller has reached the final page when `Page >= Pages`.
+type linodePageMeta struct {
+	Page  int `json:"page"`
+	Pages int `json:"pages"`
+}
 
-	regions := make([]core.VPSRegion, len(resp.Data))
-	for i, r := range resp.Data {
-		regions[i] = core.VPSRegion{ID: r.ID, Name: r.Label}
+type linodeRegionEntry struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+type linodeRegionsPage struct {
+	Data []linodeRegionEntry `json:"data"`
+	linodePageMeta
+}
+
+type linodeTypeEntry struct {
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	VCPUs  int    `json:"vcpus"`
+	Memory int    `json:"memory"`
+	Disk   int    `json:"disk"`
+	Price  struct {
+		Hourly float64 `json:"hourly"`
+	} `json:"price"`
+}
+
+type linodeTypesPage struct {
+	Data []linodeTypeEntry `json:"data"`
+	linodePageMeta
+}
+
+func (l *Linode) ListRegions(ctx context.Context) ([]core.VPSRegion, error) {
+	var all []core.VPSRegion
+	page := 1
+	for i := 0; i < vpsMaxPages; i++ {
+		body, err := l.get(ctx, fmt.Sprintf("/regions?page=%d&page_size=%d", page, linodePageSize))
+		if err != nil {
+			return nil, err
+		}
+		var resp linodeRegionsPage
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, fmt.Errorf("linode API: decode regions: %w", err)
+		}
+		for _, r := range resp.Data {
+			all = append(all, core.VPSRegion{ID: r.ID, Name: r.Label})
+		}
+		if resp.Page >= resp.Pages {
+			return all, nil
+		}
+		page = resp.Page + 1
 	}
-	return regions, nil
+	return all, nil
 }
 
 func (l *Linode) ListSizes(ctx context.Context, _ string) ([]core.VPSSize, error) {
-	body, err := l.get(ctx, "/linode/types")
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Data []struct {
-			ID     string `json:"id"`
-			Label  string `json:"label"`
-			VCPUs  int    `json:"vcpus"`
-			Memory int    `json:"memory"`
-			Disk   int    `json:"disk"`
-			Price  struct {
-				Hourly float64 `json:"hourly"`
-			} `json:"price"`
-		} `json:"data"`
-	}
-	json.Unmarshal(body, &resp)
-
-	sizes := make([]core.VPSSize, len(resp.Data))
-	for i, s := range resp.Data {
-		sizes[i] = core.VPSSize{
-			ID: s.ID, Name: s.Label,
-			CPUs: s.VCPUs, MemoryMB: s.Memory, DiskGB: s.Disk / 1024,
-			PriceHour: s.Price.Hourly,
+	var all []core.VPSSize
+	page := 1
+	for i := 0; i < vpsMaxPages; i++ {
+		body, err := l.get(ctx, fmt.Sprintf("/linode/types?page=%d&page_size=%d", page, linodePageSize))
+		if err != nil {
+			return nil, err
 		}
+		var resp linodeTypesPage
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, fmt.Errorf("linode API: decode types: %w", err)
+		}
+		for _, s := range resp.Data {
+			all = append(all, core.VPSSize{
+				ID: s.ID, Name: s.Label,
+				CPUs: s.VCPUs, MemoryMB: s.Memory, DiskGB: s.Disk / 1024,
+				PriceHour: s.Price.Hourly,
+			})
+		}
+		if resp.Page >= resp.Pages {
+			return all, nil
+		}
+		page = resp.Page + 1
 	}
-	return sizes, nil
+	return all, nil
 }
 
 func (l *Linode) Create(ctx context.Context, opts core.VPSCreateOpts) (*core.VPSInstance, error) {
@@ -99,7 +136,9 @@ func (l *Linode) Create(ctx context.Context, opts core.VPSCreateOpts) (*core.VPS
 		IPv4   []string `json:"ipv4"`
 		Status string   `json:"status"`
 	}
-	json.Unmarshal(body, &resp)
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("linode API: decode create response: %w", err)
+	}
 
 	ip := ""
 	if len(resp.IPv4) > 0 {
@@ -126,7 +165,9 @@ func (l *Linode) Status(ctx context.Context, instanceID string) (string, error) 
 	var resp struct {
 		Status string `json:"status"`
 	}
-	json.Unmarshal(body, &resp)
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", fmt.Errorf("linode API: decode status response: %w", err)
+	}
 	return resp.Status, nil
 }
 
@@ -139,26 +180,9 @@ func (l *Linode) post(ctx context.Context, path string, payload any) ([]byte, er
 }
 
 func (l *Linode) do(ctx context.Context, method, path string, payload any) ([]byte, error) {
-	var body io.Reader
-	if payload != nil {
-		data, _ := json.Marshal(payload)
-		body = bytes.NewReader(data)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, linodeAPI+path, body)
+	data, err := vpsMarshalPayload(payload)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("linode API: marshal payload: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+l.token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := l.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("linode API: %w", err)
-	}
-	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("linode API %s: HTTP %d", path, resp.StatusCode)
-	}
-	return respBody, nil
+	return vpsDoRequest(ctx, l.client, l.cb, "linode", method, linodeAPI+path, l.token, data)
 }
