@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -13,16 +14,32 @@ import (
 const watcherSyncInterval = 10 * time.Second
 
 // Watcher monitors container changes and updates the route table.
+//
+// The watcher polls the container runtime every watcherSyncInterval and
+// reconciles the ingress route table against the set of running containers
+// with the monster.enable=true label. It also garbage-collects routes for
+// app IDs that have disappeared so stopped containers do not accumulate
+// stale entries forever.
 type Watcher struct {
 	runtime    core.ContainerRuntime
 	routeTable *ingress.RouteTable
 	events     *core.EventBus
 	logger     *slog.Logger
-	stopCh     chan struct{}
+
+	// Shutdown plumbing. stopOnce guards close(stopCh) against the (very
+	// real) risk that Stop is called from both module teardown and a test
+	// fixture. wg lets Stop wait for the Start goroutine to exit so
+	// callers can rely on "after Stop, no more syncs run."
+	stopCh   chan struct{}
+	stopOnce sync.Once
+	wg       sync.WaitGroup
 }
 
 // NewWatcher creates a new container watcher.
 func NewWatcher(runtime core.ContainerRuntime, rt *ingress.RouteTable, events *core.EventBus, logger *slog.Logger) *Watcher {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Watcher{
 		runtime:    runtime,
 		routeTable: rt,
@@ -32,15 +49,25 @@ func NewWatcher(runtime core.ContainerRuntime, rt *ingress.RouteTable, events *c
 	}
 }
 
-// Start begins the periodic container scan.
-// It polls containers with monster.enable=true labels and syncs routes.
+// Start begins the periodic container scan. It blocks until either
+// Stop is called or ctx is cancelled — callers who want it in the
+// background must invoke it in a goroutine and track the lifetime via
+// the watcher's own Stop.
 func (w *Watcher) Start(ctx context.Context) {
+	w.wg.Add(1)
+	defer w.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			w.logger.Error("panic in container watcher", "error", r)
+		}
+	}()
+
 	w.logger.Info("container watcher started")
 
-	// Initial sync
+	// Initial sync so routes are populated immediately after start
+	// rather than after the first tick delay.
 	w.syncRoutes(ctx)
 
-	// Periodic resync every 10 seconds
 	ticker := time.NewTicker(watcherSyncInterval)
 	defer ticker.Stop()
 
@@ -56,12 +83,19 @@ func (w *Watcher) Start(ctx context.Context) {
 	}
 }
 
-// Stop signals the watcher to stop.
+// Stop signals the watcher to stop. Safe to call multiple times; the
+// second and subsequent calls are no-ops. Stop waits for the Start
+// goroutine to fully exit before returning.
 func (w *Watcher) Stop() {
-	close(w.stopCh)
+	w.stopOnce.Do(func() {
+		close(w.stopCh)
+	})
+	w.wg.Wait()
 }
 
-// syncRoutes lists all containers with monster labels and updates routes.
+// syncRoutes lists all containers with monster labels and reconciles
+// the ingress route table: live containers get upserted, routes whose
+// app IDs are no longer present are removed.
 func (w *Watcher) syncRoutes(ctx context.Context) {
 	containers, err := w.runtime.ListByLabels(ctx, map[string]string{
 		"monster.enable": "true",
@@ -71,8 +105,9 @@ func (w *Watcher) syncRoutes(ctx context.Context) {
 		return
 	}
 
-	// Track which app IDs we found so we can clean up stale routes
-	activeApps := make(map[string]bool)
+	// Track app IDs that currently have at least one running container
+	// so we can remove stale routes in the second pass below.
+	activeApps := make(map[string]struct{}, len(containers))
 
 	for _, c := range containers {
 		if c.State != "running" {
@@ -83,7 +118,7 @@ func (w *Watcher) syncRoutes(ctx context.Context) {
 		if appID == "" {
 			continue
 		}
-		activeApps[appID] = true
+		activeApps[appID] = struct{}{}
 
 		route := ParseLabelsToRoute(c.Labels, c.ID)
 		if route == nil {
@@ -93,7 +128,37 @@ func (w *Watcher) syncRoutes(ctx context.Context) {
 		w.routeTable.Upsert(route)
 	}
 
-	w.logger.Debug("routes synced", "containers", len(containers), "routes", w.routeTable.Count())
+	// Second pass: drop routes whose AppID no longer has a running
+	// container. Without this, scaling a container to zero or stopping
+	// an app would leave the route in the table forever and the proxy
+	// would keep sending traffic to a dead backend.
+	removed := 0
+	seen := make(map[string]struct{})
+	for _, r := range w.routeTable.All() {
+		if r.AppID == "" {
+			continue
+		}
+		if _, ok := activeApps[r.AppID]; ok {
+			continue
+		}
+		// Multiple routes may share an app ID; de-dupe the removal so
+		// we only call RemoveByAppID once per stale app.
+		if _, already := seen[r.AppID]; already {
+			continue
+		}
+		seen[r.AppID] = struct{}{}
+		w.routeTable.RemoveByAppID(r.AppID)
+		removed++
+	}
+
+	if removed > 0 {
+		w.logger.Info("stale routes removed", "count", removed)
+	}
+	w.logger.Debug("routes synced",
+		"containers", len(containers),
+		"active_apps", len(activeApps),
+		"routes", w.routeTable.Count(),
+	)
 }
 
 // ParseLabelsToRoute converts monster.* Docker labels to a RouteEntry.

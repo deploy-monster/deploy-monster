@@ -99,14 +99,7 @@ func TestHealthChecker_CheckHTTP_StatusError(t *testing.T) {
 	// Extract host from server URL
 	host := srv.Listener.Addr().String()
 
-	check := &HealthCheck{
-		Backend: host,
-		Type:    "http",
-		Path:    "/healthz",
-		Timeout: 5 * time.Second,
-	}
-
-	err := hc.checkHTTP(check)
+	err := hc.probeHTTP(host, "/healthz", 5*time.Second)
 	if err == nil {
 		t.Error("expected error for HTTP 500")
 	}
@@ -128,15 +121,7 @@ func TestHealthChecker_CheckHTTP_Success(t *testing.T) {
 	hc := NewHealthChecker(testLogger())
 	host := srv.Listener.Addr().String()
 
-	check := &HealthCheck{
-		Backend: host,
-		Type:    "http",
-		Path:    "/",
-		Timeout: 5 * time.Second,
-	}
-
-	err := hc.checkHTTP(check)
-	if err != nil {
+	if err := hc.probeHTTP(host, "/", 5*time.Second); err != nil {
 		t.Errorf("expected nil error, got %v", err)
 	}
 }
@@ -297,15 +282,8 @@ func TestFinal_Watcher_Start_StopChannel(t *testing.T) {
 func TestHealthChecker_CheckHTTP_BadURL(t *testing.T) {
 	hc := NewHealthChecker(testLogger())
 
-	check := &HealthCheck{
-		Backend: "://invalid", // invalid host for URL construction
-		Type:    "http",
-		Path:    "/",
-		Timeout: 1 * time.Second,
-	}
-
-	err := hc.checkHTTP(check)
-	if err == nil {
+	// "://invalid" builds to "http://://invalid/" which fails URL parse.
+	if err := hc.probeHTTP("://invalid", "/", 1*time.Second); err == nil {
 		t.Error("expected error for invalid backend address")
 	}
 }

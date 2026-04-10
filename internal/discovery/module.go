@@ -15,10 +15,20 @@ func init() {
 // Module implements service discovery by watching Docker container events
 // and automatically registering/deregistering routes in the ingress.
 type Module struct {
-	core       *core.Core
-	watcher    *Watcher
-	routeTable *ingress.RouteTable
-	logger     *slog.Logger
+	core          *core.Core
+	watcher       *Watcher
+	healthChecker *HealthChecker
+	routeTable    *ingress.RouteTable
+	logger        *slog.Logger
+
+	// watcherCtx is the context passed to the background watcher
+	// goroutine. watcherCancel is held so Stop can cancel it and
+	// unblock any in-flight ListByLabels call. Previously the module
+	// handed context.Background() to the watcher, which meant the
+	// watcher goroutine would never notice Stop on the context path
+	// — only via Watcher.stopCh, which was not even called here.
+	watcherCtx    context.Context
+	watcherCancel context.CancelFunc
 }
 
 func New() *Module {
@@ -77,12 +87,15 @@ func (m *Module) Start(_ context.Context) error {
 
 	// Start Docker event watcher if container runtime is available
 	if m.core.Services.Container != nil {
+		m.watcherCtx, m.watcherCancel = context.WithCancel(context.Background())
 		m.watcher = NewWatcher(m.core.Services.Container, m.routeTable, m.core.Events, m.logger)
-		go m.watcher.Start(context.Background())
+		go m.watcher.Start(m.watcherCtx)
 
-		// Start backend health checker
-		healthChecker := NewHealthChecker(m.logger)
-		healthChecker.Start()
+		// Start backend health checker. Store it on the module so Stop
+		// can halt the loop goroutine — before Tier 65 the checker was
+		// created as a local variable and leaked on module shutdown.
+		m.healthChecker = NewHealthChecker(m.logger)
+		m.healthChecker.Start()
 	}
 
 	m.logger.Info("service discovery started")
@@ -90,8 +103,16 @@ func (m *Module) Start(_ context.Context) error {
 }
 
 func (m *Module) Stop(_ context.Context) error {
+	// Cancel the watcher context first so any in-flight ListByLabels
+	// call aborts immediately rather than blocking Stop on its timeout.
+	if m.watcherCancel != nil {
+		m.watcherCancel()
+	}
 	if m.watcher != nil {
 		m.watcher.Stop()
+	}
+	if m.healthChecker != nil {
+		m.healthChecker.Stop()
 	}
 	return nil
 }
