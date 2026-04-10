@@ -106,6 +106,13 @@ func (m *Module) Stop(ctx context.Context) error {
 		handlers.WaitForBackground()
 
 	shutdown:
+		// Tier 72: the global rate limiter spawns a cleanup goroutine
+		// in its constructor. Pre-Tier-72 this was never stopped, so
+		// the goroutine leaked for the lifetime of the process and
+		// every test that built a router created another orphan.
+		if m.router != nil && m.router.globalRL != nil {
+			m.router.globalRL.Stop()
+		}
 		return m.server.Shutdown(ctx)
 	}
 	return nil
