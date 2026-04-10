@@ -18,6 +18,31 @@ import (
 // Master side: listens on GET /api/v1/agent/ws (HTTP hijacked to raw TCP).
 // Each agent authenticates with a join token, sends its AgentInfo, and then
 // enters a bidirectional JSON message loop.
+//
+// Lifecycle notes for Tier 76:
+//
+//   - Pre-Tier-76 readLoop, heartbeatLoop, and per-agent ping goroutines
+//     were all fire-and-forget. Stop closed s.stop and cancelled agent
+//     contexts but never waited for any of them, so Module.Stop could
+//     return while goroutines were still mid-write into an
+//     about-to-be-closed net.Conn or mid-PublishAsync into an
+//     about-to-shutdown EventBus. All three lifetimes are now tracked
+//     by a single wg that Stop drains after signalling shutdown.
+//   - readLoop, heartbeatLoop, and the ping goroutine had no defer
+//     /recover. A panic inside handleAgentMessage or Send would crash
+//     the whole master process. All three now recover and log.
+//   - NewAgentServer called logger.With on an un-nil-checked logger,
+//     so a struct-literal caller (or a test with nil) would NPE before
+//     the field was even assigned. Nil now falls back to slog.Default.
+//   - removeAgent and heartbeatTick used context.Background() for
+//     PublishAsync and per-ping Send, so Stop could not abort work in
+//     progress. Both now derive from stopCtx so Stop cancels in-flight
+//     work in addition to waking the heartbeat loop.
+//   - HandleConnect did not check the closed flag, so an HTTP request
+//     arriving between Stop signalling shutdown and Module.Stop
+//     returning would spawn a brand-new untracked readLoop on an
+//     already-shutting-down server. The closed flag now short-circuits
+//     HandleConnect (and StartHeartbeat) after Stop has run.
 type AgentServer struct {
 	agents        map[string]*AgentConn
 	mu            sync.RWMutex
@@ -38,9 +63,22 @@ type AgentServer struct {
 	heartbeatInterval time.Duration
 	heartbeatDead     time.Duration
 
-	// stop is closed by Stop to unblock the heartbeat loop.
-	stop     chan struct{}
-	stopOnce sync.Once
+	// Shutdown plumbing. stop is closed by Stop to unblock the
+	// heartbeat loop. stopOnce guards close(stop) + stopCancel against
+	// concurrent Stop calls. stopCtx is the parent context for every
+	// background goroutine (readLoop, heartbeatLoop, per-agent pings,
+	// disconnect event publish); Stop cancels it so in-flight work
+	// observes the shutdown. wg tracks every background goroutine so
+	// Stop can wait for them before returning. closed (mu-guarded) is
+	// the single source of truth the spawn sites check before calling
+	// wg.Add — this preserves the Add-before-Wait happens-before
+	// contract even under a concurrent Stop storm.
+	stop       chan struct{}
+	stopOnce   sync.Once
+	stopCtx    context.Context
+	stopCancel context.CancelFunc
+	wg         sync.WaitGroup
+	closed     bool // guarded by mu
 }
 
 // AgentConn represents a single connected agent.
@@ -118,7 +156,14 @@ const (
 )
 
 // NewAgentServer creates a new master-side agent connection manager.
+// A nil logger is tolerated and replaced with slog.Default() so the
+// Tier 76 panic-recovery branches in readLoop/heartbeatLoop cannot NPE
+// on a struct-literal or test-constructed server.
 func NewAgentServer(events *core.EventBus, token string, logger *slog.Logger) *AgentServer {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &AgentServer{
 		agents:            make(map[string]*AgentConn),
 		events:            events,
@@ -127,6 +172,8 @@ func NewAgentServer(events *core.EventBus, token string, logger *slog.Logger) *A
 		heartbeatInterval: defaultHeartbeatInterval,
 		heartbeatDead:     defaultHeartbeatDead,
 		stop:              make(chan struct{}),
+		stopCtx:           ctx,
+		stopCancel:        cancel,
 	}
 }
 
@@ -217,14 +264,26 @@ func (s *AgentServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	ac.ServerID = info.ServerID
 	ac.Info = info
 
-	// 5. Register the agent
+	// 5. Register the agent. Tier 76: the closed flag + wg.Add happen
+	// under the same critical section so a concurrent Stop cannot race
+	// past wg.Wait while a new readLoop is being spawned. Once Stop
+	// has set closed=true, HandleConnect refuses the connection and
+	// tears down the half-initialised ac instead.
 	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		cancel()
+		_ = conn.Close()
+		s.logger.Info("rejecting agent connect — server is stopping", "server_id", info.ServerID)
+		return
+	}
 	// Close existing connection for this server if any
 	if old, exists := s.agents[info.ServerID]; exists {
 		old.cancel()
 		old.conn.Close()
 	}
 	s.agents[info.ServerID] = ac
+	s.wg.Add(1)
 	s.mu.Unlock()
 
 	s.logger.Info("agent connected",
@@ -250,12 +309,24 @@ func (s *AgentServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	s.onConnectMu.RUnlock()
 
-	// 7. Start read loop in background
+	// 7. Start read loop in background. wg.Add already happened under
+	// the closed/register critical section above so the happens-before
+	// contract with Stop's wg.Wait is preserved.
 	go s.readLoop(ac)
 }
 
 // readLoop reads messages from a connected agent until the connection drops.
+// Tier 76: wg.Done + panic recovery are wired so a crash in
+// handleAgentMessage or a slow removeAgent cannot leak the goroutine or
+// crash the master.
 func (s *AgentServer) readLoop(ac *AgentConn) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("panic in agent read loop",
+				"server_id", ac.ServerID, "error", r)
+		}
+	}()
 	defer s.removeAgent(ac)
 
 	for {
@@ -376,8 +447,13 @@ func (s *AgentServer) removeAgent(ac *AgentConn) {
 
 	s.logger.Info("agent disconnected", "server_id", ac.ServerID)
 
+	// Tier 76: publish under the module stopCtx instead of a fresh
+	// context.Background() so that Stop can observe the async event
+	// drain via EventBus.Drain(), and so that a disconnect racing
+	// shutdown does not queue dispatch work the EventBus is already
+	// refusing.
 	if s.events != nil {
-		s.events.PublishAsync(context.Background(), core.NewEvent("agent.disconnected", "swarm", core.ServerEventData{
+		s.events.PublishAsync(s.pubCtx(), core.NewEvent("agent.disconnected", "swarm", core.ServerEventData{
 			ServerID: ac.ServerID,
 		}))
 	}
@@ -514,26 +590,73 @@ func (s *AgentServer) ConnectedAgents() []core.AgentInfo {
 	return agents
 }
 
-// Stop gracefully shuts down all agent connections and the heartbeat monitor.
-func (s *AgentServer) Stop() {
-	s.stopOnce.Do(func() { close(s.stop) })
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for id, ac := range s.agents {
-		ac.cancel()
-		ac.conn.Close()
-		delete(s.agents, id)
+// pubCtx returns a context suitable for background PublishAsync calls.
+// It prefers the module stopCtx so Stop can cancel dispatch work, but
+// falls back to context.Background() if the server was built via struct
+// literal and stopCtx was never populated.
+func (s *AgentServer) pubCtx() context.Context {
+	if s.stopCtx != nil {
+		return s.stopCtx
 	}
-	s.logger.Info("all agent connections closed")
+	return context.Background()
+}
+
+// Stop gracefully shuts down all agent connections, the heartbeat
+// monitor, and every per-agent ping goroutine.
+//
+// Tier 76 guarantees:
+//
+//   - stopOnce serialises the close(stop) + stopCancel so concurrent
+//     Stop calls never panic with "close of closed channel".
+//   - closed is flipped under s.mu BEFORE any wg-tracked work can be
+//     newly spawned, which is what gives HandleConnect/StartHeartbeat/
+//     heartbeatTick a safe check against wg.Wait.
+//   - All agent conns are cancelled + closed inside the Do so the
+//     readLoops observe EOF on decoder.Decode and exit, and in-flight
+//     pings error out of encoder.Encode on the now-closed conn.
+//   - wg.Wait drains readLoop, heartbeatLoop, AND per-agent ping
+//     goroutines before Stop returns, so Module.Stop can safely tear
+//     down the EventBus and the rest of the module graph.
+func (s *AgentServer) Stop() {
+	s.stopOnce.Do(func() {
+		close(s.stop)
+		if s.stopCancel != nil {
+			s.stopCancel()
+		}
+
+		s.mu.Lock()
+		s.closed = true
+		for id, ac := range s.agents {
+			ac.cancel()
+			ac.conn.Close()
+			delete(s.agents, id)
+		}
+		s.mu.Unlock()
+
+		s.logger.Info("all agent connections closed")
+	})
+
+	// wg.Wait must happen OUTSIDE the Do so a concurrent second Stop
+	// call still blocks on the drain instead of returning early.
+	s.wg.Wait()
 }
 
 // StartHeartbeat launches the background heartbeat monitor. It pings each
 // connected agent once per heartbeatInterval, and disconnects any agent whose
 // LastSeen is older than heartbeatDead. The loop stops when Stop() is called.
 // Safe to call from Module.Start once the server is ready to accept agents.
+//
+// Tier 76: the closed flag is checked under s.mu before wg.Add so a
+// StartHeartbeat racing a Stop cannot register a goroutine after
+// wg.Wait has already fired.
 func (s *AgentServer) StartHeartbeat() {
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return
+	}
+	s.wg.Add(1)
+	s.mu.Unlock()
 	go s.heartbeatLoop()
 }
 
@@ -542,7 +665,17 @@ func (s *AgentServer) StartHeartbeat() {
 // each one, and force-closes any whose last-seen exceeds the dead threshold.
 // Ping sends use a short per-request context so a wedged agent can't block
 // the monitor past one interval.
+//
+// Tier 76: wg.Done + panic recovery are wired so a crash in
+// heartbeatTick cannot leak the goroutine or crash the master.
 func (s *AgentServer) heartbeatLoop() {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("panic in heartbeat loop", "error", r)
+		}
+	}()
+
 	s.mu.RLock()
 	interval := s.heartbeatInterval
 	dead := s.heartbeatDead
@@ -590,11 +723,33 @@ func (s *AgentServer) heartbeatTick(dead time.Duration) {
 			continue
 		}
 
-		// Fire a ping with a short context. We don't care about the return —
-		// if the agent responds the read loop will touch lastSeen; if it
-		// doesn't, the next tick will catch the dead threshold.
+		// Fire a ping with a short context derived from the module
+		// stopCtx so Stop can abort any in-flight ping instead of
+		// waiting the full 5s timeout. Tier 76: the wg.Add is guarded
+		// by the closed check under s.mu so a ping spawned during
+		// Stop cannot race past wg.Wait, and the ping goroutine wears
+		// a defer/recover so a Send panic cannot tear down the master.
+		s.mu.Lock()
+		if s.closed {
+			s.mu.Unlock()
+			return
+		}
+		s.wg.Add(1)
+		s.mu.Unlock()
+
 		go func(target *AgentConn) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer s.wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("panic in heartbeat ping",
+						"server_id", target.ServerID, "error", r)
+				}
+			}()
+			parent := s.stopCtx
+			if parent == nil {
+				parent = context.Background()
+			}
+			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 			defer cancel()
 			msg := core.AgentMessage{
 				ID:        core.GenerateID(),

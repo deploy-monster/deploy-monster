@@ -2368,7 +2368,9 @@ func TestAgentServer_ReadLoop_ContextCancelled(t *testing.T) {
 	s.agents["readloop-agent"] = ac
 	s.mu.Unlock()
 
-	// Start readLoop in background
+	// Start readLoop in background. Tier 76: wg.Add must precede the
+	// goroutine spawn so readLoop's defer wg.Done does not underflow.
+	s.wg.Add(1)
 	done := make(chan struct{})
 	go func() {
 		s.readLoop(ac)
@@ -2418,6 +2420,7 @@ func TestAgentServer_ReadLoop_ReadError(t *testing.T) {
 	s.agents["readloop-err-agent"] = ac
 	s.mu.Unlock()
 
+	s.wg.Add(1) // Tier 76: match readLoop's defer wg.Done
 	done := make(chan struct{})
 	go func() {
 		s.readLoop(ac)
@@ -2463,6 +2466,7 @@ func TestAgentServer_ReadLoop_DispatchMessage(t *testing.T) {
 	s.agents["dispatch-agent"] = ac
 	s.mu.Unlock()
 
+	s.wg.Add(1) // Tier 76: match readLoop's defer wg.Done
 	done := make(chan struct{})
 	go func() {
 		s.readLoop(ac)
@@ -3011,6 +3015,7 @@ func TestAgentServer_ReadLoop_ContextCancelledDuringRead(t *testing.T) {
 	s.agents["ctx-cancel-read"] = ac
 	s.mu.Unlock()
 
+	s.wg.Add(1) // Tier 76: match readLoop's defer wg.Done
 	done := make(chan struct{})
 	go func() {
 		s.readLoop(ac)
