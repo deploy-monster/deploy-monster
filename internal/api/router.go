@@ -11,6 +11,7 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/api/middleware"
 	"github.com/deploy-monster/deploy-monster/internal/api/ws"
 	"github.com/deploy-monster/deploy-monster/internal/auth"
+	"github.com/deploy-monster/deploy-monster/internal/billing"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/enterprise/integrations"
 	"github.com/deploy-monster/deploy-monster/internal/marketplace"
@@ -566,6 +567,16 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/billing/usage", protected(http.HandlerFunc(billingH.GetUsage)))
 	usageHistH := handlers.NewUsageHistoryHandler(r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/billing/usage/history", protected(http.HandlerFunc(usageHistH.Hourly)))
+
+	// Stripe webhook endpoint — no bearer auth; Stripe signs the request with
+	// the shared webhook secret and the handler verifies that signature.
+	// Registered only when the billing module has Stripe wired up.
+	if billingMod, ok := r.core.Registry.Get("billing").(*billing.Module); ok {
+		if wh := billingMod.WebhookHandler(); wh != nil {
+			stripeWH := handlers.NewStripeWebhookHandler(wh, r.core.Logger)
+			r.mux.Handle("POST /api/v1/webhooks/stripe", stripeWH)
+		}
+	}
 
 	// ── Marketplace (public list, auth for deploy) ────
 	mpMod := r.core.Registry.Get("marketplace")

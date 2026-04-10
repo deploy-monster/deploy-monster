@@ -11,11 +11,16 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const stripeAPI = "https://api.stripe.com/v1"
+
+// stripeRequestMaxBody bounds how much of a Stripe error body we include in
+// an error message to keep logs readable.
+const stripeRequestMaxBody = 512
 
 // StripeClient handles Stripe API operations.
 // Uses raw HTTP to avoid the heavy Stripe SDK dependency.
@@ -23,6 +28,8 @@ type StripeClient struct {
 	secretKey  string
 	webhookKey string
 	client     *http.Client
+	// baseURL is the API base, overridable for tests. Empty means production.
+	baseURL string
 }
 
 // NewStripeClient creates a Stripe API client.
@@ -32,6 +39,14 @@ func NewStripeClient(secretKey, webhookKey string) *StripeClient {
 		webhookKey: webhookKey,
 		client:     &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+// apiBase returns the effective API base URL.
+func (s *StripeClient) apiBase() string {
+	if s.baseURL != "" {
+		return s.baseURL
+	}
+	return stripeAPI
 }
 
 // CreateCustomer creates a Stripe customer for a tenant.
@@ -92,6 +107,27 @@ func (s *StripeClient) CreatePortalSession(ctx context.Context, customerID, retu
 	return resp.URL, nil
 }
 
+// ReportUsage posts a metered usage record against a subscription item.
+// `quantity` is the incremental value for this period when action=increment
+// (the default Stripe behavior for metered billing).
+func (s *StripeClient) ReportUsage(ctx context.Context, subscriptionItemID string, quantity int64, ts time.Time) error {
+	if subscriptionItemID == "" {
+		return fmt.Errorf("stripe: subscription_item_id is required")
+	}
+	if quantity < 0 {
+		return fmt.Errorf("stripe: quantity must be >= 0")
+	}
+	if ts.IsZero() {
+		ts = time.Now().UTC()
+	}
+	params := url.Values{
+		"quantity":  {strconv.FormatInt(quantity, 10)},
+		"timestamp": {strconv.FormatInt(ts.Unix(), 10)},
+		"action":    {"increment"},
+	}
+	return s.post(ctx, "/subscription_items/"+subscriptionItemID+"/usage_records", params, nil)
+}
+
 // VerifyWebhookSignature validates a Stripe webhook signature.
 func (s *StripeClient) VerifyWebhookSignature(payload []byte, sigHeader string) bool {
 	if s.webhookKey == "" {
@@ -129,9 +165,9 @@ func (s *StripeClient) VerifyWebhookSignature(payload []byte, sigHeader string) 
 
 func (s *StripeClient) post(ctx context.Context, path string, params url.Values, dest any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		stripeAPI+path, bytes.NewReader([]byte(params.Encode())))
+		s.apiBase()+path, bytes.NewReader([]byte(params.Encode())))
 	if err != nil {
-		return err
+		return fmt.Errorf("stripe %s: build request: %w", path, err)
 	}
 	req.Header.Set("Authorization", "Bearer "+s.secretKey)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -142,20 +178,35 @@ func (s *StripeClient) post(ctx context.Context, path string, params url.Values,
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return fmt.Errorf("stripe %s: read body: %w", path, readErr)
+	}
 
 	if resp.StatusCode >= 400 {
 		var errResp struct {
 			Error struct {
 				Message string `json:"message"`
+				Type    string `json:"type"`
+				Code    string `json:"code"`
 			} `json:"error"`
 		}
-		_ = json.Unmarshal(body, &errResp)
-		return fmt.Errorf("stripe %s: %s", path, errResp.Error.Message)
+		_ = json.Unmarshal(body, &errResp) // best-effort: fall back to raw body
+		msg := errResp.Error.Message
+		if msg == "" {
+			snippet := body
+			if len(snippet) > stripeRequestMaxBody {
+				snippet = snippet[:stripeRequestMaxBody]
+			}
+			msg = string(snippet)
+		}
+		return fmt.Errorf("stripe %s: HTTP %d: %s", path, resp.StatusCode, msg)
 	}
 
 	if dest != nil {
-		return json.Unmarshal(body, dest)
+		if err := json.Unmarshal(body, dest); err != nil {
+			return fmt.Errorf("stripe %s: decode response: %w", path, err)
+		}
 	}
 	return nil
 }

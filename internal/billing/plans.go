@@ -7,6 +7,7 @@ type Plan struct {
 	Description    string   `json:"description"`
 	PriceCents     int      `json:"price_cents"` // Monthly price in cents
 	Currency       string   `json:"currency"`
+	StripePriceID  string   `json:"stripe_price_id,omitempty"` // operator-configured Stripe price
 	MaxApps        int      `json:"max_apps"`
 	MaxContainers  int      `json:"max_containers"`
 	MaxCPUCores    int      `json:"max_cpu_cores"`

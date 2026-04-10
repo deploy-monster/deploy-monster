@@ -355,11 +355,15 @@ const (
 	EventSecretDeleted = "secret.deleted"
 
 	// Billing
-	EventQuotaExceeded    = "quota.exceeded"
-	EventQuotaWarning     = "quota.warning"
-	EventInvoiceGenerated = "invoice.generated"
-	EventPaymentReceived  = "payment.received"
-	EventPaymentFailed    = "payment.failed"
+	EventQuotaExceeded               = "quota.exceeded"
+	EventQuotaWarning                = "quota.warning"
+	EventInvoiceGenerated            = "invoice.generated"
+	EventPaymentReceived             = "payment.received"
+	EventPaymentFailed               = "payment.failed"
+	EventBillingSubscriptionUpdated  = "billing.subscription_updated"
+	EventBillingSubscriptionCanceled = "billing.subscription_canceled"
+	EventBillingCheckoutCompleted    = "billing.checkout_completed"
+	EventBillingUsageReported        = "billing.usage_reported"
 
 	// Database
 	EventDatabaseCreated = "database.created"

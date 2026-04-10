@@ -17,6 +17,11 @@ type Meter struct {
 	runtime core.ContainerRuntime
 	logger  *slog.Logger
 	stopCh  chan struct{}
+
+	// stripe reports usage records to Stripe's metered billing API when
+	// configured. Optional — the meter also functions in local-only mode.
+	stripe *StripeClient
+	events *core.EventBus
 }
 
 // NewMeter creates a new usage meter.
@@ -27,6 +32,14 @@ func NewMeter(store core.Store, runtime core.ContainerRuntime, logger *slog.Logg
 		logger:  logger,
 		stopCh:  make(chan struct{}),
 	}
+}
+
+// SetStripe attaches a Stripe client + event bus so the meter can push usage
+// records to Stripe after each collection cycle. Passing a nil client
+// explicitly disables Stripe reporting.
+func (m *Meter) SetStripe(stripe *StripeClient, events *core.EventBus) {
+	m.stripe = stripe
+	m.events = events
 }
 
 // Start begins the metering collection loop.
@@ -100,7 +113,56 @@ func (m *Meter) collect() {
 		}
 	}
 
+	// Push usage to Stripe's metered billing API when configured. This runs
+	// after local recording so the dashboard remains authoritative even when
+	// Stripe is down.
+	if m.stripe != nil {
+		m.reportUsageToStripe(ctx, tenantUsage, now)
+	}
+
 	m.logger.Debug("metering collected", "tenants", len(tenantUsage), "containers", len(containers))
+}
+
+// reportUsageToStripe pushes per-tenant container counts to Stripe as metered
+// usage records. Tenants without a linked Stripe subscription item are
+// silently skipped — that's the expected state for free-plan tenants.
+func (m *Meter) reportUsageToStripe(ctx context.Context, tenantUsage map[string]*TenantUsage, bucket time.Time) {
+	for tenantID, usage := range tenantUsage {
+		tenant, err := m.store.GetTenant(ctx, tenantID)
+		if err != nil {
+			m.logger.Debug("metering: failed to load tenant for stripe reporting",
+				"tenant", tenantID, "error", err)
+			continue
+		}
+		md, err := GetStripeMetadata(tenant)
+		if err != nil {
+			m.logger.Debug("metering: failed to read stripe metadata",
+				"tenant", tenantID, "error", err)
+			continue
+		}
+		if md.SubscriptionItemID == "" {
+			continue // tenant is not on a metered Stripe plan
+		}
+
+		qty := int64(usage.Containers)
+		if err := m.stripe.ReportUsage(ctx, md.SubscriptionItemID, qty, bucket); err != nil {
+			m.logger.Warn("metering: failed to report usage to stripe",
+				"tenant", tenantID, "subscription_item_id", md.SubscriptionItemID, "error", err)
+			continue
+		}
+
+		if m.events != nil {
+			if err := m.events.EmitWithTenant(ctx, core.EventBillingUsageReported,
+				"billing.meter", tenantID, "", map[string]any{
+					"subscription_item_id": md.SubscriptionItemID,
+					"quantity":             qty,
+					"bucket":               bucket.Format(time.RFC3339),
+				}); err != nil {
+				m.logger.Debug("metering: failed to emit usage reported event",
+					"tenant", tenantID, "error", err)
+			}
+		}
+	}
 }
 
 // TenantUsage holds aggregated usage for a tenant.
