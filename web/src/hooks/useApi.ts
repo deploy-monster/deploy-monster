@@ -63,7 +63,9 @@ export function useMutation<TInput = unknown, TOutput = unknown>(
   const mutate = useCallback(async (body?: TInput) => {
     setState({ data: null, error: null, loading: true });
     try {
-      const response = await api[method]<TOutput>(path, body);
+      const response = method === 'delete'
+        ? await api.delete<TOutput>(path)
+        : await api[method]<TOutput>(path, body);
       setState({ data: response, error: null, loading: false });
       return response;
     } catch (err) {

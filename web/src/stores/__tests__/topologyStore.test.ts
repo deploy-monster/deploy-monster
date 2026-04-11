@@ -81,7 +81,7 @@ describe('createEdge', () => {
   });
 
   it('creates an edge with a custom type', () => {
-    const edge = createEdge('a', 'b', 'connection');
-    expect(edge.data?.type).toBe('connection');
+    const edge = createEdge('a', 'b', 'mount');
+    expect(edge.data?.type).toBe('mount');
   });
 });
