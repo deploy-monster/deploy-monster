@@ -35,9 +35,17 @@ first so the historical schema is flattened correctly.
 - **`lodash` pinned `^4.18.0`** via `pnpm.overrides` — GHSA-r5fr-rjxr-66jc
   (prototype pollution) and GHSA-f23m-r3pf-42rh (ReDoS). Reached via the
   abandoned `dagre@0.8.5` → `graphlib@2.1.8` chain used by the topology editor.
-- **Go toolchain bumped `1.26.1 → 1.26.2`** for the `crypto/tls` and
-  `crypto/x509` upstream fixes. `GOTOOLCHAIN=auto` downloads automatically;
-  CI pins `1.26.2` explicitly.
+- **Go toolchain bumped to `1.26.2`** via a `toolchain go1.26.2` directive in
+  `go.mod` (keeping `go 1.26.1` as the minimum language version so downstream
+  module consumers aren't forced to bump their own floor). Closes stdlib CVEs
+  **GO-2026-4870** (unauthenticated TLS 1.3 `KeyUpdate` record → persistent
+  connection retention + DoS in `crypto/tls`) and **GO-2026-4866** (case-
+  sensitive `excludedSubtrees` name constraints → auth bypass in `crypto/x509`).
+  Surfaced in Tier 95 by a `govulncheck ./...` run that caught the original
+  Tier 91 documentation claim (bumping the `go` line itself) had never actually
+  been committed. `GOTOOLCHAIN=auto` downloads 1.26.2 automatically; CI jobs
+  continue to pin `go-version: '1.26'` via `setup-go` (resolves to latest
+  1.26.x) with the toolchain directive acting as a hard floor.
 - **88 hardening tiers landed** across lifecycle, context-cancellation, replay,
   and DoS vectors that static analyzers cannot catch. Representative fixes:
   ws `DeployHub` Shutdown + concurrent-write mutex + dead-client eviction

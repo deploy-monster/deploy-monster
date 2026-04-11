@@ -35,18 +35,27 @@ Ran `govulncheck ./...` across the full module.
 
 ### Fix applied
 
-`go.mod` was bumped from `go 1.26.1` to `go 1.26.2`:
+A `toolchain` directive was added to `go.mod`, pinning the build toolchain at
+1.26.2 while leaving the minimum language version at 1.26.1:
 
 ```
-// Bumped to 1.26.2 to pull the crypto/tls and crypto/x509 fixes for
-// GO-2026-4866, GO-2026-4870, GO-2026-4946, GO-2026-4947 (see
-// `govulncheck ./...` and docs/security-audit.md).
-go 1.26.2
+go 1.26.1
+
+toolchain go1.26.2
 ```
 
 With `GOTOOLCHAIN=auto` (the default), Go automatically downloads 1.26.2 on the
-first build. CI was updated to pin `go-version: '1.26.2'` in all jobs so the
-upgrade is deterministic.
+first build via the toolchain directive. CI jobs pin `go-version: '1.26'` via
+`setup-go`, which resolves to the latest 1.26.x patch on each runner — the
+toolchain directive in `go.mod` then acts as a hard floor so any runner that
+somehow landed on 1.26.1 still pulls 1.26.2 before compiling. Using a
+toolchain directive instead of raising the `go` line keeps downstream module
+consumers free to stay on 1.26.1 while our compiled binary always gets the
+patched stdlib.
+
+This fix was reconciled against reality in Tier 95 after `govulncheck` surfaced
+that the original documentation claim (bumping the `go` line) was never
+actually committed — only the toolchain pin landed.
 
 ### Post-fix
 

@@ -2,6 +2,8 @@ module github.com/deploy-monster/deploy-monster
 
 go 1.26.1
 
+toolchain go1.26.2
+
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/docker/docker v28.5.2+incompatible
