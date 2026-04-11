@@ -24,6 +24,113 @@ modules that depend on it do not need recompilation for patch upgrades
 but do need a rebuild for minor/major releases because they ship inside
 the same binary.
 
+## Per-version compatibility matrix
+
+Every row describes the upgrade *into* that version from the previous
+row. "Min-from" is the oldest source version for which an in-place
+upgrade is supported — older installs must step through the
+intermediate version first.
+
+| Version | Released   | Min-from  | Min Go | Config break | DB migrations | Agent protocol |
+|---------|------------|-----------|--------|--------------|---------------|----------------|
+| v0.1.x  | 2026-03-24 | —         | 1.26.0 | n/a (initial) | `0001_init`   | v1             |
+| v0.2.x  | 2026-03-25 | v0.1.0    | 1.26.0 | no           | —             | v1             |
+| v0.3.x  | 2026-03-25 | v0.1.0    | 1.26.0 | no           | —             | v1             |
+| v0.4.0  | 2026-03-25 | v0.1.0    | 1.26.0 | no           | —             | v1             |
+| v0.5.x  | 2026-03-26 | v0.1.0    | 1.26.0 | no           | —             | v1             |
+| v0.6.0  | 2026-03-26 | v0.1.0    | 1.26.0 | no           | —             | v1             |
+| v1.0.0  | 2026-03-27 | v0.5.0    | 1.26.0 | no           | —             | v1             |
+| v1.1.0  | 2026-03-27 | v1.0.0    | 1.26.0 | no           | —             | v1             |
+| v1.2.0  | 2026-03-28 | v1.0.0    | 1.26.0 | no           | —             | v1             |
+| v1.3.0  | 2026-03-28 | v1.0.0    | 1.26.0 | no           | —             | v1             |
+| v1.4.0  | 2026-03-28 | v1.0.0    | 1.26.0 | no           | —             | v1             |
+| v1.5.0  | 2026-03-29 | v1.0.0    | 1.26.0 | no           | —             | v1             |
+| v1.6.0  | 2026-03-29 | v1.0.0    | 1.26.0 | no           | —             | v1             |
+| HEAD    | unreleased | v1.0.0    | 1.26.2 | no           | `0002_add_indexes` | v1      |
+
+Notes:
+
+- **Min-from `v0.5.0`** is the floor for upgrading directly into any
+  `v1.x` release. Installs older than `v0.5.0` should step through
+  `v0.5.2` first so the historical schema is flattened correctly.
+- **Go toolchain bump** at HEAD: the security audit
+  ([docs/security-audit.md](security-audit.md)) bumped `go.mod` from
+  `1.26.1` to `1.26.2` for the `crypto/tls` and `crypto/x509` fixes.
+  With `GOTOOLCHAIN=auto` (the default), `go build` downloads the
+  right toolchain automatically. CI pins `1.26.2` explicitly.
+- **DB migrations** lists new migrations introduced in that version.
+  `0002_add_indexes` at HEAD is additive (CREATE INDEX IF NOT EXISTS),
+  non-blocking, and reversible via its `.down.sql`.
+- **Agent protocol v1** is forwards-compatible one minor release.
+  See "Upgrading agents" below for the rolling-upgrade procedure.
+
+## Migration checklist
+
+Run through this list on every upgrade. Patch-release upgrades skip
+the "schema verify" rows (no migrations run) but every other row
+applies.
+
+### Pre-flight (before stopping the server)
+
+- [ ] Read the [CHANGELOG](https://github.com/deploy-monster/deploy-monster/blob/main/CHANGELOG.md)
+      section for the target version. Note any **Breaking** entries.
+- [ ] Verify the current version: `deploymonster version`.
+- [ ] Verify disk space: the database + WAL + the new binary + a full
+      backup should fit comfortably. At least **3× the current
+      database size** free on the same filesystem.
+- [ ] `deploymonster health` reports OK. Do not start an upgrade from
+      a degraded system — fix the underlying issue first.
+- [ ] Optionally: trigger a manual snapshot via
+      `POST /api/v1/admin/backups/snapshot` so the next-scheduled
+      backup is not your only restore point.
+- [ ] Keep the current binary aside:
+      `sudo cp /usr/local/bin/deploymonster /usr/local/bin/deploymonster.previous`.
+- [ ] Download the new binary to a scratch path and run
+      `./deploymonster config --config /etc/deploymonster/monster.yaml`
+      to validate the existing config against the new version's
+      schema. Fix validation errors **before** stopping the service.
+- [ ] If upgrading across a major version: read the version-specific
+      notes section below.
+- [ ] If an agent fleet is attached: verify every agent is within one
+      minor release of the target version
+      (`GET /api/v1/admin/agents` → `version` field).
+
+### During upgrade (service stopped)
+
+- [ ] `sudo systemctl stop deploymonster`.
+- [ ] Cold-copy the database and BBolt store to a backup path
+      (see step 2 of the General upgrade procedure).
+- [ ] Swap the binary into `/usr/local/bin/deploymonster` with the
+      correct ownership and `0755` permissions.
+- [ ] `sudo systemctl start deploymonster`.
+- [ ] `sudo journalctl -u deploymonster -f` until you see
+      `deploymonster ready version=vX.Y.Z` — watch for `migration
+      applied` lines along the way. Every `running migrations` line
+      should be followed by one or more `migration applied` lines
+      and then a `migrations complete` line. **If you see `migration
+      failed`, stop and follow the rollback procedure immediately.**
+
+### Post-upgrade (service running)
+
+- [ ] `deploymonster version` reports the new version.
+- [ ] `deploymonster health` reports OK.
+- [ ] `curl -fsS https://localhost:8443/api/v1/health` returns 200.
+- [ ] Log into the UI and spot-check: dashboard, apps list, recent
+      deploys, domains, billing (if enabled).
+- [ ] Run an end-to-end smoke deploy of a small marketplace app
+      (e.g. `whoami`) to verify the deploy pipeline still works
+      against the new code paths.
+- [ ] If monitoring is attached: verify that Prometheus is still
+      scraping `/metrics/api` and that the new metrics from the
+      target version are visible. See the
+      [soak-test drift gates](../tests/soak/README.md) for which
+      metrics matter.
+- [ ] If an agent fleet is attached: roll the agents one at a time,
+      watching the master's agent list after each restart.
+- [ ] Remove the `.previous` binary only after 24 hours of clean
+      operation. Keeping it around gives you the fastest rollback
+      path if a slow regression shows up later.
+
 ## General upgrade procedure
 
 Works for any release type.
@@ -277,17 +384,39 @@ silently on larger gaps.
 > releases are covered by the generic procedure above unless otherwise
 > noted in the CHANGELOG.
 
-### Unreleased
+### Unreleased (post-1.6.0)
 
-- No breaking changes vs. 1.6.0. 60 hardening tiers, Prometheus coverage
-  expansion, distroless Docker image, production systemd unit. All
-  existing configs continue to work unchanged.
-- New optional metrics exported — scraper rules may need updates to
-  take advantage of `deploymonster_build_queue_*` and
-  `deploymonster_db_connections_*`.
-- Docker healthcheck now uses `deploymonster health` instead of `curl`.
-  If you have custom Dockerfiles derived from the old image, update the
-  `HEALTHCHECK` line.
+- **No breaking changes vs. 1.6.0.** Phases 1–5 are complete: 88
+  hardening tiers, Prometheus coverage expansion, distroless Docker
+  image, production systemd unit, loadtest regression gate against a
+  committed baseline, 24-hour soak-test harness. Existing configs
+  continue to work unchanged.
+- **New optional metrics exported** on `/metrics/api` — scraper rules
+  may need updates to take advantage of `deploymonster_build_queue_*`,
+  `deploymonster_db_connections_*`, and the Go runtime block
+  (`go_goroutines`, `go_memstats_heap_inuse_bytes`, etc.) added for
+  soak-test drift detection.
+- **Docker healthcheck** now uses `deploymonster health` instead of
+  `curl`. If you have custom Dockerfiles derived from the old image,
+  update the `HEALTHCHECK` line.
+- **DB migration `0002_add_indexes`** is applied automatically on
+  first startup. The indexes are `CREATE INDEX IF NOT EXISTS` and
+  cover the covering indexes that keep the `GetApp` bench at
+  ~41 µs/op. Non-blocking, reversible via `.down.sql`.
+- **Go toolchain bump** to `1.26.2` for `crypto/tls` + `crypto/x509`
+  security fixes. See [docs/security-audit.md](security-audit.md).
+  No user action required with `GOTOOLCHAIN=auto`.
+- **Vault salt migration** (legacy installs only). If you were
+  running a build from before the Phase 2 secrets refactor, the
+  first boot with the post-1.6 binary runs `migrateLegacyVault()`
+  (`internal/secrets/module.go:176-213`). This generates a fresh
+  random vault salt, re-encrypts every existing secret version, and
+  persists the salt in BBolt under `vault/salt`. Idempotent on
+  restart. See [ADR 0008](adr/0008-encryption-key-strategy.md) for
+  the full key-management story.
+- **Custom `useApi` hook** remains the frontend data-fetch pattern —
+  no TanStack Query was ever added. CLAUDE.md previously drifted on
+  this point; it is now fixed.
 
 ### 1.6.0 → 1.7 (future)
 

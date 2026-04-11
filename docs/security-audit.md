@@ -178,6 +178,63 @@ with `#nosec G402` and a rationale comment.
 
 Clean. No findings.
 
+## Phase 1–5 hardening fixes (closed)
+
+The scanner findings above are static-analysis-level issues. A
+separate class of security-relevant defects — lifecycle races,
+resource leaks, context cancellation gaps, denial-of-service vectors —
+is not caught by any scanner in the toolchain but does show up as
+real vulnerabilities under load. Phases 1–5 closed a batch of these
+across 88 hardening tiers; the ones with security impact are
+captured here as resolved findings.
+
+| ID       | Tier | Subsystem               | Class                   | Fix summary |
+|----------|------|-------------------------|-------------------------|-------------|
+| H-001    | 65   | `internal/discovery`    | goroutine leak          | Docker event watcher was spawned from `Start(ctx)` but never bound to a lifecycle cancellation. Added `stopCtx`, wait-group drain, and panic recovery so `Stop()` terminates the watcher deterministically. |
+| H-002    | 66   | `internal/vps`          | context-cancellation gap| VPS provisioning goroutines ignored ctx cancellation during long-running provider calls. All provider paths now plumb the request context and abort on cancel. |
+| H-003    | 67   | `internal/backup`       | scheduler lifecycle     | Backup scheduler could emit a backup-start event after `Stop()`. Guarded with a `closed` flag + wait-group + context-cancellation on scheduled runs. |
+| H-004    | 68   | `internal/billing`      | Stripe webhook replay   | Stripe webhook replay protection was incomplete; a replayed webhook with the same event ID was re-applied. Added deduplication via BBolt-keyed idempotency store + 24 h retention. |
+| H-005    | 69   | `internal/build`        | builder lifecycle       | Builder goroutines could outlive `Stop(ctx)` if a Docker-build streaming read was mid-frame. Added close-propagation through the `io.Reader` chain and panic recovery. |
+| H-006    | 70   | `internal/core`         | scheduler race          | Scheduler registration + `Stop()` race-conditioned a `nil map` panic under contention. Rewritten to use `sync.Map` + atomic stopped flag. |
+| H-007    | 71   | `internal/dns`          | DNS sync queue          | DNS sync goroutines did not drain on shutdown; a pending propagation check could leak a goroutine per restart. Added `stopCtx` + wait-group drain. |
+| H-008    | 72   | `internal/api/middleware`| body-limit bypass      | `BodyLimit(10MB)` middleware used `http.MaxBytesReader` but did not fully drain on reject, leaving a small window where a client could wedge a connection. Fixed with explicit `io.Copy(io.Discard, …)` on reject. |
+| H-009    | 73   | `internal/ingress`      | ingress gateway lifecycle | ACME renewal loop ran on `context.Background()` and did not exit when the ingress module stopped. Added module-scoped `stopCtx` + wait-group drain + ACME ctx plumbing. |
+| H-010    | 74   | `internal/deploy`       | auto-rollback drain     | Auto-rollback goroutines could outlive `Stop()` during a rollback-mid-flight and write to a closed DB handle. Wait-group drain + closed flag. |
+| H-011    | 75   | `internal/resource`     | resource monitor        | Resource monitor's tick loop ignored cancellation and published `resource.sample` events after `Stop()`. Added `stopCtx` and stop-flag gate before publish. |
+| H-012    | 76   | `internal/swarm`        | AgentServer lifecycle   | Swarm `AgentServer` could accept a new agent mid-shutdown, panicking on the closed listener. Added panic recovery wrapper, `stopCtx`, wait-group drain, closed-flag gate. |
+| H-013    | 77   | `internal/api/ws`       | WebSocket DeployHub     | DeployHub concurrent writes could race the frame encoder, producing malformed frames that disconnect every subscriber. Added per-client write mutex + dead-client eviction + hub `Shutdown()` that drains in-flight writes. |
+| H-014    | 78–82| `internal/auth`         | JWT, TOTP, OAuth PKCE   | Hardening of the auth stack: JWT key rotation with `PreviousSecretKeys` (graceful), TOTP time-window G115 corrections, OAuth PKCE enforcement in provider paths, fuzz targets added. |
+| H-015    | 83   | `internal/api`          | request-scope leak      | `RequestLogger` middleware captured the body for structured logging and did not always close the tee reader. Fixed with `defer r.Body.Close()` + tee reset. |
+| H-016    | 84   | `internal/build`        | tenant queue fairness   | Per-tenant build queue fairness was not proven under load. Added `tenant_queue_bench_test.go` (4 microbenchmarks) + a standalone harness at `tests/loadtest/build_queue/` that measures `max-tenant-p99 / median-tenant-p99` fairness — 16 tenants × 4× oversubscription shows 1.00x fairness. Not a fix *per se*, but closes a DoS question: a runaway tenant cannot starve the queue. |
+| H-017    | 85   | `tests/loadtest`        | regression gate         | HTTP loadtest now compares against a committed baseline (`tests/loadtest/baselines/http.json`) and fails CI on ≥10% throughput drop or p95 increase. Defends against performance regressions being merged silently. |
+| H-018    | 86   | `tests/soak`            | drift detection         | 24-hour soak harness added with three drift gates (goroutine leak, heap climb, DB bloat). Runtime metrics exposed on the existing `/metrics/api` endpoint via `runtime.ReadMemStats` — no new pprof auth surface. See [tests/soak/README.md](../tests/soak/README.md). |
+
+Every one of the above has test coverage pinning the fix. Regression
+of any of them fails `make test` on the matching `tier*_hardening_test.go`
+file.
+
+## Residual risk register
+
+This is the honest list of what is **not** fixed, ranked by severity.
+Future audits should either drive these to closed or justify each as
+accepted risk again.
+
+| ID    | Class                  | Severity | Owner      | Notes |
+|-------|------------------------|----------|------------|-------|
+| R-001 | Docker SDK CVEs (2)    | MEDIUM   | upstream   | `GO-2026-4887` + `GO-2026-4883`. Daemon-side only; DeployMonster is always the client. Re-check monthly; bump `docker/docker` as soon as upstream releases a fixed version. |
+| R-002 | Single master encryption key | MEDIUM | product | Attacker with DB file + config file decrypts every tenant's secrets. Mitigated by file permissions + optional separate `secrets.encryption_key` but no KMS tier exists for self-hosted. Revisit if compliance or hosted-tier requirements change. See [ADR 0008](adr/0008-encryption-key-strategy.md). |
+| R-003 | No per-tenant key isolation | LOW | product | All tenants share one master key. A full-cluster compromise is equally bad for everyone. Acceptable for self-hosted single-operator; not for multi-tenant BYOK/enterprise. |
+| R-004 | No ciphertext version marker | LOW | engineering | The vault format is raw `[nonce ‖ AES-256-GCM output]` with no algorithm version byte. A future algorithm swap needs either a format-version byte or a full `RotateEncryptionKey` pass. Harmless today — there is exactly one algorithm — but locks in a future ADR before any second algorithm lands. |
+| R-005 | Vault rotation has no previous-key grace window | LOW | operations | If `RotateEncryptionKey` is interrupted, some secret versions are on the old key and some on the new. The code retries correctly on the next call, but the operator-facing story is "don't interrupt it." JWT rotation *does* have a previous-key grace window — vault does not. |
+| R-006 | staticcheck SA1012 in tests (34 sites) | INFO | engineering | `nil` passed as `context.Context` in tests whose implementations discard the ctx. Churny to fix; excluded from the CI lint gate. Addresses itself the next time a test touches one of these files. |
+| R-007 | gosec G104 on event-bus `Publish` (178 sites) | INFO | engineering | Event-bus publishes are best-effort by design. Suppressing the error would require touching 178 sites for zero security benefit. Excluded via `.gosec.yaml`. |
+| R-008 | Audit log is not encrypted at rest | LOW | product | Actor, action, target, IP, timestamp are plaintext in SQLite. Fine for self-hosted; not fine for every compliance regime (HIPAA, FedRAMP). Encrypt the audit log body if a compliance requirement emerges. |
+| R-009 | 20 Dependabot alerts on the default branch | MEDIUM | engineering | As of 2026-04-11, GitHub reports 11 HIGH + 9 MODERATE Dependabot alerts against `master`. They are in Go module dependencies and need to be triaged against the `govulncheck` output. Some are likely duplicates of R-001; others need `go get -u` passes and a new audit run. **To be addressed in Phase 7 (release preparation).** |
+
+Residual risks flagged `MEDIUM` or above are blockers for a `v2.0`
+tag. `LOW` and `INFO` are acceptable through `v1.x` provided each
+one has a written reason and an owner in this table.
+
 ## Test suite
 
 `make test-short` ran to completion with no failures after all fixes were
