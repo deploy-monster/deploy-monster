@@ -3,83 +3,13 @@ package db
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
-
-// testPostgresDriver is a minimal driver registered under "postgres" for testing NewPostgres.
-type testPostgresDriver struct {
-	openFunc func(name string) (driver.Conn, error)
-}
-
-func (d *testPostgresDriver) Open(name string) (driver.Conn, error) {
-	if d.openFunc != nil {
-		return d.openFunc(name)
-	}
-	return &testConn{}, nil
-}
-
-type testConn struct {
-	execErr error
-	pingErr error
-}
-
-func (c *testConn) Prepare(query string) (driver.Stmt, error) {
-	return &testStmt{conn: c}, nil
-}
-
-func (c *testConn) Close() error { return nil }
-
-func (c *testConn) Begin() (driver.Tx, error) { return &testTx{}, nil }
-
-func (c *testConn) Ping(ctx context.Context) error { return c.pingErr }
-
-type testStmt struct {
-	conn *testConn
-}
-
-func (s *testStmt) Close() error { return nil }
-
-func (s *testStmt) NumInput() int { return -1 }
-
-func (s *testStmt) Exec(args []driver.Value) (driver.Result, error) {
-	if s.conn.execErr != nil {
-		return nil, s.conn.execErr
-	}
-	return testResult{}, nil
-}
-
-func (s *testStmt) Query(args []driver.Value) (driver.Rows, error) {
-	return nil, errors.New("not implemented")
-}
-
-type testTx struct{}
-
-func (t *testTx) Commit() error   { return nil }
-func (t *testTx) Rollback() error { return nil }
-
-type testResult struct{}
-
-func (r testResult) LastInsertId() (int64, error) { return 0, nil }
-func (r testResult) RowsAffected() (int64, error) { return 0, nil }
-
-var (
-	registerOnce sync.Once
-	testPgDriver *testPostgresDriver
-)
-
-func registerTestPostgresDriver() {
-	registerOnce.Do(func() {
-		testPgDriver = &testPostgresDriver{}
-		sql.Register("postgres", testPgDriver)
-	})
-}
 
 // newMockPostgres creates a PostgresDB with a sqlmock-backed *sql.DB.
 func newMockPostgres(t *testing.T) (*PostgresDB, sqlmock.Sqlmock) {
@@ -153,21 +83,39 @@ func TestPostgresDB_Close_Error(t *testing.T) {
 // migrate()
 // =====================================================
 
-func TestPostgresDB_Migrate_Success(t *testing.T) {
+// TestPostgresDB_Migrate_AllAlreadyApplied exercises the happy path where
+// the loader walks every .pgsql.sql migration, observes that each version
+// is already recorded in _migrations, and exits cleanly. This covers the
+// embed.FS walk, filename filtering, and the `SELECT COUNT` gate without
+// needing to mock the body of each migration statement.
+func TestPostgresDB_Migrate_AllAlreadyApplied(t *testing.T) {
 	pg, mock := newMockPostgres(t)
-	mock.ExpectExec("CREATE TABLE IF NOT EXISTS tenants").
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS _migrations").
 		WillReturnResult(sqlmock.NewResult(0, 0))
+	// Every discovered migration reports count=1 so the loader skips the
+	// apply step. The exact number of expected queries depends on how
+	// many .pgsql.sql files ship in internal/db/migrations/, so any
+	// number of COUNT queries (but at least one) is allowed.
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM _migrations WHERE version = \$1`).
+		WithArgs(1).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM _migrations WHERE version = \$1`).
+		WithArgs(2).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
 	if err := pg.migrate(); err != nil {
 		t.Fatalf("migrate() error = %v", err)
 	}
 }
 
-func TestPostgresDB_Migrate_Error(t *testing.T) {
+// TestPostgresDB_Migrate_TrackingTableError verifies the loader aborts
+// cleanly when it cannot create the _migrations tracking table.
+func TestPostgresDB_Migrate_TrackingTableError(t *testing.T) {
 	pg, mock := newMockPostgres(t)
-	mock.ExpectExec("CREATE TABLE IF NOT EXISTS tenants").
-		WillReturnError(errors.New("syntax error"))
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS _migrations").
+		WillReturnError(errors.New("permission denied"))
 	if err := pg.migrate(); err == nil {
-		t.Fatal("expected error from migrate()")
+		t.Fatal("expected error from migrate() when _migrations creation fails")
 	}
 }
 
@@ -2131,46 +2079,24 @@ func TestPostgresDB_ListAllTenants_ScanError(t *testing.T) {
 }
 
 // =====================================================
-// NewPostgres constructor (integration-level test with mock)
+// NewPostgres constructor — real pgx/v5 stdlib driver
 // =====================================================
 
-func TestNewPostgres_Success(t *testing.T) {
-	registerTestPostgresDriver()
-	testPgDriver.openFunc = func(name string) (driver.Conn, error) {
-		return &testConn{}, nil
-	}
-	t.Cleanup(func() { testPgDriver.openFunc = nil })
-
-	pg, err := NewPostgres("test-success-dsn")
-	if err != nil {
-		t.Fatalf("NewPostgres() error = %v", err)
-	}
-	pg.Close()
-}
-
-func TestNewPostgres_PingFail(t *testing.T) {
-	registerTestPostgresDriver()
-	testPgDriver.openFunc = func(name string) (driver.Conn, error) {
-		return &testConn{pingErr: errors.New("ping failed")}, nil
-	}
-	t.Cleanup(func() { testPgDriver.openFunc = nil })
-
-	_, err := NewPostgres("test-ping-fail-dsn")
+// TestNewPostgres_BadDSN verifies that NewPostgres surfaces an error for an
+// obviously-malformed connection string. Before Phase 5.1.1a this package
+// shipped a hand-rolled "postgres" test driver that would accept any DSN;
+// now that github.com/jackc/pgx/v5/stdlib is wired up, NewPostgres goes
+// through the real parser and will fail on either sql.Open (for a URI that
+// pgx rejects synchronously) or the follow-up PingContext call.
+func TestNewPostgres_BadDSN(t *testing.T) {
+	// pgx accepts most strings at sql.Open time and defers validation to
+	// the first real connection, so the error we expect here is a ping
+	// failure rather than a parser error. What we want is simply that
+	// NewPostgres does not silently succeed when there is no reachable
+	// Postgres on the other end.
+	_, err := NewPostgres("postgres://nobody:nobody@127.0.0.1:1/nonexistent?sslmode=disable&connect_timeout=1")
 	if err == nil {
-		t.Fatal("expected ping error from NewPostgres")
-	}
-}
-
-func TestNewPostgres_MigrateError(t *testing.T) {
-	registerTestPostgresDriver()
-	testPgDriver.openFunc = func(name string) (driver.Conn, error) {
-		return &testConn{execErr: errors.New("migrate fail")}, nil
-	}
-	t.Cleanup(func() { testPgDriver.openFunc = nil })
-
-	_, err := NewPostgres("test-migrate-fail-dsn")
-	if err == nil {
-		t.Fatal("expected migrate error")
+		t.Fatal("expected NewPostgres to fail against an unreachable DSN")
 	}
 }
 

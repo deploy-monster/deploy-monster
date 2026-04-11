@@ -160,8 +160,14 @@ func (s *SQLiteDB) migrate() error {
 
 	for _, entry := range entries {
 		name := entry.Name()
-		// Skip down migrations and non-SQL files
-		if !strings.HasSuffix(name, ".sql") || strings.HasSuffix(name, ".down.sql") {
+		// Skip down migrations, Postgres-dialect migrations, and non-SQL files.
+		// The embed.FS contains both SQLite (`0001_init.sql`) and Postgres
+		// (`0001_init.pgsql.sql`) migrations so PostgresDB can reuse the
+		// same filesystem; the SQLite loader must ignore the Postgres ones.
+		if !strings.HasSuffix(name, ".sql") ||
+			strings.HasSuffix(name, ".down.sql") ||
+			strings.HasSuffix(name, ".pgsql.sql") ||
+			strings.HasSuffix(name, ".pgsql.down.sql") {
 			continue
 		}
 

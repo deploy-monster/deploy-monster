@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // PostgresDB implements core.Store using PostgreSQL.
@@ -20,8 +23,9 @@ var _ core.Store = (*PostgresDB)(nil)
 
 // NewPostgres creates a new PostgreSQL store.
 // DSN format: postgres://user:pass@host:5432/dbname?sslmode=disable
+// Uses github.com/jackc/pgx/v5/stdlib as the database/sql driver.
 func NewPostgres(dsn string) (*PostgresDB, error) {
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("postgres open: %w", err)
 	}
@@ -56,178 +60,82 @@ func (p *PostgresDB) Close() error {
 	return p.db.Close()
 }
 
+// migrate applies all pending Postgres migrations from the embedded
+// migrations/*.pgsql.sql filesystem. It mirrors SQLiteDB.migrate so the
+// two backends share the same versioning contract: a _migrations tracking
+// table, one transaction per migration, and filename-derived version
+// numbers. SQLite migrations (`*.sql`) and Postgres migrations
+// (`*.pgsql.sql`) coexist in the same embed.FS; each loader skips the
+// files meant for the other backend.
 func (p *PostgresDB) migrate() error {
-	// PostgreSQL uses $1, $2 placeholders instead of ?
-	// Tables are identical to SQLite but with PostgreSQL types
 	_, err := p.db.Exec(`
-		CREATE TABLE IF NOT EXISTS tenants (
-			id TEXT PRIMARY KEY,
+		CREATE TABLE IF NOT EXISTS _migrations (
+			version INTEGER PRIMARY KEY,
 			name TEXT NOT NULL,
-			slug TEXT UNIQUE NOT NULL,
-			avatar_url TEXT DEFAULT '',
-			plan_id TEXT DEFAULT 'free',
-			owner_id TEXT DEFAULT '',
-			status TEXT DEFAULT 'active',
-			limits_json TEXT DEFAULT '{}',
-			metadata_json TEXT DEFAULT '{}',
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW()
-		);
-
-		CREATE TABLE IF NOT EXISTS users (
-			id TEXT PRIMARY KEY,
-			email TEXT UNIQUE NOT NULL,
-			password_hash TEXT NOT NULL,
-			name TEXT DEFAULT '',
-			avatar_url TEXT DEFAULT '',
-			status TEXT DEFAULT 'active',
-			totp_enabled BOOLEAN DEFAULT FALSE,
-			last_login_at TIMESTAMPTZ,
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW()
-		);
-
-		CREATE TABLE IF NOT EXISTS applications (
-			id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL,
-			tenant_id TEXT NOT NULL,
-			name TEXT NOT NULL,
-			type TEXT DEFAULT 'web',
-			source_type TEXT DEFAULT 'image',
-			source_url TEXT DEFAULT '',
-			branch TEXT DEFAULT 'main',
-			dockerfile TEXT DEFAULT '',
-			build_pack TEXT DEFAULT '',
-			env_vars_enc TEXT DEFAULT '',
-			labels_json TEXT DEFAULT '{}',
-			replicas INTEGER DEFAULT 1,
-			status TEXT DEFAULT 'created',
-			server_id TEXT DEFAULT '',
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW()
-		);
-
-		CREATE TABLE IF NOT EXISTS deployments (
-			id TEXT PRIMARY KEY,
-			app_id TEXT NOT NULL,
-			version INTEGER NOT NULL,
-			image TEXT DEFAULT '',
-			container_id TEXT DEFAULT '',
-			status TEXT DEFAULT 'pending',
-			build_log TEXT DEFAULT '',
-			commit_sha TEXT DEFAULT '',
-			commit_message TEXT DEFAULT '',
-			triggered_by TEXT DEFAULT 'manual',
-			strategy TEXT DEFAULT 'recreate',
-			started_at TIMESTAMPTZ,
-			finished_at TIMESTAMPTZ,
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
-
-		CREATE TABLE IF NOT EXISTS domains (
-			id TEXT PRIMARY KEY,
-			app_id TEXT NOT NULL,
-			fqdn TEXT UNIQUE NOT NULL,
-			type TEXT DEFAULT 'custom',
-			dns_provider TEXT DEFAULT '',
-			dns_synced BOOLEAN DEFAULT FALSE,
-			verified BOOLEAN DEFAULT FALSE,
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
-
-		CREATE TABLE IF NOT EXISTS projects (
-			id TEXT PRIMARY KEY,
-			tenant_id TEXT NOT NULL,
-			name TEXT NOT NULL,
-			description TEXT DEFAULT '',
-			environment TEXT DEFAULT 'production',
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW()
-		);
-
-		CREATE TABLE IF NOT EXISTS team_members (
-			id TEXT PRIMARY KEY,
-			tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			role_id TEXT NOT NULL,
-			invited_by TEXT,
-			status TEXT DEFAULT 'active',
-			last_active_at TIMESTAMPTZ,
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			UNIQUE(tenant_id, user_id)
-		);
-
-		CREATE TABLE IF NOT EXISTS roles (
-			id TEXT PRIMARY KEY,
-			tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
-			name TEXT NOT NULL,
-			description TEXT DEFAULT '',
-			permissions_json TEXT NOT NULL DEFAULT '[]',
-			is_builtin BOOLEAN DEFAULT FALSE,
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
-
-		CREATE TABLE IF NOT EXISTS secrets (
-			id TEXT PRIMARY KEY,
-			tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
-			project_id TEXT,
-			app_id TEXT,
-			name TEXT NOT NULL,
-			type TEXT DEFAULT 'env',
-			description TEXT DEFAULT '',
-			scope TEXT DEFAULT 'app',
-			current_version INTEGER DEFAULT 1,
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW()
-		);
-
-		CREATE TABLE IF NOT EXISTS secret_versions (
-			id TEXT PRIMARY KEY,
-			secret_id TEXT NOT NULL REFERENCES secrets(id) ON DELETE CASCADE,
-			version INTEGER NOT NULL,
-			value_enc TEXT NOT NULL,
-			created_by TEXT,
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			UNIQUE(secret_id, version)
-		);
-
-		CREATE TABLE IF NOT EXISTS audit_log (
-			id SERIAL PRIMARY KEY,
-			tenant_id TEXT,
-			user_id TEXT,
-			action TEXT NOT NULL,
-			resource_type TEXT NOT NULL,
-			resource_id TEXT NOT NULL,
-			details_json TEXT DEFAULT '{}',
-			ip_address TEXT DEFAULT '',
-			user_agent TEXT DEFAULT '',
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
-
-		CREATE TABLE IF NOT EXISTS invitations (
-			id TEXT PRIMARY KEY,
-			tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-			email TEXT NOT NULL,
-			role_id TEXT NOT NULL,
-			invited_by TEXT,
-			token_hash TEXT NOT NULL UNIQUE,
-			expires_at TIMESTAMPTZ NOT NULL,
-			accepted_at TIMESTAMPTZ,
-			status TEXT DEFAULT 'pending',
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
-
-		CREATE INDEX IF NOT EXISTS idx_apps_tenant ON applications(tenant_id);
-		CREATE INDEX IF NOT EXISTS idx_apps_project ON applications(project_id);
-		CREATE INDEX IF NOT EXISTS idx_deployments_app ON deployments(app_id, version DESC);
-		CREATE INDEX IF NOT EXISTS idx_domains_app ON domains(app_id);
-		CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
-		CREATE INDEX IF NOT EXISTS idx_team_members_tenant ON team_members(tenant_id);
-		CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_log(tenant_id, created_at);
-		CREATE INDEX IF NOT EXISTS idx_secrets_tenant ON secrets(tenant_id);
-		CREATE INDEX IF NOT EXISTS idx_invitations_tenant ON invitations(tenant_id);
+			applied_at TIMESTAMPTZ DEFAULT NOW()
+		)
 	`)
-	return err
+	if err != nil {
+		return fmt.Errorf("create _migrations table: %w", err)
+	}
+
+	entries, err := migrationsFS.ReadDir("migrations")
+	if err != nil {
+		return fmt.Errorf("read migrations dir: %w", err)
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name() < entries[j].Name()
+	})
+
+	for _, entry := range entries {
+		name := entry.Name()
+		// Only consume .pgsql.sql up migrations; skip SQLite files and
+		// down files. Down files for Postgres would be `.pgsql.down.sql`.
+		if !strings.HasSuffix(name, ".pgsql.sql") ||
+			strings.HasSuffix(name, ".pgsql.down.sql") {
+			continue
+		}
+
+		var version int
+		if _, err := fmt.Sscanf(name, "%04d", &version); err != nil {
+			continue
+		}
+
+		var count int
+		if err := p.db.QueryRow("SELECT COUNT(*) FROM _migrations WHERE version = $1", version).Scan(&count); err != nil {
+			return fmt.Errorf("check migration %d: %w", version, err)
+		}
+		if count > 0 {
+			continue
+		}
+
+		data, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			return fmt.Errorf("read migration %s: %w", name, err)
+		}
+
+		tx, err := p.db.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx for migration %s: %w", name, err)
+		}
+
+		if _, err := tx.Exec(string(data)); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("apply migration %s: %w", name, err)
+		}
+
+		if _, err := tx.Exec("INSERT INTO _migrations (version, name) VALUES ($1, $2)", version, name); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("record migration %s: %w", name, err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration %s: %w", name, err)
+		}
+	}
+
+	return nil
 }
 
 // =====================================================

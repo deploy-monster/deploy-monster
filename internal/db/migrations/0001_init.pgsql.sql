@@ -1,0 +1,409 @@
+-- DeployMonster initial schema — PostgreSQL dialect
+-- Version: 0001
+-- Mirrors internal/db/migrations/0001_init.sql with Postgres types:
+--   DATETIME       -> TIMESTAMPTZ
+--   INTEGER-as-bool -> BOOLEAN
+--   AUTOINCREMENT  -> BIGSERIAL
+--   randomblob id default dropped (core.GenerateID is always used in Go)
+
+-- Tenants (Teams)
+CREATE TABLE tenants (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    avatar_url TEXT DEFAULT '',
+    plan_id TEXT DEFAULT 'free',
+    owner_id TEXT,
+    reseller_id TEXT,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active','suspended','deleted')),
+    limits_json TEXT DEFAULT '{}',
+    metadata_json TEXT DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Users
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    name TEXT DEFAULT '',
+    avatar_url TEXT DEFAULT '',
+    status TEXT DEFAULT 'active' CHECK (status IN ('active','pending','suspended','deleted')),
+    totp_secret_enc TEXT,
+    totp_enabled BOOLEAN DEFAULT FALSE,
+    last_login_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Team Members (User <-> Tenant link with role)
+CREATE TABLE team_members (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id TEXT NOT NULL,
+    invited_by TEXT REFERENCES users(id),
+    status TEXT DEFAULT 'active' CHECK (status IN ('active','invited','removed')),
+    last_active_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(tenant_id, user_id)
+);
+
+-- Roles
+CREATE TABLE roles (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    permissions_json TEXT NOT NULL DEFAULT '[]',
+    is_builtin BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Built-in roles
+INSERT INTO roles (id, name, description, permissions_json, is_builtin) VALUES
+    ('role_super_admin', 'Super Admin', 'Full platform access', '["*"]', TRUE),
+    ('role_owner', 'Owner', 'Full tenant control', '["tenant.*","app.*","project.*","member.*","billing.*","secret.*","server.*"]', TRUE),
+    ('role_admin', 'Admin', 'Manage team and resources', '["app.*","project.*","member.*","secret.*","server.view","billing.view"]', TRUE),
+    ('role_developer', 'Developer', 'Deploy and manage apps', '["app.*","project.view","secret.app.*","domain.*","db.*"]', TRUE),
+    ('role_operator', 'Operator', 'Operate running apps', '["app.view","app.restart","app.logs","app.metrics"]', TRUE),
+    ('role_viewer', 'Viewer', 'Read-only access', '["app.view","app.logs","project.view"]', TRUE);
+
+-- Projects
+CREATE TABLE projects (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    environment TEXT DEFAULT 'production',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Applications
+CREATE TABLE applications (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    type TEXT DEFAULT 'service' CHECK (type IN ('service','worker','static','database','cron','compose-stack')),
+    source_type TEXT DEFAULT 'git' CHECK (source_type IN ('git','image','compose','dockerfile','marketplace')),
+    source_url TEXT DEFAULT '',
+    branch TEXT DEFAULT 'main',
+    dockerfile TEXT DEFAULT '',
+    build_pack TEXT DEFAULT '',
+    env_vars_enc TEXT DEFAULT '',
+    labels_json TEXT DEFAULT '{}',
+    replicas INTEGER DEFAULT 1,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending','building','deploying','running','stopped','crashed','failed')),
+    server_id TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Deployments
+CREATE TABLE deployments (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    image TEXT DEFAULT '',
+    container_id TEXT DEFAULT '',
+    status TEXT DEFAULT 'pending',
+    build_log TEXT DEFAULT '',
+    commit_sha TEXT DEFAULT '',
+    commit_message TEXT DEFAULT '',
+    triggered_by TEXT DEFAULT '',
+    strategy TEXT DEFAULT 'recreate',
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Domains
+CREATE TABLE domains (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    fqdn TEXT NOT NULL UNIQUE,
+    type TEXT DEFAULT 'custom' CHECK (type IN ('auto','custom','wildcard')),
+    dns_provider TEXT DEFAULT 'manual',
+    dns_synced BOOLEAN DEFAULT FALSE,
+    verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- SSL Certificates
+CREATE TABLE ssl_certs (
+    id TEXT PRIMARY KEY,
+    domain_id TEXT NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+    cert_pem TEXT NOT NULL,
+    key_pem_enc TEXT NOT NULL,
+    issuer TEXT DEFAULT 'letsencrypt',
+    expires_at TIMESTAMPTZ NOT NULL,
+    auto_renew BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Servers
+CREATE TABLE servers (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT,
+    hostname TEXT NOT NULL,
+    ip_address TEXT NOT NULL,
+    role TEXT DEFAULT 'worker' CHECK (role IN ('manager','manager-replica','worker','worker-build','worker-db','edge')),
+    provider_type TEXT DEFAULT 'custom',
+    provider_ref TEXT DEFAULT '',
+    ssh_port INTEGER DEFAULT 22,
+    ssh_key_id TEXT,
+    docker_version TEXT DEFAULT '',
+    cpu_cores INTEGER DEFAULT 0,
+    ram_mb INTEGER DEFAULT 0,
+    disk_mb INTEGER DEFAULT 0,
+    monthly_cost_cents INTEGER DEFAULT 0,
+    swarm_joined BOOLEAN DEFAULT FALSE,
+    agent_status TEXT DEFAULT 'unknown',
+    labels_json TEXT DEFAULT '{}',
+    status TEXT DEFAULT 'provisioning' CHECK (status IN ('provisioning','bootstrapping','active','maintenance','offline','destroyed')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Secrets
+CREATE TABLE secrets (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    app_id TEXT REFERENCES applications(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    type TEXT DEFAULT 'env_var',
+    description TEXT DEFAULT '',
+    scope TEXT DEFAULT 'app' CHECK (scope IN ('global','tenant','project','app')),
+    current_version INTEGER DEFAULT 1,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE secret_versions (
+    id TEXT PRIMARY KEY,
+    secret_id TEXT NOT NULL REFERENCES secrets(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    value_enc TEXT NOT NULL,
+    created_by TEXT REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(secret_id, version)
+);
+
+-- Git Sources
+CREATE TABLE git_sources (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('github','gitlab','bitbucket','gitea','gogs','azure_devops','codecommit','custom_git')),
+    name TEXT NOT NULL,
+    base_url TEXT DEFAULT '',
+    api_url TEXT DEFAULT '',
+    auth_type TEXT DEFAULT 'personal_token',
+    token_enc TEXT DEFAULT '',
+    oauth_data_enc TEXT DEFAULT '',
+    ssh_key_id TEXT,
+    verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Webhooks
+CREATE TABLE webhooks (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    git_source_id TEXT REFERENCES git_sources(id),
+    secret_hash TEXT NOT NULL,
+    events_json TEXT DEFAULT '["push"]',
+    branch_filter TEXT DEFAULT '',
+    auto_deploy BOOLEAN DEFAULT TRUE,
+    status TEXT DEFAULT 'active',
+    last_triggered_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE webhook_logs (
+    id TEXT PRIMARY KEY,
+    webhook_id TEXT NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    payload_hash TEXT DEFAULT '',
+    commit_sha TEXT DEFAULT '',
+    branch TEXT DEFAULT '',
+    status TEXT DEFAULT 'received',
+    deployment_id TEXT,
+    received_at TIMESTAMPTZ DEFAULT NOW(),
+    processed_at TIMESTAMPTZ
+);
+
+-- Managed Databases
+CREATE TABLE managed_dbs (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    engine TEXT NOT NULL CHECK (engine IN ('postgres','mysql','mariadb','redis','mongodb')),
+    version TEXT NOT NULL,
+    port INTEGER NOT NULL,
+    credentials_enc TEXT NOT NULL,
+    container_id TEXT DEFAULT '',
+    volume_id TEXT DEFAULT '',
+    server_id TEXT REFERENCES servers(id),
+    backup_schedule TEXT DEFAULT '',
+    status TEXT DEFAULT 'provisioning',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Volumes
+CREATE TABLE volumes (
+    id TEXT PRIMARY KEY,
+    app_id TEXT REFERENCES applications(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    mount_path TEXT DEFAULT '',
+    size_mb INTEGER DEFAULT 0,
+    driver TEXT DEFAULT 'local',
+    server_id TEXT REFERENCES servers(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Backups
+CREATE TABLE backups (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    source_type TEXT NOT NULL CHECK (source_type IN ('volume','database','config','full')),
+    source_id TEXT NOT NULL,
+    storage_target TEXT DEFAULT 'local',
+    file_path TEXT DEFAULT '',
+    size_bytes BIGINT DEFAULT 0,
+    encryption TEXT DEFAULT 'aes-256-gcm',
+    status TEXT DEFAULT 'pending',
+    scheduled BOOLEAN DEFAULT FALSE,
+    retention_days INTEGER DEFAULT 30,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- VPS Providers
+CREATE TABLE vps_providers (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT,
+    type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    api_token_enc TEXT NOT NULL,
+    default_region TEXT DEFAULT '',
+    default_size TEXT DEFAULT '',
+    status TEXT DEFAULT 'active',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Subscriptions (Billing)
+CREATE TABLE subscriptions (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    plan_id TEXT NOT NULL,
+    status TEXT DEFAULT 'active',
+    stripe_subscription_id TEXT DEFAULT '',
+    current_period_start TIMESTAMPTZ,
+    current_period_end TIMESTAMPTZ,
+    trial_end TIMESTAMPTZ,
+    cancel_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Usage Records (Billing)
+CREATE TABLE usage_records (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    app_id TEXT,
+    metric_type TEXT NOT NULL,
+    value DOUBLE PRECISION NOT NULL,
+    hour_bucket TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_usage_tenant_hour ON usage_records(tenant_id, hour_bucket);
+
+-- Invoices
+CREATE TABLE invoices (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    subscription_id TEXT REFERENCES subscriptions(id),
+    period_start TIMESTAMPTZ NOT NULL,
+    period_end TIMESTAMPTZ NOT NULL,
+    subtotal_cents BIGINT DEFAULT 0,
+    tax_cents BIGINT DEFAULT 0,
+    total_cents BIGINT DEFAULT 0,
+    currency TEXT DEFAULT 'USD',
+    status TEXT DEFAULT 'draft' CHECK (status IN ('draft','open','paid','void','uncollectible')),
+    stripe_invoice_id TEXT DEFAULT '',
+    pdf_url TEXT DEFAULT '',
+    paid_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Audit Log
+CREATE TABLE audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id TEXT,
+    user_id TEXT,
+    action TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    details_json TEXT DEFAULT '{}',
+    ip_address TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_audit_tenant ON audit_log(tenant_id, created_at);
+
+-- API Keys
+CREATE TABLE api_keys (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
+    key_prefix TEXT NOT NULL,
+    scopes_json TEXT DEFAULT '["*"]',
+    expires_at TIMESTAMPTZ,
+    last_used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Compose Stacks
+CREATE TABLE compose_stacks (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    raw_yaml TEXT NOT NULL,
+    parsed_json TEXT DEFAULT '{}',
+    version INTEGER DEFAULT 1,
+    source_type TEXT DEFAULT 'upload',
+    source_url TEXT DEFAULT '',
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Marketplace Installs
+CREATE TABLE marketplace_installs (
+    id TEXT PRIMARY KEY,
+    template_slug TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    app_id TEXT REFERENCES applications(id) ON DELETE SET NULL,
+    config_json TEXT DEFAULT '{}',
+    version TEXT DEFAULT '',
+    status TEXT DEFAULT 'active',
+    installed_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Invitations
+CREATE TABLE invitations (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    role_id TEXT NOT NULL,
+    invited_by TEXT REFERENCES users(id),
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    accepted_at TIMESTAMPTZ,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending','accepted','expired','revoked')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);

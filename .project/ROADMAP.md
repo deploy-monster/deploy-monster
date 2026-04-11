@@ -162,7 +162,7 @@ The roadmap is opinionated about sequencing. Phases 1-3 address the concrete blo
 **Risk profile:** MEDIUM-HIGH. PostgreSQL port is new code on a well-defined interface, but it is net-new code.
 
 ### 5.1 PostgreSQL as a first-class store
-1. **`internal/db/postgres.go`** — implement `core.Store` against `pgx/v5`. Migrations in `internal/db/migrations/*.pgsql.sql` (or a shared `.sql` with dialect shims). Use the existing 12 sub-interfaces as the contract; do not invent new methods. **Effort: 4-5 days.**
+1. **`internal/db/postgres.go`** — implement `core.Store` against `pgx/v5`. Migrations in `internal/db/migrations/*.pgsql.sql` (or a shared `.sql` with dialect shims). Use the existing 12 sub-interfaces as the contract; do not invent new methods. **Effort: 4-5 days.** **DONE (Tier 81):** wired `github.com/jackc/pgx/v5/stdlib`, replaced the hand-rolled no-op test driver, replaced the hand-rolled inline migrate() with a shared embed.FS runner mirroring SQLite. Ported all 26 tables from `0001_init.sql` → `0001_init.pgsql.sql` with Postgres types (TIMESTAMPTZ, BOOLEAN, BIGSERIAL). Added up/down pairs for both 0001 and 0002 pgsql migrations. Both loaders now coexist in the same embed.FS — each skips the dialect files meant for the other backend.
 2. **Cross-backend test matrix.** `make test-integration` runs every store test against both SQLite and PostgreSQL. Use build tags or a `DM_DB_DRIVER` env var. **Effort: 1 day.**
 
 ### 5.2 Hot-path performance
