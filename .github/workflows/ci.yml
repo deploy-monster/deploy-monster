@@ -187,6 +187,14 @@ jobs:
       - name: Run API integration test
         run: go test -tags integration -run TestFullAppStartup -v ./internal/api/...
 
+      # Master <-> agent full protocol round-trip. Spins up a real
+      # AgentServer and a real AgentClient on loopback and walks every
+      # message type (ping, metrics.collect, container.*, health.check).
+      # Catches regressions in the JSON wire protocol, pending-response
+      # routing, and graceful shutdown coordination.
+      - name: Run master/agent integration test
+        run: go test -tags integration -race -run TestMasterAgent_Integration -v ./internal/swarm/...
+
       # Let's Encrypt staging smoke test. Opt-in via repository variable
       # LE_STAGING_TEST=1 so scheduled or manual runs exercise the full
       # ACME Discover+Register+NewOrder path against real staging. Default

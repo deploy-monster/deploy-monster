@@ -362,6 +362,22 @@ func (s *AgentServer) handleAgentMessage(ac *AgentConn, msg core.AgentMessage) {
 	switch msg.Type {
 	case core.AgentMsgPong:
 		s.logger.Debug("pong received", "server_id", ac.ServerID)
+		// Route pong responses back to pending callers the same way
+		// result/error are routed. Callers like SendPing and
+		// RemoteExecutor.Ping put the request ID into ac.pending and
+		// block on s.Send — if we drop the pong here every ping round
+		// trip times out instead of completing. The heartbeat loop
+		// relied on this too and was silently burning its 5s context
+		// on every tick.
+		ac.pendingMu.Lock()
+		ch, ok := ac.pending[msg.ID]
+		if ok {
+			delete(ac.pending, msg.ID)
+		}
+		ac.pendingMu.Unlock()
+		if ok {
+			ch <- msg
+		}
 
 	case core.AgentMsgResult, core.AgentMsgError:
 		// If this result is a metrics response, record it as the most
