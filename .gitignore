@@ -40,8 +40,10 @@ vendor/
 # Binaries
 deploymonster
 deploymonster.exe
-loadtest
-loadtest.exe
+/loadtest
+/loadtest.exe
+/build_queue
+/build_queue.exe
 *.test
 *.test.exe
 
