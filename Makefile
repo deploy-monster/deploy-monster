@@ -84,6 +84,25 @@ loadtest:
 	@echo "Running load test (ensure server is running)..."
 	go run ./tests/loadtest -url http://localhost:8443 -duration 10s -concurrency 10
 
+## loadtest-check: Run load test and compare against committed baseline (fails on ≥10% regression)
+loadtest-check:
+	@echo "Running load test against baseline (ensure server is running)..."
+	go run ./tests/loadtest \
+		-url http://localhost:8443 \
+		-duration 30s \
+		-concurrency 20 \
+		-baseline tests/loadtest/baselines/http.json
+
+## loadtest-baseline: Capture a new baseline from the currently running server (OVERWRITES committed baseline)
+loadtest-baseline:
+	@echo "Capturing new baseline — this OVERWRITES tests/loadtest/baselines/http.json"
+	@echo "Commit the result with a message explaining WHY the baseline moved."
+	go run ./tests/loadtest \
+		-url http://localhost:8443 \
+		-duration 60s \
+		-concurrency 50 \
+		-save-baseline tests/loadtest/baselines/http.json
+
 ## lint: Run golangci-lint
 lint:
 	@echo "Running linter..."
