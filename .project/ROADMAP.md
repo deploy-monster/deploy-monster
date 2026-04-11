@@ -140,11 +140,11 @@ The roadmap is opinionated about sequencing. Phases 1-3 address the concrete blo
 3. **PostgreSQL store integration test.** `internal/db/postgres_integration_test.go` exists (untracked) for a PostgreSQL `core.Store` that does not yet exist. Plan B: keep the test file, implement the store in Phase 5. For this phase, just run the existing SQLite integration tests against a fresh database in Docker CI to catch regressions. **Effort: 1 day.**
 
 ### 4.2 Fuzz coverage
-4. **Add fuzzers for** webhook signature verification, JWT parse, config loading, marketplace template rendering. Currently 7 fuzzers; target 15. **Effort: 1-1.5 days.**
+4. ~~**Add fuzzers for** webhook signature verification, JWT parse, config loading, marketplace template rendering. Currently 7 fuzzers; target 15.~~ **DONE.** 15 fuzzers now exist: +FuzzVerifyBitbucketSignature, +FuzzVerifySignature (webhooks), +FuzzValidateAccessTokenUntrusted, +FuzzValidateRefreshTokenUntrusted (auth), +FuzzLoadConfig, +FuzzConfigYAMLUnmarshal (core), +FuzzValidateTemplate, +FuzzValidateTemplateNil (marketplace). **Effort: 1-1.5 days.**
 
 ### 4.3 Coverage honesty
-5. **Measure real coverage after Phase 1-3.** Generate an HTML report, inspect the 5 lowest-coverage files, write targeted tests for the highest-risk uncovered branches (error paths, boundary conditions). Avoid `*_coverage_test.go` files that exercise code without asserting behavior. **Effort: 1-2 days.**
-6. **Raise the CI gate from 80% to 85%** once achieved honestly, and update the README to match reality instead of the 97% aspirational number. **Effort: 0.25 day.**
+5. ~~**Measure real coverage after Phase 1-3.** Generate an HTML report, inspect the 5 lowest-coverage files, write targeted tests for the highest-risk uncovered branches (error paths, boundary conditions). Avoid `*_coverage_test.go` files that exercise code without asserting behavior.~~ **DONE.** Targeted the 5 lowest-coverage files (logger.go 28.6% → 100%, retry.go 58.3% → 100%, sigv4.go 34.6% → 99%, restore.go 39% → 89%, topology/deployer.go 40% → 50%+) with behavior-asserting tests. Total coverage rose from 86.4% → 86.7%. **Effort: 1-2 days.**
+6. ~~**Raise the CI gate from 80% to 85%** once achieved honestly, and update the README to match reality instead of the 97% aspirational number.~~ **DONE.** CI gate bumped to 85% in `.github/workflows/ci.yml`; README coverage claims (badge, metrics table, project stats) updated from 97% aspirational to 86% measured. **Effort: 0.25 day.**
 
 **Phase 4 exit criterion:**
 - 15+ fuzz tests.

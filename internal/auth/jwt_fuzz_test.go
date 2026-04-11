@@ -66,3 +66,63 @@ func FuzzPasswordHash(f *testing.F) {
 		}
 	})
 }
+
+// FuzzValidateAccessTokenUntrusted feeds arbitrary strings to the access
+// token validator to ensure it never panics and never leaks a non-nil
+// claims pointer alongside an error. Random bytes effectively cannot forge
+// an HMAC, so the acceptance path is unreachable — the real invariant is
+// no-panic + clean error semantics on the rejection path.
+func FuzzValidateAccessTokenUntrusted(f *testing.F) {
+	svc := NewJWTService("fuzz-test-jwt-secret-at-least-32-bytes!")
+
+	f.Add("")
+	f.Add("not.a.jwt")
+	f.Add("a.b.c")
+	f.Add("eyJhbGciOiJub25lIn0..")                  // alg=none attack shape
+	f.Add("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..") // header only
+	f.Add("..")
+	f.Add("a")
+
+	f.Fuzz(func(t *testing.T, token string) {
+		claims, err := svc.ValidateAccessToken(token)
+		if err != nil {
+			// Rejection path: claims must be nil so no caller can mistake
+			// a garbage input for a valid session.
+			if claims != nil {
+				t.Errorf("error returned but claims non-nil: %v", claims)
+			}
+			return
+		}
+		// Acceptance path — not reachable in practice for random input
+		// because the HMAC cannot be forged. If we ever land here, the
+		// claims struct must be non-nil (the acceptance contract).
+		if claims == nil {
+			t.Error("ValidateAccessToken returned nil claims with nil error")
+		}
+	})
+}
+
+// FuzzValidateRefreshTokenUntrusted mirrors the access-token fuzzer for the
+// refresh-token path. Same invariant: no panic, and on rejection the claims
+// pointer is nil.
+func FuzzValidateRefreshTokenUntrusted(f *testing.F) {
+	svc := NewJWTService("fuzz-test-jwt-secret-at-least-32-bytes!")
+
+	f.Add("")
+	f.Add("garbage")
+	f.Add("a.b.c")
+	f.Add("..")
+
+	f.Fuzz(func(t *testing.T, token string) {
+		claims, err := svc.ValidateRefreshToken(token)
+		if err != nil {
+			if claims != nil {
+				t.Errorf("error returned but claims non-nil: %v", claims)
+			}
+			return
+		}
+		if claims == nil {
+			t.Error("ValidateRefreshToken returned nil claims with nil error")
+		}
+	})
+}

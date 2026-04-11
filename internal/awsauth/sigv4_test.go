@@ -2,6 +2,7 @@ package awsauth
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -79,4 +80,73 @@ func TestSignV4_BodyAttached(t *testing.T) {
 	if req.GetBody == nil {
 		t.Error("req.GetBody must be set so retries can rewind")
 	}
+}
+
+// TestSigV4Encode_RFC3986 verifies the percent-encoding matches the SigV4
+// unreserved set. Differs from url.QueryEscape in that space must encode
+// as %20 (never "+") and the unreserved punctuation set stays literal.
+func TestSigV4Encode_RFC3986(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"", ""},
+		{"abc", "abc"},
+		{"ABC_123", "ABC_123"},
+		{"a-._~z", "a-._~z"},
+		{"hello world", "hello%20world"},
+		{"a+b", "a%2Bb"},
+		{"a/b", "a%2Fb"},
+		{"a:b", "a%3Ab"},
+		{"\x00\xff", "%00%FF"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.in, func(t *testing.T) {
+			if got := SigV4Encode(tc.in); got != tc.want {
+				t.Errorf("SigV4Encode(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestCanonicalQueryString covers the sorted-key, sorted-value, percent-
+// encoded pairing. Repeated keys must have their VALUES sorted, and empty
+// input must return an empty string (not panic).
+func TestCanonicalQueryString(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		if got := CanonicalQueryString(url.Values{}); got != "" {
+			t.Errorf("empty values should return empty string, got %q", got)
+		}
+	})
+
+	t.Run("sorted keys", func(t *testing.T) {
+		v := url.Values{}
+		v.Set("z", "1")
+		v.Set("a", "2")
+		v.Set("m", "3")
+		got := CanonicalQueryString(v)
+		want := "a=2&m=3&z=1"
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("repeated key values sorted", func(t *testing.T) {
+		v := url.Values{}
+		v["tag"] = []string{"banana", "apple", "cherry"}
+		got := CanonicalQueryString(v)
+		want := "tag=apple&tag=banana&tag=cherry"
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("percent-encoded key and value", func(t *testing.T) {
+		v := url.Values{}
+		v.Set("name with space", "val/slash")
+		got := CanonicalQueryString(v)
+		want := "name%20with%20space=val%2Fslash"
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
 }

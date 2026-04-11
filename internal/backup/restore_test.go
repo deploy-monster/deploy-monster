@@ -362,3 +362,106 @@ func TestRestoreApp_TenantMismatch(t *testing.T) {
 			victimStore.appCount())
 	}
 }
+
+// TestRestoreTenant_HappyPath drives RestoreTenant through three real
+// backup payloads and verifies each app lands back in the store.
+func TestRestoreTenant_HappyPath(t *testing.T) {
+	tenant := core.Tenant{ID: "tenant1"}
+	apps := []core.Application{
+		sampleApp(tenant.ID, "a1", "api"),
+		sampleApp(tenant.ID, "a2", "worker"),
+		sampleApp(tenant.ID, "a3", "web"),
+	}
+	store := newInMemoryStore([]core.Tenant{tenant}, apps)
+	storage := NewLocalStorage(t.TempDir())
+	s := NewScheduler(store, map[string]core.BackupStorage{"local": storage}, nil, nil, "02:00", testLogger())
+	s.runBackupsCtx(context.Background())
+
+	// Wipe every app so RestoreTenant must create each from scratch.
+	for _, a := range apps {
+		_ = store.DeleteApp(context.Background(), a.ID)
+	}
+	if store.appCount() != 0 {
+		t.Fatalf("store not wiped: %d", store.appCount())
+	}
+
+	ids := []string{"a1", "a2", "a3"}
+	restored, errs := RestoreTenant(context.Background(), store, storage, tenant.ID, ids)
+	if restored != 3 {
+		t.Errorf("restored = %d, want 3", restored)
+	}
+	if len(errs) != 0 {
+		t.Errorf("expected no errors, got %v", errs)
+	}
+	if store.appCount() != 3 {
+		t.Errorf("store appCount after RestoreTenant = %d, want 3", store.appCount())
+	}
+}
+
+// TestRestoreTenant_PartialFailure feeds RestoreTenant a mix of valid
+// and nonexistent app IDs. The sweep must keep going for the valid
+// ones while accumulating errors for the missing ones — disaster
+// recovery wants partial progress, not all-or-nothing failure.
+func TestRestoreTenant_PartialFailure(t *testing.T) {
+	tenant := core.Tenant{ID: "tenant1"}
+	apps := []core.Application{
+		sampleApp(tenant.ID, "real1", "api"),
+	}
+	store := newInMemoryStore([]core.Tenant{tenant}, apps)
+	storage := NewLocalStorage(t.TempDir())
+	s := NewScheduler(store, map[string]core.BackupStorage{"local": storage}, nil, nil, "02:00", testLogger())
+	s.runBackupsCtx(context.Background())
+
+	_ = store.DeleteApp(context.Background(), "real1")
+
+	ids := []string{"real1", "ghost1", "ghost2"}
+	restored, errs := RestoreTenant(context.Background(), store, storage, tenant.ID, ids)
+	if restored != 1 {
+		t.Errorf("restored = %d, want 1 (real1 only)", restored)
+	}
+	if len(errs) != 2 {
+		t.Errorf("errs count = %d, want 2 (ghost1, ghost2)", len(errs))
+	}
+	for _, e := range errs {
+		if !errors.Is(e, ErrNoBackupsFound) {
+			t.Errorf("expected ErrNoBackupsFound in errors, got %v", e)
+		}
+	}
+}
+
+// TestRestoreTenant_ContextCancelled cancels the context before the
+// sweep even starts. The function must return immediately with a
+// single cancellation error and zero restored apps.
+func TestRestoreTenant_ContextCancelled(t *testing.T) {
+	store := newInMemoryStore(nil, nil)
+	storage := NewLocalStorage(t.TempDir())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	restored, errs := RestoreTenant(ctx, store, storage, "tenant1", []string{"a1", "a2"})
+	if restored != 0 {
+		t.Errorf("restored = %d, want 0 on cancelled ctx", restored)
+	}
+	if len(errs) != 1 {
+		t.Fatalf("errs count = %d, want 1 cancellation error", len(errs))
+	}
+	if !errors.Is(errs[0], context.Canceled) {
+		t.Errorf("error should wrap context.Canceled, got %v", errs[0])
+	}
+}
+
+// TestRestoreTenant_EmptyAppIDs is a no-op: an empty slice must
+// return (0, nil) without touching storage.
+func TestRestoreTenant_EmptyAppIDs(t *testing.T) {
+	store := newInMemoryStore(nil, nil)
+	storage := NewLocalStorage(t.TempDir())
+
+	restored, errs := RestoreTenant(context.Background(), store, storage, "tenant1", nil)
+	if restored != 0 {
+		t.Errorf("restored = %d, want 0", restored)
+	}
+	if len(errs) != 0 {
+		t.Errorf("errs = %v, want empty", errs)
+	}
+}

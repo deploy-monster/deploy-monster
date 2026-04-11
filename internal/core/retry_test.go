@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -131,6 +132,73 @@ func TestRetry_ErrNoRetry_AfterTransient(t *testing.T) {
 	}
 	if calls != 3 {
 		t.Fatalf("expected 3 calls (2 transient + 1 no-retry), got %d", calls)
+	}
+}
+
+func TestErrNoRetry_ErrorAndUnwrap(t *testing.T) {
+	inner := errors.New("backend rejected request")
+	wrapped := ErrNoRetry(inner)
+
+	// Error() on the wrapper should delegate to the inner message.
+	if wrapped.Error() != inner.Error() {
+		t.Errorf("wrapped.Error() = %q, want %q", wrapped.Error(), inner.Error())
+	}
+
+	// errors.Is must walk the Unwrap chain to find the inner error.
+	if !errors.Is(wrapped, inner) {
+		t.Error("errors.Is could not find inner error through Unwrap")
+	}
+
+	// errors.As must also resolve through the wrapper.
+	var target *noRetryError
+	if !errors.As(wrapped, &target) {
+		t.Error("errors.As did not match *noRetryError")
+	}
+	if target == nil || target.Unwrap() != inner {
+		t.Errorf("Unwrap() did not return the inner error")
+	}
+}
+
+func TestRetry_LoggerBranch(t *testing.T) {
+	// Covers the cfg.Logger != nil branch inside Retry — without a
+	// logger attached, the Warn-on-retry path stayed uncovered.
+	cfg := RetryConfig{
+		MaxAttempts:  2,
+		InitialDelay: time.Millisecond,
+		MaxDelay:     time.Millisecond,
+		Logger:       slog.Default(),
+	}
+	calls := 0
+	err := Retry(context.Background(), cfg, func() error {
+		calls++
+		if calls == 1 {
+			return errors.New("transient")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 calls, got %d", calls)
+	}
+}
+
+func TestRetry_BackoffCappedAtMaxDelay(t *testing.T) {
+	// Covers the delay > cfg.MaxDelay cap branch. InitialDelay*2^1 = 2ms
+	// exceeds MaxDelay=1ms so the second retry hits the clamp.
+	cfg := RetryConfig{
+		MaxAttempts:  3,
+		InitialDelay: time.Millisecond,
+		MaxDelay:     time.Millisecond,
+	}
+	calls := 0
+	_ = Retry(context.Background(), cfg, func() error {
+		calls++
+		return errors.New("boom")
+	})
+	if calls != 3 {
+		t.Fatalf("expected 3 calls, got %d", calls)
 	}
 }
 

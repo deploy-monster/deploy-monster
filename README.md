@@ -6,12 +6,12 @@
 
 Transform any VPS into a production-ready deployment platform in 60 seconds.
 
-Single binary · Zero dependencies · 97% test coverage
+Single binary · Zero dependencies · 86% test coverage
 
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Coverage](https://img.shields.io/badge/Coverage-97%25-brightgreen)](.)
+[![Coverage](https://img.shields.io/badge/Coverage-86%25-brightgreen)](.)
 
 [🌐 Website](https://deploy.monster) · [📚 Docs](docs/)
 
@@ -148,7 +148,7 @@ deploymonster init  # Creates monster.yaml
 | Auth | JWT + bcrypt + TOTP 2FA + OAuth SSO |
 | Encryption | AES-256-GCM + Argon2id |
 | Proxy | Custom net/http reverse proxy |
-| Testing | 97% coverage, 7 fuzz tests, 38 benchmarks |
+| Testing | 86% coverage, 15 fuzz tests, 38 benchmarks |
 
 ---
 
@@ -164,7 +164,7 @@ go run ./cmd/deploymonster
 cd web && npm install && npm run dev
 
 # Tests
-go test ./...              # Go tests (97% coverage)
+go test ./...              # Go tests (86% coverage)
 cd web && npm test         # React tests
 
 # Build
@@ -183,7 +183,7 @@ bash scripts/build.sh      # React → embed → Go binary
 
 224 API endpoints · 115 handlers
 20 modules · 25 marketplace templates
-97% test coverage · 7 fuzz tests · 38 benchmarks
+86% test coverage · 15 fuzz tests · 38 benchmarks
 22MB single binary with embedded UI
 ```
 
