@@ -19,6 +19,7 @@ type Module struct {
 	core   *core.Core
 	store  core.Store
 	pool   *WorkerPool
+	queue  *TenantQueue
 	logger *slog.Logger
 }
 
@@ -44,6 +45,17 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	}
 	m.pool = NewWorkerPoolWithLogger(maxConcurrent, m.logger)
 
+	// Phase 3.3.7: per-tenant build queue layered on top of the
+	// global pool so a single noisy tenant cannot starve the
+	// platform. NewTenantQueue clamps non-positive caps to 1, so a
+	// zero-valued MaxConcurrentBuildsPerTenant falls back to a safe
+	// minimum rather than deadlocking on a zero-capacity channel.
+	perTenant := c.Config.Limits.MaxConcurrentBuildsPerTenant
+	if perTenant <= 0 {
+		perTenant = 2
+	}
+	m.queue = NewTenantQueue(maxConcurrent, perTenant, m.logger)
+
 	return nil
 }
 
@@ -55,8 +67,16 @@ func (m *Module) Start(_ context.Context) error {
 // Stop shuts the build pool down and drains any in-flight jobs,
 // honoring ctx for a shutdown deadline. Before Tier 69 Stop called
 // pool.Wait() which accepted no context and could hang indefinitely
-// on a stuck build.
+// on a stuck build. Phase 3.3.7 adds the tenant queue to the drain —
+// it is stopped first so new tenant-scoped submissions cease, then
+// the global pool is stopped so any jobs the queue handed off are
+// allowed to complete.
 func (m *Module) Stop(ctx context.Context) error {
+	if m.queue != nil {
+		if err := m.queue.Shutdown(ctx); err != nil {
+			m.logger.Warn("tenant build queue shutdown did not drain cleanly", "error", err)
+		}
+	}
 	if m.pool == nil {
 		return nil
 	}
