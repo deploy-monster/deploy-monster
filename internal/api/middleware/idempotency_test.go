@@ -50,11 +50,11 @@ func (m *idempBoltStore) Get(bucket, key string, dest any) error {
 	return json.Unmarshal(b, dest)
 }
 
-func (m *idempBoltStore) BatchSet(_ []core.BoltBatchItem) error              { return nil }
-func (m *idempBoltStore) Delete(_, _ string) error                           { return nil }
-func (m *idempBoltStore) List(_ string) ([]string, error)                    { return nil, nil }
-func (m *idempBoltStore) Close() error                                       { return nil }
-func (m *idempBoltStore) GetWebhookSecret(_ string) (string, error)          { return "", nil }
+func (m *idempBoltStore) BatchSet(_ []core.BoltBatchItem) error     { return nil }
+func (m *idempBoltStore) Delete(_, _ string) error                  { return nil }
+func (m *idempBoltStore) List(_ string) ([]string, error)           { return nil, nil }
+func (m *idempBoltStore) Close() error                              { return nil }
+func (m *idempBoltStore) GetWebhookSecret(_ string) (string, error) { return "", nil }
 func (m *idempBoltStore) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
 	return nil, errors.New("not found")
 }

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -73,6 +74,7 @@ func runServe() {
 	agentMode := fs.Bool("agent", false, "run in agent mode (worker node)")
 	masterURL := fs.String("master", os.Getenv("MONSTER_MASTER_URL"), "master server URL (agent mode)")
 	agentToken := fs.String("token", os.Getenv("MONSTER_JOIN_TOKEN"), "join token for agent authentication")
+	masterPort := fs.Int("master-port", envInt("MONSTER_MASTER_PORT", 0), "fallback port for --master if URL has none (agent mode; 0 = 8443)")
 	configPath := fs.String("config", "", "path to monster.yaml config file")
 	fs.Parse(os.Args[1:])
 
@@ -107,7 +109,7 @@ func runServe() {
 	core.PrintBanner(bi, cfg)
 
 	if *agentMode {
-		runAgent(ctx, bi, *masterURL, *agentToken)
+		runAgent(ctx, bi, *masterURL, *agentToken, *masterPort)
 		return
 	}
 
@@ -136,7 +138,7 @@ func runServe() {
 	}
 }
 
-func runAgent(ctx context.Context, bi core.BuildInfo, masterURL, token string) {
+func runAgent(ctx context.Context, bi core.BuildInfo, masterURL, token string, masterPort int) {
 	if masterURL == "" {
 		fmt.Fprintln(os.Stderr, "agent mode requires --master URL (or MONSTER_MASTER_URL env var)")
 		os.Exit(1)
@@ -163,6 +165,9 @@ func runAgent(ctx context.Context, bi core.BuildInfo, masterURL, token string) {
 
 	// Create agent client (runtime will be nil until we wire Docker SDK)
 	client := swarm.NewAgentClient(masterURL, serverID, token, bi.Version, nil, logger)
+	if masterPort > 0 {
+		client.SetDefaultPort(masterPort)
+	}
 
 	fmt.Printf("  server_id: %s\n", serverID)
 	fmt.Println("  connecting to master...")
@@ -298,6 +303,20 @@ func runRotateKeys() {
 	fmt.Println("Update your config to use the new encryption key and restart the server.")
 }
 
+// envInt reads an int-valued environment variable with a default fallback.
+// Non-integer values fall back to def rather than failing flag parsing.
+func envInt(key string, def int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return def
+	}
+	return n
+}
+
 func printUsage() {
 	fmt.Printf(`DeployMonster %s — Tame Your Deployments
 
@@ -312,10 +331,11 @@ Commands:
   help         Show this help
 
 Flags (serve):
-  --agent     Run in agent mode (worker node)
-  --master    Master server URL (agent mode, or MONSTER_MASTER_URL)
-  --token     Join token for agent auth (agent mode, or MONSTER_JOIN_TOKEN)
-  --config    Path to monster.yaml config file
+  --agent         Run in agent mode (worker node)
+  --master        Master server URL (agent mode, or MONSTER_MASTER_URL)
+  --token         Join token for agent auth (agent mode, or MONSTER_JOIN_TOKEN)
+  --master-port   Fallback port if --master URL has none (agent mode, or MONSTER_MASTER_PORT)
+  --config        Path to monster.yaml config file
 
 Examples:
   deploymonster                                          Start server with defaults

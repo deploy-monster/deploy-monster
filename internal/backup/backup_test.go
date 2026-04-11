@@ -1215,10 +1215,10 @@ func TestS3Storage_Retry_MaxDelayCapping(t *testing.T) {
 
 func TestNewS3Storage_DefaultRetrySettings(t *testing.T) {
 	s := NewS3Storage(S3Config{
-		Bucket:    "test",
-		Region:    "us-east-1",
-		AccessKey: "ak",
-		SecretKey: "sk",
+		Bucket:     "test",
+		Region:     "us-east-1",
+		AccessKey:  "ak",
+		SecretKey:  "sk",
 		MaxRetries: 0, // Should default to 3
 	}, testLogger())
 

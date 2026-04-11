@@ -83,9 +83,17 @@ func (m *Module) Start(_ context.Context) error {
 	return nil
 }
 
-func (m *Module) Stop(_ context.Context) error {
-	if m.scheduler != nil {
-		m.scheduler.Stop()
+func (m *Module) Stop(ctx context.Context) error {
+	if m.scheduler == nil {
+		return nil
+	}
+	// Honor the module shutdown deadline so a wedged storage upload
+	// cannot pin the whole platform shutdown past the graceful window.
+	// A drain timeout is logged but not returned as an error — the
+	// module system counts a timed-out Stop as "shut down anyway" so
+	// downstream modules can keep unwinding.
+	if err := m.scheduler.StopCtx(ctx); err != nil {
+		m.logger.Warn("backup scheduler drain exceeded shutdown deadline", "error", err)
 	}
 	return nil
 }

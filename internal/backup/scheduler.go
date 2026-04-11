@@ -37,6 +37,20 @@ const schedulerTickInterval = 1 * time.Minute
 //     that context aborts an in-flight runBackups at the next
 //     database or storage boundary instead of letting a slow S3
 //     upload pin the module shutdown for minutes.
+//
+// Additional lifecycle notes for the Tier 73-77 pass:
+//
+//   - StopCtx accepts a deadline so Module.Stop can cap how long it
+//     waits on a slow S3 Upload to unwind. The old Stop() blocked on
+//     wg.Wait with no timeout; a wedged HTTP transport could pin the
+//     entire module shutdown for minutes.
+//   - Start is now a no-op after Stop has run, not just a
+//     no-op-after-first-Start. Before, calling NewScheduler → Stop
+//     → Start would still spawn a loop goroutine that immediately
+//     exited on the cancelled stopCtx — harmless but noisy and a
+//     source of confusing test output.
+//   - Closed() exposes the stopped state to tests and higher-level
+//     schedulers that want to short-circuit before touching state.
 type Scheduler struct {
 	store       core.Store
 	storages    map[string]core.BackupStorage
@@ -76,9 +90,18 @@ func NewScheduler(store core.Store, storages map[string]core.BackupStorage, even
 
 // Start begins the scheduler loop. Subsequent calls are no-ops —
 // starting the loop twice would spawn a duplicate goroutine and
-// deadlock Stop on wg.Wait.
+// deadlock Stop on wg.Wait. A Start after Stop is also a no-op; the
+// scheduler does not support restart.
 func (s *Scheduler) Start() {
 	s.startOnce.Do(func() {
+		// Refuse to spawn the loop if Stop already ran. Without this,
+		// a test that does NewScheduler → Stop → Start would fire a
+		// goroutine that immediately hits the cancelled stopCtx and
+		// exits — functionally fine but surfaces as a confusing log
+		// line and a phantom wg.Add/Done pair.
+		if s.stopCtx != nil && s.stopCtx.Err() != nil {
+			return
+		}
 		s.wg.Add(1)
 		go s.loop()
 		s.logger.Info("backup scheduler started", "schedule", s.schedule)
@@ -88,14 +111,47 @@ func (s *Scheduler) Start() {
 // Stop halts the scheduler. Safe to call multiple times; the second
 // and subsequent calls are no-ops. Stop cancels the shared context
 // (aborting any in-flight backup I/O) and waits for the loop
-// goroutine to exit before returning.
+// goroutine to exit before returning. Equivalent to
+// StopCtx(context.Background()) — if a backup is stuck inside a
+// slow storage upload Stop will block until it returns. Production
+// callers should prefer StopCtx with a shutdown deadline.
 func (s *Scheduler) Stop() {
+	_ = s.StopCtx(context.Background())
+}
+
+// StopCtx is the context-aware variant of Stop. It cancels the
+// scheduler's stopCtx (so every downstream ctx read unblocks) and
+// then waits for the loop goroutine to drain, honoring ctx for a
+// deadline. Returns ctx.Err() on a timeout so the module can decide
+// whether to log-and-press-on or escalate. Idempotent: calling it
+// twice performs the drain twice but only cancels once.
+func (s *Scheduler) StopCtx(ctx context.Context) error {
 	s.stopOnce.Do(func() {
 		if s.stopCancel != nil {
 			s.stopCancel()
 		}
 	})
-	s.wg.Wait()
+	done := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Closed reports whether Stop / StopCtx has been called. Exposed so
+// tests and higher-level shutdown code can short-circuit state
+// mutations after the scheduler has begun draining.
+func (s *Scheduler) Closed() bool {
+	if s.stopCtx == nil {
+		return false
+	}
+	return s.stopCtx.Err() != nil
 }
 
 func (s *Scheduler) loop() {

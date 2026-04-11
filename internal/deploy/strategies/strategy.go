@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/deploy/graceful"
 )
 
 // Strategy defines the deployment strategy interface.
@@ -33,15 +34,55 @@ type GracefulConfig struct {
 	DrainTimeout        time.Duration
 	HealthCheckInterval time.Duration
 	StartupTimeout      time.Duration
+
+	// StopGracePeriodSeconds is the SIGTERM window passed to
+	// runtime.Stop for the old replica. When > 0 it overrides the
+	// seconds portion of DrainTimeout for the actual Docker stop
+	// call. 0 means "use DrainTimeout.Seconds() or the graceful
+	// package default, whichever is larger".
+	StopGracePeriodSeconds int
+
+	// BlueGreenHoldback is how long the old ("blue") container stays
+	// alive after a successful blue-green promotion. Zero falls back
+	// to DefaultBlueGreenHoldback. Only consulted by the BlueGreen
+	// strategy; other strategies ignore it.
+	BlueGreenHoldback time.Duration
+
+	// CanaryPlan is the phase schedule for Canary deployments. An
+	// empty slice falls back to DefaultCanaryPlan (10 → 50 → 100).
+	CanaryPlan []CanaryWeight
+
+	// CanaryController optionally plugs in real weighted route
+	// splitting during canary rollouts. Without one the Canary
+	// strategy still runs the phase timeline but weight shifts are
+	// advisory — the route table is not updated mid-rollout.
+	CanaryController CanaryController
 }
 
 // DefaultGracefulConfig returns the default graceful configuration.
 func DefaultGracefulConfig() GracefulConfig {
 	return GracefulConfig{
-		DrainTimeout:        30 * time.Second,
-		HealthCheckInterval: 500 * time.Millisecond,
-		StartupTimeout:      60 * time.Second,
+		DrainTimeout:           30 * time.Second,
+		HealthCheckInterval:    500 * time.Millisecond,
+		StartupTimeout:         60 * time.Second,
+		StopGracePeriodSeconds: graceful.DefaultStopGracePeriodSeconds,
 	}
+}
+
+// stopGraceFor returns the effective SIGTERM grace window. Explicit
+// StopGracePeriodSeconds wins; otherwise fall back to DrainTimeout;
+// otherwise the graceful package default.
+func stopGraceFor(cfg *GracefulConfig) int {
+	if cfg == nil {
+		return graceful.DefaultStopGracePeriodSeconds
+	}
+	if cfg.StopGracePeriodSeconds > 0 {
+		return cfg.StopGracePeriodSeconds
+	}
+	if cfg.DrainTimeout > 0 {
+		return int(cfg.DrainTimeout.Seconds())
+	}
+	return graceful.DefaultStopGracePeriodSeconds
 }
 
 // New creates a strategy by name.
@@ -49,6 +90,10 @@ func New(name string) Strategy {
 	switch name {
 	case "rolling":
 		return &Rolling{}
+	case "blue-green", "bluegreen":
+		return &BlueGreen{}
+	case "canary":
+		return &Canary{}
 	default:
 		return &Recreate{}
 	}
@@ -99,23 +144,24 @@ func (r *Recreate) Execute(ctx context.Context, plan *DeployPlan) error {
 	if cfg == nil {
 		cfg = &GracefulConfig{}
 	}
-	drainTimeout := cfg.DrainTimeout
-	if drainTimeout == 0 {
-		drainTimeout = 10 * time.Second
-	}
+	graceSec := stopGraceFor(cfg)
 
-	// 1. Stop old container with graceful drain
+	// 1. Stop old container using the graceful shutdown helper so the
+	// SIGTERM window matches the configured grace period.
 	if plan.OldContainerID != "" {
 		if plan.Logger != nil {
-			plan.Logger.Info("stopping old container", "container", plan.OldContainerID)
+			plan.Logger.Info("stopping old container",
+				"container", plan.OldContainerID,
+				"grace_seconds", graceSec,
+			)
 		}
-		if err := plan.Runtime.Stop(ctx, plan.OldContainerID, int(drainTimeout.Seconds())); err != nil {
+		if err := graceful.Shutdown(ctx, plan.Runtime, plan.OldContainerID, graceSec); err != nil {
 			// Non-fatal — old container might already be stopped
 			if plan.Logger != nil {
-				plan.Logger.Debug("stop returned error (may already be stopped)", "error", err)
+				plan.Logger.Debug("graceful shutdown returned error (may already be stopped)",
+					"error", err)
 			}
 		}
-		_ = plan.Runtime.Remove(ctx, plan.OldContainerID, true)
 	}
 
 	// 2. Start new container with routing labels
@@ -246,22 +292,25 @@ healthLoop:
 		)
 	}
 
-	// 3. Drain and stop old container with graceful shutdown
+	// 3. Drain and stop old container with graceful shutdown. The new
+	// replica is already receiving traffic, so the old one gets the
+	// full configured SIGTERM window to flush in-flight work before
+	// Docker sends SIGKILL.
 	if plan.OldContainerID != "" {
+		graceSec := stopGraceFor(cfg)
 		if plan.Logger != nil {
 			plan.Logger.Info("draining old container",
 				"container", plan.OldContainerID,
 				"drain_timeout", cfg.DrainTimeout,
+				"grace_seconds", graceSec,
 			)
 		}
 
-		// Stop with graceful drain timeout
-		if err := plan.Runtime.Stop(ctx, plan.OldContainerID, int(cfg.DrainTimeout.Seconds())); err != nil {
+		if err := graceful.Shutdown(ctx, plan.Runtime, plan.OldContainerID, graceSec); err != nil {
 			if plan.Logger != nil {
-				plan.Logger.Debug("stop returned error", "error", err)
+				plan.Logger.Debug("graceful shutdown returned error", "error", err)
 			}
 		}
-		_ = plan.Runtime.Remove(ctx, plan.OldContainerID, true)
 
 		if plan.Logger != nil {
 			plan.Logger.Info("old container removed", "container", plan.OldContainerID)

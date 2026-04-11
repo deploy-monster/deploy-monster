@@ -2,8 +2,10 @@ package notifications
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -12,13 +14,46 @@ func init() {
 	core.RegisterModule(func() core.Module { return New() })
 }
 
+// ErrNotificationsClosed is returned by Send when the module has
+// begun shutdown. Callers (HTTP handlers, event bus subscribers)
+// should treat it the same as any other transient send failure —
+// log and drop — because the process is on its way down.
+var ErrNotificationsClosed = errors.New("notifications: module is closed")
+
 // Module implements the notification module.
 // It manages notification providers and dispatches notifications
 // based on events from the EventBus.
+//
+// Lifecycle notes for the Tier 73-77 hardening pass:
+//
+//   - Stop used to be a complete no-op. A slow SMTP connection or
+//     a stuck webhook send could leak past module shutdown because
+//     Send was synchronous but its goroutine-origin (the EventBus
+//     async handler) had no wg to wait on. The module now tracks
+//     every accepted Send call on its own wg and Stop drains them
+//     with the shutdown ctx as a deadline.
+//   - Send is now guarded by a closed flag serialised with wg.Add
+//     so a Send that lands after Stop returns ErrNotificationsClosed
+//     immediately instead of racing into a half-torn-down module.
+//   - The alert dispatcher recovers from provider panics so a
+//     misbehaving SMTP library can't take the whole process with it.
 type Module struct {
 	core       *core.Core
 	dispatcher *Dispatcher
 	logger     *slog.Logger
+
+	// stopCtx is cancelled by Stop so async sends spawned from
+	// dispatchAlert can abort their provider calls at the next ctx
+	// boundary instead of burning the shutdown deadline.
+	stopCtx    context.Context
+	stopCancel context.CancelFunc
+
+	// mu guards closed and serialises the closed-check with wg.Add
+	// so a Send can never observe a "not closed" snapshot that races
+	// with Stop's wg.Wait — the same contract backup/Scheduler uses.
+	mu     sync.Mutex
+	closed bool
+	wg     sync.WaitGroup
 }
 
 // New creates a new notification module.
@@ -57,6 +92,24 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 			m.dispatcher.RegisterProvider(NewTelegramProvider(cfg.TelegramToken, chatID))
 			m.logger.Info("telegram provider registered")
 		}
+		if cfg.SMTP.Host != "" {
+			smtpProv := NewSMTPProvider(cfg.SMTP)
+			if err := smtpProv.Validate(); err != nil {
+				// Don't hard-fail startup — log and skip so a bad
+				// SMTP config doesn't take the whole server offline.
+				// Health() will report degraded when a provider was
+				// wanted but none ended up registered.
+				m.logger.Warn("smtp provider invalid, skipping",
+					"error", err, "host", cfg.SMTP.Host)
+			} else {
+				m.dispatcher.RegisterProvider(smtpProv)
+				m.logger.Info("smtp provider registered",
+					"host", cfg.SMTP.Host,
+					"port", smtpProv.defaultPort(),
+					"tls", cfg.SMTP.UseTLS,
+				)
+			}
+		}
 	}
 
 	// Register the dispatcher as the notification sender in Services
@@ -66,6 +119,11 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 }
 
 func (m *Module) Start(_ context.Context) error {
+	// Derive the module-owned shutdown context that every async
+	// downstream path will observe. Stop cancels this to abort slow
+	// provider calls at the next ctx boundary.
+	m.stopCtx, m.stopCancel = context.WithCancel(context.Background())
+
 	// Subscribe to events that should trigger notifications.
 	// Each event type can be configured with notification rules
 	// (which channels, which recipients) in the future.
@@ -83,8 +141,48 @@ func (m *Module) Start(_ context.Context) error {
 	return nil
 }
 
-func (m *Module) Stop(_ context.Context) error {
-	return nil
+// Stop drains in-flight Send calls with a deadline taken from ctx.
+// Sets the closed flag so new Send calls fail fast, cancels the
+// module stopCtx so slow provider connections unblock, then waits
+// for every accepted Send to return. A drain timeout is logged but
+// not returned — the module system counts a timed-out Stop as "shut
+// down anyway" and the downstream modules still need to unwind.
+func (m *Module) Stop(ctx context.Context) error {
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return nil
+	}
+	m.closed = true
+	if m.stopCancel != nil {
+		m.stopCancel()
+	}
+	m.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		m.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		if m.logger != nil {
+			m.logger.Warn("notification drain exceeded shutdown deadline", "error", ctx.Err())
+		}
+		return nil
+	}
+}
+
+// Closed reports whether Stop has been called. Useful for tests and
+// for HTTP handlers that want to short-circuit instead of dispatching
+// a Send that will just return ErrNotificationsClosed.
+func (m *Module) Closed() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.closed
 }
 
 func (m *Module) Health() core.HealthStatus {
@@ -95,7 +193,7 @@ func (m *Module) Health() core.HealthStatus {
 	// After Init: if notification config exists but no providers registered, degraded
 	if m.core != nil && m.core.Config != nil {
 		cfg := m.core.Config.Notifications
-		wantProviders := cfg.SlackWebhook != "" || cfg.DiscordWebhook != "" || cfg.TelegramToken != ""
+		wantProviders := cfg.SlackWebhook != "" || cfg.DiscordWebhook != "" || cfg.TelegramToken != "" || cfg.SMTP.Host != ""
 		if wantProviders && len(m.dispatcher.Providers()) == 0 {
 			return core.HealthDegraded
 		}
@@ -109,13 +207,43 @@ func (m *Module) Events() []core.EventHandler {
 
 // Send implements core.NotificationSender.
 // Routes the notification to the appropriate provider.
-func (m *Module) Send(ctx context.Context, notification core.Notification) error {
+func (m *Module) Send(ctx context.Context, notification core.Notification) (err error) {
+	// Serialise the closed-check with wg.Add so Stop can rely on a
+	// happens-before relationship when it waits for the drain. A Send
+	// that slips in between "Stop sets closed=true" and "Stop waits"
+	// would otherwise race wg.Add against wg.Wait, violating Go's
+	// WaitGroup contract.
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return ErrNotificationsClosed
+	}
+	m.wg.Add(1)
+	m.mu.Unlock()
+	defer m.wg.Done()
+
+	// Turn any provider panic into a structured error so a broken
+	// SMTP library can't take the process down. The recover wraps
+	// the named return so the caller sees a real error.
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("notifications: provider panic: %v", r)
+			if m.logger != nil {
+				m.logger.Error("panic in notification provider",
+					"channel", notification.Channel,
+					"recipient", notification.Recipient,
+					"error", r,
+				)
+			}
+		}
+	}()
+
 	provider, ok := m.dispatcher.GetProvider(notification.Channel)
 	if !ok {
 		return fmt.Errorf("notification channel %q not registered", notification.Channel)
 	}
 
-	if err := provider.Send(ctx, notification.Recipient, notification.Subject, notification.Body, notification.Format); err != nil {
+	if sendErr := provider.Send(ctx, notification.Recipient, notification.Subject, notification.Body, notification.Format); sendErr != nil {
 		// Emit failure event
 		m.core.Events.PublishAsync(ctx, core.NewEvent(
 			core.EventNotificationFailed, "notifications",
@@ -123,10 +251,10 @@ func (m *Module) Send(ctx context.Context, notification core.Notification) error
 				Channel:   notification.Channel,
 				Recipient: notification.Recipient,
 				Subject:   notification.Subject,
-				Error:     err.Error(),
+				Error:     sendErr.Error(),
 			},
 		))
-		return err
+		return sendErr
 	}
 
 	// Emit success event

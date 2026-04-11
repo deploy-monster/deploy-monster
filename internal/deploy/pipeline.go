@@ -3,7 +3,6 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 
 	"github.com/deploy-monster/deploy-monster/internal/build"
@@ -19,6 +18,11 @@ type Pipeline struct {
 	deployer *Deployer
 	events   *core.EventBus
 	logger   *slog.Logger
+
+	// logStore captures build output per app. Before Phase 1 the
+	// pipeline piped build output to io.Discard and the only way to
+	// see why a build failed was to tail the server's slog sink.
+	logStore *build.LogStore
 }
 
 // NewPipeline creates a new deploy pipeline.
@@ -29,7 +33,18 @@ func NewPipeline(store core.Store, runtime core.ContainerRuntime, events *core.E
 		deployer: NewDeployer(runtime, store, events),
 		events:   events,
 		logger:   logger,
+		logStore: build.NewLogStore(events, 0),
 	}
+}
+
+// BuildLogs returns a snapshot of the last N lines captured from the
+// most recent (or in-progress) build for appID. Nil if no build has
+// produced output for this app yet.
+func (p *Pipeline) BuildLogs(appID string) []string {
+	if p.logStore == nil {
+		return nil
+	}
+	return p.logStore.Lines(appID)
 }
 
 // HandleWebhook processes an inbound webhook payload through the full
@@ -70,14 +85,20 @@ func (p *Pipeline) HandleWebhook(ctx context.Context, payload webhooks.WebhookPa
 	// 3. Update app status to building
 	p.store.UpdateAppStatus(ctx, app.ID, "building")
 
-	// 4. Build: clone repo, detect type, generate Dockerfile, docker build
+	// Reset prior build logs for this app so the /build-logs endpoint
+	// reflects only the current run.
+	p.logStore.Reset(app.ID)
+
+	// 4. Build: clone repo, detect type, generate Dockerfile, docker build.
+	// Build output is captured in the per-app ring buffer and each
+	// line is also published as a core.EventBuildLog for live tailing.
 	result, err := p.builder.Build(ctx, build.BuildOpts{
 		AppID:     app.ID,
 		AppName:   app.Name,
 		SourceURL: app.SourceURL,
 		Branch:    payload.Branch,
 		CommitSHA: payload.CommitSHA,
-	}, io.Discard) // In production, stream to WebSocket/SSE
+	}, p.logStore.Writer(app.ID))
 	if err != nil {
 		p.store.UpdateAppStatus(ctx, app.ID, "failed")
 		p.events.Publish(ctx, core.NewTenantEvent(

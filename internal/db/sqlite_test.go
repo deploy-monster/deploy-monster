@@ -225,14 +225,22 @@ func TestSQLite_Rollback(t *testing.T) {
 		t.Fatal("expected at least 1 migration applied")
 	}
 
-	// Rollback 1 step
-	if err := db.Rollback(1); err != nil {
-		t.Fatalf("Rollback(1): %v", err)
+	// Rollback all migrations — the assertions below expect tenants to
+	// be dropped and the _migrations table to be empty, which only
+	// holds when every migration (including 0001_init) is reverted.
+	if err := db.Rollback(0); err != nil {
+		t.Fatalf("Rollback(0): %v", err)
 	}
 
-	// Tables should be gone
-	_, err = db.DB().Query("SELECT 1 FROM tenants LIMIT 1")
-	if err == nil {
+	// Tables should be gone. We discard the rows handle after
+	// closing it explicitly — SQLite is configured with
+	// MaxOpenConns(1), so leaking a cursor here would deadlock the
+	// next query against the single connection in the pool.
+	rows, qerr := db.DB().Query("SELECT 1 FROM tenants LIMIT 1")
+	if rows != nil {
+		rows.Close()
+	}
+	if qerr == nil {
 		t.Error("expected tenants table to be dropped after rollback")
 	}
 

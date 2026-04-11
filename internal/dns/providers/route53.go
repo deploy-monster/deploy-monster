@@ -57,6 +57,15 @@ func (r *Route53) Verify(ctx context.Context, fqdn string) (bool, error) {
 	return true, nil
 }
 
+// Route53 is a global service — the control-plane API always lives at
+// route53.amazonaws.com and must be signed against us-east-1 regardless
+// of the region the caller configured for record geolocation.
+const (
+	route53Host          = "route53.amazonaws.com"
+	route53SigningRegion = "us-east-1"
+	route53SigningSvc    = "route53"
+)
+
 func (r *Route53) changeRecord(ctx context.Context, action string, record core.DNSRecord) error {
 	hostedZoneID, err := r.findHostedZone(ctx, record.Name)
 	if err != nil {
@@ -88,14 +97,18 @@ func (r *Route53) changeRecord(ctx context.Context, action string, record core.D
     </Changes>
   </ChangeBatch>
 </ChangeResourceRecordSetsRequest>`, action, record.Name, record.Type, ttl, record.Value)
+	body := []byte(xmlBody)
 
-	url := fmt.Sprintf("https://route53.amazonaws.com/2013-04-01/hostedzone/%s/rrset", hostedZoneID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader([]byte(xmlBody)))
+	endpoint := fmt.Sprintf("https://%s/2013-04-01/hostedzone/%s/rrset", route53Host, hostedZoneID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/xml")
-	// AWS SigV4 signing would go here
+	// Pin Host so the signature stays bound to the real Route53 endpoint
+	// even when a test rewrites URL.Host at RoundTrip time.
+	req.Host = route53Host
+	signV4(req, body, r.accessKey, r.secretKey, route53SigningRegion, route53SigningSvc, time.Now())
 
 	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
 		resp, err := r.client.Do(req)
@@ -117,10 +130,12 @@ func (r *Route53) changeRecord(ctx context.Context, action string, record core.D
 
 func (r *Route53) findHostedZone(ctx context.Context, domain string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"https://route53.amazonaws.com/2013-04-01/hostedzone", nil)
+		"https://"+route53Host+"/2013-04-01/hostedzone", nil)
 	if err != nil {
 		return "", err
 	}
+	req.Host = route53Host
+	signV4(req, nil, r.accessKey, r.secretKey, route53SigningRegion, route53SigningSvc, time.Now())
 
 	resp, err := r.client.Do(req)
 	if err != nil {

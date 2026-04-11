@@ -49,6 +49,77 @@ func (cs *CertStore) Remove(domain string) {
 	delete(cs.certs, domain)
 }
 
+// CertInfo summarises one certificate as surfaced to operators via the
+// cert monitor and /system/certs endpoints. DaysLeft is rounded down
+// and clamped at zero for expired certificates.
+type CertInfo struct {
+	Domain   string
+	NotAfter time.Time
+	DaysLeft int
+}
+
+// leafOf returns cert.Leaf, parsing cert.Certificate[0] lazily when Leaf
+// is nil (tls.X509KeyPair doesn't populate Leaf on all Go versions). An
+// empty tls.Certificate with no bytes returns nil without error.
+func leafOf(cert *tls.Certificate) *x509.Certificate {
+	if cert == nil {
+		return nil
+	}
+	if cert.Leaf != nil {
+		return cert.Leaf
+	}
+	if len(cert.Certificate) == 0 {
+		return nil
+	}
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return nil
+	}
+	cert.Leaf = leaf
+	return leaf
+}
+
+// ListCerts returns a snapshot of every certificate currently held by
+// the store. Certificates that cannot be parsed are still reported (so
+// operators can see them) with a zero NotAfter and DaysLeft == 0.
+func (cs *CertStore) ListCerts() []CertInfo {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	out := make([]CertInfo, 0, len(cs.certs))
+	now := time.Now()
+	for domain, cert := range cs.certs {
+		info := CertInfo{Domain: domain}
+		if leaf := leafOf(cert); leaf != nil {
+			info.NotAfter = leaf.NotAfter
+			remaining := int(leaf.NotAfter.Sub(now) / (24 * time.Hour))
+			if remaining < 0 {
+				remaining = 0
+			}
+			info.DaysLeft = remaining
+		}
+		out = append(out, info)
+	}
+	return out
+}
+
+// ExpiringCerts returns the subset of certificates whose NotAfter is
+// within the given window from now. Certificates without a parseable
+// leaf are skipped — they have no expiry to compare against.
+func (cs *CertStore) ExpiringCerts(window time.Duration) []CertInfo {
+	cutoff := time.Now().Add(window)
+	all := cs.ListCerts()
+	out := make([]CertInfo, 0, len(all))
+	for _, info := range all {
+		if info.NotAfter.IsZero() {
+			continue
+		}
+		if info.NotAfter.Before(cutoff) {
+			out = append(out, info)
+		}
+	}
+	return out
+}
+
 // GetCertificate implements the tls.Config.GetCertificate callback.
 // It looks up the certificate by SNI hostname.
 func (cs *CertStore) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {

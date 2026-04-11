@@ -3,12 +3,21 @@ package secrets
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+)
+
+// Bolt bucket + key used to persist the per-deployment Argon2id salt
+// for the vault KDF. Exported constants so tests and ops tooling can
+// inspect the stored value without guessing layout.
+const (
+	VaultBucket  = "vault"
+	VaultSaltKey = "salt"
 )
 
 func init() {
@@ -22,7 +31,12 @@ type Module struct {
 	core   *core.Core
 	vault  *Vault
 	store  core.Store
+	bolt   core.BoltStorer
 	logger *slog.Logger
+
+	// masterSecret is kept so Start can re-derive a new vault after a
+	// legacy-salt migration without re-reading config.
+	masterSecret string
 }
 
 func New() *Module { return &Module{} }
@@ -34,17 +48,38 @@ func (m *Module) Dependencies() []string      { return []string{"core.db"} }
 func (m *Module) Routes() []core.Route        { return nil }
 func (m *Module) Events() []core.EventHandler { return nil }
 
-func (m *Module) Init(_ context.Context, c *core.Core) error {
+func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	m.core = c
 	m.store = c.Store
 	m.logger = c.Logger.With("module", m.ID())
+	if c.DB != nil {
+		m.bolt = c.DB.Bolt
+	}
 
 	// Create vault with the server's secret key
 	secret := c.Config.Server.SecretKey
 	if c.Config.Secrets.EncryptionKey != "" {
 		secret = c.Config.Secrets.EncryptionKey
 	}
-	m.vault = NewVault(secret)
+	m.masterSecret = secret
+
+	// Resolve the per-deployment salt. The returned usedLegacy flag is
+	// true when the bolt store had no persisted salt AND existing
+	// secret versions decrypt under the legacy salt — in that case we
+	// start up with a legacy-keyed vault and rekey on Start() so the
+	// first boot after upgrade migrates transparently.
+	salt, usedLegacy, err := m.resolveVaultSalt(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve vault salt: %w", err)
+	}
+
+	if usedLegacy {
+		m.vault = NewVault(secret)
+		m.logger.Warn("vault booting with legacy salt — migration will run on Start",
+			"reason", "no persisted salt found but existing secrets present")
+	} else {
+		m.vault = NewVaultWithSalt(secret, salt)
+	}
 
 	// Register as the secret resolver in Services
 	c.Services.Secrets = m
@@ -52,8 +87,129 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	return nil
 }
 
-func (m *Module) Start(_ context.Context) error {
+// resolveVaultSalt loads the per-deployment salt from bolt, generates
+// a new one if the store is empty and no legacy secrets exist, or
+// signals "use legacy salt and migrate" when existing encrypted data
+// predates per-deployment salts.
+//
+// Returns (salt, usedLegacy, err). When usedLegacy is true, salt is
+// the freshly generated salt that the migration should end up with.
+func (m *Module) resolveVaultSalt(ctx context.Context) ([]byte, bool, error) {
+	// Bolt may be absent in some test fixtures — fall back to the
+	// legacy salt so tests that construct a minimal Core still work.
+	if m.bolt == nil {
+		return LegacyVaultSalt(), false, nil
+	}
+
+	var stored string
+	if err := m.bolt.Get(VaultBucket, VaultSaltKey, &stored); err == nil && stored != "" {
+		decoded, derr := base64.StdEncoding.DecodeString(stored)
+		if derr != nil {
+			return nil, false, fmt.Errorf("decode stored salt: %w", derr)
+		}
+		if len(decoded) < 16 {
+			return nil, false, fmt.Errorf("stored salt too short (%d bytes)", len(decoded))
+		}
+		return decoded, false, nil
+	}
+
+	// No salt persisted. Decide between fresh install and legacy
+	// upgrade by checking whether any secret versions already exist.
+	hasLegacySecrets := false
+	if m.store != nil {
+		if versions, verr := m.store.ListAllSecretVersions(ctx); verr == nil && len(versions) > 0 {
+			hasLegacySecrets = true
+		}
+	}
+
+	newSalt, err := GenerateVaultSalt()
+	if err != nil {
+		return nil, false, err
+	}
+
+	if hasLegacySecrets {
+		// Don't persist the new salt yet — Start() will re-encrypt
+		// existing secrets first, then persist. This keeps the module
+		// idempotent: if the process is killed mid-migration, the
+		// next boot still sees the legacy state and retries.
+		return newSalt, true, nil
+	}
+
+	// Fresh install: persist immediately so subsequent boots skip
+	// this branch entirely.
+	if err := m.persistSalt(newSalt); err != nil {
+		return nil, false, fmt.Errorf("persist new salt: %w", err)
+	}
+	m.logger.Info("generated new per-deployment vault salt")
+	return newSalt, false, nil
+}
+
+func (m *Module) persistSalt(salt []byte) error {
+	if m.bolt == nil {
+		return nil
+	}
+	return m.bolt.Set(VaultBucket, VaultSaltKey, base64.StdEncoding.EncodeToString(salt), 0)
+}
+
+func (m *Module) Start(ctx context.Context) error {
 	m.logger.Info("secret vault started")
+
+	// If Init detected a legacy-salt upgrade, perform the re-encrypt
+	// migration now. This runs after the DB module has finished its
+	// own Start, so the store is definitely ready.
+	if m.bolt != nil {
+		var stored string
+		if err := m.bolt.Get(VaultBucket, VaultSaltKey, &stored); err != nil || stored == "" {
+			// Still no persisted salt — we're in the legacy branch.
+			if err := m.migrateLegacyVault(ctx); err != nil {
+				return fmt.Errorf("vault migration: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// migrateLegacyVault re-encrypts all existing secret versions from
+// the legacy hardcoded salt to a freshly generated per-deployment
+// salt. Runs only on the first boot after upgrade; subsequent boots
+// find the persisted salt and skip this path entirely.
+func (m *Module) migrateLegacyVault(ctx context.Context) error {
+	newSalt, err := GenerateVaultSalt()
+	if err != nil {
+		return err
+	}
+	newVault := NewVaultWithSalt(m.masterSecret, newSalt)
+	legacyVault := NewVault(m.masterSecret)
+
+	versions, err := m.store.ListAllSecretVersions(ctx)
+	if err != nil {
+		return fmt.Errorf("list versions: %w", err)
+	}
+
+	rotated := 0
+	for _, v := range versions {
+		plaintext, err := legacyVault.Decrypt(v.ValueEnc)
+		if err != nil {
+			return fmt.Errorf("decrypt legacy version %s: %w", v.ID, err)
+		}
+		newEnc, err := newVault.Encrypt(plaintext)
+		if err != nil {
+			return fmt.Errorf("re-encrypt version %s: %w", v.ID, err)
+		}
+		if err := m.store.UpdateSecretVersionValue(ctx, v.ID, newEnc); err != nil {
+			return fmt.Errorf("update version %s: %w", v.ID, err)
+		}
+		rotated++
+	}
+
+	// Only persist the salt after every version is successfully
+	// re-encrypted. A mid-migration crash leaves the legacy state
+	// intact and the next boot retries.
+	if err := m.persistSalt(newSalt); err != nil {
+		return fmt.Errorf("persist salt: %w", err)
+	}
+	m.vault = newVault
+	m.logger.Info("vault migrated to per-deployment salt", "versions_rotated", rotated)
 	return nil
 }
 

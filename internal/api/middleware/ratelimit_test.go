@@ -42,11 +42,11 @@ func (m *rlBoltStore) Set(bucket, key string, value any, _ int64) error {
 	return nil
 }
 
-func (m *rlBoltStore) BatchSet(_ []core.BoltBatchItem) error          { return nil }
-func (m *rlBoltStore) Delete(_, _ string) error                       { return nil }
-func (m *rlBoltStore) List(_ string) ([]string, error)                { return nil, nil }
-func (m *rlBoltStore) Close() error                                   { return nil }
-func (m *rlBoltStore) GetWebhookSecret(_ string) (string, error)      { return "", nil }
+func (m *rlBoltStore) BatchSet(_ []core.BoltBatchItem) error     { return nil }
+func (m *rlBoltStore) Delete(_, _ string) error                  { return nil }
+func (m *rlBoltStore) List(_ string) ([]string, error)           { return nil, nil }
+func (m *rlBoltStore) Close() error                              { return nil }
+func (m *rlBoltStore) GetWebhookSecret(_ string) (string, error) { return "", nil }
 func (m *rlBoltStore) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
 	return nil, fmt.Errorf("not found")
 }

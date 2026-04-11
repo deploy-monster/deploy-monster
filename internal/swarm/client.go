@@ -18,32 +18,46 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
+// defaultAgentPort is the fallback port used when the master URL carries
+// no explicit port. It matches the historical DeployMonster HTTPS port.
+const defaultAgentPort = 8443
+
 // AgentClient connects to the master server and executes commands
 // received over the hijacked HTTP connection. This runs on agent nodes.
 type AgentClient struct {
-	masterURL string
-	serverID  string
-	token     string
-	version   string
-	runtime   core.ContainerRuntime
-	conn      net.Conn
-	encoder   *json.Encoder
-	decoder   *json.Decoder
-	sendMu    sync.Mutex
-	logger    *slog.Logger
-	sys       core.SysMetricsReader
+	masterURL   string
+	serverID    string
+	token       string
+	version     string
+	runtime     core.ContainerRuntime
+	conn        net.Conn
+	encoder     *json.Encoder
+	decoder     *json.Decoder
+	sendMu      sync.Mutex
+	logger      *slog.Logger
+	sys         core.SysMetricsReader
+	defaultPort int
 }
 
 // NewAgentClient creates a new agent-side client.
 func NewAgentClient(masterURL, serverID, token, version string, rt core.ContainerRuntime, logger *slog.Logger) *AgentClient {
 	return &AgentClient{
-		masterURL: strings.TrimRight(masterURL, "/"),
-		serverID:  serverID,
-		token:     token,
-		version:   version,
-		runtime:   rt,
-		logger:    logger.With("component", "agent-client"),
-		sys:       core.NewSysMetricsReader(),
+		masterURL:   strings.TrimRight(masterURL, "/"),
+		serverID:    serverID,
+		token:       token,
+		version:     version,
+		runtime:     rt,
+		logger:      logger.With("component", "agent-client"),
+		sys:         core.NewSysMetricsReader(),
+		defaultPort: defaultAgentPort,
+	}
+}
+
+// SetDefaultPort overrides the fallback port used when the master URL
+// does not carry an explicit port. Values <= 0 are ignored.
+func (c *AgentClient) SetDefaultPort(port int) {
+	if port > 0 {
+		c.defaultPort = port
 	}
 }
 
@@ -114,9 +128,14 @@ func (c *AgentClient) dial(ctx context.Context) error {
 	host = strings.TrimPrefix(host, "https://")
 	host = strings.TrimPrefix(host, "http://")
 
-	// Ensure port
+	// Ensure port. A defaultPort of 0 should never happen in practice
+	// because NewAgentClient seeds it, but guard anyway.
 	if !strings.Contains(host, ":") {
-		host += ":8443"
+		port := c.defaultPort
+		if port <= 0 {
+			port = defaultAgentPort
+		}
+		host = fmt.Sprintf("%s:%d", host, port)
 	}
 
 	var d net.Dialer

@@ -9,10 +9,15 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// Collector gathers server and container metrics.
+// Collector gathers server and container metrics. The host field is
+// the platform-specific metrics provider — a /proc-parsing
+// implementation on Linux, a stubbed fallback elsewhere — so the
+// same Collector works for dev on Windows/macOS and the agent on a
+// real Linux host.
 type Collector struct {
 	runtime core.ContainerRuntime
 	logger  *slog.Logger
+	host    *hostStats
 }
 
 // NewCollector creates a new metrics collector. A nil logger is
@@ -22,23 +27,72 @@ func NewCollector(cr core.ContainerRuntime, logger *slog.Logger) *Collector {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Collector{runtime: cr, logger: logger}
+	return &Collector{
+		runtime: cr,
+		logger:  logger,
+		host:    newHostStats(),
+	}
 }
 
-// CollectServer gathers host-level metrics.
-// Uses runtime package for basic metrics; /proc parsing would be added for Linux.
+// CollectServer gathers host-level metrics. On Linux this walks
+// /proc and statfs for real numbers; on other platforms every field
+// except Containers and CPUCores degrades to zero or a rough
+// runtime.MemStats estimate.
 func (c *Collector) CollectServer(ctx context.Context) *core.ServerMetrics {
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
+	if c.host == nil {
+		c.host = newHostStats()
+	}
 
-	return &core.ServerMetrics{
+	m := &core.ServerMetrics{
 		ServerID:   "local",
 		Timestamp:  time.Now(),
-		CPUPercent: 0, // Requires /proc parsing on Linux
-		RAMUsedMB:  int64(memStats.Sys / 1024 / 1024),
-		RAMTotalMB: int64(memStats.Sys / 1024 / 1024), // Approximation; agent provides real values
 		Containers: c.countContainers(ctx),
 	}
+
+	if cpu, err := c.host.CPUPercent(); err != nil {
+		c.logger.Debug("host cpu read failed", "error", err)
+	} else {
+		m.CPUPercent = cpu
+	}
+
+	if used, total, err := c.host.MemoryMB(); err != nil {
+		c.logger.Debug("host memory read failed", "error", err)
+	} else {
+		m.RAMUsedMB = used
+		m.RAMTotalMB = total
+	}
+
+	if used, total, err := c.host.DiskMB(); err != nil {
+		c.logger.Debug("host disk read failed", "error", err)
+	} else {
+		m.DiskUsedMB = used
+		m.DiskTotalMB = total
+	}
+
+	if rx, tx, err := c.host.NetworkMB(); err != nil {
+		c.logger.Debug("host network read failed", "error", err)
+	} else {
+		m.NetworkRxMB = rx
+		m.NetworkTxMB = tx
+	}
+
+	if load, err := c.host.LoadAvg(); err != nil {
+		c.logger.Debug("host loadavg read failed", "error", err)
+	} else {
+		m.LoadAvg = load
+	}
+
+	// Fall back to a rough MemStats estimate only when the platform
+	// provider returned no data at all (non-Linux + a nil ctx path).
+	if m.RAMTotalMB == 0 {
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		sys := int64(ms.Sys / (1024 * 1024))
+		m.RAMUsedMB = sys
+		m.RAMTotalMB = sys
+	}
+
+	return m
 }
 
 // CollectContainers gathers per-container metrics via Docker Stats API.

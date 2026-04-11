@@ -20,9 +20,9 @@ func newTestAutoRollback(store *mockStore) *AutoRollbackManager {
 func TestFindLastStable_Success(t *testing.T) {
 	store := newMockStore()
 	store.deployments = []core.Deployment{
-		{Version: 5, Status: "failed", Image: "app:v5"},   // index 0 — the failed one
-		{Version: 4, Status: "running", Image: "app:v4"},   // index 1 — stable ✓
-		{Version: 3, Status: "running", Image: "app:v3"},   // index 2
+		{Version: 5, Status: "failed", Image: "app:v5"},  // index 0 — the failed one
+		{Version: 4, Status: "running", Image: "app:v4"}, // index 1 — stable ✓
+		{Version: 3, Status: "running", Image: "app:v3"}, // index 2
 	}
 	ar := newTestAutoRollback(store)
 
@@ -39,8 +39,8 @@ func TestFindLastStable_SkipsEmptyImage(t *testing.T) {
 	store := newMockStore()
 	store.deployments = []core.Deployment{
 		{Version: 3, Status: "failed", Image: "app:v3"},
-		{Version: 2, Status: "running", Image: ""},          // running but no image
-		{Version: 1, Status: "running", Image: "app:v1"},    // first real stable
+		{Version: 2, Status: "running", Image: ""},       // running but no image
+		{Version: 1, Status: "running", Image: "app:v1"}, // first real stable
 	}
 	ar := newTestAutoRollback(store)
 

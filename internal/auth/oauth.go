@@ -2,6 +2,9 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -59,7 +62,10 @@ func NewGitHubOAuth(clientID, clientSecret string) *OAuthProvider {
 	}
 }
 
-// AuthorizationURL returns the URL to redirect the user to for OAuth consent.
+// AuthorizationURL returns the URL to redirect the user to for OAuth
+// consent. The pre-PKCE signature is kept so existing call sites keep
+// working; new call sites should use AuthorizationURLPKCE which also
+// returns the code_verifier to persist in the state cookie.
 func (p *OAuthProvider) AuthorizationURL(redirectURI, state string) string {
 	params := url.Values{
 		"client_id":     {p.ClientID},
@@ -71,14 +77,80 @@ func (p *OAuthProvider) AuthorizationURL(redirectURI, state string) string {
 	return p.AuthURL + "?" + params.Encode()
 }
 
+// PKCEChallenge holds the S256 PKCE pair generated for an authorization
+// request. The verifier is the high-entropy secret held by the client
+// until the token exchange; the challenge is derived from it and sent
+// with the /authorize request. Only the challenge is safe to leak.
+type PKCEChallenge struct {
+	Verifier  string // random 32-byte base64url; keep server-side in the state cookie
+	Challenge string // SHA-256(verifier), base64url; sent in /authorize
+	Method    string // always "S256"
+}
+
+// NewPKCEChallenge generates a fresh PKCE verifier/challenge pair per
+// RFC 7636 §4. The verifier has 32 bytes of crypto/rand entropy — well
+// above the 43-character minimum in the spec.
+func NewPKCEChallenge() (*PKCEChallenge, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return nil, fmt.Errorf("pkce rand: %w", err)
+	}
+	verifier := base64.RawURLEncoding.EncodeToString(raw)
+	sum := sha256.Sum256([]byte(verifier))
+	return &PKCEChallenge{
+		Verifier:  verifier,
+		Challenge: base64.RawURLEncoding.EncodeToString(sum[:]),
+		Method:    "S256",
+	}, nil
+}
+
+// AuthorizationURLPKCE is AuthorizationURL with RFC 7636 PKCE S256
+// parameters appended. Call NewPKCEChallenge() to produce `challenge`,
+// persist the verifier alongside the state cookie, and then hand the
+// verifier back to ExchangeCodePKCE during the token exchange.
+//
+// Adding PKCE defends against authorization-code interception attacks
+// where an attacker on the redirect path captures the code before the
+// client can exchange it. Without a verifier the stolen code is
+// useless.
+func (p *OAuthProvider) AuthorizationURLPKCE(redirectURI, state string, challenge *PKCEChallenge) string {
+	if challenge == nil {
+		return p.AuthorizationURL(redirectURI, state)
+	}
+	params := url.Values{
+		"client_id":             {p.ClientID},
+		"redirect_uri":          {redirectURI},
+		"response_type":         {"code"},
+		"state":                 {state},
+		"scope":                 {joinScopes(p.Scopes)},
+		"code_challenge":        {challenge.Challenge},
+		"code_challenge_method": {challenge.Method},
+	}
+	return p.AuthURL + "?" + params.Encode()
+}
+
 // ExchangeCode exchanges an authorization code for an access token.
 func (p *OAuthProvider) ExchangeCode(ctx context.Context, code, redirectURI string) (string, error) {
+	return p.exchange(ctx, code, redirectURI, "")
+}
+
+// ExchangeCodePKCE is ExchangeCode with an RFC 7636 `code_verifier`
+// parameter. The verifier must be the same string used to derive the
+// `code_challenge` sent on the authorize step.
+func (p *OAuthProvider) ExchangeCodePKCE(ctx context.Context, code, redirectURI, codeVerifier string) (string, error) {
+	return p.exchange(ctx, code, redirectURI, codeVerifier)
+}
+
+func (p *OAuthProvider) exchange(ctx context.Context, code, redirectURI, codeVerifier string) (string, error) {
 	params := url.Values{
 		"client_id":     {p.ClientID},
 		"client_secret": {p.ClientSecret},
 		"code":          {code},
 		"redirect_uri":  {redirectURI},
 		"grant_type":    {"authorization_code"},
+	}
+	if codeVerifier != "" {
+		params.Set("code_verifier", codeVerifier)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.TokenURL, nil)

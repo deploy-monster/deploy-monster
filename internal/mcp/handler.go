@@ -52,6 +52,8 @@ func (h *Handler) HandleToolCall(ctx context.Context, toolName string, input jso
 		return h.getAppStatus(ctx, input)
 	case "deploy_app":
 		return h.deployApp(ctx, input)
+	case "scale_app":
+		return h.scaleApp(ctx, input)
 	case "view_logs":
 		return h.viewLogs(ctx, input)
 	case "create_database":
@@ -155,6 +157,53 @@ func (h *Handler) deployApp(ctx context.Context, input json.RawMessage) (*MCPRes
 	}
 	data, _ := json.MarshalIndent(result, "", "  ")
 	return h.textResponse("Deploying app:\n" + string(data))
+}
+
+// scaleApp updates the replica count for an application and emits
+// app.scaled so the deploy module can reconcile the running set.
+func (h *Handler) scaleApp(ctx context.Context, input json.RawMessage) (*MCPResponse, error) {
+	var params struct {
+		AppID    string `json:"app_id"`
+		Replicas int    `json:"replicas"`
+	}
+	if err := json.Unmarshal(input, &params); err != nil {
+		return h.errorResponse("invalid parameters: " + err.Error())
+	}
+	if params.AppID == "" {
+		return h.errorResponse("app_id is required")
+	}
+	if params.Replicas < 0 {
+		return h.errorResponse("replicas must be >= 0")
+	}
+
+	app, err := h.store.GetApp(ctx, params.AppID)
+	if err != nil {
+		return h.errorResponse("App not found: " + params.AppID)
+	}
+
+	previous := app.Replicas
+	app.Replicas = params.Replicas
+	if err := h.store.UpdateApp(ctx, app); err != nil {
+		return h.errorResponse("failed to update app: " + err.Error())
+	}
+
+	_ = h.events.Publish(ctx, core.NewEvent(core.EventAppScaled, "mcp", map[string]any{
+		"app_id":       app.ID,
+		"tenant_id":    app.TenantID,
+		"old_replicas": previous,
+		"new_replicas": params.Replicas,
+	}))
+
+	result := map[string]any{
+		"app_id":       app.ID,
+		"name":         app.Name,
+		"old_replicas": previous,
+		"new_replicas": params.Replicas,
+		"status":       "scaled",
+		"message":      "Scale event emitted — deploy module will reconcile replicas",
+	}
+	data, _ := json.MarshalIndent(result, "", "  ")
+	return h.textResponse(string(data))
 }
 
 func (h *Handler) viewLogs(ctx context.Context, input json.RawMessage) (*MCPResponse, error) {

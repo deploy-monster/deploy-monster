@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"bytes"
 	"context"
 	"encoding/xml"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/awsauth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -142,18 +144,31 @@ func (s *S3Storage) retry(ctx context.Context, op func() error) error {
 }
 
 func (s *S3Storage) Upload(ctx context.Context, key string, reader io.Reader, size int64) error {
-	return s.retry(ctx, func() error {
-		url := s.objectURL(key)
+	// SigV4 requires the full payload for the signature, so the
+	// request body has to be fully buffered before signing. This
+	// trades memory for correctness — streaming uploads would need
+	// S3's UNSIGNED-PAYLOAD chunk encoding, which we don't need for
+	// the backup sizes DeployMonster produces.
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("read upload body: %w", err)
+	}
+	if size > 0 && int64(len(body)) != size {
+		// Be permissive — callers that pass size=0 use len(body);
+		// mismatched sizes almost always mean the caller is wrong,
+		// but S3 will reject it anyway, so let it through.
+	}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, reader)
+	return s.retry(ctx, func() error {
+		endpoint := s.objectURL(key)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(body))
 		if err != nil {
 			return fmt.Errorf("create S3 request: %w", err)
 		}
-		req.ContentLength = size
+		req.ContentLength = int64(len(body))
 		req.Header.Set("Content-Type", "application/octet-stream")
-
-		// Note: Full AWS SigV4 signing would be implemented here.
-		// For production, use a lightweight signing library or manual SigV4 implementation.
+		s.sign(req, body)
 
 		resp, err := s.client.Do(req)
 		if err != nil {
@@ -166,10 +181,22 @@ func (s *S3Storage) Upload(ctx context.Context, key string, reader io.Reader, si
 		}
 
 		if s.logger != nil {
-			s.logger.Debug("S3 upload complete", "key", key, "size", size)
+			s.logger.Debug("S3 upload complete", "key", key, "size", len(body))
 		}
 		return nil
 	})
+}
+
+// sign stamps the request with AWS SigV4 using the configured
+// credentials. Called by every S3 request path — if credentials are
+// empty we still call it so any pre-existing X-Amz-Date / Authorization
+// headers are overwritten deterministically.
+func (s *S3Storage) sign(req *http.Request, body []byte) {
+	region := s.region
+	if region == "" {
+		region = "us-east-1"
+	}
+	awsauth.SignV4(req, body, s.accessKey, s.secretKey, region, "s3", time.Now())
 }
 
 func (s *S3Storage) Download(ctx context.Context, key string) (io.ReadCloser, error) {
@@ -180,6 +207,7 @@ func (s *S3Storage) Download(ctx context.Context, key string) (io.ReadCloser, er
 		if err != nil {
 			return err
 		}
+		s.sign(req, nil)
 
 		resp, err := s.client.Do(req)
 		if err != nil {
@@ -203,6 +231,7 @@ func (s *S3Storage) Delete(ctx context.Context, key string) error {
 		if err != nil {
 			return err
 		}
+		s.sign(req, nil)
 
 		resp, err := s.client.Do(req)
 		if err != nil {
@@ -237,6 +266,7 @@ func (s *S3Storage) List(ctx context.Context, prefix string) ([]core.BackupEntry
 		if err != nil {
 			return fmt.Errorf("create list request: %w", err)
 		}
+		s.sign(req, nil)
 
 		resp, err := s.client.Do(req)
 		if err != nil {

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/api/middleware"
 	"github.com/gorilla/websocket"
 )
 
@@ -461,14 +462,34 @@ func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID st
 		}
 	}()
 
+	// Per-connection frame rate limiter. A single chatty client can no
+	// longer pump the hub with thousands of frames/sec — at 100/sec
+	// sustained and 200 burst this accommodates every legitimate UI
+	// but costs a flooder its connection almost immediately.
+	limiter := middleware.NewWSFrameLimiter(middleware.WSFrameRatePerSec, middleware.WSFrameBurst)
+
 	// Read messages (client may send commands). When the conn is closed
 	// — either by the client, by the ping deadline, or by Shutdown
 	// closing it from under us — ReadMessage returns an error and we
-	// break out to clean up.
+	// break out to clean up. A frame that exceeds the bucket triggers
+	// a policy-violation close so the client notices the throttle.
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
 			break
+		}
+		if !limiter.Allow() {
+			h.logger.Warn("ws frame rate limit exceeded",
+				"project", projectID, "remote", r.RemoteAddr)
+			_ = conn.WriteControl(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(
+					websocket.ClosePolicyViolation,
+					"frame rate limit exceeded",
+				),
+				time.Now().Add(time.Second),
+			)
+			return
 		}
 	}
 }

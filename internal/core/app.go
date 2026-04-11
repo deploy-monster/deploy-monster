@@ -170,6 +170,10 @@ func (c *Core) ReloadConfig() error {
 		changed = append(changed, "limits.max_concurrent_builds")
 		c.Config.Limits.MaxConcurrentBuilds = newCfg.Limits.MaxConcurrentBuilds
 	}
+	if newCfg.Limits.MaxConcurrentBuildsPerTenant != c.Config.Limits.MaxConcurrentBuildsPerTenant {
+		changed = append(changed, "limits.max_concurrent_builds_per_tenant")
+		c.Config.Limits.MaxConcurrentBuildsPerTenant = newCfg.Limits.MaxConcurrentBuildsPerTenant
+	}
 
 	if len(changed) == 0 {
 		c.Logger.Info("config reload: no changes detected")

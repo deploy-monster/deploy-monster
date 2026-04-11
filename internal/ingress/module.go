@@ -189,11 +189,23 @@ func (m *Module) Router() *RouteTable {
 	return m.router
 }
 
+// CertStatus returns a snapshot of the certificates currently held by
+// this module's cert store, or nil if the store hasn't been
+// initialised yet (e.g. when the module hasn't run Init). It is safe
+// to call from any goroutine.
+func (m *Module) CertStatus() []CertInfo {
+	if m.certStore == nil {
+		return nil
+	}
+	return m.certStore.ListCerts()
+}
+
 // httpHandler handles HTTP (:80) requests.
-// - Health check endpoints (for external load balancers)
-// - Metrics endpoint (Prometheus format)
-// - ACME HTTP-01 challenge responses
-// - Redirect everything else to HTTPS
+//   - Health check endpoints (for external load balancers)
+//   - Metrics endpoint (Prometheus format)
+//   - ACME HTTP-01 challenge responses
+//   - Redirect everything else to HTTPS when ForceHTTPS is true; otherwise
+//     route via the reverse proxy directly (local-dev opt-out).
 func (m *Module) httpHandler() http.Handler {
 	mux := http.NewServeMux()
 
@@ -205,7 +217,15 @@ func (m *Module) httpHandler() http.Handler {
 	// Metrics endpoint (Prometheus format)
 	mux.HandleFunc("/metrics", m.PrometheusHandler())
 
-	// ACME challenge and HTTPS redirect
+	// Default to force-HTTPS when the core isn't wired (legacy tests
+	// that construct a bare Module). In production the defaulting in
+	// applyDefaults already makes this true.
+	forceHTTPS := true
+	if m.core != nil {
+		forceHTTPS = m.core.Config.Ingress.ForceHTTPS
+	}
+
+	// ACME challenge and HTTPS redirect (or pass-through proxy)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// ACME HTTP-01 challenge (handled by ACME module later)
 		if len(r.URL.Path) > len("/.well-known/acme-challenge/") &&
@@ -215,9 +235,19 @@ func (m *Module) httpHandler() http.Handler {
 			return
 		}
 
-		// Redirect to HTTPS
-		target := "https://" + r.Host + r.URL.RequestURI()
-		http.Redirect(w, r, target, http.StatusMovedPermanently)
+		if forceHTTPS {
+			// HSTS on the redirect response so compliant clients remember
+			// to use HTTPS even if this reply is cached.
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+			target := "https://" + r.Host + r.URL.RequestURI()
+			http.Redirect(w, r, target, http.StatusMovedPermanently)
+			return
+		}
+
+		// Local-dev fall-through: route HTTP directly through the
+		// reverse proxy. Only reachable when ForceHTTPS is explicitly
+		// disabled in config.
+		m.proxy.ServeHTTP(w, r)
 	})
 
 	return mux

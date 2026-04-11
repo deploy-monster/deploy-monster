@@ -297,6 +297,7 @@ const (
 	EventBuildStarted   = "build.started"
 	EventBuildCompleted = "build.completed"
 	EventBuildFailed    = "build.failed"
+	EventBuildLog       = "build.log"
 
 	// Domain & SSL
 	EventDomainAdded    = "domain.added"
@@ -445,6 +446,15 @@ type BuildEventData struct {
 	CommitSHA string        `json:"commit_sha,omitempty"`
 	Duration  time.Duration `json:"duration,omitempty"`
 	Error     string        `json:"error,omitempty"`
+}
+
+// BuildLogEventData is the payload for per-line build.log events. SSE
+// and WebSocket listeners can subscribe to these to tail a running
+// build in real time.
+type BuildLogEventData struct {
+	AppID     string `json:"app_id"`
+	Line      string `json:"line"`
+	Timestamp int64  `json:"ts"`
 }
 
 // DomainEventData is the payload for domain events.

@@ -111,8 +111,8 @@ func (m *mockSecretStore) ListAppsByTenant(_ context.Context, _ string, _, _ int
 func (m *mockSecretStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
 	return nil, nil
 }
-func (m *mockSecretStore) UpdateAppStatus(_ context.Context, _, _ string) error         { return nil }
-func (m *mockSecretStore) DeleteApp(_ context.Context, _ string) error { return nil }
+func (m *mockSecretStore) UpdateAppStatus(_ context.Context, _, _ string) error { return nil }
+func (m *mockSecretStore) DeleteApp(_ context.Context, _ string) error          { return nil }
 func (m *mockSecretStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
 	return nil, core.ErrNotFound
 }
@@ -133,10 +133,10 @@ func (m *mockSecretStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Do
 func (m *mockSecretStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (m *mockSecretStore) DeleteDomain(_ context.Context, _ string) error            { return nil }
+func (m *mockSecretStore) DeleteDomain(_ context.Context, _ string) error              { return nil }
 func (m *mockSecretStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
-func (m *mockSecretStore) ListAllDomains(_ context.Context) ([]core.Domain, error)  { return nil, nil }
-func (m *mockSecretStore) CreateProject(_ context.Context, _ *core.Project) error  { return nil }
+func (m *mockSecretStore) ListAllDomains(_ context.Context) ([]core.Domain, error)     { return nil, nil }
+func (m *mockSecretStore) CreateProject(_ context.Context, _ *core.Project) error      { return nil }
 func (m *mockSecretStore) GetProject(_ context.Context, _ string) (*core.Project, error) {
 	return nil, core.ErrNotFound
 }
@@ -162,10 +162,16 @@ func (m *mockSecretStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Te
 	return nil, 0, nil
 }
 func (m *mockSecretStore) CreateUsageRecord(_ context.Context, _ *core.UsageRecord) error { return nil }
-func (m *mockSecretStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ int) ([]core.UsageRecord, int, error) { return nil, 0, nil }
+func (m *mockSecretStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ int) ([]core.UsageRecord, int, error) {
+	return nil, 0, nil
+}
 func (m *mockSecretStore) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
-func (m *mockSecretStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) { return nil, 0, nil }
-func (m *mockSecretStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+func (m *mockSecretStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
+	return nil, 0, nil
+}
+func (m *mockSecretStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+	return nil
+}
 
 func (m *mockSecretStore) Close() error                 { return nil }
 func (m *mockSecretStore) Ping(_ context.Context) error { return nil }

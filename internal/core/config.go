@@ -58,6 +58,12 @@ type IngressConfig struct {
 	HTTPPort    int  `yaml:"http_port"`
 	HTTPSPort   int  `yaml:"https_port"`
 	EnableHTTPS bool `yaml:"enable_https"`
+	// ForceHTTPS controls whether the :80 handler issues a 301 to
+	// HTTPS for non-ACME, non-health traffic. Defaults to true. Set to
+	// false only for local development where a TLS listener is not
+	// available — in that case HTTP routes through the reverse proxy
+	// directly.
+	ForceHTTPS bool `yaml:"force_https"`
 }
 
 // ACMEConfig holds ACME/Let's Encrypt configuration.
@@ -105,11 +111,38 @@ type BackupS3Config struct {
 
 // NotificationConfig holds notification channel configuration.
 type NotificationConfig struct {
-	EmailSMTP      string `yaml:"email_smtp"`
+	// Deprecated: use SMTP instead. EmailSMTP was a bare connection
+	// string that no module ever consumed; the new SMTPConfig is the
+	// supported knob for email delivery going forward.
+	EmailSMTP string `yaml:"email_smtp,omitempty"`
+
+	SMTP SMTPConfig `yaml:"smtp"`
+
 	SlackWebhook   string `yaml:"slack_webhook"`
 	DiscordWebhook string `yaml:"discord_webhook"`
 	TelegramToken  string `yaml:"telegram_token"`
 	TelegramChatID string `yaml:"telegram_chat_id"`
+}
+
+// SMTPConfig holds the parameters needed to dispatch email
+// notifications via an external SMTP server. Leaving Host empty
+// disables the provider — no default mail route is assumed, so
+// misconfiguration can never cause silent delivery to localhost.
+type SMTPConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	From     string `yaml:"from"`
+	FromName string `yaml:"from_name"`
+	// UseTLS selects implicit TLS (port 465) when true; false means
+	// plain connection upgraded via STARTTLS, which is what modern
+	// submission ports (587) use.
+	UseTLS bool `yaml:"use_tls"`
+	// InsecureSkipVerify disables server certificate verification.
+	// Defaults to false — only turn this on for dev or for self-
+	// signed internal relays, never for production.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 }
 
 // SwarmConfig holds Docker Swarm configuration.
@@ -164,9 +197,10 @@ type BillingConfig struct {
 
 // LimitsConfig holds default resource limits.
 type LimitsConfig struct {
-	MaxAppsPerTenant    int `yaml:"max_apps_per_tenant"`
-	MaxBuildMinutes     int `yaml:"max_build_minutes"`
-	MaxConcurrentBuilds int `yaml:"max_concurrent_builds"`
+	MaxAppsPerTenant             int `yaml:"max_apps_per_tenant"`
+	MaxBuildMinutes              int `yaml:"max_build_minutes"`
+	MaxConcurrentBuilds          int `yaml:"max_concurrent_builds"`
+	MaxConcurrentBuildsPerTenant int `yaml:"max_concurrent_builds_per_tenant"`
 }
 
 // EnterpriseConfig holds enterprise feature configuration.
@@ -392,6 +426,7 @@ func applyDefaults(cfg *Config) {
 	cfg.Ingress.HTTPPort = 80
 	cfg.Ingress.HTTPSPort = 443
 	cfg.Ingress.EnableHTTPS = true
+	cfg.Ingress.ForceHTTPS = true
 	cfg.ACME.Staging = false
 	cfg.ACME.Provider = "http-01"
 	cfg.Docker.Host = "unix:///var/run/docker.sock"
@@ -406,6 +441,7 @@ func applyDefaults(cfg *Config) {
 	cfg.Limits.MaxAppsPerTenant = 100
 	cfg.Limits.MaxBuildMinutes = 30
 	cfg.Limits.MaxConcurrentBuilds = 5
+	cfg.Limits.MaxConcurrentBuildsPerTenant = 2
 }
 
 func applyEnvOverrides(cfg *Config) {
@@ -498,6 +534,29 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("MONSTER_TELEGRAM_TOKEN"); v != "" {
 		cfg.Notifications.TelegramToken = v
+	}
+	if v := os.Getenv("MONSTER_SMTP_HOST"); v != "" {
+		cfg.Notifications.SMTP.Host = v
+	}
+	if v := os.Getenv("MONSTER_SMTP_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Notifications.SMTP.Port = n
+		}
+	}
+	if v := os.Getenv("MONSTER_SMTP_USERNAME"); v != "" {
+		cfg.Notifications.SMTP.Username = v
+	}
+	if v := os.Getenv("MONSTER_SMTP_PASSWORD"); v != "" {
+		cfg.Notifications.SMTP.Password = v
+	}
+	if v := os.Getenv("MONSTER_SMTP_FROM"); v != "" {
+		cfg.Notifications.SMTP.From = v
+	}
+	if v := os.Getenv("MONSTER_SMTP_FROM_NAME"); v != "" {
+		cfg.Notifications.SMTP.FromName = v
+	}
+	if os.Getenv("MONSTER_SMTP_USE_TLS") == "true" {
+		cfg.Notifications.SMTP.UseTLS = true
 	}
 	if v := os.Getenv("MONSTER_S3_ACCESS_KEY"); v != "" {
 		cfg.Backup.S3.AccessKey = v

@@ -144,9 +144,103 @@ func parsePayload(provider string, body []byte, r *http.Request) (*WebhookPayloa
 		return parseGitLab(body, r)
 	case "gitea", "gogs":
 		return parseGitea(body, r)
+	case "bitbucket":
+		return parseBitbucket(body, r)
 	default:
 		return parseGeneric(body)
 	}
+}
+
+// parseBitbucket normalises a Bitbucket Cloud / Server push payload.
+// The two variants differ mostly in casing (push.changes vs push.Changes)
+// and in where the repository block lives, so we do a best-effort walk
+// and leave the WebhookPayload fields empty when a key isn't present.
+//
+// If the body doesn't carry any native bitbucket push structure we
+// fall back to the flat WebhookPayload JSON shape (same as
+// parseGeneric) so tests and hand-written integrations that post the
+// normalised envelope directly still work.
+func parseBitbucket(body []byte, r *http.Request) (*WebhookPayload, error) {
+	var raw map[string]any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, err
+	}
+
+	p := &WebhookPayload{Provider: "bitbucket", EventType: r.Header.Get("X-Event-Key")}
+
+	nativeFound := false
+
+	// Bitbucket Cloud push: push.changes[0].new.name, push.changes[0].new.target.hash, ...
+	if push, ok := raw["push"].(map[string]any); ok {
+		if changes, ok := push["changes"].([]any); ok && len(changes) > 0 {
+			if change, ok := changes[0].(map[string]any); ok {
+				if newRef, ok := change["new"].(map[string]any); ok {
+					nativeFound = true
+					p.Branch, _ = newRef["name"].(string)
+					if target, ok := newRef["target"].(map[string]any); ok {
+						p.CommitSHA, _ = target["hash"].(string)
+						p.CommitMsg, _ = target["message"].(string)
+						if author, ok := target["author"].(map[string]any); ok {
+							if raw, ok := author["raw"].(string); ok {
+								p.Author = raw
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if repo, ok := raw["repository"].(map[string]any); ok {
+		if name, _ := repo["full_name"].(string); name != "" {
+			p.RepoName = name
+			nativeFound = true
+		}
+		if links, ok := repo["links"].(map[string]any); ok {
+			if clone, ok := links["clone"].([]any); ok {
+				for _, entry := range clone {
+					if m, ok := entry.(map[string]any); ok {
+						if name, _ := m["name"].(string); name == "https" {
+							p.RepoURL, _ = m["href"].(string)
+							nativeFound = true
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Flat envelope fallback — caller posted {provider, branch,
+	// commit_sha, ...} directly instead of BB-native JSON.
+	if !nativeFound {
+		var flat WebhookPayload
+		if err := json.Unmarshal(body, &flat); err == nil {
+			if flat.Branch != "" {
+				p.Branch = flat.Branch
+			}
+			if flat.CommitSHA != "" {
+				p.CommitSHA = flat.CommitSHA
+			}
+			if flat.CommitMsg != "" {
+				p.CommitMsg = flat.CommitMsg
+			}
+			if flat.Author != "" {
+				p.Author = flat.Author
+			}
+			if flat.RepoURL != "" {
+				p.RepoURL = flat.RepoURL
+			}
+			if flat.RepoName != "" {
+				p.RepoName = flat.RepoName
+			}
+			if p.EventType == "" && flat.EventType != "" {
+				p.EventType = flat.EventType
+			}
+		}
+	}
+
+	return p, nil
 }
 
 func parseGitHub(body []byte, r *http.Request) (*WebhookPayload, error) {
@@ -275,7 +369,30 @@ func (recv *Receiver) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /hooks/v1/{webhookID}", recv.HandleWebhook)
 }
 
+// VerifyBitbucketSignature validates the X-Hub-Signature header sent by
+// Bitbucket Server / Data Center webhooks. Bitbucket Cloud does not
+// sign its webhooks, so callers must handle the empty-header path at
+// the provider level and rely on the URL-embedded webhook ID as the
+// shared secret instead.
+//
+// The header format matches GitHub: "sha256=<hex>" (lower-cased).
+func VerifyBitbucketSignature(body []byte, secret, signature string) bool {
+	if signature == "" {
+		return false
+	}
+	// Support both "sha256=..." (BB Server ≥ 5.4) and raw hex (older).
+	const prefix = "sha256="
+	if strings.HasPrefix(signature, prefix) {
+		signature = signature[len(prefix):]
+	}
+	expected := computeHMACSHA256(body, secret)
+	return hmac.Equal([]byte(signature), []byte(expected))
+}
+
 // VerifySignature verifies a webhook signature based on the provider.
+// Providers that don't have a signature mechanism (bitbucket cloud,
+// generic) rely on the URL-embedded webhook ID as their shared secret
+// — that lookup happens upstream in HandleWebhook.
 func VerifySignature(ctx context.Context, provider string, body []byte, secret string, r *http.Request) bool {
 	switch provider {
 	case "github":
@@ -289,7 +406,16 @@ func VerifySignature(ctx context.Context, provider string, body []byte, secret s
 			sig = r.Header.Get("X-Gogs-Signature")
 		}
 		return VerifyGitHubSignature(body, secret, fmt.Sprintf("sha256=%s", sig))
+	case "bitbucket":
+		// Bitbucket Server sends X-Hub-Signature with HMAC-SHA256.
+		// Bitbucket Cloud doesn't sign at all — when no signature
+		// header is present the URL-embedded webhook ID is the only
+		// bearer token (already validated upstream).
+		if sig := r.Header.Get("X-Hub-Signature"); sig != "" {
+			return VerifyBitbucketSignature(body, secret, sig)
+		}
+		return true
 	default:
-		return true // Generic webhooks — no verification
+		return true // Generic / unknown — URL-based secret validated upstream
 	}
 }

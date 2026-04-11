@@ -6,10 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+// defaultStripeSeenTTL bounds how long a processed Stripe event ID
+// is remembered for replay suppression. Stripe retries delivery for
+// roughly 3 days on persistent failures, so 72h is the smallest
+// window that makes "second delivery of the same event" safe.
+const defaultStripeSeenTTL = 72 * time.Hour
 
 // ErrStripeInvalidSignature indicates the Stripe webhook signature did not
 // match the computed HMAC. The HTTP handler maps this to 400 so Stripe does
@@ -27,6 +34,17 @@ type StripeEventHandler struct {
 	plans  []Plan
 	logger *slog.Logger
 	now    func() time.Time // injectable for tests
+
+	// Replay suppression. Stripe delivers every webhook with a
+	// unique event ID and retries aggressively on 5xx responses, so
+	// the same ID can arrive many times per event. We remember the
+	// IDs of events we've already processed and short-circuit
+	// replays to nil (ack, do nothing). The map is swept on every
+	// Handle call so a restart-heavy process does not accumulate
+	// entries forever. 72h matches Stripe's maximum retry window.
+	seenMu  sync.Mutex
+	seen    map[string]time.Time
+	seenTTL time.Duration
 }
 
 // NewStripeEventHandler constructs a handler. `client` is required for signature
@@ -43,12 +61,52 @@ func NewStripeEventHandler(
 		logger = slog.Default()
 	}
 	return &StripeEventHandler{
-		store:  store,
-		events: events,
-		client: client,
-		plans:  plans,
-		logger: logger,
-		now:    func() time.Time { return time.Now().UTC() },
+		store:   store,
+		events:  events,
+		client:  client,
+		plans:   plans,
+		logger:  logger,
+		now:     func() time.Time { return time.Now().UTC() },
+		seen:    make(map[string]time.Time),
+		seenTTL: defaultStripeSeenTTL,
+	}
+}
+
+// alreadyProcessed reports whether a Stripe event ID has been
+// successfully handled within the current seenTTL window. Callers
+// must hold no locks; alreadyProcessed acquires seenMu.
+func (h *StripeEventHandler) alreadyProcessed(eventID string) bool {
+	h.seenMu.Lock()
+	defer h.seenMu.Unlock()
+	h.sweepLocked()
+	_, ok := h.seen[eventID]
+	return ok
+}
+
+// markProcessed records that eventID has finished dispatch and
+// should suppress any future deliveries of the same ID. Called only
+// after a successful handler run so a transient 500 lets Stripe
+// retry.
+func (h *StripeEventHandler) markProcessed(eventID string) {
+	h.seenMu.Lock()
+	defer h.seenMu.Unlock()
+	h.sweepLocked()
+	h.seen[eventID] = h.now()
+}
+
+// sweepLocked drops entries older than seenTTL. Caller must hold
+// seenMu. Called from both the check and the mark path so the map
+// can't grow unbounded on a high-traffic installation.
+func (h *StripeEventHandler) sweepLocked() {
+	ttl := h.seenTTL
+	if ttl <= 0 {
+		return
+	}
+	cutoff := h.now().Add(-ttl)
+	for id, ts := range h.seen {
+		if ts.Before(cutoff) {
+			delete(h.seen, id)
+		}
 	}
 }
 
@@ -67,6 +125,14 @@ type stripeEventEnvelope struct {
 // to the appropriate processor. Returns ErrStripeInvalidSignature when the
 // signature is missing or wrong; other errors should map to 500 so Stripe
 // retries the delivery.
+//
+// Idempotency: every event carries a unique ID from Stripe. A second
+// delivery of an ID we've already successfully processed returns nil
+// immediately without re-running any side effects. A failed dispatch
+// is NOT marked seen so Stripe's retry machinery can still eventually
+// land the write — that's the difference between "replay" (Stripe
+// re-delivering for safety) and "recovery" (Stripe re-delivering
+// because our handler 500'd).
 func (h *StripeEventHandler) Handle(ctx context.Context, payload []byte, signature string) error {
 	if h.client == nil || !h.client.VerifyWebhookSignature(payload, signature) {
 		return ErrStripeInvalidSignature
@@ -79,25 +145,42 @@ func (h *StripeEventHandler) Handle(ctx context.Context, payload []byte, signatu
 		return fmt.Errorf("stripe webhook: missing event type")
 	}
 
-	h.logger.Info("stripe webhook received", "event_id", env.ID, "event_type", env.Type)
-
-	switch env.Type {
-	case "customer.subscription.created", "customer.subscription.updated":
-		return h.handleSubscriptionUpdated(ctx, env)
-	case "customer.subscription.deleted":
-		return h.handleSubscriptionCanceled(ctx, env)
-	case "invoice.paid", "invoice.payment_succeeded":
-		return h.handleInvoicePaid(ctx, env)
-	case "invoice.payment_failed":
-		return h.handleInvoicePaymentFailed(ctx, env)
-	case "payment_intent.succeeded":
-		return h.handlePaymentIntentSucceeded(ctx, env)
-	case "checkout.session.completed":
-		return h.handleCheckoutCompleted(ctx, env)
+	// Replay suppression. Events without an ID (shouldn't happen in
+	// production but showed up in fuzz tests) always re-process —
+	// there is nothing to dedupe against.
+	if env.ID != "" && h.alreadyProcessed(env.ID) {
+		h.logger.Info("stripe webhook: replay suppressed",
+			"event_id", env.ID, "event_type", env.Type)
+		return nil
 	}
 
-	// Acknowledge unknown types so Stripe stops retrying; log for visibility.
-	h.logger.Debug("stripe webhook: ignoring unhandled event", "event_type", env.Type)
+	h.logger.Info("stripe webhook received", "event_id", env.ID, "event_type", env.Type)
+
+	var dispatchErr error
+	switch env.Type {
+	case "customer.subscription.created", "customer.subscription.updated":
+		dispatchErr = h.handleSubscriptionUpdated(ctx, env)
+	case "customer.subscription.deleted":
+		dispatchErr = h.handleSubscriptionCanceled(ctx, env)
+	case "invoice.paid", "invoice.payment_succeeded":
+		dispatchErr = h.handleInvoicePaid(ctx, env)
+	case "invoice.payment_failed":
+		dispatchErr = h.handleInvoicePaymentFailed(ctx, env)
+	case "payment_intent.succeeded":
+		dispatchErr = h.handlePaymentIntentSucceeded(ctx, env)
+	case "checkout.session.completed":
+		dispatchErr = h.handleCheckoutCompleted(ctx, env)
+	default:
+		// Acknowledge unknown types so Stripe stops retrying.
+		h.logger.Debug("stripe webhook: ignoring unhandled event", "event_type", env.Type)
+	}
+
+	if dispatchErr != nil {
+		return dispatchErr
+	}
+	if env.ID != "" {
+		h.markProcessed(env.ID)
+	}
 	return nil
 }
 

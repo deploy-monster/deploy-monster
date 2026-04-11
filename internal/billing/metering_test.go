@@ -75,7 +75,7 @@ func (m *mockStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ i
 	return nil, 0, m.err
 }
 
-func (m *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error   { return m.err }
+func (m *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { return m.err }
 func (m *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, m.err
 }

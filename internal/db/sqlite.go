@@ -237,24 +237,38 @@ func (s *SQLiteDB) SnapshotBackup(ctx context.Context, destPath string) error {
 // Rollback reverts the last n applied migrations by executing their .down.sql counterparts.
 // If steps <= 0, it rolls back all migrations.
 func (s *SQLiteDB) Rollback(steps int) error {
-	// Get applied migrations in reverse order
-	rows, err := s.db.Query("SELECT version, name FROM _migrations ORDER BY version DESC")
-	if err != nil {
-		return fmt.Errorf("list applied migrations: %w", err)
-	}
-	defer rows.Close()
-
 	type migration struct {
 		version int
 		name    string
 	}
-	var applied []migration
-	for rows.Next() {
-		var m migration
-		if err := rows.Scan(&m.version, &m.name); err != nil {
-			return fmt.Errorf("scan migration: %w", err)
+
+	// Read the applied-migrations list into memory and immediately
+	// release the connection. SQLite is configured with
+	// SetMaxOpenConns(1), so keeping `rows` open while the loop below
+	// issues Exec calls would deadlock against its own cursor (pre-fix
+	// this made TestSQLite_Rollback hang forever).
+	applied, err := func() ([]migration, error) {
+		rows, err := s.db.Query("SELECT version, name FROM _migrations ORDER BY version DESC")
+		if err != nil {
+			return nil, fmt.Errorf("list applied migrations: %w", err)
 		}
-		applied = append(applied, m)
+		defer rows.Close()
+
+		var out []migration
+		for rows.Next() {
+			var m migration
+			if err := rows.Scan(&m.version, &m.name); err != nil {
+				return nil, fmt.Errorf("scan migration: %w", err)
+			}
+			out = append(out, m)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate applied migrations: %w", err)
+		}
+		return out, nil
+	}()
+	if err != nil {
+		return err
 	}
 
 	if len(applied) == 0 {

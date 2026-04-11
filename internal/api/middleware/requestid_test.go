@@ -106,9 +106,9 @@ func TestParseTraceparent_Invalid(t *testing.T) {
 	tests := []string{
 		"",
 		"invalid",
-		"01-abc-def-00",                                         // wrong version
-		"00-short-00f067aa0ba902b7-01",                          // trace too short
-		"00-4bf92f3577b34da6a3ce929d0e0e4736-short-01",          // parent too short
+		"01-abc-def-00",                // wrong version
+		"00-short-00f067aa0ba902b7-01", // trace too short
+		"00-4bf92f3577b34da6a3ce929d0e0e4736-short-01",           // parent too short
 		"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-x", // flags too short
 	}
 	for _, tc := range tests {
