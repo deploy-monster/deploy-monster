@@ -1,4 +1,4 @@
-.PHONY: build dev test lint clean docker docker-compose fmt vet tidy bench coverage release install help test-e2e
+.PHONY: build dev test lint clean docker docker-compose fmt vet tidy bench coverage release install help test-e2e openapi-check openapi-bootstrap
 
 # Variables
 BINARY_NAME := deploymonster
@@ -128,6 +128,16 @@ soak-test-short:
 lint:
 	@echo "Running linter..."
 	golangci-lint run ./...
+
+## openapi-check: Fail on drift between router.go and docs/openapi.yaml
+openapi-check:
+	@echo "Checking OpenAPI spec against registered routes..."
+	$(GOCMD) run ./cmd/openapi-gen
+
+## openapi-bootstrap: Rewrite the openapi drift allowlist from the current gap (do not run in CI)
+openapi-bootstrap:
+	@echo "Rewriting docs/openapi-drift-allowlist.txt from current code↔spec gap..."
+	$(GOCMD) run ./cmd/openapi-gen -bootstrap
 
 ## fmt: Format code
 fmt:

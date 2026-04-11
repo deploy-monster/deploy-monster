@@ -163,6 +163,14 @@ jobs:
       - name: Go build
         run: go build ./...
 
+      # Fails on drift between internal/api/router.go and docs/openapi.yaml.
+      # Known gaps are parked in docs/openapi-drift-allowlist.txt; stale
+      # allowlist entries (drift has been closed but the line remains) also
+      # fail the job so the allowlist cannot rot silently. To regenerate
+      # during a spec sync, run: `make openapi-bootstrap`.
+      - name: OpenAPI drift check
+        run: make openapi-check
+
   test-integration:
     name: Integration Tests
     runs-on: ubuntu-latest
