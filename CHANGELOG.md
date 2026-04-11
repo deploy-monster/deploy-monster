@@ -22,10 +22,18 @@ first so the historical schema is flattened correctly.
 
 ### Security
 
-- **17 Dependabot alerts closed** (20 → 3). Remaining 3 are all upstream-blocked
-  (`fixed=null`): 2 against `github.com/docker/docker` (daemon-side CVEs,
-  duplicates of R-001) and 1 against `go.etcd.io/bbolt`
-  (GHSA-6jwv-w5xf-7j27, no upstream fix published yet).
+- **17 Dependabot alerts closed** (20 → 3). Tier 91 closed them in
+  `pnpm-lock.yaml` via `pnpm.overrides`; Tier 96 actually made GitHub's
+  scanner see them as closed by deleting the stale `web/package-lock.json`
+  (a leftover from a pre-pnpm era) that Dependabot had silently been
+  scanning instead of `pnpm-lock.yaml`. `scripts/build.sh` and
+  `scripts/ci-local.sh` rewritten to use `pnpm install --frozen-lockfile`
+  instead of `npm ci`, and `.gitignore` updated to ignore
+  `web/package-lock.json` so the drift can't reintroduce itself. Remaining
+  3 alerts are all upstream-blocked (`fixed=null`): 2 against
+  `github.com/docker/docker` (daemon-side CVEs, duplicates of R-001) and 1
+  against `go.etcd.io/bbolt` (GHSA-6jwv-w5xf-7j27, no upstream fix published
+  yet).
 - **`go.opentelemetry.io/otel*` bumped `1.42.0 → 1.43.0`** — CVE-2026-39882
   (OTLP HTTP exporter reads unbounded HTTP response body).
 - **`vite` bumped `8.0.3 → 8.0.8`** (direct devDep) — GHSA-p9ff-h696-f583,

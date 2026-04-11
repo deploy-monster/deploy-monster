@@ -20,8 +20,12 @@ echo "==> Building DeployMonster $VERSION ($COMMIT)"
 if [ -f "$ROOT_DIR/web/package.json" ]; then
     echo "==> Building React UI..."
     cd "$ROOT_DIR/web"
-    npm ci --silent 2>/dev/null || npm install --silent
-    npm run build
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo "ERROR: pnpm is required (see CLAUDE.md — web/ uses pnpm, not npm)" >&2
+        exit 1
+    fi
+    pnpm install --frozen-lockfile --silent
+    pnpm run build
     cd "$ROOT_DIR"
     echo "==> React UI built"
 else

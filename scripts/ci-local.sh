@@ -199,11 +199,11 @@ else
 
         # Check if node_modules exists
         if [ ! -d "web/node_modules" ]; then
-            echo -e "  ${YELLOW}Installing npm dependencies...${NC}"
-            (cd web && npm install 2>/dev/null)
+            echo -e "  ${YELLOW}Installing pnpm dependencies...${NC}"
+            (cd web && pnpm install --frozen-lockfile 2>/dev/null)
         fi
 
-        if (cd web && npm test 2>&1); then
+        if (cd web && pnpm test 2>&1); then
             pass "React tests passed"
         else
             fail "React tests failed"
