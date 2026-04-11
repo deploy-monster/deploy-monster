@@ -1,6 +1,12 @@
 package ingress
 
-import "testing"
+import (
+	"fmt"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+)
 
 func TestRouteTable_Match_ExactHost(t *testing.T) {
 	rt := NewRouteTable()
@@ -109,6 +115,83 @@ func TestRouteTable_Priority_Order(t *testing.T) {
 	got := rt2.Match("app.com", "/api/test")
 	if got == nil || got.ServiceName != "api" {
 		t.Error("higher priority route should match first")
+	}
+}
+
+// TestRouteTable_LockFree_ConcurrentReadsWrites runs many concurrent
+// readers against a single writer that is continuously churning routes.
+// The atomic-snapshot implementation guarantees:
+//
+//   - readers never see a partially-applied write (always a whole
+//     pre-write or post-write snapshot),
+//   - readers never block on a mutex while the writer holds it,
+//   - iteration is safe without copying since the snapshot's entries
+//     slice is never mutated after publication.
+//
+// A race-detector run under -race catches any data race on the entries
+// slice. A non-race run still exercises the functional invariants: for
+// a stable baseline route, Match must return a non-nil entry from every
+// reader call regardless of concurrent churn.
+func TestRouteTable_LockFree_ConcurrentReadsWrites(t *testing.T) {
+	rt := NewRouteTable()
+
+	// Baseline route that must remain matchable throughout the run.
+	baseline := &RouteEntry{
+		Host:     "stable.example.com",
+		Backends: []string{"10.0.0.1:80"},
+		Priority: 100,
+		AppID:    "stable",
+	}
+	rt.Upsert(baseline)
+
+	var stop atomic.Bool
+	defer stop.Store(true)
+
+	// Writer: churn 16 different hosts for the life of the test.
+	writerDone := make(chan struct{})
+	go func() {
+		defer close(writerDone)
+		var rev int
+		for !stop.Load() {
+			rev++
+			rt.Upsert(&RouteEntry{
+				Host:     fmt.Sprintf("churn-%d.example.com", rev%16),
+				Backends: []string{"10.0.0.2:80"},
+				Priority: 50,
+				AppID:    "churn",
+			})
+			if rev%32 == 0 {
+				rt.RemoveByAppID("churn")
+			}
+		}
+	}()
+
+	// 8 reader goroutines each doing 10k Match calls.
+	var readerWG sync.WaitGroup
+	readerMisses := atomic.Int64{}
+	for i := 0; i < 8; i++ {
+		readerWG.Add(1)
+		go func() {
+			defer readerWG.Done()
+			for j := 0; j < 10000; j++ {
+				if rt.Match("stable.example.com", "/") == nil {
+					readerMisses.Add(1)
+				}
+			}
+		}()
+	}
+
+	// Let the readers drive the test length. Writer runs until they finish.
+	readerWG.Wait()
+	stop.Store(true)
+	select {
+	case <-writerDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("writer goroutine did not stop in time")
+	}
+
+	if misses := readerMisses.Load(); misses != 0 {
+		t.Errorf("stable route was missed %d times during concurrent churn — atomic snapshot broke invariant", misses)
 	}
 }
 

@@ -185,9 +185,7 @@ func (m *Module) PrometheusHandler() http.HandlerFunc {
 		// Route count
 		routeCount := 0
 		if m.router != nil {
-			m.router.mu.RLock()
-			routeCount = len(m.router.routes)
-			m.router.mu.RUnlock()
+			routeCount = m.router.Count()
 		}
 		sb.WriteString("\n# HELP ingress_routes Number of configured routes\n")
 		sb.WriteString("# TYPE ingress_routes gauge\n")

@@ -38,9 +38,7 @@ func (m *Module) healthHandler() http.HandlerFunc {
 		// Get route count
 		routeCount := 0
 		if m.router != nil {
-			m.router.mu.RLock()
-			routeCount = len(m.router.routes)
-			m.router.mu.RUnlock()
+			routeCount = m.router.Count()
 		}
 
 		// Get active connections
