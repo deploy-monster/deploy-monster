@@ -6,7 +6,7 @@
 
 Transform any VPS into a production-ready deployment platform in 60 seconds.
 
-Single binary · Zero dependencies · 86% test coverage
+Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
@@ -17,7 +17,7 @@ Single binary · Zero dependencies · 86% test coverage
 
 </div>
 
-> **Note:** This project is currently in development and not yet ready for production use.
+> **Status:** Phases 1–5 complete (core platform, ingress, deploy pipeline, marketplace, observability, regression + soak harnesses). Phase 6 (documentation polish) and Phase 7 (release preparation) are in progress ahead of the first tagged release.
 
 ---
 
@@ -59,10 +59,10 @@ This separation enables **true multi-tenancy** — each client gets isolated acc
 - **14 Languages** — Auto-detected build packs (Node.js, Go, Python, Rust, PHP, Java, .NET, Ruby...)
 - **Docker Images** — Deploy from GHCR, Docker Hub, or private registries
 - **Docker Compose** — Multi-service stacks from YAML
-- **Marketplace** — 25+ one-click apps (WordPress, Ghost, n8n, Grafana, Ollama...)
+- **Marketplace** — 56 one-click apps across 16 categories (WordPress, Ghost, n8n, Grafana, Ollama...)
 
 ### 🏗️ Platform
-- **224 REST API Endpoints** — OpenAPI 3.0 specification
+- **240 REST API Endpoints** — OpenAPI 3.0 specification
 - **Custom Reverse Proxy** — No Traefik/Nginx dependency, built-in Let's Encrypt
 - **5 Load Balancer Strategies** — Round-robin, least-conn, IP-hash, random, weighted
 - **Secret Vault** — AES-256-GCM encryption with `${SECRET:name}` syntax
@@ -94,10 +94,10 @@ This separation enables **true multi-tenancy** — each client gets isolated acc
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    DeployMonster Binary (22MB)                   │
+│                    DeployMonster Binary (~24MB)                  │
 ├─────────┬─────────┬─────────┬──────────┬─────────┬──────────────┤
 │ Web UI  │   API   │   SSE   │ Webhooks │ Ingress │  MCP Server  │
-│ shadcn  │ 224 eps │ Stream  │  In+Out  │ :80/443 │  9 AI Tools  │
+│ shadcn  │ 240 eps │ Stream  │  In+Out  │ :80/443 │  9 AI Tools  │
 ├─────────┴─────────┴─────────┴──────────┴─────────┴──────────────┤
 │                   20 Auto-Registered Modules                     │
 │  auth │ deploy │ build │ ingress │ dns │ secrets │ billing │    │
@@ -141,14 +141,14 @@ deploymonster init  # Creates monster.yaml
 
 | Component | Technology |
 |-----------|------------|
-| Backend | Go 1.26+ (27K LOC source, 47K LOC tests) |
+| Backend | Go 1.26+ (~50K LOC source, ~117K LOC tests) |
 | Frontend | React 19 + Vite 8 + Tailwind CSS 4 + shadcn/ui |
 | Database | SQLite + BBolt KV (PostgreSQL ready) |
 | Container | Docker SDK (moby/moby) |
 | Auth | JWT + bcrypt + TOTP 2FA + OAuth SSO |
 | Encryption | AES-256-GCM + Argon2id |
 | Proxy | Custom net/http reverse proxy |
-| Testing | 86% coverage, 15 fuzz tests, 38 benchmarks |
+| Testing | 85%+ coverage (CI-enforced), 15 fuzz targets, 46 benchmarks |
 
 ---
 
@@ -164,7 +164,7 @@ go run ./cmd/deploymonster
 cd web && npm install && npm run dev
 
 # Tests
-go test ./...              # Go tests (86% coverage)
+go test ./...              # Go tests (CI gate: 85%)
 cd web && npm test         # React tests
 
 # Build
@@ -176,15 +176,15 @@ bash scripts/build.sh      # React → embed → Go binary
 ## Project Stats
 
 ```
-86K+ total LOC
-├── 27K Go source
-├── 47K Go tests
-└── 12K React
+~188K total LOC
+├── ~50K Go source
+├── ~117K Go tests
+└── ~22K React / TS / CSS
 
-224 API endpoints · 115 handlers
-20 modules · 25 marketplace templates
-86% test coverage · 15 fuzz tests · 38 benchmarks
-22MB single binary with embedded UI
+240 API endpoints · 222 handler functions
+20 modules · 56 marketplace templates
+85%+ test coverage (CI gate) · 15 fuzz targets · 46 benchmarks
+~24MB single binary with embedded UI
 ```
 
 ---

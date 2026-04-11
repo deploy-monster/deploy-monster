@@ -91,7 +91,7 @@ Webhook received → Git clone → Build (14 language detectors, 12 Dockerfiles)
 
 ### Frontend: React 19 + Vite 8 + TypeScript
 - Embedded via `embed.FS` — built React copied to `internal/api/static/`
-- **State**: Zustand 5 stores (`web/src/stores/`) + TanStack React Query 5
+- **State**: Zustand 5 stores (`web/src/stores/`) — no TanStack Query; data-fetch state lives in the custom `useApi` hook family (see line below)
 - **Routing**: React Router v7 with lazy-loaded pages
 - **API client**: `web/src/api/client.ts` — base `/api/v1`, auto token refresh on 401
 - **Hooks**: `useApi<T>(path)` for GET, `useMutation<TInput, TOutput>(method, path)` for mutations, `usePaginatedApi<T>(path, perPage)`
