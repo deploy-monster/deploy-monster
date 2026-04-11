@@ -154,8 +154,48 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
+      - name: Go vet (integration tag)
+        run: go vet -tags integration ./...
+
       - name: Go build
         run: go build ./...
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      # SQLite end-to-end CRUD test runs against a fresh file-backed
+      # database and mirrors the Postgres pgintegration test flow so
+      # both store implementations stay in sync. Catches migration
+      # drift, schema changes, and Tx-helper regressions without
+      # needing a DB service container.
+      - name: Run SQLite integration test
+        run: go test -tags integration -run TestSQLiteIntegration -v ./internal/db/...
+
+      # Self-signed certificate + TLS server flow — no external deps.
+      - name: Run SSL integration test
+        run: go test -tags integration -run TestSSLIntegration -v ./internal/ingress/...
+
+      # API smoke test — full app startup health check.
+      - name: Run API integration test
+        run: go test -tags integration -run TestFullAppStartup -v ./internal/api/...
+
+      # Let's Encrypt staging smoke test. Opt-in via repository variable
+      # LE_STAGING_TEST=1 so scheduled or manual runs exercise the full
+      # ACME Discover+Register+NewOrder path against real staging. Default
+      # PR/push runs skip it to protect the 50/3h new-account rate limit.
+      - name: Run Let's Encrypt staging integration test
+        if: ${{ vars.LE_STAGING_TEST == '1' }}
+        env:
+          LE_STAGING_TEST: '1'
+        run: go test -tags integration -run TestLetsEncryptStaging -v ./internal/ingress/...
 
   build:
     name: Build
