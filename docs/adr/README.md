@@ -20,6 +20,8 @@ editing the old one.
 | [0005](0005-embedded-react-ui.md) | Embed the React UI into the Go binary | Accepted |
 | [0006](0006-event-bus-in-process.md) | In-process pub/sub, not a message broker | Accepted |
 | [0007](0007-master-agent-same-binary.md) | Master and agent are the same binary | Accepted |
+| [0008](0008-encryption-key-strategy.md) | Encryption key strategy (Argon2id + AES-256-GCM vault) | Accepted |
+| [0009](0009-store-interface-composition.md) | 12-way Store interface composition for backend portability | Accepted |
 
 ## Writing a new ADR
 
