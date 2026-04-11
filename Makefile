@@ -103,6 +103,27 @@ loadtest-baseline:
 		-concurrency 50 \
 		-save-baseline tests/loadtest/baselines/http.json
 
+## soak-test: Run the 24-hour soak test at 10% peak load (server must be running)
+soak-test:
+	@echo "Starting 24-hour soak test — ensure the server is running and the rate limit is raised."
+	go run ./tests/soak \
+		-url http://localhost:8443 \
+		-duration 24h \
+		-concurrency 2 \
+		-sample-interval 1m \
+		-out soak-results.json \
+		-trace soak-trace.jsonl
+
+## soak-test-short: 5-minute soak smoke run — validates the harness + catches obvious regressions in CI
+soak-test-short:
+	@echo "Starting 5-minute soak smoke test..."
+	go run ./tests/soak \
+		-url http://localhost:8443 \
+		-duration 5m \
+		-concurrency 2 \
+		-sample-interval 15s \
+		-out soak-smoke.json
+
 ## lint: Run golangci-lint
 lint:
 	@echo "Running linter..."

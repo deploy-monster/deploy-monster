@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -11,6 +12,11 @@ import (
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+// processStart is captured at package init so /metrics/api can expose
+// uptime — the soak harness uses this to correlate sample timestamps
+// across a long run and detect clock drift or restarts.
+var processStart = time.Now()
 
 // APIMetrics collects HTTP request metrics for the management API.
 type APIMetrics struct {
@@ -179,6 +185,47 @@ func (m *APIMetrics) Handler() http.HandlerFunc {
 		sb.WriteString("\n# HELP apps_deleted_total Total apps deleted\n")
 		sb.WriteString("# TYPE apps_deleted_total counter\n")
 		sb.WriteString(fmt.Sprintf("apps_deleted_total %d\n", m.appsDeleted.Load()))
+
+		// Go runtime stats — required by the soak-test harness
+		// (tests/soak) to detect goroutine leaks and heap climb over
+		// 24-hour runs. Intentionally cheap: one ReadMemStats call
+		// per scrape. Exported under the standard Prometheus names
+		// (`go_goroutines`, `go_memstats_*`) so third-party Grafana
+		// dashboards work out of the box.
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+
+		sb.WriteString("\n# HELP go_goroutines Number of goroutines\n")
+		sb.WriteString("# TYPE go_goroutines gauge\n")
+		sb.WriteString(fmt.Sprintf("go_goroutines %d\n", runtime.NumGoroutine()))
+
+		sb.WriteString("\n# HELP go_memstats_alloc_bytes Currently allocated bytes\n")
+		sb.WriteString("# TYPE go_memstats_alloc_bytes gauge\n")
+		sb.WriteString(fmt.Sprintf("go_memstats_alloc_bytes %d\n", ms.Alloc))
+
+		sb.WriteString("\n# HELP go_memstats_heap_inuse_bytes Heap bytes in use\n")
+		sb.WriteString("# TYPE go_memstats_heap_inuse_bytes gauge\n")
+		sb.WriteString(fmt.Sprintf("go_memstats_heap_inuse_bytes %d\n", ms.HeapInuse))
+
+		sb.WriteString("\n# HELP go_memstats_heap_objects Live heap objects\n")
+		sb.WriteString("# TYPE go_memstats_heap_objects gauge\n")
+		sb.WriteString(fmt.Sprintf("go_memstats_heap_objects %d\n", ms.HeapObjects))
+
+		sb.WriteString("\n# HELP go_memstats_sys_bytes Bytes obtained from system\n")
+		sb.WriteString("# TYPE go_memstats_sys_bytes gauge\n")
+		sb.WriteString(fmt.Sprintf("go_memstats_sys_bytes %d\n", ms.Sys))
+
+		sb.WriteString("\n# HELP go_memstats_next_gc_bytes Target heap size of next GC\n")
+		sb.WriteString("# TYPE go_memstats_next_gc_bytes gauge\n")
+		sb.WriteString(fmt.Sprintf("go_memstats_next_gc_bytes %d\n", ms.NextGC))
+
+		sb.WriteString("\n# HELP go_memstats_num_gc Number of completed GC cycles\n")
+		sb.WriteString("# TYPE go_memstats_num_gc counter\n")
+		sb.WriteString(fmt.Sprintf("go_memstats_num_gc %d\n", ms.NumGC))
+
+		sb.WriteString("\n# HELP process_uptime_seconds Seconds since process start\n")
+		sb.WriteString("# TYPE process_uptime_seconds gauge\n")
+		sb.WriteString(fmt.Sprintf("process_uptime_seconds %.3f\n", time.Since(processStart).Seconds()))
 
 		// Event bus stats
 		if m.eventBus != nil {
