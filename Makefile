@@ -64,6 +64,11 @@ test-integration:
 	@echo "Running integration tests..."
 	$(GOTEST) -tags integration -v ./...
 
+## test-integration-postgres: Run Postgres store integration test (requires TEST_POSTGRES_DSN)
+test-integration-postgres:
+	@echo "Running Postgres integration test (TEST_POSTGRES_DSN=$${TEST_POSTGRES_DSN:-unset})..."
+	$(GOTEST) -tags pgintegration -run TestPostgresIntegration -v ./internal/db/...
+
 ## bench: Run all benchmarks
 bench:
 	@echo "Running benchmarks..."

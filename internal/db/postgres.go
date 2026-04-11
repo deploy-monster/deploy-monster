@@ -60,6 +60,12 @@ func (p *PostgresDB) Close() error {
 	return p.db.Close()
 }
 
+// DB returns the underlying *sql.DB. Mirrors SQLiteDB.DB so cross-backend
+// tests can touch raw SQL without reaching into unexported fields.
+func (p *PostgresDB) DB() *sql.DB {
+	return p.db
+}
+
 // migrate applies all pending Postgres migrations from the embedded
 // migrations/*.pgsql.sql filesystem. It mirrors SQLiteDB.migrate so the
 // two backends share the same versioning contract: a _migrations tracking
