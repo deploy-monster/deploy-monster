@@ -8,11 +8,33 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
+// QuotaChecker is the pre-deploy gate used by Deployer.DeployImage to
+// refuse a new deployment when the target tenant is already at or
+// over one of its live resource ceilings.
+//
+// The deploy package defines the interface rather than importing the
+// resource package directly so both packages can be tested in
+// isolation and so a future checker implementation (e.g. a cross-node
+// aggregate in swarm mode) can plug in without a dependency cycle.
+//
+// An implementation returning resource.ErrQuotaExceeded (wrapped via
+// fmt.Errorf with %w) lets HTTP callers map the failure to a 429
+// response via errors.Is; any other error is treated as an
+// infrastructure failure and propagated as-is.
+type QuotaChecker interface {
+	Check(ctx context.Context, tenantID string) error
+}
+
 // Deployer handles the deployment lifecycle.
 type Deployer struct {
 	runtime core.ContainerRuntime
 	store   core.Store
 	events  *core.EventBus
+
+	// quotaChecker is an optional pre-flight gate. Left nil when the
+	// platform is configured without per-tenant limits, in which case
+	// DeployImage behaves exactly as it did before Phase 3.3.6.
+	quotaChecker QuotaChecker
 }
 
 // NewDeployer creates a new deployer.
@@ -24,10 +46,29 @@ func NewDeployer(runtime core.ContainerRuntime, store core.Store, events *core.E
 	}
 }
 
+// SetQuotaChecker installs a pre-deploy quota gate. Passing nil
+// removes any previously-installed checker. This is a setter rather
+// than a NewDeployer parameter so existing callers (tests, legacy
+// wiring) keep compiling unchanged — the default is "no quota gate".
+func (d *Deployer) SetQuotaChecker(qc QuotaChecker) {
+	d.quotaChecker = qc
+}
+
 // DeployImage deploys an application from a Docker image.
 func (d *Deployer) DeployImage(ctx context.Context, app *core.Application, imageRef string) (*core.Deployment, error) {
 	if d.runtime == nil {
 		return nil, fmt.Errorf("container runtime not available")
+	}
+
+	// Pre-flight quota gate (Phase 3.3.6). Runs before we bump the
+	// deploy version counter so a refused deploy leaves no side effect
+	// in the store — the tenant can retry after releasing resources
+	// and see version N, not N+1.
+	if d.quotaChecker != nil {
+		if err := d.quotaChecker.Check(ctx, app.TenantID); err != nil {
+			d.store.UpdateAppStatus(ctx, app.ID, "quota_exceeded")
+			return nil, fmt.Errorf("quota check failed: %w", err)
+		}
 	}
 
 	// Get next version number

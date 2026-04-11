@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -105,6 +106,24 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.store.GetAppByName(r.Context(), claims.TenantID, req.Name); err == nil {
 		writeError(w, http.StatusConflict, "application with this name already exists")
 		return
+	}
+
+	// Enforce per-tenant app quota (Config.Limits.MaxAppsPerTenant).
+	// Zero/negative is treated as unlimited so existing deployments that
+	// leave the field unset keep working. This is the app-count half of
+	// Phase 3.3.6 quota enforcement — the CPU/RAM half lives in the
+	// deploy pipeline where live container stats are already aggregated.
+	if limit := h.core.Config.Limits.MaxAppsPerTenant; limit > 0 {
+		_, total, err := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 1, 0)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to check app quota")
+			return
+		}
+		if total >= limit {
+			writeError(w, http.StatusTooManyRequests,
+				fmt.Sprintf("tenant app quota exceeded (%d/%d)", total, limit))
+			return
+		}
 	}
 
 	app := &core.Application{
