@@ -24,10 +24,10 @@ Paste relevant logs here
 ```
 
 ## Environment
-- DeployMonster version: [e.g., v1.4.0]
-- Go version: [e.g., 1.26]
-- OS: [e.g., Ubuntu 22.04, macOS, Windows]
-- Docker version: [e.g., 24.0]
+- DeployMonster version: [e.g., v1.6.0-rc.1]
+- Go version: [e.g., 1.26.2]
+- OS: [e.g., Ubuntu 24.04, macOS, Windows]
+- Docker version: [e.g., 29.x]
 
 ## Additional context
 Any other context about the problem.
