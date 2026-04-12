@@ -17,11 +17,6 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// ErrBuildNotFound is returned by Stop when no in-flight build exists for
-// the requested app. Callers treat it as non-fatal — canceling a build
-// that already finished is a benign race.
-var ErrBuildNotFound = errors.New("build: no in-flight build for app")
-
 // ErrBuilderClosed is returned by Build when the Builder has already
 // been shut down via StopAll. Callers (pipelines, HTTP handlers) should
 // treat this as a transient condition: the process is draining and the
@@ -137,83 +132,6 @@ func (b *Builder) registerInflight(appID string, cancel context.CancelFunc) func
 }
 
 // StopAll cancels every in-flight Build and marks the Builder as
-// closed so new Build calls return ErrBuilderClosed. Idempotent —
-// calling StopAll twice on an already-closed Builder is a no-op and
-// returns 0 on the second call. Does not wait; callers that need to
-// block until every goroutine returns must follow up with Wait.
-//
-// Returns the number of builds that had their context canceled.
-func (b *Builder) StopAll() int {
-	b.mu.Lock()
-	if b.closed {
-		b.mu.Unlock()
-		return 0
-	}
-	b.closed = true
-	cancels := make([]context.CancelFunc, 0, len(b.inflight))
-	for _, entry := range b.inflight {
-		cancels = append(cancels, entry.cancel)
-	}
-	b.inflight = make(map[string]inflightBuild)
-	b.mu.Unlock()
-
-	for _, c := range cancels {
-		c()
-	}
-	return len(cancels)
-}
-
-// Wait blocks until every Build call accepted before the most recent
-// StopAll returns, or ctx fires. Returns ctx.Err() on deadline. Wait
-// is the second half of the two-step shutdown pattern — StopAll marks
-// closed and cancels contexts so the in-flight builds return quickly,
-// then Wait blocks the caller until they have all unwound.
-func (b *Builder) Wait(ctx context.Context) error {
-	done := make(chan struct{})
-	go func() {
-		b.wg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-// Closed reports whether StopAll has been called. Exposed for tests
-// and for higher-level schedulers that want to short-circuit before
-// dispatching a Build call that would be rejected.
-func (b *Builder) Closed() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.closed
-}
-
-// Stop cancels an in-flight build for the given AppID. The underlying
-// context cancellation propagates to the git-clone and docker-build
-// subprocesses via exec.CommandContext, killing them. Returns
-// ErrBuildNotFound if no build is currently running for the app — a
-// benign race callers should tolerate.
-func (b *Builder) Stop(appID string) error {
-	if appID == "" {
-		return ErrBuildNotFound
-	}
-	b.mu.Lock()
-	entry, ok := b.inflight[appID]
-	if ok {
-		delete(b.inflight, appID)
-	}
-	b.mu.Unlock()
-	if !ok {
-		return ErrBuildNotFound
-	}
-	entry.cancel()
-	return nil
-}
-
-// Build runs the full build pipeline.
 func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer) (result *BuildResult, err error) {
 	// Refuse new work once StopAll has run. Atomic with wg.Add so a
 	// concurrent StopAll either observes the Builder is still open
@@ -257,7 +175,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	// from another goroutine. Cleanup runs in LIFO order with the
 	// cancel() defer above, so the map entry is removed before the
 	// context is canceled on normal return — Stop will then fail
-	// with ErrBuildNotFound as intended.
+	// when the entry is missing.
 	unregister := b.registerInflight(opts.AppID, cancel)
 	defer unregister()
 
