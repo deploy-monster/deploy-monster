@@ -1,0 +1,96 @@
+version: 2
+
+project_name: deploymonster
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+    - go test ./... -count=1
+
+builds:
+  - id: deploymonster
+    main: ./cmd/deploymonster
+    binary: deploymonster
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - monster.example.yaml
+
+sboms:
+  - artifacts: archive
+    documents:
+      - "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.sbom.json"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+
+dockers:
+  - image_templates:
+      - "ghcr.io/deploy-monster/deploy-monster:{{ .Version }}"
+      - "ghcr.io/deploy-monster/deploy-monster:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/amd64"
+      - "--build-arg=VERSION={{.Version}}"
+      - "--build-arg=COMMIT={{.ShortCommit}}"
+      - "--build-arg=DATE={{.Date}}"
+      - "--label=org.opencontainers.image.title=DeployMonster"
+      - "--label=org.opencontainers.image.description=Self-hosted PaaS — single binary, modular monolith, event-driven"
+      - "--label=org.opencontainers.image.url=https://deploy.monster"
+      - "--label=org.opencontainers.image.source=https://github.com/deploy-monster/deploy-monster"
+      - "--label=org.opencontainers.image.vendor=ECOSTACK TECHNOLOGY OÜ"
+      - "--label=org.opencontainers.image.licenses=AGPL-3.0"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+
+release:
+  github:
+    owner: deploy-monster
+    name: deploy-monster
+  draft: false
+  prerelease: auto
+  name_template: "DeployMonster v{{.Version}}"
+  header: |
+    ## DeployMonster v{{.Version}}
+
+    Self-hosted PaaS — single binary, zero configuration, production-ready.
+  footer: |
+    **Full Changelog**: https://github.com/deploy-monster/deploy-monster/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ---
+    Built by [ECOSTACK TECHNOLOGY OÜ](https://ecostack.ee)

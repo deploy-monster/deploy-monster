@@ -1,0 +1,71 @@
+[Unit]
+Description=DeployMonster — Self-Hosted PaaS
+Documentation=https://github.com/deploy-monster/deploy-monster
+# DeployMonster needs Docker for the build pipeline + ingress containers.
+# Use Wants= (soft) plus After= so it still attempts to start if Docker is
+# briefly unavailable, but always after the docker socket is up.
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+
+# Dedicated unprivileged user. The installer creates this user and adds it
+# to the `docker` group so it can talk to /var/run/docker.sock without root.
+User=deploymonster
+Group=deploymonster
+SupplementaryGroups=docker
+
+WorkingDirectory=/var/lib/deploymonster
+ExecStart=/usr/local/bin/deploymonster serve --config /etc/deploymonster/monster.yaml
+
+# Send SIGTERM and let the graceful shutdown sequence complete (modules stop
+# in reverse dependency order, 30s timeout). KillMode=mixed sends SIGTERM to
+# the main process only, then SIGKILL to the whole cgroup if it overruns.
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=60
+
+# Restart policy — restart on any non-clean exit, but back off so a crash
+# loop does not pin the CPU. StartLimitIntervalSec is set in [Unit] equivalent
+# via the new-style Service options below.
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Resource limits sized for a small/medium VPS. Override in
+# /etc/systemd/system/deploymonster.service.d/override.conf for larger nodes.
+LimitNOFILE=65536
+LimitNPROC=8192
+
+# Hardening — sandbox the process without breaking Docker socket access or
+# the data directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+# DeployMonster writes to /var/lib/deploymonster (database + secrets vault),
+# /var/log/deploymonster, and reads from /etc/deploymonster.
+ReadWritePaths=/var/lib/deploymonster /var/log/deploymonster
+ReadOnlyPaths=/etc/deploymonster
+
+# stdout/stderr → systemd-journald with module identifier for filtering.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=deploymonster
+
+# Environment overrides — uncomment and edit, or use a drop-in.
+# Environment="MONSTER_LOG_LEVEL=info"
+# EnvironmentFile=-/etc/deploymonster/environment
+
+[Install]
+WantedBy=multi-user.target

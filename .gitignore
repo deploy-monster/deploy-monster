@@ -1,0 +1,72 @@
+# Build output
+bin/
+dist/
+
+# Web UI build
+web/dist/
+web/node_modules/
+
+# npm lockfile — web/ uses pnpm, never npm. Dependabot scans any
+# package-lock.json it finds, so an accidental `npm install` would
+# recreate a stale lockfile and reopen already-fixed alerts. Tier 96.
+web/package-lock.json
+
+# Database files
+*.db
+*.db-wal
+*.db-shm
+*.bolt
+
+# Test coverage
+*.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+monster.yaml
+.credentials
+
+# Go
+vendor/
+
+# Binaries
+deploymonster
+deploymonster.exe
+/loadtest
+/loadtest.exe
+/build_queue
+/build_queue.exe
+*.test
+*.test.exe
+
+# Load test output
+loadtest-results.json
+
+# Playwright
+.playwright-mcp/
+web/e2e-results/
+web/e2e-report/
+web/e2e/.auth/user.json
+web/test-results/
+web/blob-report/
+
+# Screenshots (development only)
+screenshots/
+
+# Temporary files
+*.tmp
+*.log
+*.bak

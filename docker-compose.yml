@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  deploymonster:
+    image: ghcr.io/deploy-monster/deploymonster:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: deploymonster
+    restart: unless-stopped
+    ports:
+      - "8443:8443"   # API + UI
+      - "80:80"       # HTTP (redirect + ACME)
+      - "443:443"     # HTTPS (reverse proxy)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - dm-data:/var/lib/deploymonster
+    environment:
+      - MONSTER_DOMAIN=${MONSTER_DOMAIN:-localhost}
+      - MONSTER_ACME_EMAIL=${MONSTER_ACME_EMAIL:-}
+      - MONSTER_SECRET=${MONSTER_SECRET:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-k", "https://localhost:8443/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  dm-data:
+    driver: local

@@ -1,0 +1,308 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"embed"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
+	_ "modernc.org/sqlite"
+)
+
+// Compile-time check: SQLiteDB must implement core.Store.
+var _ core.Store = (*SQLiteDB)(nil)
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
+
+// SQLiteDB wraps a sql.DB connection to SQLite with migrations and helpers.
+type SQLiteDB struct {
+	db           *sql.DB
+	queryTimeout time.Duration // per-query context timeout; 0 means no added timeout
+}
+
+// NewSQLite opens a SQLite database with WAL mode and performance pragmas.
+func NewSQLite(path string) (*SQLiteDB, error) {
+	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on&_synchronous=NORMAL", path)
+
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite: %w", err)
+	}
+
+	// Performance pragmas
+	pragmas := []string{
+		"PRAGMA cache_size = -64000",   // 64MB cache
+		"PRAGMA mmap_size = 268435456", // 256MB mmap
+		"PRAGMA temp_store = MEMORY",
+	}
+	for _, p := range pragmas {
+		if _, err := db.Exec(p); err != nil {
+			return nil, fmt.Errorf("pragma: %w", err)
+		}
+	}
+
+	// SQLite single-writer connection pool
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(2)
+	db.SetConnMaxLifetime(10 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
+
+	s := &SQLiteDB{db: db}
+	if err := s.migrate(); err != nil {
+		return nil, fmt.Errorf("migration: %w", err)
+	}
+
+	return s, nil
+}
+
+// SetQueryTimeout configures the per-query context timeout.
+// A zero or negative value disables the added timeout (caller's context is used as-is).
+func (s *SQLiteDB) SetQueryTimeout(d time.Duration) {
+	s.queryTimeout = d
+}
+
+// withTimeout wraps ctx with the configured query timeout if set.
+// If ctx already has an earlier deadline, the earlier one wins.
+func (s *SQLiteDB) withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if s.queryTimeout > 0 {
+		return context.WithTimeout(ctx, s.queryTimeout)
+	}
+	return ctx, func() {}
+}
+
+// DB returns the underlying *sql.DB.
+func (s *SQLiteDB) DB() *sql.DB {
+	return s.db
+}
+
+// Ping verifies the database connection.
+func (s *SQLiteDB) Ping(ctx context.Context) error {
+	ctx, cancel := s.withTimeout(ctx)
+	defer cancel()
+	return s.db.PingContext(ctx)
+}
+
+// QueryRowContext wraps sql.DB.QueryRowContext with the configured query timeout.
+func (s *SQLiteDB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	ctx, cancel := s.withTimeout(ctx)
+	// cancel will be called when the row is scanned or GC'd; for QueryRow this is safe
+	// because the underlying driver completes the query synchronously.
+	_ = cancel
+	return s.db.QueryRowContext(ctx, query, args...)
+}
+
+// QueryContext wraps sql.DB.QueryContext with the configured query timeout.
+func (s *SQLiteDB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	ctx, cancel := s.withTimeout(ctx)
+	defer cancel()
+	return s.db.QueryContext(ctx, query, args...)
+}
+
+// ExecContext wraps sql.DB.ExecContext with the configured query timeout.
+func (s *SQLiteDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	ctx, cancel := s.withTimeout(ctx)
+	defer cancel()
+	return s.db.ExecContext(ctx, query, args...)
+}
+
+// Close closes the database connection.
+func (s *SQLiteDB) Close() error {
+	return s.db.Close()
+}
+
+// Tx runs a function within a database transaction.
+// The transaction is automatically rolled back on error, committed on success.
+// If a query timeout is configured, the context is wrapped with that deadline.
+func (s *SQLiteDB) Tx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	ctx, cancel := s.withTimeout(ctx)
+	defer cancel()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
+// migrate applies all pending SQL migrations from the embedded filesystem.
+func (s *SQLiteDB) migrate() error {
+	// Create migrations tracking table
+	_, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS _migrations (
+			version INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create _migrations table: %w", err)
+	}
+
+	// Read migration files
+	entries, err := migrationsFS.ReadDir("migrations")
+	if err != nil {
+		return fmt.Errorf("read migrations dir: %w", err)
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name() < entries[j].Name()
+	})
+
+	for _, entry := range entries {
+		name := entry.Name()
+		// Skip down migrations, Postgres-dialect migrations, and non-SQL files.
+		// The embed.FS contains both SQLite (`0001_init.sql`) and Postgres
+		// (`0001_init.pgsql.sql`) migrations so PostgresDB can reuse the
+		// same filesystem; the SQLite loader must ignore the Postgres ones.
+		if !strings.HasSuffix(name, ".sql") ||
+			strings.HasSuffix(name, ".down.sql") ||
+			strings.HasSuffix(name, ".pgsql.sql") ||
+			strings.HasSuffix(name, ".pgsql.down.sql") {
+			continue
+		}
+
+		// Extract version number from filename: 0001_init.sql -> 1
+		var version int
+		if _, err := fmt.Sscanf(name, "%04d", &version); err != nil {
+			continue
+		}
+
+		// Check if already applied
+		var count int
+		s.db.QueryRow("SELECT COUNT(*) FROM _migrations WHERE version = ?", version).Scan(&count)
+		if count > 0 {
+			continue
+		}
+
+		// Apply migration inside a transaction for atomicity
+		data, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			return fmt.Errorf("read migration %s: %w", name, err)
+		}
+
+		tx, err := s.db.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx for migration %s: %w", name, err)
+		}
+
+		if _, err := tx.Exec(string(data)); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("apply migration %s: %w", name, err)
+		}
+
+		if _, err := tx.Exec("INSERT INTO _migrations (version, name) VALUES (?, ?)", version, name); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("record migration %s: %w", name, err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration %s: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+// Checkpoint forces a WAL checkpoint, flushing all WAL content into the main database file.
+// This should be called before creating a file-level backup to ensure consistency.
+// Uses TRUNCATE mode: writes all WAL pages to DB then truncates the WAL file to zero bytes.
+func (s *SQLiteDB) Checkpoint() error {
+	_, err := s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+	return err
+}
+
+// SnapshotBackup creates a consistent point-in-time copy of the database.
+// It first checkpoints the WAL, then copies the database file to destPath.
+// The copy is safe because SQLite in WAL mode allows concurrent reads during checkpoint.
+func (s *SQLiteDB) SnapshotBackup(ctx context.Context, destPath string) error {
+	// Force WAL checkpoint first to ensure all data is in the main DB file
+	if err := s.Checkpoint(); err != nil {
+		return fmt.Errorf("checkpoint before backup: %w", err)
+	}
+
+	// Use SQLite's built-in backup API via VACUUM INTO (available since SQLite 3.27.0)
+	// This creates a complete, consistent copy without holding locks for the entire duration.
+	_, err := s.db.ExecContext(ctx, "VACUUM INTO ?", destPath)
+	if err != nil {
+		return fmt.Errorf("vacuum into %s: %w", destPath, err)
+	}
+
+	return nil
+}
+
+// Rollback reverts the last n applied migrations by executing their .down.sql counterparts.
+// If steps <= 0, it rolls back all migrations.
+func (s *SQLiteDB) Rollback(steps int) error {
+	type migration struct {
+		version int
+		name    string
+	}
+
+	// Read the applied-migrations list into memory and immediately
+	// release the connection. SQLite is configured with
+	// SetMaxOpenConns(1), so keeping `rows` open while the loop below
+	// issues Exec calls would deadlock against its own cursor (pre-fix
+	// this made TestSQLite_Rollback hang forever).
+	applied, err := func() ([]migration, error) {
+		rows, err := s.db.Query("SELECT version, name FROM _migrations ORDER BY version DESC")
+		if err != nil {
+			return nil, fmt.Errorf("list applied migrations: %w", err)
+		}
+		defer rows.Close()
+
+		var out []migration
+		for rows.Next() {
+			var m migration
+			if err := rows.Scan(&m.version, &m.name); err != nil {
+				return nil, fmt.Errorf("scan migration: %w", err)
+			}
+			out = append(out, m)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate applied migrations: %w", err)
+		}
+		return out, nil
+	}()
+	if err != nil {
+		return err
+	}
+
+	if len(applied) == 0 {
+		return nil
+	}
+
+	if steps <= 0 || steps > len(applied) {
+		steps = len(applied)
+	}
+
+	for i := 0; i < steps; i++ {
+		m := applied[i]
+		// Derive down filename: 0001_init.sql -> 0001_init.down.sql
+		downName := strings.TrimSuffix(m.name, ".sql") + ".down.sql"
+
+		data, err := migrationsFS.ReadFile("migrations/" + downName)
+		if err != nil {
+			return fmt.Errorf("down migration %s not found: %w", downName, err)
+		}
+
+		if _, err := s.db.Exec(string(data)); err != nil {
+			return fmt.Errorf("rollback migration %s: %w", downName, err)
+		}
+
+		if _, err := s.db.Exec("DELETE FROM _migrations WHERE version = ?", m.version); err != nil {
+			return fmt.Errorf("remove migration record %d: %w", m.version, err)
+		}
+	}
+
+	return nil
+}

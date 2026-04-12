@@ -1,0 +1,164 @@
+package providers
+
+import (
+	"bytes"
+	"context"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
+)
+
+var _ core.DNSProvider = (*Route53)(nil)
+
+// Route53 implements core.DNSProvider for AWS Route 53.
+// Uses raw HTTP with AWS Signature V4 (simplified — production would need full SigV4).
+type Route53 struct {
+	accessKey string
+	secretKey string
+	region    string
+	client    *http.Client
+}
+
+// NewRoute53 creates a Route 53 DNS provider.
+func NewRoute53(accessKey, secretKey, region string) *Route53 {
+	return &Route53{
+		accessKey: accessKey,
+		secretKey: secretKey,
+		region:    region,
+		client:    &http.Client{Timeout: 15 * time.Second},
+	}
+}
+
+func (r *Route53) Name() string { return "route53" }
+
+func (r *Route53) CreateRecord(ctx context.Context, record core.DNSRecord) error {
+	return r.changeRecord(ctx, "CREATE", record)
+}
+
+func (r *Route53) UpdateRecord(ctx context.Context, record core.DNSRecord) error {
+	return r.changeRecord(ctx, "UPSERT", record)
+}
+
+func (r *Route53) DeleteRecord(ctx context.Context, record core.DNSRecord) error {
+	return r.changeRecord(ctx, "DELETE", record)
+}
+
+func (r *Route53) Verify(ctx context.Context, fqdn string) (bool, error) {
+	resolver := &net.Resolver{}
+	_, err := resolver.LookupHost(ctx, fqdn)
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
+// Route53 is a global service — the control-plane API always lives at
+// route53.amazonaws.com and must be signed against us-east-1 regardless
+// of the region the caller configured for record geolocation.
+const (
+	route53Host          = "route53.amazonaws.com"
+	route53SigningRegion = "us-east-1"
+	route53SigningSvc    = "route53"
+)
+
+func (r *Route53) changeRecord(ctx context.Context, action string, record core.DNSRecord) error {
+	hostedZoneID, err := r.findHostedZone(ctx, record.Name)
+	if err != nil {
+		return err
+	}
+
+	ttl := record.TTL
+	if ttl == 0 {
+		ttl = 300
+	}
+
+	xmlBody := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<ChangeResourceRecordSetsRequest xmlns="https://route53.amazonaws.com/doc/2013-04-01/">
+  <ChangeBatch>
+    <Changes>
+      <Change>
+        <Action>%s</Action>
+        <ResourceRecordSet>
+          <Name>%s</Name>
+          <Type>%s</Type>
+          <TTL>%d</TTL>
+          <ResourceRecords>
+            <ResourceRecord>
+              <Value>%s</Value>
+            </ResourceRecord>
+          </ResourceRecords>
+        </ResourceRecordSet>
+      </Change>
+    </Changes>
+  </ChangeBatch>
+</ChangeResourceRecordSetsRequest>`, action, record.Name, record.Type, ttl, record.Value)
+	body := []byte(xmlBody)
+
+	endpoint := fmt.Sprintf("https://%s/2013-04-01/hostedzone/%s/rrset", route53Host, hostedZoneID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/xml")
+	// Pin Host so the signature stays bound to the real Route53 endpoint
+	// even when a test rewrites URL.Host at RoundTrip time.
+	req.Host = route53Host
+	signV4(req, body, r.accessKey, r.secretKey, route53SigningRegion, route53SigningSvc, time.Now())
+
+	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
+		resp, err := r.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("route53 API: %w", err)
+		}
+		defer resp.Body.Close()
+		_, _ = io.ReadAll(resp.Body)
+
+		if resp.StatusCode >= 500 {
+			return fmt.Errorf("route53: HTTP %d", resp.StatusCode)
+		}
+		if resp.StatusCode >= 400 {
+			return core.ErrNoRetry(fmt.Errorf("route53: HTTP %d", resp.StatusCode))
+		}
+		return nil
+	})
+}
+
+func (r *Route53) findHostedZone(ctx context.Context, domain string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://"+route53Host+"/2013-04-01/hostedzone", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Host = route53Host
+	signV4(req, nil, r.accessKey, r.secretKey, route53SigningRegion, route53SigningSvc, time.Now())
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var result struct {
+		XMLName     xml.Name `xml:"ListHostedZonesResponse"`
+		HostedZones struct {
+			Zones []struct {
+				ID   string `xml:"Id"`
+				Name string `xml:"Name"`
+			} `xml:"HostedZone"`
+		} `xml:"HostedZones"`
+	}
+	_ = xml.Unmarshal(body, &result)
+
+	for _, zone := range result.HostedZones.Zones {
+		if len(domain) >= len(zone.Name) && domain[len(domain)-len(zone.Name):] == zone.Name {
+			return zone.ID, nil
+		}
+	}
+	return "", fmt.Errorf("no Route53 hosted zone found for %s", domain)
+}

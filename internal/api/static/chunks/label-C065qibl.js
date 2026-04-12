@@ -1,0 +1,1 @@
+import"./rolldown-runtime-CWGsULFf.js";import{C as e,u as t}from"./vendor-react-DyMT-1cu.js";import{r as n}from"./button-Cmi7b7sn.js";e();var r=t();function i({className:e,ref:t,...i}){return(0,r.jsx)(`label`,{className:n(`flex items-center gap-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70`,e),ref:t,...i})}export{i as t};

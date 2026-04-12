@@ -1,0 +1,16 @@
+export { api } from './client';
+export { authAPI } from './auth';
+export { appsAPI, type App, type CreateAppRequest, type PaginatedResponse } from './apps';
+export { dashboardAPI, type DashboardStats, type ActivityEntry } from './dashboard';
+export { domainsAPI, type Domain, type CreateDomainRequest } from './domains';
+export { serversAPI, type ServerNode, type CreateServerRequest } from './servers';
+export { databasesAPI, type DatabaseInstance, type CreateDatabaseRequest } from './databases';
+export { backupsAPI, type BackupEntry, type CreateBackupRequest } from './backups';
+export { gitSourcesAPI, type GitProvider, type ConnectGitProviderRequest } from './git-sources';
+export { teamAPI, type TeamMember, type AuditEntry, type InviteRequest } from './team';
+export { secretsAPI, type SecretEntry, type CreateSecretRequest } from './secrets';
+export { billingAPI, type Plan, type UsageData } from './billing';
+export { monitoringAPI, type ServerMetrics, type AlertRule } from './monitoring';
+export { marketplaceAPI, type Template, type MarketplaceResponse, type DeployTemplateRequest } from './marketplace';
+export { adminAPI, type SystemInfo, type Tenant, type AdminSettings } from './admin';
+export { type Deployment, type EnvVar } from './deployments';

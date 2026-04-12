@@ -1,0 +1,292 @@
+package auth
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/golang-jwt/jwt/v5"
+)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GenerateTokenPair — covers jwt.go:45 (verify both token branches)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestGenerateTokenPair_FieldValues(t *testing.T) {
+	svc := NewJWTService("test-secret-at-least-32-bytes-long-key!")
+
+	pair, err := svc.GenerateTokenPair("user1", "tenant1", "role1", "test@test.com")
+	if err != nil {
+		t.Fatalf("GenerateTokenPair: %v", err)
+	}
+	if pair.AccessToken == "" {
+		t.Error("access token should not be empty")
+	}
+	if pair.RefreshToken == "" {
+		t.Error("refresh token should not be empty")
+	}
+	if pair.TokenType != "Bearer" {
+		t.Errorf("TokenType = %q, want Bearer", pair.TokenType)
+	}
+	if pair.ExpiresIn != int((15 * time.Minute).Seconds()) {
+		t.Errorf("ExpiresIn = %d, want %d", pair.ExpiresIn, int((15 * time.Minute).Seconds()))
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ValidateAccessToken — covers jwt.go:86 (!ok || !token.Valid branch)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestValidateAccessToken_ExpiredToken(t *testing.T) {
+	svc := &JWTService{
+		secretKey:     []byte("test-secret-key-at-least-32-bytes!"),
+		accessExpiry:  -1 * time.Second, // Already expired
+		refreshExpiry: 7 * 24 * time.Hour,
+	}
+
+	pair, err := svc.GenerateTokenPair("u", "t", "r", "e@e.com")
+	if err != nil {
+		t.Fatalf("GenerateTokenPair: %v", err)
+	}
+
+	_, err = svc.ValidateAccessToken(pair.AccessToken)
+	if err == nil {
+		t.Error("expected error for expired access token")
+	}
+}
+
+func TestValidateAccessToken_TamperedToken(t *testing.T) {
+	svc := NewJWTService("test-secret-key-at-least-32-bytes!")
+
+	pair, err := svc.GenerateTokenPair("u", "t", "r", "e@e.com")
+	if err != nil {
+		t.Fatalf("GenerateTokenPair: %v", err)
+	}
+
+	tampered := pair.AccessToken + "x"
+	_, err = svc.ValidateAccessToken(tampered)
+	if err == nil {
+		t.Error("expected error for tampered access token")
+	}
+}
+
+func TestValidateAccessToken_WrongSigningMethod(t *testing.T) {
+	token := jwt.NewWithClaims(jwt.SigningMethodNone, &Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
+		UserID: "user1",
+	})
+	tokenStr, _ := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
+
+	svc := NewJWTService("test-secret-key-at-least-32-bytes!")
+	_, err := svc.ValidateAccessToken(tokenStr)
+	if err == nil {
+		t.Error("expected error for none-signed token")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ValidateRefreshToken — covers jwt.go:101 (!ok || !token.Valid)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestValidateRefreshToken_ExpiredToken(t *testing.T) {
+	svc := &JWTService{
+		secretKey:     []byte("test-secret-key-at-least-32-bytes!"),
+		accessExpiry:  15 * time.Minute,
+		refreshExpiry: -1 * time.Second,
+	}
+
+	pair, err := svc.GenerateTokenPair("u", "t", "r", "e@e.com")
+	if err != nil {
+		t.Fatalf("GenerateTokenPair: %v", err)
+	}
+
+	_, err = svc.ValidateRefreshToken(pair.RefreshToken)
+	if err == nil {
+		t.Error("expected error for expired refresh token")
+	}
+}
+
+func TestValidateRefreshToken_ValidToken_ReturnsUserID(t *testing.T) {
+	svc := NewJWTService("test-secret-key-at-least-32-bytes!")
+
+	pair, err := svc.GenerateTokenPair("user-42", "t", "r", "e@e.com")
+	if err != nil {
+		t.Fatalf("GenerateTokenPair: %v", err)
+	}
+
+	rtClaims, err := svc.ValidateRefreshToken(pair.RefreshToken)
+	if err != nil {
+		t.Fatalf("ValidateRefreshToken: %v", err)
+	}
+	if rtClaims.UserID != "user-42" {
+		t.Errorf("userID = %q, want user-42", rtClaims.UserID)
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HashPassword — covers password.go:13 (normal path)
+// The error branch from bcrypt is impossible to trigger with valid input.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestHashPassword_RoundTrip(t *testing.T) {
+	hash, err := HashPassword("ValidPass1")
+	if err != nil {
+		t.Fatalf("HashPassword: %v", err)
+	}
+	if hash == "" {
+		t.Error("hash should not be empty")
+	}
+	if err := VerifyPassword(hash, "ValidPass1"); err != nil {
+		t.Errorf("VerifyPassword failed for correct password: %v", err)
+	}
+}
+
+func TestHashPassword_WrongPasswordFails(t *testing.T) {
+	hash, _ := HashPassword("CorrectPass1")
+	if err := VerifyPassword(hash, "WrongPass2"); err == nil {
+		t.Error("VerifyPassword should fail with wrong password")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// firstRunSetup — covers module.go:86 (autoGenerated password log branch)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestFirstRunSetup_AutoGeneratedPassword_ClearedEnv(t *testing.T) {
+	store := &mockStore{
+		userCount:      0,
+		createTenantID: "tenant-1",
+		createUserID:   "user-1",
+	}
+
+	cfg := &core.Config{}
+	cfg.Server.SecretKey = "test-secret-key-at-least-32-bytes-long!"
+
+	c := &core.Core{
+		Logger: slog.Default(),
+		Store:  store,
+		Config: cfg,
+	}
+
+	// Clear env vars to ensure password auto-generation path
+	t.Setenv("MONSTER_ADMIN_EMAIL", "")
+	t.Setenv("MONSTER_ADMIN_PASSWORD", "")
+
+	m := New()
+	err := m.Init(context.Background(), c)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// init() — covers module.go:11
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestInit_RegisteredAsModule(t *testing.T) {
+	m := New()
+	var _ core.Module = m
+	if m.ID() != "core.auth" {
+		t.Errorf("ID() = %q, want core.auth", m.ID())
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Module.Health — both branches
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestModule_Health_NilJWT_IsDown(t *testing.T) {
+	m := New()
+	if h := m.Health(); h != core.HealthDown {
+		t.Errorf("Health() = %v, want HealthDown when jwt is nil", h)
+	}
+}
+
+func TestModule_Health_WithJWT_IsOK(t *testing.T) {
+	m := New()
+	m.jwt = NewJWTService("secret")
+	if h := m.Health(); h != core.HealthOK {
+		t.Errorf("Health() = %v, want HealthOK", h)
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Module.Stop / Routes
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestModule_Stop_NoError(t *testing.T) {
+	m := New()
+	if err := m.Stop(context.Background()); err != nil {
+		t.Errorf("Stop: %v", err)
+	}
+}
+
+func TestModule_Routes_ReturnsNil(t *testing.T) {
+	m := New()
+	if r := m.Routes(); r != nil {
+		t.Errorf("Routes() = %v, want nil", r)
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GenerateAPIKey — covers apikey.go:20 (all fields populated)
+// The rand.Read error path is impossible to trigger.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ExchangeCode — covers oauth.go:84 (request creation error)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestExchangeCode_NilContext(t *testing.T) {
+	p := &OAuthProvider{
+		Name:     "test",
+		TokenURL: "https://example.com/token",
+		client:   &http.Client{},
+	}
+
+	//nolint:staticcheck // nil context triggers the error path
+	_, err := p.ExchangeCode(nil, "code", "http://localhost/cb")
+	if err == nil {
+		t.Error("expected error with nil context")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GetUser — covers oauth.go:112 (request creation error)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestGetUser_NilContext(t *testing.T) {
+	p := &OAuthProvider{
+		Name:        "google",
+		UserInfoURL: "https://example.com/userinfo",
+		client:      &http.Client{},
+	}
+
+	//nolint:staticcheck // nil context triggers the error path
+	_, err := p.GetUser(nil, "token")
+	if err == nil {
+		t.Error("expected error with nil context")
+	}
+}
+
+func TestGenerateAPIKey_FieldsConsistent(t *testing.T) {
+	pair, err := GenerateAPIKey()
+	if err != nil {
+		t.Fatalf("GenerateAPIKey: %v", err)
+	}
+
+	// Hash must match HashAPIKey(key)
+	if pair.Hash != HashAPIKey(pair.Key) {
+		t.Error("hash should match HashAPIKey(key)")
+	}
+
+	// Prefix should be start of key
+	if pair.Key[:len(pair.Prefix)] != pair.Prefix {
+		t.Error("prefix should be start of key")
+	}
+}

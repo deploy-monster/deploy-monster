@@ -1,0 +1,21 @@
+# Trivy ignore list for the Phase 7.6 GHCR release scan.
+#
+# Policy: HIGH/CRITICAL fixable vulns fail the release (see
+# .github/workflows/release.yml, Phase 7.6 step). Each entry below is a
+# tracked exception — a vuln whose "Fixed Version" in the trivy DB refers
+# to a component we don't actually ship (typically a daemon-side CVE
+# mis-attributed to the Go client SDK that shares a module path).
+#
+# Full upstream-blocked list lives in docs/security-audit.md. When a CVE
+# here gets a real fix in the Go SDK we consume, remove it from this
+# file — do NOT suppress by severity or package name, only by exact ID.
+
+# github.com/docker/docker — Moby daemon CVEs mis-attributed to the Go
+# client library. The module path `github.com/docker/docker` is used by
+# both the daemon repo and the Go client SDK; trivy's DB records "Fixed
+# Version: 29.x" against the daemon release, but there is no Go SDK v29
+# tag (latest is v28.5.2+incompatible as of 2026-04-12, verified via
+# `go list -m -versions github.com/docker/docker`). The Go client
+# cannot patch a daemon-side authorization bypass by bumping itself.
+# Tracked in docs/security-audit.md as upstream-blocked R-001.
+CVE-2026-34040

@@ -1,0 +1,26 @@
+# Force LF line endings on everything that executes on Linux or gets piped
+# through a Linux shell. Windows contributors with core.autocrlf=true would
+# otherwise silently commit CRLF and break the curl-pipe installer the
+# moment it runs on a real VM (Phase 7.5 dry-run failure mode).
+*.sh         text eol=lf
+*.bash       text eol=lf
+Dockerfile   text eol=lf
+Dockerfile.* text eol=lf
+Makefile     text eol=lf
+*.mk         text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+
+# Go toolchain expects LF in source.
+*.go   text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+
+# Binary blobs — never munge.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff  binary
+*.woff2 binary
+*.pdf binary
