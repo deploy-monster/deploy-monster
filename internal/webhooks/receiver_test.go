@@ -61,7 +61,7 @@ func TestVerifyGitHubSignature(t *testing.T) {
 	secret := "mysecret"
 
 	// Compute correct signature.
-	sig := "sha256=" + computeHMACSHA256(body, secret)
+	sig := "sha256=" + signPayload(body, secret)
 
 	if !VerifyGitHubSignature(body, secret, sig) {
 		t.Error("valid signature should pass")
@@ -83,7 +83,7 @@ func TestVerifyGitHubSignature(t *testing.T) {
 func TestVerifyGitHubSignature_TableDriven(t *testing.T) {
 	body := []byte(`{"action":"push"}`)
 	secret := "test-secret-key"
-	correctSig := "sha256=" + computeHMACSHA256(body, secret)
+	correctSig := "sha256=" + signPayload(body, secret)
 
 	tests := []struct {
 		name      string
@@ -117,7 +117,7 @@ func TestVerifyGitHubSignature_TableDriven(t *testing.T) {
 			name:      "missing sha256 prefix",
 			body:      body,
 			secret:    secret,
-			signature: computeHMACSHA256(body, secret),
+			signature: signPayload(body, secret),
 			want:      false,
 		},
 		{
@@ -131,7 +131,7 @@ func TestVerifyGitHubSignature_TableDriven(t *testing.T) {
 			name:      "empty secret",
 			body:      body,
 			secret:    "",
-			signature: "sha256=" + computeHMACSHA256(body, ""),
+			signature: "sha256=" + signPayload(body, ""),
 			want:      true,
 		},
 		{
@@ -152,14 +152,14 @@ func TestVerifyGitHubSignature_TableDriven(t *testing.T) {
 			name:      "empty body valid signature",
 			body:      []byte{},
 			secret:    secret,
-			signature: "sha256=" + computeHMACSHA256([]byte{}, secret),
+			signature: "sha256=" + signPayload([]byte{}, secret),
 			want:      true,
 		},
 		{
 			name:      "large body",
 			body:      bytes.Repeat([]byte("a"), 10000),
 			secret:    secret,
-			signature: "sha256=" + computeHMACSHA256(bytes.Repeat([]byte("a"), 10000), secret),
+			signature: "sha256=" + signPayload(bytes.Repeat([]byte("a"), 10000), secret),
 			want:      true,
 		},
 	}
@@ -208,7 +208,7 @@ func TestVerifyGitLabToken(t *testing.T) {
 func TestVerifySignature_Gitea(t *testing.T) {
 	body := []byte(`{"ref":"refs/heads/main"}`)
 	secret := "gitea-secret"
-	sig := computeHMACSHA256(body, secret)
+	sig := signPayload(body, secret)
 
 	r := &http.Request{Header: http.Header{}}
 	r.Header.Set("X-Gitea-Signature", sig)
@@ -227,7 +227,7 @@ func TestVerifySignature_Gitea(t *testing.T) {
 func TestVerifySignature_Gogs(t *testing.T) {
 	body := []byte(`{"ref":"refs/heads/develop"}`)
 	secret := "gogs-secret"
-	sig := computeHMACSHA256(body, secret)
+	sig := signPayload(body, secret)
 
 	r := &http.Request{Header: http.Header{}}
 	r.Header.Set("X-Gogs-Signature", sig)
@@ -241,7 +241,7 @@ func TestVerifySignature_Gogs(t *testing.T) {
 func TestVerifySignature_GiteaFallsBackToGogs(t *testing.T) {
 	body := []byte(`{"ref":"refs/heads/main"}`)
 	secret := "test-secret"
-	sig := computeHMACSHA256(body, secret)
+	sig := signPayload(body, secret)
 
 	// Gitea provider but only X-Gogs-Signature set (no X-Gitea-Signature).
 	r := &http.Request{Header: http.Header{}}
@@ -282,7 +282,7 @@ func TestVerifySignature_AllProviders(t *testing.T) {
 		{
 			name:     "github valid",
 			provider: "github",
-			headers:  map[string]string{"X-Hub-Signature-256": "sha256=" + computeHMACSHA256(body, secret)},
+			headers:  map[string]string{"X-Hub-Signature-256": "sha256=" + signPayload(body, secret)},
 			want:     true,
 		},
 		{
@@ -318,7 +318,7 @@ func TestVerifySignature_AllProviders(t *testing.T) {
 		{
 			name:     "gitea valid",
 			provider: "gitea",
-			headers:  map[string]string{"X-Gitea-Signature": computeHMACSHA256(body, secret)},
+			headers:  map[string]string{"X-Gitea-Signature": signPayload(body, secret)},
 			want:     true,
 		},
 		{
@@ -330,7 +330,7 @@ func TestVerifySignature_AllProviders(t *testing.T) {
 		{
 			name:     "gogs valid",
 			provider: "gogs",
-			headers:  map[string]string{"X-Gogs-Signature": computeHMACSHA256(body, secret)},
+			headers:  map[string]string{"X-Gogs-Signature": signPayload(body, secret)},
 			want:     true,
 		},
 		{
@@ -760,7 +760,7 @@ func TestHandleWebhook_MissingWebhookID(t *testing.T) {
 
 	// Use a mux to simulate real routing.
 	mux := http.NewServeMux()
-	recv.RegisterRoutes(mux)
+	mux.HandleFunc("POST /hooks/v1/{webhookID}", recv.HandleWebhook)
 
 	// Request without webhookID in path value.
 	body := []byte(`{"ref":"refs/heads/main"}`)
@@ -792,7 +792,7 @@ func TestHandleWebhook_GitHubPush(t *testing.T) {
 	})
 
 	mux := http.NewServeMux()
-	recv.RegisterRoutes(mux)
+	mux.HandleFunc("POST /hooks/v1/{webhookID}", recv.HandleWebhook)
 
 	body := []byte(`{
 		"ref": "refs/heads/main",
@@ -853,7 +853,7 @@ func TestHandleWebhook_GitLabPush(t *testing.T) {
 	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	mux := http.NewServeMux()
-	recv.RegisterRoutes(mux)
+	mux.HandleFunc("POST /hooks/v1/{webhookID}", recv.HandleWebhook)
 
 	body := []byte(`{
 		"ref": "refs/heads/staging",
@@ -883,7 +883,7 @@ func TestHandleWebhook_InvalidPayload(t *testing.T) {
 	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	mux := http.NewServeMux()
-	recv.RegisterRoutes(mux)
+	mux.HandleFunc("POST /hooks/v1/{webhookID}", recv.HandleWebhook)
 
 	req := httptest.NewRequest("POST", "/hooks/v1/wh-bad", bytes.NewReader([]byte(`not json`)))
 	req.Header.Set("X-GitHub-Event", "push")
@@ -904,7 +904,7 @@ func TestHandleWebhook_GenericProvider(t *testing.T) {
 	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	mux := http.NewServeMux()
-	recv.RegisterRoutes(mux)
+	mux.HandleFunc("POST /hooks/v1/{webhookID}", recv.HandleWebhook)
 
 	body := []byte(`{
 		"provider": "custom-ci",
@@ -929,7 +929,7 @@ func TestHandleWebhook_EmptyBody(t *testing.T) {
 	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	mux := http.NewServeMux()
-	recv.RegisterRoutes(mux)
+	mux.HandleFunc("POST /hooks/v1/{webhookID}", recv.HandleWebhook)
 
 	req := httptest.NewRequest("POST", "/hooks/v1/wh-empty", bytes.NewReader([]byte{}))
 	req.Header.Set("X-GitHub-Event", "push")
@@ -943,13 +943,13 @@ func TestHandleWebhook_EmptyBody(t *testing.T) {
 	}
 }
 
-// --- computeHMACSHA256 tests ---
+// --- signPayload tests ---
 
 func TestComputeHMACSHA256(t *testing.T) {
 	body := []byte("test payload")
 	secret := "secret"
 
-	sig := computeHMACSHA256(body, secret)
+	sig := signPayload(body, secret)
 
 	// Verify it produces correct HMAC-SHA256.
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -957,7 +957,7 @@ func TestComputeHMACSHA256(t *testing.T) {
 	expected := hex.EncodeToString(mac.Sum(nil))
 
 	if sig != expected {
-		t.Errorf("computeHMACSHA256 = %q, want %q", sig, expected)
+		t.Errorf("signPayload = %q, want %q", sig, expected)
 	}
 
 	// Should be 64 hex characters (32 bytes).
@@ -970,8 +970,8 @@ func TestComputeHMACSHA256_Deterministic(t *testing.T) {
 	body := []byte("deterministic test")
 	secret := "same-secret"
 
-	sig1 := computeHMACSHA256(body, secret)
-	sig2 := computeHMACSHA256(body, secret)
+	sig1 := signPayload(body, secret)
+	sig2 := signPayload(body, secret)
 
 	if sig1 != sig2 {
 		t.Error("same input should produce same output")
@@ -981,8 +981,8 @@ func TestComputeHMACSHA256_Deterministic(t *testing.T) {
 func TestComputeHMACSHA256_DifferentSecrets(t *testing.T) {
 	body := []byte("same body")
 
-	sig1 := computeHMACSHA256(body, "secret-a")
-	sig2 := computeHMACSHA256(body, "secret-b")
+	sig1 := signPayload(body, "secret-a")
+	sig2 := signPayload(body, "secret-b")
 
 	if sig1 == sig2 {
 		t.Error("different secrets should produce different signatures")
@@ -992,8 +992,8 @@ func TestComputeHMACSHA256_DifferentSecrets(t *testing.T) {
 func TestComputeHMACSHA256_DifferentBodies(t *testing.T) {
 	secret := "same-secret"
 
-	sig1 := computeHMACSHA256([]byte("body-a"), secret)
-	sig2 := computeHMACSHA256([]byte("body-b"), secret)
+	sig1 := signPayload([]byte("body-a"), secret)
+	sig2 := signPayload([]byte("body-b"), secret)
 
 	if sig1 == sig2 {
 		t.Error("different bodies should produce different signatures")

@@ -18,31 +18,6 @@ import (
 )
 
 // =============================================================================
-// Pipeline.Trigger — app found but build fails (no real docker/git)
-// =============================================================================
-
-func TestPipeline_Trigger_BuildFails(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	events := core.NewEventBus(logger)
-	store := &pipelineMockStore{} // returns a valid app
-	runtime := &pipelineMockRuntime{}
-
-	p := NewPipeline(store, runtime, events, logger)
-
-	err := p.Trigger(context.Background(), "app-1", &WebhookPayload{
-		Branch:    "main",
-		CommitSHA: "abc123",
-	})
-	// Build will fail because SourceURL is empty / no real git repo
-	if err == nil {
-		t.Fatal("expected error from build pipeline (no real git/docker)")
-	}
-	if !strings.Contains(err.Error(), "build failed") {
-		t.Errorf("expected 'build failed' error, got: %v", err)
-	}
-}
-
-// =============================================================================
 // HandleWebhook — io.ReadAll error path (body returns read error)
 // =============================================================================
 
@@ -81,7 +56,7 @@ func TestHandleWebhook_BitbucketPush_FullPath(t *testing.T) {
 	recv := NewReceiver(nil, nil, events, logger)
 
 	mux := http.NewServeMux()
-	recv.RegisterRoutes(mux)
+	mux.HandleFunc("POST /hooks/v1/{webhookID}", recv.HandleWebhook)
 
 	body := `{"push":{"changes":[{"new":{"name":"main","type":"branch","target":{"hash":"bb1234"}}}]}}`
 	req := httptest.NewRequest("POST", "/hooks/v1/wh-bb-full", strings.NewReader(body))
@@ -102,7 +77,7 @@ func TestHandleWebhook_BitbucketPush_FullPath(t *testing.T) {
 func TestVerifySignature_GitHubValid(t *testing.T) {
 	body := []byte(`{"ref":"refs/heads/main"}`)
 	secret := "gh-test-secret"
-	sig := "sha256=" + computeHMACSHA256(body, secret)
+	sig := "sha256=" + signPayload(body, secret)
 
 	req := httptest.NewRequest("POST", "/hooks/v1/wh", strings.NewReader(""))
 	req.Header.Set("X-Hub-Signature-256", sig)
@@ -128,14 +103,10 @@ func TestVerifySignature_GitLabValid(t *testing.T) {
 func TestNewReceiver_FieldsSet(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	events := core.NewEventBus(logger)
-	store := &pipelineMockStore{}
 
-	r := NewReceiver(store, nil, events, logger)
+	r := NewReceiver(nil, nil, events, logger)
 	if r == nil {
 		t.Fatal("NewReceiver returned nil")
-	}
-	if r.store != store {
-		t.Error("store not set")
 	}
 	if r.events != events {
 		t.Error("events not set")

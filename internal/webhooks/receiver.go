@@ -349,7 +349,7 @@ func VerifyGitHubSignature(body []byte, secret, signature string) bool {
 	if !strings.HasPrefix(signature, "sha256=") {
 		return false
 	}
-	expected := computeHMACSHA256(body, secret)
+	expected := signPayload(body, secret)
 	return hmac.Equal([]byte(signature[7:]), []byte(expected))
 }
 
@@ -358,15 +358,10 @@ func VerifyGitLabToken(header, secret string) bool {
 	return hmac.Equal([]byte(header), []byte(secret))
 }
 
-func computeHMACSHA256(body []byte, secret string) string {
+func signPayload(body []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
 	return hex.EncodeToString(mac.Sum(nil))
-}
-
-// RegisterWebhookRoutes adds webhook routes to an existing handler.
-func (recv *Receiver) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /hooks/v1/{webhookID}", recv.HandleWebhook)
 }
 
 // VerifyBitbucketSignature validates the X-Hub-Signature header sent by
@@ -382,7 +377,7 @@ func VerifyBitbucketSignature(body []byte, secret, signature string) bool {
 	}
 	// Support both "sha256=..." (BB Server ≥ 5.4) and raw hex (older).
 	signature = strings.TrimPrefix(signature, "sha256=")
-	expected := computeHMACSHA256(body, secret)
+	expected := signPayload(body, secret)
 	return hmac.Equal([]byte(signature), []byte(expected))
 }
 

@@ -91,18 +91,6 @@ func (rp *ReverseProxy) ResetCircuit(backend string) {
 	rp.circuit.Reset(backend)
 }
 
-// pickBackend selects a backend using round-robin from the route entry.
-// This is a helper function for tests and simple use cases.
-var pickBackendCounter atomic.Uint64
-
-func pickBackend(route *RouteEntry) string {
-	if len(route.Backends) == 0 {
-		return ""
-	}
-	idx := pickBackendCounter.Add(1) - 1
-	return route.Backends[idx%uint64(len(route.Backends))]
-}
-
 // ServeHTTP implements http.Handler — the main request processing pipeline.
 // Flow: Match route → Filter backends → Load balance → Reverse proxy
 func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {

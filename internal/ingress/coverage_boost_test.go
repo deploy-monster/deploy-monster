@@ -378,32 +378,6 @@ func TestModule_Stop_WithHTTPServer(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// pickBackend — round-robin
-// ═══════════════════════════════════════════════════════════════════════════════
-
-func TestPickBackend_MultipleBackends(t *testing.T) {
-	route := &RouteEntry{
-		Backends: []string{"10.0.0.1:80", "10.0.0.2:80", "10.0.0.3:80"},
-	}
-
-	// Call multiple times and verify distribution
-	seen := make(map[string]int)
-	for i := 0; i < 9; i++ {
-		b := pickBackend(route)
-		seen[b]++
-	}
-
-	if len(seen) != 3 {
-		t.Errorf("expected 3 different backends, got %d", len(seen))
-	}
-	for backend, count := range seen {
-		if count != 3 {
-			t.Errorf("backend %s hit %d times, expected 3 (round-robin)", backend, count)
-		}
-	}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // AccessLogger Middleware — unusual status code
 // ═══════════════════════════════════════════════════════════════════════════════
 

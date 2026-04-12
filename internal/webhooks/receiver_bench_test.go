@@ -9,7 +9,7 @@ import (
 func BenchmarkVerifyGitHubSignature(b *testing.B) {
 	body := []byte(`{"ref":"refs/heads/main","head_commit":{"id":"abc123def456","message":"feat: add new feature"},"repository":{"clone_url":"https://github.com/test/repo.git","full_name":"test/repo"}}`)
 	secret := "webhook-secret-key-123"
-	mac := computeHMACSHA256(body, secret)
+	mac := signPayload(body, secret)
 	sig := fmt.Sprintf("sha256=%s", mac)
 
 	b.ResetTimer()

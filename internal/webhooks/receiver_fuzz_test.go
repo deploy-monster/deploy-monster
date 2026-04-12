@@ -17,7 +17,7 @@ func FuzzVerifyGitHubSignature(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, body []byte, secret string) {
 		// Compute the correct HMAC
-		mac := computeHMACSHA256(body, secret)
+		mac := signPayload(body, secret)
 		sig := fmt.Sprintf("sha256=%s", mac)
 
 		if !VerifyGitHubSignature(body, secret, sig) {
@@ -72,7 +72,7 @@ func FuzzVerifyBitbucketSignature(f *testing.F) {
 	f.Add([]byte{0xff, 0x00, 0x7f}, "a-long-bitbucket-webhook-secret")
 
 	f.Fuzz(func(t *testing.T, body []byte, secret string) {
-		mac := computeHMACSHA256(body, secret)
+		mac := signPayload(body, secret)
 
 		// Prefixed form (Bitbucket Server ≥ 5.4)
 		if !VerifyBitbucketSignature(body, secret, "sha256="+mac) {

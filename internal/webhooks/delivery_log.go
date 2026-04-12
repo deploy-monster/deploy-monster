@@ -2,7 +2,6 @@ package webhooks
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -62,48 +61,4 @@ func (t *DeliveryTracker) Start() {
 
 func (t *DeliveryTracker) record(log DeliveryLog) error {
 	return t.bolt.Set(deliveryLogBucket, log.ID, log, 0)
-}
-
-// RecentFailures returns up to `limit` recent failed deliveries.
-func (t *DeliveryTracker) RecentFailures(limit int) ([]DeliveryLog, error) {
-	entries, err := t.bolt.List(deliveryLogBucket)
-	if err != nil {
-		return nil, fmt.Errorf("list delivery logs: %w", err)
-	}
-
-	var failures []DeliveryLog
-	// BBolt keys are sorted — iterate in reverse for newest first
-	for i := len(entries) - 1; i >= 0 && len(failures) < limit; i-- {
-		var log DeliveryLog
-		if err := t.bolt.Get(deliveryLogBucket, entries[i], &log); err != nil {
-			continue
-		}
-		if log.Status == "failed" {
-			failures = append(failures, log)
-		}
-	}
-	return failures, nil
-}
-
-// Cleanup removes delivery logs older than the given age.
-func (t *DeliveryTracker) Cleanup(maxAge time.Duration) (int, error) {
-	entries, err := t.bolt.List(deliveryLogBucket)
-	if err != nil {
-		return 0, err
-	}
-
-	cutoff := time.Now().Add(-maxAge).Unix()
-	deleted := 0
-	for _, key := range entries {
-		var log DeliveryLog
-		if err := t.bolt.Get(deliveryLogBucket, key, &log); err != nil {
-			continue
-		}
-		if log.Timestamp < cutoff {
-			if err := t.bolt.Delete(deliveryLogBucket, key); err == nil {
-				deleted++
-			}
-		}
-	}
-	return deleted, nil
 }
