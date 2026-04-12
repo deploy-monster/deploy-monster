@@ -67,7 +67,6 @@ type routeSet map[string]route
 
 func (s routeSet) add(r route)         { s[r.Key()] = r }
 func (s routeSet) has(key string) bool { _, ok := s[key]; return ok }
-func (s routeSet) delete(key string)   { delete(s, key) }
 func (s routeSet) keys() []string {
 	out := make([]string, 0, len(s))
 	for k := range s {

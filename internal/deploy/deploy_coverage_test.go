@@ -483,53 +483,16 @@ func TestRollback_ListVersions_Empty(t *testing.T) {
 // ImageUpdateChecker — Start and Stop
 // =============================================================================
 
-func TestImageUpdateChecker_StartStop(t *testing.T) {
-	store := newMockStore()
-	events := core.NewEventBus(nil)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	checker := NewImageUpdateChecker(store, events, logger)
-	checker.Start()
-	checker.Stop()
-}
 
 // =============================================================================
 // ImageUpdateChecker — checkAll with ListAppsByTenant error
 // =============================================================================
 
-func TestImageUpdateChecker_CheckAll_ListError(t *testing.T) {
-	store := newMockStore()
-	store.listAppsByTenantErr = fmt.Errorf("db error")
-	events := core.NewEventBus(nil)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	checker := NewImageUpdateChecker(store, events, logger)
-	// Should not panic
-	checker.checkAll()
-}
 
 // =============================================================================
 // ImageUpdateChecker — checkAll with apps of various types
 // =============================================================================
 
-func TestImageUpdateChecker_CheckAll_MixedApps(t *testing.T) {
-	store := newMockStore()
-	store.apps["img"] = &core.Application{
-		ID: "img", SourceType: "image", SourceURL: "nginx:latest",
-	}
-	store.apps["git"] = &core.Application{
-		ID: "git", SourceType: "git", SourceURL: "https://github.com/t/r",
-	}
-	store.apps["empty-img"] = &core.Application{
-		ID: "empty-img", SourceType: "image", SourceURL: "",
-	}
-	events := core.NewEventBus(nil)
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-	checker := NewImageUpdateChecker(store, events, logger)
-	checker.checkAll()
-	// Coverage: exercises the loop, SourceType check, and empty URL skip
-}
 
 // =============================================================================
 // AutoRestarter — checkCrashed with nil runtime
@@ -826,28 +789,6 @@ func TestNewAutoRestarter_Fields(t *testing.T) {
 // NewImageUpdateChecker — field assignment
 // =============================================================================
 
-func TestNewImageUpdateChecker_Fields(t *testing.T) {
-	store := newMockStore()
-	events := core.NewEventBus(nil)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	checker := NewImageUpdateChecker(store, events, logger)
-	if checker.store != store {
-		t.Error("store mismatch")
-	}
-	if checker.events != events {
-		t.Error("events mismatch")
-	}
-	if checker.logger != logger {
-		t.Error("logger mismatch")
-	}
-	if checker.client == nil {
-		t.Error("client should not be nil")
-	}
-	if checker.stopCh == nil {
-		t.Error("stopCh should not be nil")
-	}
-}
 
 // =============================================================================
 // EnsureNetwork — Docker-specific, test with mock approach

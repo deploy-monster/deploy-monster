@@ -242,26 +242,9 @@ func TestTier74_AutoRestarter_NilLogger(t *testing.T) {
 
 // ─── ImageUpdateChecker Stop idempotency ───────────────────────────────────
 
-func TestTier74_ImageChecker_Stop_Idempotent(t *testing.T) {
-	store := newMockStore()
-	bus := core.NewEventBus(tier74Logger())
-	c := NewImageUpdateChecker(store, bus, tier74Logger())
-
-	c.Stop()
-	c.Stop()
-	c.Stop()
-}
 
 // ─── ImageUpdateChecker nil-logger guard ───────────────────────────────────
 
-func TestTier74_ImageChecker_NilLogger(t *testing.T) {
-	store := newMockStore()
-	bus := core.NewEventBus(slog.Default())
-	c := NewImageUpdateChecker(store, bus, nil)
-	if c.logger == nil {
-		t.Error("logger should default to slog.Default when nil")
-	}
-}
 
 // ─── Concurrent Stop storm ─────────────────────────────────────────────────
 

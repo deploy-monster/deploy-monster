@@ -3,12 +3,22 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// APIResponse is the standard response envelope for all API responses.
+// These helpers exist only to support legacy tests in this package.
+// They were moved here from deleted production files (helpers.go, response.go).
+
+type Pagination struct {
+	Page    int
+	PerPage int
+	Offset  int
+}
+
 type APIResponse struct {
 	Success bool      `json:"success"`
 	Data    any       `json:"data,omitempty"`
@@ -16,14 +26,12 @@ type APIResponse struct {
 	Meta    *APIMeta  `json:"meta,omitempty"`
 }
 
-// APIError is the standardized error format.
 type APIError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Details any    `json:"details,omitempty"`
 }
 
-// APIMeta holds pagination and request metadata.
 type APIMeta struct {
 	RequestID  string `json:"request_id,omitempty"`
 	Page       int    `json:"page,omitempty"`
@@ -32,21 +40,74 @@ type APIMeta struct {
 	TotalPages int    `json:"total_pages,omitempty"`
 }
 
-// RespondOK sends a success response.
+type PaginatedResponse struct {
+	Data       any `json:"data"`
+	Total      int `json:"total"`
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	TotalPages int `json:"total_pages"`
+}
+
+func writeError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+func parseJSON(r *http.Request, dest any) error {
+	if r.Body == nil {
+		return fmt.Errorf("empty request body")
+	}
+	defer r.Body.Close()
+
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dest); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+	return nil
+}
+
+func parsePagination(r *http.Request) Pagination {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 100 {
+		perPage = 20
+	}
+
+	return Pagination{
+		Page:    page,
+		PerPage: perPage,
+		Offset:  (page - 1) * perPage,
+	}
+}
+
+func realIP(r *http.Request) string {
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return ip
+	}
+	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+		return ip
+	}
+	return r.RemoteAddr
+}
+
 func RespondOK(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(APIResponse{Success: true, Data: data})
 }
 
-// RespondCreated sends a 201 response.
 func RespondCreated(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(APIResponse{Success: true, Data: data})
 }
 
-// RespondError sends an error response with appropriate status code.
 func RespondError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -56,7 +117,6 @@ func RespondError(w http.ResponseWriter, status int, code, message string) {
 	})
 }
 
-// RespondFromError maps core errors to HTTP status codes.
 func RespondFromError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, core.ErrNotFound):
@@ -78,7 +138,6 @@ func RespondFromError(w http.ResponseWriter, err error) {
 	}
 }
 
-// RespondPaginated sends a paginated response.
 func RespondPaginated(w http.ResponseWriter, data any, page, perPage, total int) {
 	totalPages := (total + perPage - 1) / perPage
 	w.Header().Set("Content-Type", "application/json")

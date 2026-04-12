@@ -2,7 +2,6 @@ package compose
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -126,15 +125,6 @@ func Parse(data []byte) (*ComposeFile, error) {
 	}
 
 	return &cf, nil
-}
-
-// ParseFile reads and parses a docker-compose file from disk.
-func ParseFile(path string) (*ComposeFile, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read compose file: %w", err)
-	}
-	return Parse(data)
 }
 
 // resolveEnv normalizes environment from either map or list format.

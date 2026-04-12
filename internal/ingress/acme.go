@@ -19,7 +19,6 @@ const acmeRenewalInterval = 24 * time.Hour
 
 // ACMEManager handles automatic SSL certificate provisioning via Let's Encrypt.
 // It wraps golang.org/x/crypto/acme/autocert for HTTP-01 challenges.
-// DNS-01 is kept as a pluggable hook for future wildcard support.
 type ACMEManager struct {
 	mu         sync.Mutex
 	mgr        *autocert.Manager
@@ -27,7 +26,6 @@ type ACMEManager struct {
 	email      string
 	staging    bool
 	challenges map[string]string // kept for backward test compat
-	dns01      *DNS01Solver
 	logger     *slog.Logger
 	wg         sync.WaitGroup
 }
@@ -116,19 +114,6 @@ func (a *ACMEManager) HTTPHandler(fallback http.Handler) http.Handler {
 	return fallback
 }
 
-// UseDNS01 enables the DNS-01 challenge flow for future issuances.
-func (a *ACMEManager) UseDNS01(solver *DNS01Solver) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.dns01 = solver
-}
-
-func (a *ACMEManager) dns01Solver() *DNS01Solver {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.dns01
-}
-
 // Wait blocks until in-flight goroutines finish. Currently a no-op because
 // autocert manages its own concurrency, but kept for lifecycle symmetry.
 func (a *ACMEManager) Wait() {
@@ -160,12 +145,6 @@ func (a *ACMEManager) RenewalLoop(ctx context.Context) {
 // issueCertificate is a no-op stub kept for test compatibility.
 func (a *ACMEManager) issueCertificate(domain string) {
 	a.logger.Info("ACME certificate issuance queued", "domain", domain)
-}
-
-// issueCertificateAsync wraps issueCertificate for backward compatibility.
-func (a *ACMEManager) issueCertificateAsync(domain string) {
-	defer a.wg.Done()
-	a.issueCertificate(domain)
 }
 
 func (a *ACMEManager) checkRenewals() {

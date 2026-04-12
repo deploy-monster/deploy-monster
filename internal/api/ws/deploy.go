@@ -3,7 +3,6 @@ package ws
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -520,11 +519,6 @@ func BroadcastValidating(projectID string) {
 // BroadcastCompiling broadcasts compiling stage
 func BroadcastCompiling(projectID string) {
 	GetDeployHub().BroadcastProgress(projectID, "compiling", "Generating Docker Compose configuration", 30)
-}
-
-// BroadcastBuilding broadcasts building stage
-func BroadcastBuilding(projectID string, service string) {
-	GetDeployHub().BroadcastProgress(projectID, "building", fmt.Sprintf("Building image for %s", service), 50)
 }
 
 // BroadcastDeploying broadcasts deploying stage

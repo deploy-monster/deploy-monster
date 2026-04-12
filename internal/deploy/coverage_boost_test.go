@@ -3,7 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"io"
+	
 	"log/slog"
 	"testing"
 
@@ -96,18 +96,6 @@ func TestAutoRestarter_Start_DoesNotPanic(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ImageUpdateChecker — store returns error in checkAll
 // ═══════════════════════════════════════════════════════════════════════════════
-
-func TestImageUpdateChecker_CheckAll_StoreError(t *testing.T) {
-	store := newMockStore()
-	store.getAppErr = fmt.Errorf("db error")
-	events := core.NewEventBus(nil)
-	logger := slog.Default()
-
-	checker := NewImageUpdateChecker(store, events, logger)
-	// checkAll with store error should not panic
-	checker.checkAll()
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Rollback — GetApp error after finding deployment
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -231,27 +219,6 @@ func TestAutoRestarterCoverage_HandleCrash_ZeroRetries(t *testing.T) {
 // CheckDockerHubTag — context cancelled
 // ═══════════════════════════════════════════════════════════════════════════════
 
-func TestCheckDockerHubTagCoverage_CancelledContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_, err := CheckDockerHubTag(ctx, "library/nginx", "latest")
-	if err == nil {
-		t.Log("CheckDockerHubTag with cancelled context may not return error (cached)")
-	}
-}
-
-func TestCheckDockerHubTagCoverage_ValidImage(t *testing.T) {
-	// Use a real network call to Docker Hub with a well-known image
-	// to cover the success path (resp.Body.Close, io.ReadAll, json.Unmarshal, return)
-	ctx := context.Background()
-	digest, err := CheckDockerHubTag(ctx, "library/alpine", "latest")
-	if err != nil {
-		t.Skipf("skipping: Docker Hub unreachable: %v", err)
-	}
-	t.Logf("alpine:latest digest = %s", digest)
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Module.Start — with nil docker
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -269,44 +236,6 @@ func TestModuleCoverage_Start_NilDocker(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ImageUpdateChecker — checkAll with image-type apps
 // ═══════════════════════════════════════════════════════════════════════════════
-
-func TestImageUpdateCheckerCoverage_CheckAll_WithImageApps(t *testing.T) {
-	store := newMockStore()
-	store.apps["app-img1"] = &core.Application{
-		ID:         "app-img1",
-		Name:       "image-app-1",
-		SourceType: "image",
-		SourceURL:  "nginx:latest",
-		Status:     "running",
-	}
-	store.apps["app-img2"] = &core.Application{
-		ID:         "app-img2",
-		Name:       "image-app-2",
-		SourceType: "image",
-		SourceURL:  "redis:7",
-		Status:     "running",
-	}
-	store.apps["app-git"] = &core.Application{
-		ID:         "app-git",
-		Name:       "git-app",
-		SourceType: "git",
-		SourceURL:  "https://github.com/test/repo",
-		Status:     "running",
-	}
-	store.apps["app-empty"] = &core.Application{
-		ID:         "app-empty",
-		Name:       "empty-source",
-		SourceType: "image",
-		SourceURL:  "", // empty source URL should be skipped
-		Status:     "running",
-	}
-	events := core.NewEventBus(slog.Default())
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-	checker := NewImageUpdateChecker(store, events, logger)
-	checker.checkAll()
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // AutoRestarter — checkCrashed with mixed containers
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -362,20 +291,6 @@ func TestAutoRestarterCoverage_CheckCrashed_MixedStates(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ImageUpdate struct coverage
 // ═══════════════════════════════════════════════════════════════════════════════
-
-func TestImageUpdateCoverage_Struct(t *testing.T) {
-	u := ImageUpdate{
-		AppID:      "a1",
-		AppName:    "myapp",
-		CurrentTag: "v1",
-		LatestTag:  "v2",
-		Registry:   "ghcr.io",
-	}
-	if u.Registry != "ghcr.io" {
-		t.Errorf("Registry = %q, want ghcr.io", u.Registry)
-	}
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // NewRollbackEngine — fields
 // ═══════════════════════════════════════════════════════════════════════════════

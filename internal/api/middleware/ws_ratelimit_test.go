@@ -76,10 +76,6 @@ func TestWSFrameLimiter_RefillOverTime(t *testing.T) {
 
 	// Advance 500ms → 5 tokens refilled.
 	clock.advance(500 * time.Millisecond)
-	got := lim.Tokens()
-	if got < 4.9 || got > 5.1 {
-		t.Errorf("after 500ms tokens = %v, want ~5", got)
-	}
 	for i := 0; i < 5; i++ {
 		if !lim.Allow() {
 			t.Errorf("Allow #%d after refill denied", i)
@@ -102,9 +98,14 @@ func TestWSFrameLimiter_RefillCappedAtCapacity(t *testing.T) {
 	}
 	clock.advance(time.Hour)
 
-	got := lim.Tokens()
-	if got != 10 {
-		t.Errorf("after idle-hour tokens = %v, want 10 (capped)", got)
+	// Should be able to allow the full capacity again.
+	for i := 0; i < 10; i++ {
+		if !lim.Allow() {
+			t.Errorf("Allow #%d after idle-hour denied, want 10 (capped)", i)
+		}
+	}
+	if lim.Allow() {
+		t.Error("11th Allow after cap returned true, want false")
 	}
 }
 

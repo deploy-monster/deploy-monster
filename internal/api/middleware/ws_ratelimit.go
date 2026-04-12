@@ -91,23 +91,3 @@ func (l *WSFrameLimiter) Allow() bool {
 	l.tokens--
 	return true
 }
-
-// Tokens reports the current (post-refill) token balance. Primarily
-// for tests and introspection — production code should use Allow.
-func (l *WSFrameLimiter) Tokens() float64 {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := l.now()
-	if l.last.IsZero() {
-		l.last = now
-	}
-	elapsed := now.Sub(l.last).Seconds()
-	if elapsed > 0 {
-		l.tokens += elapsed * l.rate
-		if l.tokens > l.capacity {
-			l.tokens = l.capacity
-		}
-		l.last = now
-	}
-	return l.tokens
-}

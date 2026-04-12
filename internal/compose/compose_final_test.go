@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -18,91 +16,7 @@ import (
 //   deployer.go:40  Deploy         81.2%  — EnsureNetwork interface path (lines 48-54)
 //   deployer.go:79  deployService  88.0%  — resource limits path (lines 121-124)
 //   parser.go:107   Parse          83.3%  — nil service path (lines 119-121)
-//   parser.go:131   ParseFile      0.0%   — entire function uncovered
 // =============================================================================
-
-// ---------------------------------------------------------------------------
-// ParseFile — reads and parses a compose file from disk (0% coverage)
-// ---------------------------------------------------------------------------
-
-func TestFinal_ParseFile_ValidFile(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "docker-compose.yml")
-
-	content := `
-services:
-  web:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-  db:
-    image: postgres:16
-    environment:
-      POSTGRES_PASSWORD: secret
-`
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-
-	cf, err := ParseFile(path)
-	if err != nil {
-		t.Fatalf("ParseFile: %v", err)
-	}
-
-	if len(cf.Services) != 2 {
-		t.Errorf("expected 2 services, got %d", len(cf.Services))
-	}
-	if cf.Services["web"] == nil {
-		t.Error("expected web service")
-	}
-	if cf.Services["db"] == nil {
-		t.Error("expected db service")
-	}
-	if cf.Services["web"].Image != "nginx:alpine" {
-		t.Errorf("web image = %q, want nginx:alpine", cf.Services["web"].Image)
-	}
-}
-
-func TestFinal_ParseFile_NonExistent(t *testing.T) {
-	_, err := ParseFile("/nonexistent/path/docker-compose.yml")
-	if err == nil {
-		t.Fatal("expected error for non-existent file")
-	}
-	if !strings.Contains(err.Error(), "read compose file") {
-		t.Errorf("expected 'read compose file' error, got: %v", err)
-	}
-}
-
-func TestFinal_ParseFile_InvalidYAML(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "bad.yml")
-
-	if err := os.WriteFile(path, []byte("{{invalid yaml}}"), 0644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-
-	_, err := ParseFile(path)
-	if err == nil {
-		t.Fatal("expected error for invalid YAML")
-	}
-}
-
-func TestFinal_ParseFile_NoServices(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "empty.yml")
-
-	if err := os.WriteFile(path, []byte("version: '3'\n"), 0644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-
-	_, err := ParseFile(path)
-	if err == nil {
-		t.Fatal("expected error for file with no services")
-	}
-	if !strings.Contains(err.Error(), "no services") {
-		t.Errorf("expected 'no services' error, got: %v", err)
-	}
-}
 
 // ---------------------------------------------------------------------------
 // Parse — nil service in services map (lines 119-121)

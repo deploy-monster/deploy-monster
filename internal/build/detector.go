@@ -1,7 +1,6 @@
 package build
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 )
@@ -201,17 +200,4 @@ func isStatic(dir string) (bool, []string) {
 		return true, []string{"index.html"}
 	}
 	return false, nil
-}
-
-// readPackageJSON reads the package.json and returns its content.
-func readPackageJSON(dir string) map[string]any {
-	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
-	if err != nil {
-		return nil
-	}
-	var pkg map[string]any
-	if err := json.Unmarshal(data, &pkg); err != nil {
-		return nil
-	}
-	return pkg
 }

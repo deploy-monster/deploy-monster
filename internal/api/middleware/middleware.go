@@ -232,69 +232,6 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 	}
 }
 
-// RequireAPIKey returns middleware that validates API key from X-API-Key header.
-// This is a stricter version that only accepts API keys, not JWT tokens.
-func RequireAPIKey(bolt core.BoltStorer) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			apiKey := r.Header.Get("X-API-Key")
-			if apiKey == "" {
-				writeErrorJSON(w, http.StatusUnauthorized, "api key required")
-				return
-			}
-
-			// Validate API key format
-			if !strings.HasPrefix(apiKey, "dm_") {
-				writeErrorJSON(w, http.StatusUnauthorized, "invalid api key format")
-				return
-			}
-
-			// Extract prefix (first 8 chars) for lookup
-			if len(apiKey) < 12 {
-				writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
-				return
-			}
-
-			// Check if bolt store is available
-			if bolt == nil {
-				writeErrorJSON(w, http.StatusUnauthorized, "api key authentication not available")
-				return
-			}
-
-			keyPrefix := apiKey[:8]
-
-			// Lookup API key by prefix using BoltStorer
-			storedKey, err := bolt.GetAPIKeyByPrefix(r.Context(), keyPrefix)
-			if err != nil {
-				writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
-				return
-			}
-
-			// Verify the full key using constant-time comparison
-			if subtle.ConstantTimeCompare([]byte(apiKey), []byte(storedKey.KeyHash)) != 1 {
-				writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
-				return
-			}
-
-			// Check if key is expired
-			if storedKey.ExpiresAt != nil && time.Now().After(*storedKey.ExpiresAt) {
-				writeErrorJSON(w, http.StatusUnauthorized, "api key expired")
-				return
-			}
-
-			// Create claims from the API key's associated user
-			// Note: RoleID and Email would need to be looked up from user if needed
-			claims := &auth.Claims{
-				UserID:   storedKey.UserID,
-				TenantID: storedKey.TenantID,
-			}
-
-			ctx := auth.ContextWithClaims(r.Context(), claims)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
-
 // statusWriter wraps ResponseWriter to capture the status code and bytes written.
 type statusWriter struct {
 	http.ResponseWriter

@@ -296,30 +296,6 @@ func TestAutoRestarter_CheckCrashed_IgnoresRunningContainers(t *testing.T) {
 // ImageUpdateChecker — Start/Stop lifecycle
 // =====================================================
 
-func TestImageUpdateChecker_StartStop_Lifecycle(t *testing.T) {
-	events := core.NewEventBus(nil)
-	logger := slog.Default()
-
-	checker := NewImageUpdateChecker(nil, events, logger)
-	checker.Start()
-
-	// Verify stopCh is still open
-	select {
-	case <-checker.stopCh:
-		t.Fatal("stopCh should be open after Start")
-	default:
-	}
-
-	checker.Stop()
-
-	// Verify stopCh is closed
-	select {
-	case <-checker.stopCh:
-		// expected
-	default:
-		t.Fatal("stopCh should be closed after Stop")
-	}
-}
 
 // =====================================================
 // Module Stop — with non-nil docker that returns error
@@ -531,37 +507,7 @@ func TestRollback_StatusTransitions(t *testing.T) {
 // ImageUpdateChecker — checkAll with mock store
 // =====================================================
 
-func TestImageUpdateChecker_CheckAll_NoApps(t *testing.T) {
-	store := newMockStore()
-	events := core.NewEventBus(nil)
-	logger := slog.Default()
 
-	checker := NewImageUpdateChecker(store, events, logger)
-	// checkAll with no apps should not panic
-	checker.checkAll()
-}
-
-func TestImageUpdateChecker_CheckAll_SkipsNonImageApps(t *testing.T) {
-	store := newMockStore()
-	store.apps["app-git"] = &core.Application{
-		ID:         "app-git",
-		Name:       "git-app",
-		SourceType: "git",
-		SourceURL:  "https://github.com/test/repo",
-	}
-	store.apps["app-img"] = &core.Application{
-		ID:         "app-img",
-		Name:       "image-app",
-		SourceType: "image",
-		SourceURL:  "nginx:latest",
-	}
-	events := core.NewEventBus(nil)
-	logger := slog.Default()
-
-	checker := NewImageUpdateChecker(store, events, logger)
-	// Should not panic; only processes image-type apps
-	checker.checkAll()
-}
 
 // =====================================================
 // mockRuntime.Logs — coverage

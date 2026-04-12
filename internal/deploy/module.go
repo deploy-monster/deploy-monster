@@ -28,7 +28,6 @@ type Module struct {
 	store        core.Store
 	logger       *slog.Logger
 	autoRestart  *AutoRestarter
-	imageChecker *ImageUpdateChecker
 	autoRollback *AutoRollbackManager
 }
 
@@ -100,10 +99,6 @@ func (m *Module) Start(ctx context.Context) error {
 		// Start auto-restart monitor
 		m.autoRestart = NewAutoRestarter(m.docker, m.store, m.core.Events, m.logger)
 		m.autoRestart.Start()
-
-		// Start image update checker
-		m.imageChecker = NewImageUpdateChecker(m.store, m.core.Events, m.logger)
-		m.imageChecker.Start()
 
 		// Start auto-rollback on failed deployments. Tier 74: keep a
 		// handle on the Module so Stop can drain in-flight rollbacks.
@@ -221,9 +216,6 @@ func (m *Module) Stop(_ context.Context) error {
 	}
 	if m.autoRestart != nil {
 		m.autoRestart.Stop()
-	}
-	if m.imageChecker != nil {
-		m.imageChecker.Stop()
 	}
 	if m.docker != nil {
 		return m.docker.Close()
