@@ -138,46 +138,6 @@ func (d *Deployer) composeUp(ctx context.Context) (string, error) {
 	return string(out), err
 }
 
-// ComposeDown stops and removes containers
-func (d *Deployer) ComposeDown(ctx context.Context, removeVolumes bool) error {
-	args := []string{"compose", "-f", d.composePath, "down"}
-	if removeVolumes {
-		args = append(args, "-v")
-	}
-
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Dir = d.workDir
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("compose down failed: %s", string(output))
-	}
-	return nil
-}
-
-// Logs returns logs from services
-func (d *Deployer) Logs(ctx context.Context, service string, tail int) (string, error) {
-	args := []string{"compose", "-f", d.composePath, "logs"}
-	if service != "" {
-		args = append(args, service)
-	}
-	if tail > 0 {
-		args = append(args, "--tail", fmt.Sprintf("%d", tail))
-	}
-
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Dir = d.workDir
-	output, err := cmd.CombinedOutput()
-	return string(output), err
-}
-
-// PS returns status of running services
-func (d *Deployer) PS(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", d.composePath, "ps")
-	cmd.Dir = d.workDir
-	output, err := cmd.CombinedOutput()
-	return string(output), err
-}
-
 // Helper functions
 
 func (d *Deployer) extractContainerNames(compose *ComposeConfig) []string {

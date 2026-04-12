@@ -548,18 +548,6 @@ func NewEvent(eventType, source string, data any) Event {
 	}
 }
 
-// NewEventFromCtx creates an event with correlation ID from the context.
-func NewEventFromCtx(ctx context.Context, eventType, source string, data any) Event {
-	return Event{
-		ID:            GenerateID(),
-		Type:          eventType,
-		Source:        source,
-		Timestamp:     time.Now(),
-		CorrelationID: CorrelationIDFromContext(ctx),
-		Data:          data,
-	}
-}
-
 // NewTenantEvent creates an event with tenant context.
 func NewTenantEvent(eventType, source, tenantID, userID string, data any) Event {
 	return Event{
@@ -570,20 +558,6 @@ func NewTenantEvent(eventType, source, tenantID, userID string, data any) Event 
 		TenantID:  tenantID,
 		UserID:    userID,
 		Data:      data,
-	}
-}
-
-// NewTenantEventFromCtx creates a tenant event with correlation ID from the context.
-func NewTenantEventFromCtx(ctx context.Context, eventType, source, tenantID, userID string, data any) Event {
-	return Event{
-		ID:            GenerateID(),
-		Type:          eventType,
-		Source:        source,
-		Timestamp:     time.Now(),
-		TenantID:      tenantID,
-		UserID:        userID,
-		CorrelationID: CorrelationIDFromContext(ctx),
-		Data:          data,
 	}
 }
 

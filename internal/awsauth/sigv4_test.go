@@ -101,19 +101,19 @@ func TestSigV4Encode_RFC3986(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
-			if got := SigV4Encode(tc.in); got != tc.want {
-				t.Errorf("SigV4Encode(%q) = %q, want %q", tc.in, got, tc.want)
+			if got := sigV4Encode(tc.in); got != tc.want {
+				t.Errorf("sigV4Encode(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
 	}
 }
 
-// TestCanonicalQueryString covers the sorted-key, sorted-value, percent-
+// TestcanonicalQueryString covers the sorted-key, sorted-value, percent-
 // encoded pairing. Repeated keys must have their VALUES sorted, and empty
 // input must return an empty string (not panic).
 func TestCanonicalQueryString(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
-		if got := CanonicalQueryString(url.Values{}); got != "" {
+		if got := canonicalQueryString(url.Values{}); got != "" {
 			t.Errorf("empty values should return empty string, got %q", got)
 		}
 	})
@@ -123,7 +123,7 @@ func TestCanonicalQueryString(t *testing.T) {
 		v.Set("z", "1")
 		v.Set("a", "2")
 		v.Set("m", "3")
-		got := CanonicalQueryString(v)
+		got := canonicalQueryString(v)
 		want := "a=2&m=3&z=1"
 		if got != want {
 			t.Errorf("got %q, want %q", got, want)
@@ -133,7 +133,7 @@ func TestCanonicalQueryString(t *testing.T) {
 	t.Run("repeated key values sorted", func(t *testing.T) {
 		v := url.Values{}
 		v["tag"] = []string{"banana", "apple", "cherry"}
-		got := CanonicalQueryString(v)
+		got := canonicalQueryString(v)
 		want := "tag=apple&tag=banana&tag=cherry"
 		if got != want {
 			t.Errorf("got %q, want %q", got, want)
@@ -143,7 +143,7 @@ func TestCanonicalQueryString(t *testing.T) {
 	t.Run("percent-encoded key and value", func(t *testing.T) {
 		v := url.Values{}
 		v.Set("name with space", "val/slash")
-		got := CanonicalQueryString(v)
+		got := canonicalQueryString(v)
 		want := "name%20with%20space=val%2Fslash"
 		if got != want {
 			t.Errorf("got %q, want %q", got, want)

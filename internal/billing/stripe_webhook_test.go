@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"strconv"
 	"testing"
@@ -434,10 +433,3 @@ func TestFindPlanByID(t *testing.T) {
 	}
 }
 
-// Assert the test helper compiles against the real io.Reader interface —
-// catches drift if signPayload ever stops using io.
-var _ io.Reader = (*stringReader)(nil)
-
-type stringReader struct{ s string }
-
-func (r *stringReader) Read(p []byte) (int, error) { return copy(p, r.s), io.EOF }

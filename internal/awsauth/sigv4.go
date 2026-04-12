@@ -138,12 +138,6 @@ func hmacSHA256(key []byte, data string) []byte {
 	return h.Sum(nil)
 }
 
-// CanonicalQueryString is exported for tests in sibling packages.
-func CanonicalQueryString(values url.Values) string { return canonicalQueryString(values) }
-
-// SigV4Encode is exported for tests in sibling packages.
-func SigV4Encode(s string) string { return sigV4Encode(s) }
-
 // canonicalQueryString produces a SigV4-canonical query string from a
 // url.Values map: keys sorted lex, values within a repeated key also
 // sorted, name + "=" + value, joined with "&", with SigV4-style
