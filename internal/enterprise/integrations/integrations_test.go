@@ -292,4 +292,3 @@ func TestPrometheusExporter_Handler_NoContainer(t *testing.T) {
 		t.Error("containers_total should not appear when no container runtime")
 	}
 }
-

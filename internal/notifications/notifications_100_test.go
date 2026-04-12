@@ -220,7 +220,6 @@ func TestFinal_TelegramProvider_Send_NetworkError(t *testing.T) {
 	}
 }
 
-
 // ---------------------------------------------------------------------------
 // Module.Start — exercises the async event subscription handlers
 // ---------------------------------------------------------------------------

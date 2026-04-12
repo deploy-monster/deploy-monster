@@ -430,7 +430,6 @@ func TestDiscordProvider_Send_LongMessage(t *testing.T) {
 	}
 }
 
-
 // =====================================================
 // REGISTER PROVIDER — through module
 // =====================================================

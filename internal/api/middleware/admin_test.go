@@ -19,7 +19,6 @@ func withClaimsCtx(r *http.Request, userID, tenantID, roleID, email string) *htt
 	return r.WithContext(auth.ContextWithClaims(r.Context(), claims))
 }
 
-
 func TestRequireSuperAdmin_SuperAdmin(t *testing.T) {
 	handler := RequireSuperAdmin(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -80,7 +79,6 @@ func TestRequireSuperAdmin_NoClaims(t *testing.T) {
 }
 
 // --- RequireOwnerOrAbove ---
-
 
 func TestRequireSuperAdmin_ErrorResponse_JSON(t *testing.T) {
 	handler := RequireSuperAdmin(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

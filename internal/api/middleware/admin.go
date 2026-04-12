@@ -38,7 +38,6 @@ func requireRole(allowed map[string]struct{}) func(http.Handler) http.Handler {
 	}
 }
 
-
 // RequireSuperAdmin permits only role_super_admin. Use on platform-level
 // endpoints (tenant management, system config) that must never be
 // reachable by a tenant-level admin.
@@ -47,4 +46,3 @@ func RequireSuperAdmin(next http.Handler) http.Handler {
 		RoleSuperAdmin: {},
 	})(next)
 }
-
