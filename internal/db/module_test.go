@@ -132,6 +132,7 @@ func TestModule_Bolt_ReturnsInstance(t *testing.T) {
 func TestModule_StopIdempotent(t *testing.T) {
 	m := New()
 	// Should not panic or error when nothing is initialized
+	//lint:ignore SA1012 nil context triggers the error path
 	if err := m.Stop(nil); err != nil {
 		t.Errorf("Stop on uninitialized module should not error, got: %v", err)
 	}
@@ -154,6 +155,7 @@ func TestModule_StopClosesStores(t *testing.T) {
 	m.sqlite = sqliteDB
 	m.bolt = boltStore
 
+	//lint:ignore SA1012 nil context triggers the error path
 	if err := m.Stop(nil); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
@@ -161,6 +163,7 @@ func TestModule_StopClosesStores(t *testing.T) {
 
 func TestModule_StartNoError(t *testing.T) {
 	m := New()
+	//lint:ignore SA1012 nil context triggers the error path
 	if err := m.Start(nil); err != nil {
 		t.Errorf("Start should not error, got: %v", err)
 	}

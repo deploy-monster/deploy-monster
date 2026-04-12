@@ -249,7 +249,7 @@ func TestExchangeCode_NilContext(t *testing.T) {
 		client:   &http.Client{},
 	}
 
-	//nolint:staticcheck // nil context triggers the error path
+	//lint:ignore SA1012 nil context triggers the error path
 	_, err := p.ExchangeCode(nil, "code", "http://localhost/cb")
 	if err == nil {
 		t.Error("expected error with nil context")
@@ -267,7 +267,7 @@ func TestGetUser_NilContext(t *testing.T) {
 		client:      &http.Client{},
 	}
 
-	//nolint:staticcheck // nil context triggers the error path
+	//lint:ignore SA1012 nil context triggers the error path
 	_, err := p.GetUser(nil, "token")
 	if err == nil {
 		t.Error("expected error with nil context")

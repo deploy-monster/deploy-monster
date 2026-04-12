@@ -75,6 +75,7 @@ func TestRetry_ContextCancelled(t *testing.T) {
 
 func TestRetry_NilContext(t *testing.T) {
 	calls := 0
+	//lint:ignore SA1012 nil context triggers the error path
 	err := Retry(nil, DefaultRetryConfig(), func() error {
 		calls++
 		return nil

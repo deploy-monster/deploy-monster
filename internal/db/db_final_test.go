@@ -418,11 +418,13 @@ func TestModule_Stop_BothStoresOpen(t *testing.T) {
 	m.bolt = boltStore
 
 	// Close once normally
+	//lint:ignore SA1012 nil context triggers the error path
 	if err := m.Stop(nil); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
 
 	// Second close — should handle gracefully (SQLite may error)
 	// Just verify it doesn't panic
+	//lint:ignore SA1012 nil context triggers the error path
 	_ = m.Stop(nil)
 }

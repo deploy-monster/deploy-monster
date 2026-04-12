@@ -1079,7 +1079,8 @@ func TestS3Storage_Upload_RequestCreationError(t *testing.T) {
 		client:    &http.Client{},
 	}
 	// A nil context will cause NewRequestWithContext to fail
-	err := s.Upload(nil, "key", strings.NewReader("d"), 1) //nolint:staticcheck
+//lint:ignore SA1012 nil context triggers the error path
+	err := s.Upload(nil, "key", strings.NewReader("d"), 1) 
 	if err == nil {
 		t.Error("expected error with nil context")
 	}
@@ -1092,7 +1093,8 @@ func TestS3Storage_Download_RequestCreationError(t *testing.T) {
 		pathStyle: true,
 		client:    &http.Client{},
 	}
-	_, err := s.Download(nil, "key") //nolint:staticcheck
+//lint:ignore SA1012 nil context triggers the error path
+	_, err := s.Download(nil, "key") 
 	if err == nil {
 		t.Error("expected error with nil context")
 	}
@@ -1105,7 +1107,8 @@ func TestS3Storage_Delete_RequestCreationError(t *testing.T) {
 		pathStyle: true,
 		client:    &http.Client{},
 	}
-	err := s.Delete(nil, "key") //nolint:staticcheck
+//lint:ignore SA1012 nil context triggers the error path
+	err := s.Delete(nil, "key") 
 	if err == nil {
 		t.Error("expected error with nil context")
 	}
@@ -1269,7 +1272,8 @@ func TestS3Storage_Retry_NilContext(t *testing.T) {
 	}
 
 	// Nil context should be handled gracefully (line 86-88 in retry)
-	err := s.Upload(nil, "key.tar", strings.NewReader("data"), 4) //nolint:staticcheck
+//lint:ignore SA1012 nil context triggers the error path
+	err := s.Upload(nil, "key.tar", strings.NewReader("data"), 4) 
 	if err != nil {
 		t.Logf("Upload with nil context: %v", err)
 	}

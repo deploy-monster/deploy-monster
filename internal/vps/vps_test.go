@@ -63,6 +63,7 @@ func TestModule_Health(t *testing.T) {
 
 func TestModule_Stop(t *testing.T) {
 	m := New()
+	//lint:ignore SA1012 nil context triggers the error path
 	if err := m.Stop(nil); err != nil {
 		t.Errorf("Stop: %v", err)
 	}
@@ -71,6 +72,7 @@ func TestModule_Stop(t *testing.T) {
 func TestModule_Start(t *testing.T) {
 	m := New()
 	m.logger = slog.Default()
+	//lint:ignore SA1012 nil context triggers the error path
 	if err := m.Start(nil); err != nil {
 		t.Errorf("Start: %v", err)
 	}

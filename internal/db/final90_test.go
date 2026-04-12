@@ -458,6 +458,7 @@ func TestModule_Stop_SQLiteCloseError(t *testing.T) {
 	sqliteDB.Close()
 
 	// Stop should propagate the sqlite close error
+	//lint:ignore SA1012 nil context triggers the error path
 	stopErr := m.Stop(nil)
 	// The error may or may not happen depending on implementation
 	// but the branch is exercised either way
@@ -475,6 +476,7 @@ func TestModule_Stop_BoltOnly(t *testing.T) {
 	m.bolt = boltStore
 	// sqlite is nil — exercises the nil check branch
 
+	//lint:ignore SA1012 nil context triggers the error path
 	if err := m.Stop(nil); err != nil {
 		t.Errorf("Stop with nil sqlite: %v", err)
 	}
@@ -482,6 +484,7 @@ func TestModule_Stop_BoltOnly(t *testing.T) {
 
 func TestModule_Stop_NilBoth(t *testing.T) {
 	m := New()
+	//lint:ignore SA1012 nil context triggers the error path
 	if err := m.Stop(nil); err != nil {
 		t.Errorf("Stop with nil both: %v", err)
 	}
@@ -642,6 +645,7 @@ func TestModule_Accessors(t *testing.T) {
 	}
 	// Store() accessor should work without panic
 	_ = m.Store()
+	//lint:ignore SA1012 nil context triggers the error path
 	if m.Start(nil) != nil {
 		t.Error("Start should succeed")
 	}
