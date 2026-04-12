@@ -196,7 +196,7 @@ bash scripts/build.sh      # React → embed → Go binary
 ## Documentation
 
 - [Getting Started](docs/getting-started.md)
-- [Architecture](ARCHITECTURE.md)
+- [Architecture](docs/ARCHITECTURE.md)
 - [API Reference](docs/api-reference.md)
 - [OpenAPI Spec](docs/openapi.yaml)
 
