@@ -2,7 +2,6 @@ package build
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -11,17 +10,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
-
-// ErrBuilderClosed is returned by Build when the Builder has already
-// been shut down via StopAll. Callers (pipelines, HTTP handlers) should
-// treat this as a transient condition: the process is draining and the
-// caller's parent module is about to return from its own Stop.
-var ErrBuilderClosed = errors.New("build: builder is closed")
 
 // BuildOpts holds options for a build.
 type BuildOpts struct {
@@ -46,107 +38,24 @@ type BuildResult struct {
 	LogOutput string        `json:"log_output,omitempty"`
 }
 
-// inflightBuild is a live build registered in Builder.inflight. The
-// token is a unique pointer address used to match the cleanup deferred
-// by Build against the current map entry — so a concurrent second
-// build for the same AppID cannot have its entry stomped when the
-// first build finishes.
-type inflightBuild struct {
-	cancel context.CancelFunc
-	token  *int
-}
-
 // Builder executes the full build pipeline: clone → detect → generate Dockerfile → docker build.
-//
-// Lifecycle notes for the Tier 73-77 hardening pass:
-//
-//   - Build used to be fire-and-go with a defer-less body. A panic
-//     inside git-clone argv construction, detector filesystem walks,
-//     or docker build output parsing would crash the whole process.
-//     Build now runs inside a defer/recover that turns the panic into
-//     an error and emits build.failed so the caller can react the same
-//     way it does to any other build error.
-//   - Stop(appID) only cancels a single build; Module.Stop needs to
-//     cancel every in-flight build so the pool drain does not sit on
-//     a docker build that could run for minutes. StopAll adds that,
-//     plus a closed flag that rejects new Build calls once shutdown
-//     has started (matching the WorkerPool contract in module.go).
-//   - wg tracks every concurrent Build so Wait can drain them with a
-//     ctx deadline, mirroring WorkerPool.Shutdown / ingress gateway
-//     Shutdown / deploy manager Shutdown from the earlier hardening
-//     tiers.
 type Builder struct {
 	runtime core.ContainerRuntime
 	events  *core.EventBus
 	workDir string
-
-	// inflight tracks cancel funcs for running Builds by AppID so Stop
-	// can abort a build started by a different caller (e.g. the user
-	// clicking "cancel deploy" in the UI while a background worker owns
-	// the original context).
-	mu       sync.Mutex
-	inflight map[string]inflightBuild
-
-	// closed is set by StopAll and checked at Build entry so a builder
-	// that is draining refuses new work cleanly instead of starting a
-	// docker build that will be canceled a moment later.
-	closed bool
-
-	// wg is incremented for every accepted Build call so Wait can block
-	// on a clean drain with a deadline from the module's shutdown ctx.
-	wg sync.WaitGroup
 }
 
 // NewBuilder creates a new builder.
 func NewBuilder(runtime core.ContainerRuntime, events *core.EventBus) *Builder {
 	return &Builder{
-		runtime:  runtime,
-		events:   events,
-		workDir:  os.TempDir(),
-		inflight: make(map[string]inflightBuild),
+		runtime: runtime,
+		events:  events,
+		workDir: os.TempDir(),
 	}
 }
 
-// registerInflight installs a cancel func for the given AppID and
-// returns a cleanup closure the caller must defer. The cleanup uses a
-// unique token to avoid clobbering a later concurrent Build's entry
-// when an earlier Build's defer fires.
-func (b *Builder) registerInflight(appID string, cancel context.CancelFunc) func() {
-	if appID == "" {
-		return func() {}
-	}
-	token := new(int) // address-unique per call
-	b.mu.Lock()
-	if b.inflight == nil {
-		b.inflight = make(map[string]inflightBuild)
-	}
-	b.inflight[appID] = inflightBuild{cancel: cancel, token: token}
-	b.mu.Unlock()
-	return func() {
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		if cur, ok := b.inflight[appID]; ok && cur.token == token {
-			delete(b.inflight, appID)
-		}
-	}
-}
-
-// StopAll cancels every in-flight Build and marks the Builder as
+// Build runs the full build pipeline.
 func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer) (result *BuildResult, err error) {
-	// Refuse new work once StopAll has run. Atomic with wg.Add so a
-	// concurrent StopAll either observes the Builder is still open
-	// (and the wg.Add happens-before Wait's drain) or rejects this
-	// call outright — the same contract WorkerPool.SubmitCtx uses to
-	// avoid racing wg.Add against wg.Wait.
-	b.mu.Lock()
-	if b.closed {
-		b.mu.Unlock()
-		return nil, ErrBuilderClosed
-	}
-	b.wg.Add(1)
-	b.mu.Unlock()
-	defer b.wg.Done()
-
 	// Turn any panic inside the pipeline into a structured error so a
 	// bad git-clone argv, a misbehaving detector, or a surprise docker
 	// output format can't crash the module. The recover is the last
@@ -170,14 +79,6 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
-	// Register the cancel func so Stop(appID) can abort this build
-	// from another goroutine. Cleanup runs in LIFO order with the
-	// cancel() defer above, so the map entry is removed before the
-	// context is canceled on normal return — Stop will then fail
-	// when the entry is missing.
-	unregister := b.registerInflight(opts.AppID, cancel)
-	defer unregister()
 
 	// Emit build started event
 	_ = b.events.Publish(ctx, core.NewEvent(core.EventBuildStarted, "build",

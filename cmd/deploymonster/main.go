@@ -112,9 +112,6 @@ func runServe() {
 
 	bi := core.BuildInfo{Version: version, Commit: commit, Date: date}
 
-	// Print startup banner
-	core.PrintBanner(bi, cfg)
-
 	if *agentMode {
 		runAgent(ctx, bi, *masterURL, *agentToken, *masterPort)
 		return
