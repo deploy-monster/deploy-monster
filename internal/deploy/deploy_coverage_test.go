@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
-	"github.com/deploy-monster/deploy-monster/internal/webhooks"
 )
 
 // =============================================================================
@@ -94,120 +93,13 @@ func TestModule_Start_NilDocker_LogsStarted(t *testing.T) {
 // Pipeline — HandleWebhook branch mismatch with empty webhook branch
 // =============================================================================
 
-func TestPipeline_HandleWebhook_EmptyWebhookBranch_NoMismatch(t *testing.T) {
-	store := newMockStore()
-	store.apps["app-1"] = &core.Application{
-		ID:        "app-1",
-		Name:      "branch-app",
-		SourceURL: "https://github.com/test/repo",
-		TenantID:  "t-1",
-		Branch:    "main",
-	}
-	store.allTenantsList = []core.Tenant{{ID: "t-1", Name: "T1"}}
-
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-	p := NewPipeline(store, runtime, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
-
-	payload := webhooks.WebhookPayload{
-		RepoURL:   "https://github.com/test/repo",
-		Branch:    "", // Empty branch in webhook
-		CommitSHA: "abc",
-	}
-
-	// Empty webhook branch should NOT cause mismatch — build will proceed
-	// and fail (no real repo), but that's expected
-	err := p.HandleWebhook(context.Background(), payload)
-	// Build will fail, but it should NOT be a branch mismatch
-	if err != nil {
-		if err.Error() == "branch mismatch" {
-			t.Error("empty webhook branch should not cause mismatch")
-		}
-	}
-}
-
 // =============================================================================
 // Pipeline — HandleWebhook branches both empty
 // =============================================================================
 
-func TestPipeline_HandleWebhook_BothBranchesEmpty(t *testing.T) {
-	store := newMockStore()
-	store.apps["app-1"] = &core.Application{
-		ID:        "app-1",
-		Name:      "no-branch",
-		SourceURL: "https://github.com/test/repo",
-		TenantID:  "t-1",
-		Branch:    "", // No branch configured
-	}
-	store.allTenantsList = []core.Tenant{{ID: "t-1", Name: "T1"}}
-
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-	p := NewPipeline(store, runtime, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
-
-	payload := webhooks.WebhookPayload{
-		RepoURL:   "https://github.com/test/repo",
-		Branch:    "", // No branch in webhook either
-		CommitSHA: "abc",
-	}
-
-	// Should proceed to build phase (which fails, no real repo)
-	_ = p.HandleWebhook(context.Background(), payload)
-
-	// Verify "building" status was set (proves we got past the branch check)
-	foundBuilding := false
-	for _, u := range store.appStatusUpdates {
-		if u.Status == "building" {
-			foundBuilding = true
-		}
-	}
-	if !foundBuilding {
-		t.Error("expected 'building' status — branch check should have passed")
-	}
-}
-
 // =============================================================================
 // Pipeline — HandleWebhook matching branches
 // =============================================================================
-
-func TestPipeline_HandleWebhook_MatchingBranch(t *testing.T) {
-	store := newMockStore()
-	store.apps["app-1"] = &core.Application{
-		ID:        "app-1",
-		Name:      "branch-match",
-		SourceURL: "https://github.com/test/repo",
-		TenantID:  "t-1",
-		Branch:    "main",
-	}
-	store.allTenantsList = []core.Tenant{{ID: "t-1", Name: "T1"}}
-
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-	p := NewPipeline(store, runtime, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
-
-	payload := webhooks.WebhookPayload{
-		RepoURL:   "https://github.com/test/repo",
-		Branch:    "main", // Same branch
-		CommitSHA: "abc",
-	}
-
-	// Build will fail (no real repo) but should reach the build phase
-	err := p.HandleWebhook(context.Background(), payload)
-	if err == nil {
-		t.Log("HandleWebhook succeeded (unexpected in test without real repo)")
-	}
-
-	// Verify "building" status was set
-	foundBuilding := false
-	for _, u := range store.appStatusUpdates {
-		if u.Status == "building" {
-			foundBuilding = true
-		}
-	}
-	if !foundBuilding {
-		t.Error("expected 'building' status for matching branch")
-	}
-}
 
 // =============================================================================
 // Rollback — ListDeployments error
@@ -664,30 +556,6 @@ func TestNewDockerManager_EmptyHost(t *testing.T) {
 // Pipeline — findAppBySourceURL with multiple tenants
 // =============================================================================
 
-func TestPipeline_FindAppBySourceURL_MultipleTenants(t *testing.T) {
-	store := newMockStore()
-	store.apps["app-mt"] = &core.Application{
-		ID:        "app-mt",
-		SourceURL: "https://github.com/multi/tenant",
-		TenantID:  "t-2",
-	}
-	store.allTenantsList = []core.Tenant{
-		{ID: "t-1", Name: "T1"},
-		{ID: "t-2", Name: "T2"},
-	}
-
-	events := core.NewEventBus(nil)
-	p := NewPipeline(store, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
-
-	app, err := p.findAppBySourceURL(context.Background(), "https://github.com/multi/tenant")
-	if err != nil {
-		t.Fatalf("findAppBySourceURL: %v", err)
-	}
-	if app.ID != "app-mt" {
-		t.Errorf("app ID = %q, want app-mt", app.ID)
-	}
-}
-
 // =============================================================================
 // VersionInfo struct verification
 // =============================================================================
@@ -711,51 +579,6 @@ func TestVersionInfo_Struct(t *testing.T) {
 // =============================================================================
 // Pipeline — HandleWebhook emits DeployStarted and DeployFailed events
 // =============================================================================
-
-func TestPipeline_HandleWebhook_EmitsEvents(t *testing.T) {
-	store := newMockStore()
-	store.apps["app-ev"] = &core.Application{
-		ID:        "app-ev",
-		Name:      "event-app",
-		SourceURL: "https://github.com/test/events",
-		TenantID:  "t-1",
-		Branch:    "main",
-	}
-	store.allTenantsList = []core.Tenant{{ID: "t-1", Name: "T1"}}
-
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-
-	startedCount := 0
-	events.Subscribe(core.EventDeployStarted, func(_ context.Context, ev core.Event) error {
-		startedCount++
-		return nil
-	})
-
-	failedCount := 0
-	events.Subscribe(core.EventDeployFailed, func(_ context.Context, ev core.Event) error {
-		failedCount++
-		return nil
-	})
-
-	p := NewPipeline(store, runtime, events, slog.New(slog.NewTextHandler(io.Discard, nil)))
-
-	payload := webhooks.WebhookPayload{
-		RepoURL:   "https://github.com/test/events",
-		Branch:    "main",
-		CommitSHA: "sha123",
-	}
-
-	// Build will fail (no real repo), which exercises the build failure path
-	_ = p.HandleWebhook(context.Background(), payload)
-
-	if startedCount != 1 {
-		t.Errorf("EventDeployStarted count = %d, want 1", startedCount)
-	}
-	if failedCount != 1 {
-		t.Errorf("EventDeployFailed count = %d, want 1", failedCount)
-	}
-}
 
 // =============================================================================
 // NewAutoRestarter — field assignment

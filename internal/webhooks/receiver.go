@@ -381,10 +381,7 @@ func VerifyBitbucketSignature(body []byte, secret, signature string) bool {
 		return false
 	}
 	// Support both "sha256=..." (BB Server ≥ 5.4) and raw hex (older).
-	const prefix = "sha256="
-	if strings.HasPrefix(signature, prefix) {
-		signature = signature[len(prefix):]
-	}
+	signature = strings.TrimPrefix(signature, "sha256=")
 	expected := computeHMACSHA256(body, secret)
 	return hmac.Equal([]byte(signature), []byte(expected))
 }

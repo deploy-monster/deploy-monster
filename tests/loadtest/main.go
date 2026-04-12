@@ -34,12 +34,6 @@ import (
 	"time"
 )
 
-type result struct {
-	endpoint string
-	status   int
-	latency  time.Duration
-	err      error
-}
 
 type stats struct {
 	total   int64

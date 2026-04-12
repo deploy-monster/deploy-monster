@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync"
 
@@ -820,15 +819,6 @@ func seedTestUser(store *mockStore, id, email, password, tenantID, roleID string
 }
 
 // generateTestToken creates a valid JWT access token for the given user params.
-func generateTestToken(userID, tenantID, roleID, email string) string {
-	jwt := testJWT()
-	pair, err := jwt.GenerateTokenPair(userID, tenantID, roleID, email)
-	if err != nil {
-		panic("generateTestToken: " + err.Error())
-	}
-	return pair.AccessToken
-}
-
 // generateTestRefreshToken creates a valid JWT refresh token.
 func generateTestRefreshToken(userID, tenantID, roleID, email string) string {
 	jwt := testJWT()
@@ -842,10 +832,6 @@ func generateTestRefreshToken(userID, tenantID, roleID, email string) string {
 // authedRequest creates an http.Request with a valid Bearer token in the
 // Authorization header. It also injects the claims into the request context
 // (simulating what the RequireAuth middleware does).
-func authedRequest(method, url string, body *httptest.ResponseRecorder) *http.Request {
-	return nil // placeholder — use authedRequestWithClaims instead
-}
-
 // withClaims returns a new request with auth claims set in its context,
 // simulating what the RequireAuth middleware does.
 func withClaims(r *http.Request, userID, tenantID, roleID, email string) *http.Request {

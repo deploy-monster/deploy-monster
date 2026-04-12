@@ -41,8 +41,8 @@ func TestDeployImage_QuotaRefused(t *testing.T) {
 	events := core.NewEventBus(nil)
 
 	d := NewDeployer(rt, store, events)
-	quotaErr := errors.New("deploy gate: " + resource.ErrQuotaExceeded.Error())
-	// Use fmt-style wrapping so errors.Is unwraps correctly.
+
+	quotaErr := wrapQuota(resource.ErrQuotaExceeded, "tenant over RAM")
 	quotaErr = wrapQuota(resource.ErrQuotaExceeded, "tenant over RAM")
 	d.SetQuotaChecker(&fakeQuotaChecker{err: quotaErr})
 
