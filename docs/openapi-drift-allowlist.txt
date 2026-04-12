@@ -11,7 +11,17 @@
 # so the file cannot rot silently.
 
 # --- Routes present in code but missing from openapi.yaml ---
-DELETE /api/v1/admin/announcements/{id}
+DELETE /api/v1/admin/api-keys/{prefix}
+GET /api/v1/admin/api-keys
+GET /api/v1/admin/db/backup
+GET /api/v1/admin/license
+GET /api/v1/admin/stats
+GET /api/v1/admin/system
+GET /api/v1/admin/tenants
+PATCH /api/v1/admin/settings
+POST /api/v1/admin/api-keys
+POST /api/v1/admin/license
+
 DELETE /api/v1/apps/{id}/canary
 DELETE /api/v1/apps/{id}/cron/{jobId}
 DELETE /api/v1/apps/{id}/deploy/scheduled/{scheduleId}
@@ -22,14 +32,8 @@ DELETE /api/v1/build/cache
 DELETE /api/v1/deploy/freeze/{id}
 DELETE /api/v1/dns/records/{id}
 DELETE /api/v1/images/prune
-GET /api/v1/admin/db/migrations
-GET /api/v1/admin/db/status
-GET /api/v1/admin/disk
-GET /api/v1/admin/tenants/{id}/ratelimit
-GET /api/v1/admin/updates
 GET /api/v1/agents
 GET /api/v1/agents/{id}
-GET /api/v1/announcements
 GET /api/v1/apps/{id}/access
 GET /api/v1/apps/{id}/autoscale
 GET /api/v1/apps/{id}/basic-auth
@@ -73,7 +77,6 @@ GET /api/v1/apps/{id}/terminal
 GET /api/v1/apps/{id}/versions
 GET /api/v1/apps/{id}/webhooks/logs
 GET /api/v1/billing/usage/history
-GET /api/v1/branding
 GET /api/v1/build/cache
 GET /api/v1/certificates
 GET /api/v1/deploy/approvals
@@ -94,9 +97,7 @@ GET /api/v1/tenant/settings
 GET /api/v1/volumes
 GET /health/detailed
 GET /readyz
-PATCH /api/v1/admin/branding
 PATCH /api/v1/tenant/settings
-POST /api/v1/admin/announcements
 POST /api/v1/apps/bulk
 POST /api/v1/apps/env/compare
 POST /api/v1/apps/import
@@ -138,7 +139,6 @@ POST /api/v1/servers/{id}/reboot
 POST /api/v1/ssh-keys/generate
 POST /api/v1/volumes
 POST /api/v1/webhooks/stripe
-PUT /api/v1/admin/tenants/{id}/ratelimit
 PUT /api/v1/apps/{id}/access
 PUT /api/v1/apps/{id}/autoscale
 PUT /api/v1/apps/{id}/basic-auth
