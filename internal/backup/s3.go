@@ -153,12 +153,6 @@ func (s *S3Storage) Upload(ctx context.Context, key string, reader io.Reader, si
 	if err != nil {
 		return fmt.Errorf("read upload body: %w", err)
 	}
-	if size > 0 && int64(len(body)) != size {
-		// Be permissive — callers that pass size=0 use len(body);
-		// mismatched sizes almost always mean the caller is wrong,
-		// but S3 will reject it anyway, so let it through.
-	}
-
 	return s.retry(ctx, func() error {
 		endpoint := s.objectURL(key)
 

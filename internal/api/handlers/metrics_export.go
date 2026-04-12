@@ -58,7 +58,7 @@ func (h *MetricsExportHandler) Export(w http.ResponseWriter, r *http.Request) {
 				stats, err := h.runtime.Stats(r.Context(), containers[0].ID)
 				if err == nil {
 					currentCPU = stats.CPUPercent
-					currentMemMB = int64(stats.MemoryUsage / (1024 * 1024))
+					currentMemMB = stats.MemoryUsage / (1024 * 1024)
 				}
 			}
 		}

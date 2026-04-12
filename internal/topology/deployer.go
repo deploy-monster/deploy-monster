@@ -7,10 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
-
-	"github.com/deploy-monster/deploy-monster/internal/build"
 )
 
 // Deployer handles the actual deployment of a topology
@@ -166,93 +163,4 @@ func (d *Deployer) extractVolumeNames(compose *ComposeConfig) []string {
 		names = append(names, name)
 	}
 	return names
-}
-
-// Build builds images for services with build configurations
-func (d *Deployer) Build(ctx context.Context, compose *ComposeConfig, noCache bool) error {
-	// Find services that need building
-	var buildServices []string
-	for name, svc := range compose.Services {
-		if svc.Build != nil {
-			buildServices = append(buildServices, name)
-		}
-	}
-
-	if len(buildServices) == 0 {
-		return nil
-	}
-
-	// Build each service
-	for _, name := range buildServices {
-		args := []string{"compose", "-f", d.composePath, "build"}
-		if noCache {
-			args = append(args, "--no-cache")
-		}
-		args = append(args, name)
-
-		cmd := exec.CommandContext(ctx, "docker", args...)
-		cmd.Dir = d.workDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("build %s failed: %s", name, string(output))
-		}
-	}
-
-	return nil
-}
-
-// CloneGitRepo clones a git repository for building.
-// The URL is validated to prevent command injection before being passed to git.
-func CloneGitRepo(ctx context.Context, gitURL, branch, destDir string) error {
-	if err := build.ValidateGitURL(gitURL); err != nil {
-		return fmt.Errorf("invalid git URL: %w", err)
-	}
-
-	// Clone the repository
-	args := []string{"clone", "--depth", "1", "--branch", branch, gitURL, destDir}
-	cmd := exec.CommandContext(ctx, "git", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("git clone failed: %s", string(output))
-	}
-	return nil
-}
-
-// DetectBuildPack auto-detects the build pack from repository contents
-func DetectBuildPack(repoDir string) string {
-	// Check for Dockerfile first
-	if _, err := os.Stat(filepath.Join(repoDir, "Dockerfile")); err == nil {
-		return "dockerfile"
-	}
-
-	// Check for package.json (Node.js)
-	if _, err := os.Stat(filepath.Join(repoDir, "package.json")); err == nil {
-		// Check for Next.js
-		pkgJSON, _ := os.ReadFile(filepath.Join(repoDir, "package.json"))
-		if strings.Contains(string(pkgJSON), `"next"`) {
-			return "nextjs"
-		}
-		return "nodejs"
-	}
-
-	// Check for go.mod
-	if _, err := os.Stat(filepath.Join(repoDir, "go.mod")); err == nil {
-		return "go"
-	}
-
-	// Check for requirements.txt or pyproject.toml
-	if _, err := os.Stat(filepath.Join(repoDir, "requirements.txt")); err == nil {
-		return "python"
-	}
-	if _, err := os.Stat(filepath.Join(repoDir, "pyproject.toml")); err == nil {
-		return "python"
-	}
-
-	// Check for Cargo.toml
-	if _, err := os.Stat(filepath.Join(repoDir, "Cargo.toml")); err == nil {
-		return "rust"
-	}
-
-	// Default to dockerfile
-	return "dockerfile"
 }

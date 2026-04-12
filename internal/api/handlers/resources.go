@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -47,8 +48,8 @@ func (h *ResourceHandler) SetLimits(w http.ResponseWriter, r *http.Request) {
 
 	// Store resource limits in labels
 	labels := map[string]string{
-		"monster.resources.cpu_quota": json.Number(json.Number(string(rune(req.CPUQuota)))).String(),
-		"monster.resources.memory_mb": json.Number(json.Number(string(rune(req.MemoryMB)))).String(),
+		"monster.resources.cpu_quota": strconv.FormatInt(req.CPUQuota, 10),
+		"monster.resources.memory_mb": strconv.FormatInt(req.MemoryMB, 10),
 	}
 
 	_ = labels

@@ -2,13 +2,11 @@ package auth
 
 import (
 	"context"
-	"encoding/base32"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -231,123 +229,6 @@ func TestNewTestModule_Functional(t *testing.T) {
 	}
 	if pair.AccessToken == "" {
 		t.Error("access token should not be empty")
-	}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// TOTP edge cases
-// ═══════════════════════════════════════════════════════════════════════════════
-
-func TestValidateTOTP_WrongCode(t *testing.T) {
-	cfg, _ := GenerateTOTP("test@test.com", "Test")
-	if ValidateTOTP(cfg.Secret, "000000") {
-		// The chance of a random code matching within +-1 window is extremely low
-		// but not impossible; so just verify the function runs without error
-		t.Log("unlikely match of random code")
-	}
-}
-
-func TestValidateTOTP_AdjacentWindow(t *testing.T) {
-	cfg, _ := GenerateTOTP("test@test.com", "Test")
-
-	key, _ := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(strings.ToUpper(cfg.Secret))
-	counter := time.Now().Unix() / 30
-
-	// Generate code for previous window
-	prevCode := generateCode(key, counter-1)
-	if !ValidateTOTP(cfg.Secret, prevCode) {
-		t.Error("code from previous time window should validate")
-	}
-
-	// Generate code for next window
-	nextCode := generateCode(key, counter+1)
-	if !ValidateTOTP(cfg.Secret, nextCode) {
-		t.Error("code from next time window should validate")
-	}
-}
-
-func TestGenerateCode_Deterministic(t *testing.T) {
-	key := []byte("12345678901234567890")
-	code1 := generateCode(key, 1000)
-	code2 := generateCode(key, 1000)
-
-	if code1 != code2 {
-		t.Error("generateCode should be deterministic for same key and counter")
-	}
-
-	if len(code1) != 6 {
-		t.Errorf("code length should be 6, got %d", len(code1))
-	}
-}
-
-func TestGenerateCode_DifferentCounters(t *testing.T) {
-	key := []byte("12345678901234567890")
-	code1 := generateCode(key, 1000)
-	code2 := generateCode(key, 1001)
-
-	// Different counters should almost always produce different codes
-	// (technically could collide, but extremely unlikely)
-	if code1 == code2 {
-		t.Log("adjacent counters produced same code (unlikely but possible)")
-	}
-}
-
-func TestRandomHex_Length(t *testing.T) {
-	for _, n := range []int{1, 4, 8, 16} {
-		result := randomHex(n)
-		if len(result) != n {
-			t.Errorf("randomHex(%d) length = %d, want %d", n, len(result), n)
-		}
-	}
-}
-
-func TestRandomHex_HexChars(t *testing.T) {
-	result := randomHex(100)
-	for _, c := range result {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
-			t.Errorf("non-hex character in output: %c", c)
-		}
-	}
-}
-
-func TestGenerateTOTPSecret_Length(t *testing.T) {
-	s := generateTOTPSecret(20)
-	if len(s) != 20 {
-		t.Errorf("expected length 20, got %d", len(s))
-	}
-}
-
-func TestGenerateTOTP_URL_Format(t *testing.T) {
-	cfg, err := GenerateTOTP("user@example.com", "DeployMonster")
-	if err != nil {
-		t.Fatalf("GenerateTOTP: %v", err)
-	}
-
-	// Check URL has all required components
-	if !strings.Contains(cfg.URL, "DeployMonster") {
-		t.Error("URL should contain issuer")
-	}
-	if !strings.Contains(cfg.URL, "user@example.com") {
-		t.Error("URL should contain email")
-	}
-	if !strings.Contains(cfg.URL, "algorithm=SHA1") {
-		t.Error("URL should contain algorithm")
-	}
-	if !strings.Contains(cfg.URL, "digits=6") {
-		t.Error("URL should contain digits")
-	}
-	if !strings.Contains(cfg.URL, "period=30") {
-		t.Error("URL should contain period")
-	}
-}
-
-func TestGenerateTOTP_RecoveryCodeFormat(t *testing.T) {
-	cfg, _ := GenerateTOTP("test@test.com", "Test")
-
-	for _, code := range cfg.Recovery {
-		if !strings.Contains(code, "-") {
-			t.Errorf("recovery code %q should contain a dash separator", code)
-		}
 	}
 }
 

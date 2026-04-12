@@ -405,8 +405,8 @@ func writeTrace(w *bufio.Writer, s sample) {
 	if err != nil {
 		return
 	}
-	w.Write(data)
-	w.WriteByte('\n')
+	_, _ = w.Write(data)
+	_ = w.WriteByte('\n')
 	w.Flush()
 }
 
