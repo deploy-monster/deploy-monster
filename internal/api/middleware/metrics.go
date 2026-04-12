@@ -258,11 +258,16 @@ func (m *APIMetrics) Handler() http.HandlerFunc {
 
 func (m *APIMetrics) getOrCreateCounter(sm *sync.Map, key string) *atomic.Int64 {
 	if v, ok := sm.Load(key); ok {
-		return v.(*atomic.Int64)
+		if c, ok := v.(*atomic.Int64); ok {
+			return c
+		}
 	}
 	counter := &atomic.Int64{}
 	actual, _ := sm.LoadOrStore(key, counter)
-	return actual.(*atomic.Int64)
+	if c, ok := actual.(*atomic.Int64); ok {
+		return c
+	}
+	return counter
 }
 
 // groupPath normalizes URL paths for metric grouping — replaces path IDs with {id}.
