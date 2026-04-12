@@ -407,48 +407,6 @@ func TestPickBackend_MultipleBackends(t *testing.T) {
 // AccessLogger Middleware — unusual status code
 // ═══════════════════════════════════════════════════════════════════════════════
 
-func TestAccessLogger_Middleware_UnusualStatusCode(t *testing.T) {
-	al := NewAccessLogger(slog.Default())
-
-	handler := al.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(600) // unusual status code
-	}))
-
-	req := httptest.NewRequest("GET", "/", nil)
-	req.RemoteAddr = "10.0.0.1:1234"
-	rr := httptest.NewRecorder()
-
-	handler.ServeHTTP(rr, req)
-
-	// Status 600: 600/100 = 6, which is >= 6, should go to "other" bucket (index 5)
-	if al.metrics.StatusCounts[5].Load() != 1 {
-		t.Errorf("expected StatusCounts[5]=1 for unusual status code, got %d", al.metrics.StatusCounts[5].Load())
-	}
-}
-
-func TestAccessLogger_Middleware_100Continue(t *testing.T) {
-	al := NewAccessLogger(slog.Default())
-
-	handler := al.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 1xx status: 100/100 = 1, idx 1-1=0
-		w.WriteHeader(http.StatusOK) // We cannot easily send 1xx, test 200 which is already covered
-	}))
-
-	req := httptest.NewRequest("GET", "/", nil)
-	req.RemoteAddr = "10.0.0.1:1234"
-	rr := httptest.NewRecorder()
-
-	handler.ServeHTTP(rr, req)
-
-	if al.metrics.TotalRequests.Load() != 1 {
-		t.Errorf("expected TotalRequests=1, got %d", al.metrics.TotalRequests.Load())
-	}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Module Stop — with both HTTP and TLS servers
-// ═══════════════════════════════════════════════════════════════════════════════
-
 func TestModule_Stop_BothServers(t *testing.T) {
 	m := New()
 

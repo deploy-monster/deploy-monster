@@ -1,7 +1,6 @@
 package ingress
 
 import (
-	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -90,27 +89,6 @@ func (rp *ReverseProxy) AllCircuitStats() map[string]graceful.CircuitStats {
 // ResetCircuit resets the circuit breaker for a backend.
 func (rp *ReverseProxy) ResetCircuit(backend string) {
 	rp.circuit.Reset(backend)
-}
-
-// ErrorPage generates an HTML error page for display.
-func ErrorPage(status int, title, message string) []byte {
-	return []byte(fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-    <title>%d %s</title>
-    <style>
-        body { font-family: system-ui, sans-serif; text-align: center; padding: 50px; }
-        h1 { color: #333; }
-        p { color: #666; }
-        .footer { margin-top: 30px; color: #999; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <h1>%d %s</h1>
-    <p>%s</p>
-    <div class="footer">DeployMonster Ingress</div>
-</body>
-</html>`, status, title, status, title, message))
 }
 
 // pickBackend selects a backend using round-robin from the route entry.

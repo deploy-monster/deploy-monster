@@ -434,41 +434,6 @@ func TestScheme(t *testing.T) {
 	}
 }
 
-func TestErrorPage(t *testing.T) {
-	tests := []struct {
-		status  int
-		title   string
-		message string
-	}{
-		{502, "Bad Gateway", "No upstream configured"},
-		{503, "Service Unavailable", "No healthy backends"},
-		{404, "Not Found", "The requested resource was not found"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			page := ErrorPage(tt.status, tt.title, tt.message)
-			if len(page) == 0 {
-				t.Fatal("expected non-empty error page")
-			}
-
-			body := string(page)
-			if !strings.Contains(body, "<!DOCTYPE html>") {
-				t.Error("expected HTML doctype")
-			}
-			if !strings.Contains(body, tt.title) {
-				t.Errorf("expected title %q in page", tt.title)
-			}
-			if !strings.Contains(body, tt.message) {
-				t.Errorf("expected message %q in page", tt.message)
-			}
-			if !strings.Contains(body, "DeployMonster Ingress") {
-				t.Error("expected DeployMonster branding in page")
-			}
-		})
-	}
-}
-
 func TestReverseProxy_ServeHTTP_ForwardHeaders(t *testing.T) {
 	// Create a backend that echoes back the forwarded headers
 	var gotHeaders http.Header

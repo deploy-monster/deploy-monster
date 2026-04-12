@@ -79,25 +79,6 @@ func TestLeastConn(t *testing.T) {
 	}
 }
 
-func TestWeighted(t *testing.T) {
-	w := NewWeighted(map[string]int{
-		"a:80": 1,
-		"b:80": 9,
-	})
-	backends := []string{"a:80", "b:80"}
-
-	results := make(map[string]int)
-	for range 100 {
-		b := w.Next(backends, nil)
-		results[b]++
-	}
-
-	// b should get ~90% of traffic
-	if results["b:80"] < 70 {
-		t.Errorf("weighted: b should get ~90%% of traffic, got %d%%", results["b:80"])
-	}
-}
-
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name string

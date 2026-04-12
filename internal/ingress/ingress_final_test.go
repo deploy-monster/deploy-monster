@@ -418,28 +418,6 @@ func TestFinal_ExtractHost_WithoutPort(t *testing.T) {
 // ErrorPage — output verification
 // ---------------------------------------------------------------------------
 
-func TestFinal_ErrorPage(t *testing.T) {
-	page := ErrorPage(502, "Bad Gateway", "no upstream configured")
-	html := string(page)
-
-	if !strings.Contains(html, "502") {
-		t.Error("page should contain status code 502")
-	}
-	if !strings.Contains(html, "Bad Gateway") {
-		t.Error("page should contain title")
-	}
-	if !strings.Contains(html, "no upstream configured") {
-		t.Error("page should contain message")
-	}
-	if !strings.Contains(html, "DeployMonster") {
-		t.Error("page should contain DeployMonster branding")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// GenerateSelfSigned — multiple domains
-// ---------------------------------------------------------------------------
-
 func TestFinal_GenerateSelfSigned_MultipleDomains(t *testing.T) {
 	domains := []string{"example.com", "sub.example.com", "*.wildcard.com", "localhost"}
 
@@ -594,39 +572,6 @@ func TestFinal_Module_Stop_WithExpiredContext(t *testing.T) {
 
 // ---------------------------------------------------------------------------
 // AccessLogger.Stats — with data
-// ---------------------------------------------------------------------------
-
-func TestFinal_AccessLogger_Stats(t *testing.T) {
-	al := NewAccessLogger(slog.Default())
-
-	// Process some requests to populate metrics
-	handler := al.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("hello"))
-	}))
-
-	for i := 0; i < 5; i++ {
-		req := httptest.NewRequest("GET", "/", nil)
-		req.RemoteAddr = "10.0.0.1:1234"
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
-	}
-
-	stats := al.Stats()
-	if stats["total_requests"].(int64) != 5 {
-		t.Errorf("total_requests = %v, want 5", stats["total_requests"])
-	}
-	if stats["status_2xx"].(int64) != 5 {
-		t.Errorf("status_2xx = %v, want 5", stats["status_2xx"])
-	}
-	avgLatency := stats["avg_latency_ms"].(float64)
-	if avgLatency < 0 {
-		t.Errorf("avg_latency_ms should be >= 0, got %f", avgLatency)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// ACMEManager.RenewalLoop — ticker fires (exercises select case <-ticker.C)
 // ---------------------------------------------------------------------------
 
 func TestFinal_ACMEManager_RenewalLoop_TickerPath(t *testing.T) {

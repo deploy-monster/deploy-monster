@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -984,18 +983,6 @@ func TestCompile_RedisNoPassword(t *testing.T) {
 	// Even with empty password, generatePassword fills one in, so requirepass should be set
 	if svc.Command == "" {
 		t.Error("expected redis command with auto-generated password")
-	}
-}
-
-func TestByNameSort(t *testing.T) {
-	apps := byName{
-		{Name: "charlie"},
-		{Name: "alpha"},
-		{Name: "bravo"},
-	}
-	sort.Sort(apps)
-	if apps[0].Name != "alpha" || apps[1].Name != "bravo" || apps[2].Name != "charlie" {
-		t.Errorf("sort failed: %v", []string{apps[0].Name, apps[1].Name, apps[2].Name})
 	}
 }
 

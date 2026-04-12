@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"sort"
 	"strings"
 )
 
@@ -400,14 +399,3 @@ func randomString(length int) string {
 	}
 	return string(b)
 }
-
-// Sort helpers for deterministic output
-
-type byName []App
-
-func (a byName) Len() int           { return len(a) }
-func (a byName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byName) Less(i, j int) bool { return a[i].Name < a[j].Name }
-
-// Ensure sort package is imported
-var _ = sort.Sort
