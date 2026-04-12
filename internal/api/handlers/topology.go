@@ -30,10 +30,10 @@ func NewTopologyHandler(store core.Store, c *core.Core) *TopologyHandler {
 
 // TopologyNode represents a node in the topology editor
 type TopologyNode struct {
-	ID       string                 `json:"id"`
-	Type     string                 `json:"type"`
-	Position Position               `json:"position"`
-	Data     map[string]interface{} `json:"data"`
+	ID       string         `json:"id"`
+	Type     string         `json:"type"`
+	Position Position       `json:"position"`
+	Data     map[string]any `json:"data"`
 }
 
 // Position represents a node position
@@ -44,12 +44,12 @@ type Position struct {
 
 // TopologyEdge represents an edge in the topology editor
 type TopologyEdge struct {
-	ID       string                 `json:"id"`
-	Source   string                 `json:"source"`
-	Target   string                 `json:"target"`
-	Type     string                 `json:"type,omitempty"`
-	Animated bool                   `json:"animated,omitempty"`
-	Data     map[string]interface{} `json:"data,omitempty"`
+	ID       string         `json:"id"`
+	Source   string         `json:"source"`
+	Target   string         `json:"target"`
+	Type     string         `json:"type,omitempty"`
+	Animated bool           `json:"animated,omitempty"`
+	Data     map[string]any `json:"data,omitempty"`
 }
 
 // TopologyDeployRequest represents a request to deploy a topology
@@ -256,7 +256,7 @@ func (h *TopologyHandler) Validate(w http.ResponseWriter, r *http.Request) {
 	// Convert and validate
 	_, errors := h.convertNodesToTopology(req)
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"valid":  len(errors) == 0,
 		"errors": errors,
 	})
@@ -414,13 +414,13 @@ func (h *TopologyHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 
 // Templates handles GET /api/v1/topology/templates
 func (h *TopologyHandler) Templates(w http.ResponseWriter, r *http.Request) {
-	templates := []map[string]interface{}{
+	templates := []map[string]any{
 		{
 			"id":          "web-app-with-db",
 			"name":        "Web App with Database",
 			"description": "A simple web application with a PostgreSQL database",
 			"nodes": []TopologyNode{
-				{ID: "app-1", Type: "app", Position: Position{X: 250, Y: 150}, Data: map[string]interface{}{
+				{ID: "app-1", Type: "app", Position: Position{X: 250, Y: 150}, Data: map[string]any{
 					"name":      "web",
 					"gitUrl":    "https://github.com/user/myapp",
 					"branch":    "main",
@@ -428,18 +428,18 @@ func (h *TopologyHandler) Templates(w http.ResponseWriter, r *http.Request) {
 					"replicas":  2,
 					"buildPack": "auto",
 				}},
-				{ID: "db-1", Type: "database", Position: Position{X: 500, Y: 150}, Data: map[string]interface{}{
+				{ID: "db-1", Type: "database", Position: Position{X: 500, Y: 150}, Data: map[string]any{
 					"name":    "db",
 					"engine":  "postgres",
 					"version": "16",
 					"sizeGB":  10,
 				}},
-				{ID: "vol-1", Type: "volume", Position: Position{X: 250, Y: 300}, Data: map[string]interface{}{
+				{ID: "vol-1", Type: "volume", Position: Position{X: 250, Y: 300}, Data: map[string]any{
 					"name":      "uploads",
 					"sizeGB":    5,
 					"mountPath": "/app/uploads",
 				}},
-				{ID: "domain-1", Type: "domain", Position: Position{X: 100, Y: 150}, Data: map[string]interface{}{
+				{ID: "domain-1", Type: "domain", Position: Position{X: 100, Y: 150}, Data: map[string]any{
 					"name":       "primary",
 					"fqdn":       "myapp.example.com",
 					"sslEnabled": true,
@@ -456,31 +456,31 @@ func (h *TopologyHandler) Templates(w http.ResponseWriter, r *http.Request) {
 			"name":        "Microservices Stack",
 			"description": "API Gateway, multiple services, Redis cache, and PostgreSQL",
 			"nodes": []TopologyNode{
-				{ID: "gateway", Type: "app", Position: Position{X: 250, Y: 100}, Data: map[string]interface{}{
+				{ID: "gateway", Type: "app", Position: Position{X: 250, Y: 100}, Data: map[string]any{
 					"name":     "gateway",
 					"gitUrl":   "https://github.com/user/gateway",
 					"port":     8080,
 					"replicas": 2,
 				}},
-				{ID: "users-svc", Type: "app", Position: Position{X: 500, Y: 50}, Data: map[string]interface{}{
+				{ID: "users-svc", Type: "app", Position: Position{X: 500, Y: 50}, Data: map[string]any{
 					"name":         "users-service",
 					"gitUrl":       "https://github.com/user/users-service",
 					"port":         3001,
 					"internalOnly": true,
 				}},
-				{ID: "orders-svc", Type: "app", Position: Position{X: 500, Y: 150}, Data: map[string]interface{}{
+				{ID: "orders-svc", Type: "app", Position: Position{X: 500, Y: 150}, Data: map[string]any{
 					"name":         "orders-service",
 					"gitUrl":       "https://github.com/user/orders-service",
 					"port":         3002,
 					"internalOnly": true,
 				}},
-				{ID: "postgres", Type: "database", Position: Position{X: 750, Y: 50}, Data: map[string]interface{}{
+				{ID: "postgres", Type: "database", Position: Position{X: 750, Y: 50}, Data: map[string]any{
 					"name":    "postgres",
 					"engine":  "postgres",
 					"version": "16",
 					"sizeGB":  20,
 				}},
-				{ID: "redis", Type: "database", Position: Position{X: 750, Y: 150}, Data: map[string]interface{}{
+				{ID: "redis", Type: "database", Position: Position{X: 750, Y: 150}, Data: map[string]any{
 					"name":    "redis",
 					"engine":  "redis",
 					"version": "7",
@@ -664,7 +664,7 @@ func (h *TopologyHandler) convertToWorker(node TopologyNode) topology.Worker {
 
 // Map helper functions
 
-func getStringFromMap(m map[string]interface{}, key, defaultValue string) string {
+func getStringFromMap(m map[string]any, key, defaultValue string) string {
 	if v, ok := m[key]; ok {
 		if s, ok := v.(string); ok && s != "" {
 			return s
@@ -673,7 +673,7 @@ func getStringFromMap(m map[string]interface{}, key, defaultValue string) string
 	return defaultValue
 }
 
-func getIntFromMap(m map[string]interface{}, key string, defaultValue int) int {
+func getIntFromMap(m map[string]any, key string, defaultValue int) int {
 	if v, ok := m[key]; ok {
 		switch n := v.(type) {
 		case int:
@@ -687,7 +687,7 @@ func getIntFromMap(m map[string]interface{}, key string, defaultValue int) int {
 	return defaultValue
 }
 
-func getBoolFromMap(m map[string]interface{}, key string, defaultValue bool) bool {
+func getBoolFromMap(m map[string]any, key string, defaultValue bool) bool {
 	if v, ok := m[key]; ok {
 		if b, ok := v.(bool); ok {
 			return b
@@ -696,10 +696,10 @@ func getBoolFromMap(m map[string]interface{}, key string, defaultValue bool) boo
 	return defaultValue
 }
 
-func getStringMapFromMap(m map[string]interface{}, key string) map[string]string {
+func getStringMapFromMap(m map[string]any, key string) map[string]string {
 	result := make(map[string]string)
 	if v, ok := m[key]; ok {
-		if sm, ok := v.(map[string]interface{}); ok {
+		if sm, ok := v.(map[string]any); ok {
 			for k, val := range sm {
 				if s, ok := val.(string); ok {
 					result[k] = s

@@ -24,7 +24,7 @@ func TestTopologyHandler_Save(t *testing.T) {
 				ID:       "app-1",
 				Type:     "app",
 				Position: Position{X: 100, Y: 100},
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"name":     "my-app",
 					"gitUrl":   "https://github.com/user/repo",
 					"branch":   "main",
@@ -57,7 +57,7 @@ func TestTopologyHandler_Save(t *testing.T) {
 		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp map[string]interface{}
+	var resp map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to parse response: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestTopologyHandler_Deploy(t *testing.T) {
 				ID:       "db-1",
 				Type:     "database",
 				Position: Position{X: 100, Y: 100},
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"name":    "postgres-main",
 					"engine":  "postgres",
 					"version": "16",
@@ -91,7 +91,7 @@ func TestTopologyHandler_Deploy(t *testing.T) {
 				ID:       "app-1",
 				Type:     "app",
 				Position: Position{X: 350, Y: 100},
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"name":     "api-server",
 					"gitUrl":   "https://github.com/user/api",
 					"branch":   "main",
@@ -103,7 +103,7 @@ func TestTopologyHandler_Deploy(t *testing.T) {
 				ID:       "domain-1",
 				Type:     "domain",
 				Position: Position{X: 600, Y: 100},
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"name":       "api.example.com",
 					"fqdn":       "api.example.com",
 					"sslEnabled": true,
@@ -211,7 +211,7 @@ func TestTopologyHandler_DeployWorkerNode(t *testing.T) {
 				ID:       "worker-1",
 				Type:     "worker",
 				Position: Position{X: 100, Y: 100},
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"name":     "background-worker",
 					"gitUrl":   "https://github.com/user/worker",
 					"branch":   "main",
