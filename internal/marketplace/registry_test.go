@@ -80,7 +80,7 @@ func TestBuiltins_Loaded(t *testing.T) {
 
 	wp := r.Get("wordpress")
 	if wp == nil {
-		t.Error("expected wordpress template")
+		t.Fatal("expected wordpress template")
 	}
 	if wp.ComposeYAML == "" {
 		t.Error("wordpress should have compose YAML")

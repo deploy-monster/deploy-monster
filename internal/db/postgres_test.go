@@ -2120,10 +2120,7 @@ func TestNewPostgres_PingError(t *testing.T) {
 func TestPostgresDB_ImplementsStore(t *testing.T) {
 	// Already checked by var _ core.Store = (*PostgresDB)(nil) in postgres.go,
 	// but this test ensures it holds at runtime too.
-	var store core.Store = &PostgresDB{}
-	if store == nil {
-		t.Fatal("PostgresDB should implement core.Store")
-	}
+	var _ core.Store = &PostgresDB{}
 }
 
 // =====================================================

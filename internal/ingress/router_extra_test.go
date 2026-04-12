@@ -126,7 +126,7 @@ func TestRouteTable_Upsert_EmptyPathPrefix(t *testing.T) {
 	// Empty path prefix should default to "/"
 	got := rt.Match("a.com", "/anything")
 	if got == nil {
-		t.Error("expected match after upsert with empty path prefix")
+		t.Fatal("expected match after upsert with empty path prefix")
 	}
 	if got.PathPrefix != "/" {
 		t.Errorf("expected path prefix '/', got %q", got.PathPrefix)
