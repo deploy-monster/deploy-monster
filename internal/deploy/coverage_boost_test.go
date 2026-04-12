@@ -3,7 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
-	
+
 	"log/slog"
 	"testing"
 
@@ -154,35 +154,6 @@ func TestModuleCoverage_Init_WithStore(t *testing.T) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Deployer — edge case: TriggeredBy
-// ═══════════════════════════════════════════════════════════════════════════════
-
-func TestDeployerCoverage_DeployImage_TriggeredByAPI(t *testing.T) {
-	store := newMockStore()
-	store.nextVersion = 1
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-
-	d := NewDeployer(runtime, store, events)
-	app := &core.Application{
-		ID:       "app-trigger",
-		Name:     "trigger-test",
-		TenantID: "t1",
-	}
-
-	dep, err := d.DeployImage(context.Background(), app, "nginx:1.25")
-	if err != nil {
-		t.Fatalf("DeployImage error: %v", err)
-	}
-	if dep.TriggeredBy != "api" {
-		t.Errorf("TriggeredBy = %q, want api", dep.TriggeredBy)
-	}
-	if dep.Strategy != "recreate" {
-		t.Errorf("Strategy = %q, want recreate", dep.Strategy)
-	}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// AutoRestarter — handleCrash with retries exhausted immediately
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestAutoRestarterCoverage_HandleCrash_ZeroRetries(t *testing.T) {

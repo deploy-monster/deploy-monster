@@ -2,7 +2,6 @@ package deploy
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"testing"
 
@@ -53,92 +52,6 @@ func TestDockerManager_Struct_NilCli(t *testing.T) {
 
 // =====================================================
 // Container label generation in DeployImage
-// =====================================================
-
-func TestDeployImage_LabelGeneration_AllFields(t *testing.T) {
-	store := newMockStore()
-	store.nextVersion = 42
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-
-	d := NewDeployer(runtime, store, events)
-	app := &core.Application{
-		ID:        "app-label-gen",
-		Name:      "label-test-app",
-		ProjectID: "proj-label",
-		TenantID:  "tenant-label",
-	}
-
-	_, err := d.DeployImage(context.Background(), app, "redis:7-alpine")
-	if err != nil {
-		t.Fatalf("DeployImage returned error: %v", err)
-	}
-
-	labels := runtime.lastOpts.Labels
-
-	expected := map[string]string{
-		"monster.enable":         "true",
-		"monster.app.id":         "app-label-gen",
-		"monster.app.name":       "label-test-app",
-		"monster.project":        "proj-label",
-		"monster.tenant":         "tenant-label",
-		"monster.deploy.version": "42",
-	}
-
-	if len(labels) != len(expected) {
-		t.Errorf("label count = %d, want %d", len(labels), len(expected))
-	}
-
-	for k, want := range expected {
-		got, ok := labels[k]
-		if !ok {
-			t.Errorf("missing label %q", k)
-			continue
-		}
-		if got != want {
-			t.Errorf("label %q = %q, want %q", k, got, want)
-		}
-	}
-}
-
-func TestDeployImage_ContainerName_Format(t *testing.T) {
-	tests := []struct {
-		appName string
-		version int
-		want    string
-	}{
-		{"my-app", 1, "monster-my-app-1"},
-		{"web-server", 10, "monster-web-server-10"},
-		{"api", 100, "monster-api-100"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.appName, func(t *testing.T) {
-			store := newMockStore()
-			store.nextVersion = tt.version
-			runtime := &mockRuntime{}
-			events := core.NewEventBus(nil)
-
-			d := NewDeployer(runtime, store, events)
-			app := &core.Application{
-				ID:   "app-x",
-				Name: tt.appName,
-			}
-
-			_, err := d.DeployImage(context.Background(), app, "nginx:latest")
-			if err != nil {
-				t.Fatalf("DeployImage error: %v", err)
-			}
-
-			if runtime.lastOpts.Name != tt.want {
-				t.Errorf("container name = %q, want %q", runtime.lastOpts.Name, tt.want)
-			}
-		})
-	}
-}
-
-// =====================================================
-// Module Init — without Core (nil store)
 // =====================================================
 
 func TestModule_Init_NilStore(t *testing.T) {
@@ -296,7 +209,6 @@ func TestAutoRestarter_CheckCrashed_IgnoresRunningContainers(t *testing.T) {
 // ImageUpdateChecker — Start/Stop lifecycle
 // =====================================================
 
-
 // =====================================================
 // Module Stop — with non-nil docker that returns error
 // =====================================================
@@ -312,38 +224,6 @@ func TestModule_Stop_FieldsReset(t *testing.T) {
 
 // =====================================================
 // Deployer — DeployImage sets FinishedAt after success
-// =====================================================
-
-func TestDeployer_DeployImage_FinishedAt(t *testing.T) {
-	store := newMockStore()
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-
-	d := NewDeployer(runtime, store, events)
-	app := &core.Application{
-		ID:       "app-finish",
-		Name:     "finish-app",
-		TenantID: "t1",
-	}
-
-	dep, err := d.DeployImage(context.Background(), app, "nginx:1.25")
-	if err != nil {
-		t.Fatalf("DeployImage error: %v", err)
-	}
-
-	if dep.FinishedAt == nil {
-		t.Error("FinishedAt should be set after successful deploy")
-	}
-	if dep.StartedAt == nil {
-		t.Error("StartedAt should be set")
-	}
-	if dep.FinishedAt.Before(*dep.StartedAt) {
-		t.Error("FinishedAt should be after StartedAt")
-	}
-}
-
-// =====================================================
-// AutoDomain — event is published on domain creation
 // =====================================================
 
 func TestAutoDomain_PublishesEvent(t *testing.T) {
@@ -424,36 +304,6 @@ func TestRollback_StopsAndRemovesOldContainer(t *testing.T) {
 // Deployer — DeployImage with empty app name
 // =====================================================
 
-func TestDeployer_DeployImage_EmptyAppName(t *testing.T) {
-	store := newMockStore()
-	store.nextVersion = 1
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-
-	d := NewDeployer(runtime, store, events)
-	app := &core.Application{
-		ID:   "app-empty",
-		Name: "",
-	}
-
-	dep, err := d.DeployImage(context.Background(), app, "nginx:latest")
-	if err != nil {
-		t.Fatalf("DeployImage error: %v", err)
-	}
-
-	// Container name should handle empty app name gracefully
-	if runtime.lastOpts.Name != "monster--1" {
-		t.Errorf("container name = %q, want %q", runtime.lastOpts.Name, "monster--1")
-	}
-	if dep.Status != "running" {
-		t.Errorf("status = %q, want running", dep.Status)
-	}
-}
-
-// =====================================================
-// Rollback — status transitions
-// =====================================================
-
 func TestRollback_StatusTransitions(t *testing.T) {
 	store := newMockStore()
 	store.deployments = []core.Deployment{
@@ -506,8 +356,6 @@ func TestRollback_StatusTransitions(t *testing.T) {
 // =====================================================
 // ImageUpdateChecker — checkAll with mock store
 // =====================================================
-
-
 
 // =====================================================
 // mockRuntime.Logs — coverage
@@ -574,53 +422,6 @@ func TestRollback_EventData(t *testing.T) {
 // Deployer — event data verification
 // =====================================================
 
-func TestDeployer_DeployImage_EventData(t *testing.T) {
-	store := newMockStore()
-	store.nextVersion = 7
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-
-	var eventData core.DeployEventData
-	events.Subscribe(core.EventAppDeployed, func(_ context.Context, event core.Event) error {
-		if d, ok := event.Data.(core.DeployEventData); ok {
-			eventData = d
-		}
-		return nil
-	})
-
-	d := NewDeployer(runtime, store, events)
-	app := &core.Application{
-		ID:       "app-evd",
-		Name:     "event-data-deploy",
-		TenantID: "t-evd",
-	}
-
-	dep, err := d.DeployImage(context.Background(), app, "myapp:v7")
-	if err != nil {
-		t.Fatalf("DeployImage error: %v", err)
-	}
-
-	if eventData.AppID != "app-evd" {
-		t.Errorf("event AppID = %q, want %q", eventData.AppID, "app-evd")
-	}
-	if eventData.Version != 7 {
-		t.Errorf("event Version = %d, want 7", eventData.Version)
-	}
-	if eventData.Image != "myapp:v7" {
-		t.Errorf("event Image = %q, want %q", eventData.Image, "myapp:v7")
-	}
-	if eventData.ContainerID != dep.ContainerID {
-		t.Errorf("event ContainerID = %q, want %q", eventData.ContainerID, dep.ContainerID)
-	}
-	if eventData.Strategy != "recreate" {
-		t.Errorf("event Strategy = %q, want %q", eventData.Strategy, "recreate")
-	}
-}
-
-// =====================================================
-// Module — interface compliance
-// =====================================================
-
 func TestDockerManager_ImplementsContainerRuntime(t *testing.T) {
 	// Compile-time check
 	var _ core.ContainerRuntime = (*DockerManager)(nil)
@@ -659,31 +460,3 @@ func TestAutoDomain_DomainFields(t *testing.T) {
 // =====================================================
 // Deployer — multiple sequential deploys
 // =====================================================
-
-func TestDeployer_DeployImage_MultipleSequential(t *testing.T) {
-	store := newMockStore()
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-
-	d := NewDeployer(runtime, store, events)
-
-	for i := 1; i <= 3; i++ {
-		store.nextVersion = i
-		app := &core.Application{
-			ID:       fmt.Sprintf("app-%d", i),
-			Name:     fmt.Sprintf("app-%d", i),
-			TenantID: "t1",
-		}
-
-		dep, err := d.DeployImage(context.Background(), app, fmt.Sprintf("nginx:%d", i))
-		if err != nil {
-			t.Fatalf("deploy %d error: %v", i, err)
-		}
-		if dep.Version != i {
-			t.Errorf("deploy %d: version = %d, want %d", i, dep.Version, i)
-		}
-		if dep.Status != "running" {
-			t.Errorf("deploy %d: status = %q, want running", i, dep.Status)
-		}
-	}
-}

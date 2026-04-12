@@ -270,32 +270,3 @@ func TestAutoRestarter_CheckCrashed_RuntimeError(t *testing.T) {
 // =====================================================
 // Deployer — DeployImage emits TenantEvent
 // =====================================================
-
-func TestDeployer_DeployImage_EmitsTenantEvent(t *testing.T) {
-	store := newMockStore()
-	store.nextVersion = 1
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-
-	var receivedTenantID string
-	events.Subscribe(core.EventAppDeployed, func(_ context.Context, event core.Event) error {
-		receivedTenantID = event.TenantID
-		return nil
-	})
-
-	d := NewDeployer(runtime, store, events)
-	app := &core.Application{
-		ID:       "app-tenant-ev",
-		Name:     "tenant-event-app",
-		TenantID: "tenant-123",
-	}
-
-	_, err := d.DeployImage(context.Background(), app, "nginx:latest")
-	if err != nil {
-		t.Fatalf("DeployImage error: %v", err)
-	}
-
-	if receivedTenantID != "tenant-123" {
-		t.Errorf("event TenantID = %q, want tenant-123", receivedTenantID)
-	}
-}

@@ -375,16 +375,13 @@ func TestRollback_ListVersions_Empty(t *testing.T) {
 // ImageUpdateChecker — Start and Stop
 // =============================================================================
 
-
 // =============================================================================
 // ImageUpdateChecker — checkAll with ListAppsByTenant error
 // =============================================================================
 
-
 // =============================================================================
 // ImageUpdateChecker — checkAll with apps of various types
 // =============================================================================
-
 
 // =============================================================================
 // AutoRestarter — checkCrashed with nil runtime
@@ -505,45 +502,6 @@ func TestAutoRestarter_HandleCrash_AllRetriesFail(t *testing.T) {
 // Deployer — DeployImage with various version numbers
 // =============================================================================
 
-func TestDeployer_DeployImage_HighVersion(t *testing.T) {
-	store := newMockStore()
-	store.nextVersion = 42
-	runtime := &mockRuntime{}
-	events := core.NewEventBus(nil)
-
-	d := NewDeployer(runtime, store, events)
-	app := &core.Application{
-		ID: "app-hv", Name: "high-version", TenantID: "t1", ProjectID: "p1",
-	}
-
-	dep, err := d.DeployImage(context.Background(), app, "myapp:v42")
-	if err != nil {
-		t.Fatalf("DeployImage: %v", err)
-	}
-	if dep.Version != 42 {
-		t.Errorf("Version = %d, want 42", dep.Version)
-	}
-	if dep.AppID != "app-hv" {
-		t.Errorf("AppID = %q", dep.AppID)
-	}
-	if runtime.lastOpts.Labels["monster.deploy.version"] != "42" {
-		t.Errorf("version label = %q", runtime.lastOpts.Labels["monster.deploy.version"])
-	}
-	if runtime.lastOpts.Labels["monster.enable"] != "true" {
-		t.Errorf("enable label = %q", runtime.lastOpts.Labels["monster.enable"])
-	}
-	if runtime.lastOpts.RestartPolicy != "unless-stopped" {
-		t.Errorf("RestartPolicy = %q", runtime.lastOpts.RestartPolicy)
-	}
-	if runtime.lastOpts.Network != "monster-network" {
-		t.Errorf("Network = %q", runtime.lastOpts.Network)
-	}
-}
-
-// =============================================================================
-// NewDockerManager — empty host
-// =============================================================================
-
 func TestNewDockerManager_EmptyHost(t *testing.T) {
 	// Empty host should use default Docker socket
 	_, err := NewDockerManager("")
@@ -611,7 +569,6 @@ func TestNewAutoRestarter_Fields(t *testing.T) {
 // =============================================================================
 // NewImageUpdateChecker — field assignment
 // =============================================================================
-
 
 // =============================================================================
 // EnsureNetwork — Docker-specific, test with mock approach

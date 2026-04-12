@@ -34,7 +34,6 @@ import (
 	"time"
 )
 
-
 type stats struct {
 	total   int64
 	success int64
