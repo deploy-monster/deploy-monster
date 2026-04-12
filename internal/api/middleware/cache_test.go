@@ -8,51 +8,6 @@ import (
 	"testing"
 )
 
-func TestCacheControl_SetsMaxAge(t *testing.T) {
-	handler := CacheControl(3600)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	got := rec.Header().Get("Cache-Control")
-	want := "public, max-age=3600"
-	if got != want {
-		t.Errorf("Cache-Control = %q, want %q", got, want)
-	}
-}
-
-func TestCacheControl_ZeroMeansNoCache(t *testing.T) {
-	handler := CacheControl(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	got := rec.Header().Get("Cache-Control")
-	if got != "no-cache" {
-		t.Errorf("Cache-Control = %q, want %q", got, "no-cache")
-	}
-}
-
-func TestCacheControl_NegativeMeansNoCache(t *testing.T) {
-	handler := CacheControl(-1)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Header().Get("Cache-Control") != "no-cache" {
-		t.Errorf("expected no-cache for negative maxAge")
-	}
-}
-
 func TestETag_SetsETagHeader(t *testing.T) {
 	body := []byte(`{"status":"ok"}`)
 	handler := ETag(func(w http.ResponseWriter, r *http.Request) {

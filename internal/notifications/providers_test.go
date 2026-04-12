@@ -74,7 +74,7 @@ func TestDispatcher_EmptyProviders(t *testing.T) {
 
 func TestDispatcher_MultipleProviders(t *testing.T) {
 	d := NewDispatcher()
-	providerNames := []string{"slack", "discord", "telegram", "webhook", "email"}
+	providerNames := []string{"slack", "discord", "telegram", "email"}
 
 	for _, name := range providerNames {
 		d.RegisterProvider(&mockProvider{name: name})
@@ -184,34 +184,6 @@ func TestTelegramProvider_Name(t *testing.T) {
 	}
 }
 
-func TestWebhookProvider_Validate(t *testing.T) {
-	tests := []struct {
-		name    string
-		url     string
-		wantErr bool
-	}{
-		{"valid URL", "https://example.com/webhook", false},
-		{"empty URL", "", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := NewWebhookProvider(tt.url, "secret")
-			err := p.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestWebhookProvider_Name(t *testing.T) {
-	p := NewWebhookProvider("https://example.com", "secret")
-	if p.Name() != "webhook" {
-		t.Errorf("Name() = %q, want %q", p.Name(), "webhook")
-	}
-}
-
 // =====================================================
 // PROVIDER SEND TESTS (with httptest)
 // =====================================================
@@ -303,52 +275,6 @@ func TestDiscordProvider_Send_ServerError(t *testing.T) {
 	}
 }
 
-func TestWebhookProvider_Send_Success(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("expected POST, got %s", r.Method)
-		}
-		if r.Header.Get("User-Agent") != "DeployMonster/1.0" {
-			t.Errorf("expected DeployMonster/1.0 user agent")
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	p := NewWebhookProvider(server.URL, "secret123")
-	err := p.Send(context.Background(), "", "Alert", "CPU high", "text")
-	if err != nil {
-		t.Fatalf("Send() returned error: %v", err)
-	}
-}
-
-func TestWebhookProvider_Send_CustomRecipient(t *testing.T) {
-	// When recipient is set, it should be used as the URL instead of the default.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	p := NewWebhookProvider("https://default.example.com", "secret")
-	err := p.Send(context.Background(), server.URL, "Alert", "Body", "text")
-	if err != nil {
-		t.Fatalf("Send() returned error: %v", err)
-	}
-}
-
-func TestWebhookProvider_Send_ServerError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadGateway)
-	}))
-	defer server.Close()
-
-	p := NewWebhookProvider(server.URL, "secret")
-	err := p.Send(context.Background(), "", "Test", "Body", "text")
-	if err == nil {
-		t.Fatal("expected error on 502 response")
-	}
-}
-
 // =====================================================
 // PROVIDER INTERFACE COMPLIANCE
 // =====================================================
@@ -361,7 +287,6 @@ func TestProviderInterfaceCompliance(t *testing.T) {
 		{"SlackProvider", NewSlackProvider("https://hooks.slack.com/test")},
 		{"DiscordProvider", NewDiscordProvider("https://discord.com/api/webhooks/test")},
 		{"TelegramProvider", NewTelegramProvider("token", "chatid")},
-		{"WebhookProvider", NewWebhookProvider("https://example.com", "secret")},
 	}
 
 	for _, tt := range tests {

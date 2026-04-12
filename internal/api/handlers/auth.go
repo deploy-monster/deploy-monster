@@ -369,21 +369,6 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 // Me handles GET /api/v1/auth/me — returns the current user from JWT claims.
-func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
-	claims := internalAuth.ClaimsFromContext(r.Context())
-	if claims == nil {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{
-		"id":        claims.UserID,
-		"email":     claims.Email,
-		"role":      claims.RoleID,
-		"tenant_id": claims.TenantID,
-	})
-}
-
 func generateSlug(name string) string {
 	slug := ""
 	for _, r := range name {

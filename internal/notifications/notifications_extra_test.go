@@ -67,14 +67,12 @@ func TestDispatcher_DispatchToMultipleChannels(t *testing.T) {
 
 	slackMock := &mockProvider{name: "slack"}
 	discordMock := &mockProvider{name: "discord"}
-	webhookMock := &mockProvider{name: "webhook"}
 
 	d.RegisterProvider(slackMock)
 	d.RegisterProvider(discordMock)
-	d.RegisterProvider(webhookMock)
 
 	// Send to each channel individually
-	channels := []string{"slack", "discord", "webhook"}
+	channels := []string{"slack", "discord"}
 	for _, ch := range channels {
 		provider, ok := d.GetProvider(ch)
 		if !ok {
@@ -92,9 +90,6 @@ func TestDispatcher_DispatchToMultipleChannels(t *testing.T) {
 	}
 	if len(discordMock.sent) != 1 {
 		t.Errorf("discord should have 1 send, got %d", len(discordMock.sent))
-	}
-	if len(webhookMock.sent) != 1 {
-		t.Errorf("webhook should have 1 send, got %d", len(webhookMock.sent))
 	}
 }
 
@@ -126,17 +121,6 @@ func TestDiscordProvider_Send_NetworkError(t *testing.T) {
 	server.Close()
 
 	p := NewDiscordProvider(server.URL)
-	err := p.Send(context.Background(), "", "Alert", "Body", "text")
-	if err == nil {
-		t.Fatal("expected error when server is closed")
-	}
-}
-
-func TestWebhookProvider_Send_NetworkError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	server.Close()
-
-	p := NewWebhookProvider(server.URL, "secret")
 	err := p.Send(context.Background(), "", "Alert", "Body", "text")
 	if err == nil {
 		t.Fatal("expected error when server is closed")
@@ -203,34 +187,6 @@ func TestDiscordProvider_Send_StatusCodes(t *testing.T) {
 	}
 }
 
-func TestWebhookProvider_Send_StatusCodes(t *testing.T) {
-	tests := []struct {
-		name    string
-		status  int
-		wantErr bool
-	}{
-		{"200 OK", http.StatusOK, false},
-		{"202 Accepted", http.StatusAccepted, false},
-		{"400 Bad Request", http.StatusBadRequest, true},
-		{"502 Bad Gateway", http.StatusBadGateway, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tt.status)
-			}))
-			defer server.Close()
-
-			p := NewWebhookProvider(server.URL, "secret")
-			err := p.Send(context.Background(), "", "Alert", "Details", "text")
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Send() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 // =====================================================
 // PROVIDER — context cancellation
 // =====================================================
@@ -258,22 +214,6 @@ func TestDiscordProvider_Send_CancelledContext(t *testing.T) {
 	defer server.Close()
 
 	p := NewDiscordProvider(server.URL)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	err := p.Send(ctx, "", "Alert", "Body", "text")
-	if err == nil {
-		t.Error("expected error with cancelled context")
-	}
-}
-
-func TestWebhookProvider_Send_CancelledContext(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	p := NewWebhookProvider(server.URL, "secret")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -395,27 +335,6 @@ func TestDiscordProvider_MessageFormat(t *testing.T) {
 // WEBHOOK PROVIDER — uses recipient as URL override
 // =====================================================
 
-func TestWebhookProvider_Send_DefaultURLUsedWhenNoRecipient(t *testing.T) {
-	requestReceived := false
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestReceived = true
-		if r.Header.Get("User-Agent") != "DeployMonster/1.0" {
-			t.Errorf("User-Agent = %q, want DeployMonster/1.0", r.Header.Get("User-Agent"))
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	p := NewWebhookProvider(server.URL, "my-secret")
-	err := p.Send(context.Background(), "", "Alert", "CPU high", "text")
-	if err != nil {
-		t.Fatalf("Send() error: %v", err)
-	}
-	if !requestReceived {
-		t.Error("server should have received the request")
-	}
-}
-
 // =====================================================
 // MODULE — Init and Start lifecycle
 // =====================================================
@@ -477,19 +396,6 @@ func TestNewTelegramProvider_SetsFields(t *testing.T) {
 	}
 	if p.ChatID != "-12345" {
 		t.Errorf("ChatID = %q", p.ChatID)
-	}
-}
-
-func TestNewWebhookProvider_SetsFields(t *testing.T) {
-	p := NewWebhookProvider("https://example.com/hook", "hmac-secret")
-	if p.client == nil {
-		t.Error("HTTP client should be initialized")
-	}
-	if p.URL != "https://example.com/hook" {
-		t.Errorf("URL = %q", p.URL)
-	}
-	if p.Secret != "hmac-secret" {
-		t.Errorf("Secret = %q", p.Secret)
 	}
 }
 

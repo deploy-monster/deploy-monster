@@ -430,32 +430,6 @@ func TestDiscordProvider_Send_LongMessage(t *testing.T) {
 	}
 }
 
-func TestWebhookProvider_Send_LongMessage(t *testing.T) {
-	var receivedPayload map[string]string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&receivedPayload)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	p := NewWebhookProvider(server.URL, "secret")
-
-	longBody := strings.Repeat("webhook payload data ", 1000)
-	err := p.Send(context.Background(), "", "Webhook Alert", longBody, "markdown")
-	if err != nil {
-		t.Fatalf("Send error: %v", err)
-	}
-
-	if receivedPayload["subject"] != "Webhook Alert" {
-		t.Errorf("subject = %q, want %q", receivedPayload["subject"], "Webhook Alert")
-	}
-	if receivedPayload["format"] != "markdown" {
-		t.Errorf("format = %q, want %q", receivedPayload["format"], "markdown")
-	}
-	if len(receivedPayload["body"]) < 1000 {
-		t.Error("body should contain the long message")
-	}
-}
 
 // =====================================================
 // REGISTER PROVIDER — through module
@@ -540,31 +514,6 @@ func TestModule_Send_TracksProviderCalls(t *testing.T) {
 // =====================================================
 // WEBHOOK PROVIDER — payload includes format field
 // =====================================================
-
-func TestWebhookProvider_Send_PayloadContainsAllFields(t *testing.T) {
-	var payload map[string]string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&payload)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	p := NewWebhookProvider(server.URL, "secret")
-	err := p.Send(context.Background(), "", "Deploy Alert", "Version 3 deployed", "html")
-	if err != nil {
-		t.Fatalf("Send error: %v", err)
-	}
-
-	if payload["subject"] != "Deploy Alert" {
-		t.Errorf("subject = %q", payload["subject"])
-	}
-	if payload["body"] != "Version 3 deployed" {
-		t.Errorf("body = %q", payload["body"])
-	}
-	if payload["format"] != "html" {
-		t.Errorf("format = %q", payload["format"])
-	}
-}
 
 // =====================================================
 // SLACK PROVIDER — verify JSON payload structure

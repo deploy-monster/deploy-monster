@@ -220,39 +220,6 @@ func TestFinal_TelegramProvider_Send_NetworkError(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Webhook.Send — recipient URL override (lines 214-215)
-// ---------------------------------------------------------------------------
-
-func TestFinal_WebhookProvider_Send_RecipientOverridesURL(t *testing.T) {
-	var requestReceived bool
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestReceived = true
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	// Default URL is different from the server URL
-	p := NewWebhookProvider("https://default.invalid.example.com", "secret")
-
-	// Passing recipient should override the URL to our test server
-	err := p.Send(context.Background(), server.URL, "Alert", "CPU high", "text")
-	if err != nil {
-		t.Fatalf("Send with recipient override: %v", err)
-	}
-	if !requestReceived {
-		t.Error("server should have received the request via recipient URL")
-	}
-}
-
-func TestFinal_WebhookProvider_Send_InvalidRecipientURL(t *testing.T) {
-	p := NewWebhookProvider("https://default.example.com", "secret")
-
-	err := p.Send(context.Background(), "://invalid-url", "Alert", "Body", "text")
-	if err == nil {
-		t.Error("expected error for invalid recipient URL")
-	}
-}
 
 // ---------------------------------------------------------------------------
 // Module.Start — exercises the async event subscription handlers

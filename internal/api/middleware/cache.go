@@ -6,21 +6,6 @@ import (
 	"net/http"
 )
 
-// CacheControl wraps a handler with Cache-Control and ETag headers.
-// maxAge is in seconds; 0 means no-cache.
-func CacheControl(maxAge int) func(http.Handler) http.Handler {
-	directive := fmt.Sprintf("public, max-age=%d", maxAge)
-	if maxAge <= 0 {
-		directive = "no-cache"
-	}
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Cache-Control", directive)
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
 // ETag wraps a handler to compute and set an ETag header based on the response body.
 // If the client sends a matching If-None-Match, responds with 304 Not Modified.
 func ETag(next http.HandlerFunc) http.HandlerFunc {

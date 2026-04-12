@@ -2,11 +2,7 @@ package marketplace
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"time"
 )
 
 // TemplateSource is an upstream feed of templates. The marketplace polls
@@ -23,89 +19,6 @@ type TemplateSource interface {
 	// A source returning zero templates is treated as an error — callers
 	// never replace a populated registry with an empty one by accident.
 	Fetch(ctx context.Context) ([]*Template, error)
-}
-
-// HTTPTemplateSource fetches templates as a JSON array from a URL. The
-// response body is expected to be either:
-//
-//	[ { "slug": "...", ... }, ... ]
-//
-// or an envelope with a "templates" field for forward compatibility:
-//
-//	{ "templates": [ { "slug": "...", ... }, ... ] }
-type HTTPTemplateSource struct {
-	// URL is the fully-qualified endpoint returning the JSON feed.
-	URL string
-	// Client is the HTTP client used for the fetch. If nil, a default
-	// client with a 30-second timeout is used.
-	Client *http.Client
-	// Label is the human-readable name surfaced through Name(). If empty
-	// the URL is used as a fallback.
-	Label string
-}
-
-// Name implements TemplateSource.
-func (s *HTTPTemplateSource) Name() string {
-	if s.Label != "" {
-		return s.Label
-	}
-	return s.URL
-}
-
-// Fetch implements TemplateSource. It issues a single GET to s.URL and
-// decodes the response. Bodies are capped at 16 MiB to protect against
-// runaway responses from a compromised or misconfigured registry.
-func (s *HTTPTemplateSource) Fetch(ctx context.Context) ([]*Template, error) {
-	if s.URL == "" {
-		return nil, fmt.Errorf("template source %q: URL is empty", s.Name())
-	}
-
-	client := s.Client
-	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.URL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("template source %q: build request: %w", s.Name(), err)
-	}
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("template source %q: GET %s: %w", s.Name(), s.URL, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("template source %q: unexpected status %d", s.Name(), resp.StatusCode)
-	}
-
-	// Cap body size — prevents a runaway remote from exhausting memory.
-	const maxBody = 16 << 20
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody+1))
-	if err != nil {
-		return nil, fmt.Errorf("template source %q: read body: %w", s.Name(), err)
-	}
-	if len(body) > maxBody {
-		return nil, fmt.Errorf("template source %q: response exceeds %d bytes", s.Name(), maxBody)
-	}
-
-	// Try the envelope form first, then fall back to a bare array. The
-	// envelope lets us extend the protocol later (version, next_page, ...)
-	// without breaking existing clients.
-	var envelope struct {
-		Templates []*Template `json:"templates"`
-	}
-	if err := json.Unmarshal(body, &envelope); err == nil && envelope.Templates != nil {
-		return envelope.Templates, nil
-	}
-
-	var arr []*Template
-	if err := json.Unmarshal(body, &arr); err != nil {
-		return nil, fmt.Errorf("template source %q: decode JSON: %w", s.Name(), err)
-	}
-	return arr, nil
 }
 
 // UpdateResult summarizes the outcome of a registry update. Counts are

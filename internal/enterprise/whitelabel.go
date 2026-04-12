@@ -33,18 +33,16 @@ func DefaultBranding() *Branding {
 	}
 }
 
-// BrandingStore caches branding per tenant with a fallback to platform defaults.
+// BrandingStore caches platform-level branding.
 type BrandingStore struct {
 	mu       sync.RWMutex
 	platform *Branding
-	tenants  map[string]*Branding
 }
 
 // NewBrandingStore creates a branding store with default platform branding.
 func NewBrandingStore() *BrandingStore {
 	return &BrandingStore{
 		platform: DefaultBranding(),
-		tenants:  make(map[string]*Branding),
 	}
 }
 
@@ -60,23 +58,6 @@ func (bs *BrandingStore) SetPlatform(b *Branding) {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
 	bs.platform = b
-}
-
-// GetTenant returns tenant-specific branding, falling back to platform defaults.
-func (bs *BrandingStore) GetTenant(tenantID string) *Branding {
-	bs.mu.RLock()
-	defer bs.mu.RUnlock()
-	if b, ok := bs.tenants[tenantID]; ok {
-		return b
-	}
-	return bs.platform
-}
-
-// SetTenant updates tenant-specific branding.
-func (bs *BrandingStore) SetTenant(tenantID string, b *Branding) {
-	bs.mu.Lock()
-	defer bs.mu.Unlock()
-	bs.tenants[tenantID] = b
 }
 
 // ToJSON serializes branding for the frontend.

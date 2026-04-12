@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -1176,122 +1175,6 @@ func TestHandleAgentMessage_Result_NoPending(t *testing.T) {
 // Manager Tests
 // =============================================================================
 
-func TestNewManager(t *testing.T) {
-	rt := &mockRuntime{}
-	m := NewManager(rt, nil, nil, testLogger())
-	if m == nil {
-		t.Fatal("NewManager returned nil")
-	}
-}
-
-// skipIfNoDocker skips the test if Docker is not available.
-func skipIfNoDocker(t *testing.T) {
-	t.Helper()
-	if _, err := exec.LookPath("docker"); err != nil {
-		t.Skip("docker not available")
-	}
-}
-
-// skipIfNoSwarm skips the test if Docker Swarm is not available.
-func skipIfNoSwarm(t *testing.T) {
-	t.Helper()
-	skipIfNoDocker(t)
-	// Check if swarm is available
-	output, err := exec.Command("docker", "info", "--format", "{{.Swarm.LocalNodeState}}").CombinedOutput()
-	if err != nil {
-		t.Skip("docker info failed")
-	}
-	state := strings.TrimSpace(string(output))
-	if state != "active" {
-		t.Skip("Docker Swarm is not active")
-	}
-}
-
-func TestManager_Init(t *testing.T) {
-	skipIfNoSwarm(t)
-	rt := &mockRuntime{}
-	m := NewManager(rt, nil, nil, testLogger())
-
-	info, err := m.Init(context.Background(), "192.168.1.1:2377")
-	if err != nil {
-		t.Fatalf("Init: %v", err)
-	}
-	if !info.Active {
-		t.Error("expected Active=true")
-	}
-	if info.ManagerAddr != "192.168.1.1:2377" {
-		t.Errorf("ManagerAddr = %q", info.ManagerAddr)
-	}
-}
-
-func TestManager_Init_NoRuntime(t *testing.T) {
-	m := NewManager(nil, nil, nil, testLogger())
-
-	_, err := m.Init(context.Background(), "1.2.3.4")
-	if err == nil {
-		t.Fatal("expected error when runtime is nil")
-	}
-	if !strings.Contains(err.Error(), "container runtime not available") {
-		t.Errorf("error = %q", err)
-	}
-}
-
-func TestManager_Join(t *testing.T) {
-	skipIfNoSwarm(t)
-	rt := &mockRuntime{}
-	m := NewManager(rt, nil, nil, testLogger())
-
-	err := m.Join(context.Background(), "192.168.1.1:2377", "join-token")
-	if err != nil {
-		t.Fatalf("Join: %v", err)
-	}
-}
-
-func TestManager_Leave(t *testing.T) {
-	skipIfNoSwarm(t)
-	rt := &mockRuntime{}
-	m := NewManager(rt, nil, nil, testLogger())
-
-	if err := m.Leave(context.Background(), false); err != nil {
-		t.Fatalf("Leave: %v", err)
-	}
-	if err := m.Leave(context.Background(), true); err != nil {
-		t.Fatalf("Leave force: %v", err)
-	}
-}
-
-func TestManager_DeployService(t *testing.T) {
-	skipIfNoSwarm(t)
-	rt := &mockRuntime{}
-	m := NewManager(rt, nil, nil, testLogger())
-
-	app := &core.Application{Name: "myapp"}
-	if err := m.DeployService(context.Background(), app, "myapp:v1", 3); err != nil {
-		t.Fatalf("DeployService: %v", err)
-	}
-}
-
-func TestManager_ScaleService(t *testing.T) {
-	skipIfNoSwarm(t)
-	rt := &mockRuntime{}
-	m := NewManager(rt, nil, nil, testLogger())
-
-	if err := m.ScaleService(context.Background(), "myapp", 5); err != nil {
-		t.Fatalf("ScaleService: %v", err)
-	}
-}
-
-func TestManager_CreateOverlayNetwork(t *testing.T) {
-	skipIfNoSwarm(t)
-	rt := &mockRuntime{}
-	m := NewManager(rt, nil, nil, testLogger())
-
-	if err := m.CreateOverlayNetwork(context.Background(), "deploymonster-overlay"); err != nil {
-		t.Fatalf("CreateOverlayNetwork: %v", err)
-	}
-}
-
-// =============================================================================
 // AgentClient handler tests (functions that can be tested without network)
 // =============================================================================
 

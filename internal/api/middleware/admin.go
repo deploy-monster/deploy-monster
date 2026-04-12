@@ -38,15 +38,6 @@ func requireRole(allowed map[string]struct{}) func(http.Handler) http.Handler {
 	}
 }
 
-// RequireAdmin permits role_super_admin and role_admin. Use on endpoints
-// that should be reachable by any administrator but not by developers,
-// viewers, or billing users.
-func RequireAdmin(next http.Handler) http.Handler {
-	return requireRole(map[string]struct{}{
-		RoleSuperAdmin: {},
-		RoleAdmin:      {},
-	})(next)
-}
 
 // RequireSuperAdmin permits only role_super_admin. Use on platform-level
 // endpoints (tenant management, system config) that must never be
@@ -57,15 +48,3 @@ func RequireSuperAdmin(next http.Handler) http.Handler {
 	})(next)
 }
 
-// RequireOwnerOrAbove permits role_super_admin, role_owner, and
-// role_admin. Use on tenant-owner actions such as provisioning servers
-// or deleting projects — actions that are destructive enough to warrant
-// more than a regular admin, but that a super admin should still be
-// able to perform on behalf of a tenant.
-func RequireOwnerOrAbove(next http.Handler) http.Handler {
-	return requireRole(map[string]struct{}{
-		RoleSuperAdmin: {},
-		RoleOwner:      {},
-		RoleAdmin:      {},
-	})(next)
-}
