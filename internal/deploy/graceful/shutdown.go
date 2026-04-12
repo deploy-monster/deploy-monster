@@ -3,7 +3,6 @@ package graceful
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -46,29 +45,4 @@ func Shutdown(ctx context.Context, rt core.ContainerRuntime, containerID string,
 		// already be stopped, exited, or removed by a racing watchdog.
 		return nil
 	}
-}
-
-// ShutdownWithDrain waits for the drain manager to observe zero
-// in-flight connections (up to drainTimeout) before issuing Shutdown.
-// Intended for rolling deploys where the new replica has already
-// taken over routing and we want the old replica to quiesce before
-// we send SIGTERM.
-//
-// A nil drain manager or an empty containerID degrades to a plain
-// Shutdown call.
-func ShutdownWithDrain(
-	ctx context.Context,
-	rt core.ContainerRuntime,
-	dm *DrainManager,
-	containerID string,
-	graceSeconds int,
-	drainTimeout time.Duration,
-) error {
-	if dm != nil && containerID != "" && drainTimeout > 0 {
-		// Best-effort: a drain timeout just means we proceed to stop
-		// even though some connections are still active. That's the
-		// same semantics as Docker's own SIGTERM→SIGKILL flow.
-		_ = dm.WaitForDrain(containerID, drainTimeout)
-	}
-	return Shutdown(ctx, rt, containerID, graceSeconds)
 }

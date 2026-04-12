@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"testing"
-	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -123,40 +122,3 @@ func TestShutdown_BothErrorsReported(t *testing.T) {
 	}
 }
 
-func TestShutdownWithDrain_StopsAndRemoves(t *testing.T) {
-	tracker := NewConnectionTracker()
-	dm := NewDrainManager(tracker)
-	rt := &fakeRuntime{}
-
-	// Zero active connections — the drain loop ticks every 100ms so
-	// this completes promptly without blocking the full timeout.
-	start := time.Now()
-	err := ShutdownWithDrain(context.Background(), rt, dm, "abc", 5, 500*time.Millisecond)
-	if err != nil {
-		t.Fatalf("ShutdownWithDrain: %v", err)
-	}
-	if elapsed := time.Since(start); elapsed > 400*time.Millisecond {
-		t.Errorf("ShutdownWithDrain blocked for %v — should have returned as soon as drain observed zero connections", elapsed)
-	}
-	if !rt.stopCalled || !rt.removeCalled {
-		t.Error("Stop and Remove must both be called after drain")
-	}
-	if rt.stopTimeout != 5 {
-		t.Errorf("stopTimeout = %d, want 5", rt.stopTimeout)
-	}
-}
-
-func TestShutdownWithDrain_NilDrainManagerFallsThrough(t *testing.T) {
-	rt := &fakeRuntime{}
-	// nil drain manager should fall through to plain Shutdown
-	// without blocking.
-	if err := ShutdownWithDrain(context.Background(), rt, nil, "abc", 3, time.Second); err != nil {
-		t.Fatalf("ShutdownWithDrain: %v", err)
-	}
-	if !rt.stopCalled || !rt.removeCalled {
-		t.Error("Stop and Remove must both be called")
-	}
-	if rt.stopTimeout != 3 {
-		t.Errorf("stopTimeout = %d, want 3", rt.stopTimeout)
-	}
-}
