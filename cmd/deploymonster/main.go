@@ -381,6 +381,9 @@ func runSetup() {
 	if domain != "" {
 		cfg.Server.Domain = domain
 		cfg.Server.CORSOrigins = "" // derive later
+		if cfg.Server.Port == 8443 {
+			cfg.Server.Port = 443
+		}
 	}
 	if email != "" {
 		cfg.ACME.Email = email

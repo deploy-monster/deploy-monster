@@ -47,23 +47,35 @@ bash scripts/build.sh
 
 ## First Run
 
-1. Start the server:
+### Quick Start (IP / local test)
 
 ```bash
 deploymonster
 ```
 
-2. Open `http://localhost:8443` in your browser
+Open `http://SERVER_IP:8443` in your browser. Default admin credentials are printed in the console if not pre-configured.
 
-3. **System Admin** credentials are printed in the console on first run:
+### Production Setup (custom domain + automatic SSL)
 
+Run the interactive wizard and follow the prompts:
+
+```bash
+deploymonster setup
 ```
-═══════════════════════════════════════════════════════════
-  DeployMonster started
-  System Admin: admin@local.host
-  Password: <random-password>
-═══════════════════════════════════════════════════════════
+
+This will ask for your domain, Let's Encrypt email, admin credentials, and write the configuration to `/var/lib/deploymonster/monster.yaml`. If a domain is provided, the setup automatically switches to port `443` and enables HTTPS redirect.
+
+After setup:
+
+1. Point your DNS A record to the server IP.
+2. Open ports `80` and `443` in your firewall.
+3. Restart the service:
+
+```bash
+sudo systemctl restart deploymonster
 ```
+
+4. Open `https://your-domain.com` — the first TLS handshake triggers automatic certificate provisioning via Let's Encrypt (HTTP-01 challenge).
 
 ## Understanding Admin Roles
 

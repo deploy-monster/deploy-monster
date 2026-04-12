@@ -66,6 +66,7 @@ ingress:
   http_port: 80              # Ingress HTTP port (validated: 1-65535)
   https_port: 443            # Ingress HTTPS port (validated: 1-65535)
   enable_https: true         # Enable HTTPS with auto-cert
+  force_https: true          # Redirect HTTP traffic to HTTPS
 ```
 
 ### acme
@@ -235,6 +236,9 @@ The configuration is validated during `LoadConfig()`. The following rules are en
 server:
   domain: "deploy.example.com"
   secret_key: "your-secret-key-at-least-16-chars"
+
+ingress:
+  force_https: true
 
 acme:
   email: "admin@example.com"

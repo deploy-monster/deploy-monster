@@ -28,10 +28,20 @@ sudo systemctl enable deploymonster
 sudo systemctl status deploymonster
 ```
 
-### Configuration
+### Interactive Setup
+
+The fastest way to configure a production instance is the built-in wizard:
 
 ```bash
-deploymonster init  # Creates monster.yaml
+deploymonster setup
+```
+
+This prompts for domain, Let's Encrypt email, ports, and admin credentials, then writes `/var/lib/deploymonster/monster.yaml` for you.
+
+### Manual Configuration
+
+```bash
+deploymonster init  # Creates monster.yaml in the current directory
 vim monster.yaml    # Edit settings
 sudo systemctl restart deploymonster
 ```
@@ -174,9 +184,10 @@ Metrics available at `GET /metrics`:
 ## Security
 
 ### SSL/TLS
-- Auto-provisioned via Let's Encrypt (HTTP-01 challenge)
-- TLS 1.2 minimum, TLS 1.3 preferred
-- Wildcard certs via DNS-01 (Cloudflare)
+- **Automatic certificates** via Let's Encrypt using `golang.org/x/crypto/acme/autocert`
+- **HTTP-01 challenge** is handled automatically on port `80` — no manual intervention required
+- **TLS 1.2** minimum, TLS 1.3 preferred
+- **Wildcard certs** via DNS-01 (Cloudflare) when `dns.provider=cloudflare` is configured
 
 ### Secrets
 - AES-256-GCM encryption at rest

@@ -17,7 +17,7 @@ Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 
 </div>
 
-> **Status:** Phases 1–5 complete (core platform, ingress, deploy pipeline, marketplace, observability, regression + soak harnesses). Phase 6 (documentation polish) and Phase 7 (release preparation) are in progress ahead of the first tagged release.
+> **Status:** v0.0.1 released — core platform, ingress with automatic Let's Encrypt, deploy pipeline, marketplace, observability, and regression/soak harnesses are complete.
 
 ---
 
@@ -26,7 +26,10 @@ Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 ```bash
 # One-line install
 curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.0.1/scripts/install.sh | bash -s -- --version=v0.0.1
-deploymonster
+
+# Interactive setup (domain, SSL, admin credentials)
+deploymonster setup
+sudo systemctl restart deploymonster
 
 # Or with Docker
 docker run -d -p 8443:8443 -p 80:80 -p 443:443 \
@@ -35,7 +38,7 @@ docker run -d -p 8443:8443 -p 80:80 -p 443:443 \
   ghcr.io/deploy-monster/deploymonster:latest
 ```
 
-Open `http://localhost:8443` — **System Admin** credentials are printed on first run.
+Open `http://localhost:8443` (or `https://your-domain.com` after setup) — **System Admin** credentials are printed on first run or injected during `deploymonster setup`.
 
 ---
 
@@ -63,7 +66,7 @@ This separation enables **true multi-tenancy** — each client gets isolated acc
 
 ### 🏗️ Platform
 - **240 REST API Endpoints** — OpenAPI 3.0 specification
-- **Custom Reverse Proxy** — No Traefik/Nginx dependency, built-in Let's Encrypt
+- **Custom Reverse Proxy** — No Traefik/Nginx dependency, automatic Let's Encrypt via autocert
 - **5 Load Balancer Strategies** — Round-robin, least-conn, IP-hash, random, weighted
 - **Secret Vault** — AES-256-GCM encryption with `${SECRET:name}` syntax
 - **Managed Databases** — PostgreSQL, MySQL, MariaDB, Redis, MongoDB
@@ -114,6 +117,7 @@ This separation enables **true multi-tenancy** — each client gets isolated acc
 ```bash
 deploymonster                  # Start server (default)
 deploymonster serve --agent    # Start as agent/worker node
+deploymonster setup            # Interactive setup (domain, SSL, admin)
 deploymonster init             # Generate monster.yaml config
 deploymonster version          # Show version info
 deploymonster config           # Validate configuration
