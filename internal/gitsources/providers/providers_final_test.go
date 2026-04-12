@@ -23,7 +23,7 @@ func TestGitHub_Do_HTTPError(t *testing.T) {
 		client: srv.Client(),
 	}
 	// Patch the do method indirectly by using the get method and intercepting URL
-	_, err := gh.do(context.Background(), http.MethodGet, srv.URL+"/test", nil)
+	_, _ = gh.do(context.Background(), http.MethodGet, srv.URL+"/test", nil)
 	// Since do prepends "https://api.github.com", we can't easily redirect.
 	// Instead test via a transport rewrite approach.
 
@@ -38,7 +38,7 @@ func TestGitHub_Do_HTTPError(t *testing.T) {
 		}}},
 	}
 
-	_, err = gh2.do(context.Background(), http.MethodGet, "/user/repos", nil)
+	_, err := gh2.do(context.Background(), http.MethodGet, "/user/repos", nil)
 	if err == nil {
 		t.Error("expected error for HTTP 403")
 	}

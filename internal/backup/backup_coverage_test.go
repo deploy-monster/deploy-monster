@@ -612,9 +612,7 @@ func TestScheduler_RunBackups_ListTenantsError(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // failUploadStorage fails on Upload but succeeds elsewhere.
-type failUploadStorage struct {
-	uploaded map[string]string
-}
+type failUploadStorage struct{}
 
 func (f *failUploadStorage) Name() string { return "fail-upload" }
 func (f *failUploadStorage) Upload(_ context.Context, _ string, _ io.Reader, _ int64) error {

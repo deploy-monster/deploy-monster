@@ -255,7 +255,7 @@ func (s *S3Storage) List(ctx context.Context, prefix string) ([]core.BackupEntry
 
 	err := s.retry(ctx, func() error {
 		// Build ListObjects URL with query parameters
-		listURL := s.bucketURL()
+		var listURL string
 		if prefix != "" {
 			listURL = fmt.Sprintf("%s?prefix=%s&list-type=2", s.bucketURL(), url.QueryEscape(prefix))
 		} else {

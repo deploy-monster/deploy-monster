@@ -162,12 +162,11 @@ func TestSMTPProvider_Send_RejectsEmptyRecipient(t *testing.T) {
 // an in-memory pipe and speaks just enough of RFC 5321 (EHLO, MAIL,
 // RCPT, DATA, QUIT) for smtp.Client to complete a transaction.
 type fakeSMTPServer struct {
-	mu         sync.Mutex
-	mailFrom   string
-	rcptTo     []string
-	data       string
-	closed     bool
-	startTLSOK bool // echo STARTTLS in EHLO response
+	mu       sync.Mutex
+	mailFrom string
+	rcptTo   []string
+	data     string
+	closed   bool
 }
 
 func (f *fakeSMTPServer) serve(conn net.Conn) {
