@@ -25,7 +25,7 @@ func newSPAHandler() http.Handler {
 		// Fallback: no embedded UI, serve placeholder
 		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Write([]byte(`<!DOCTYPE html><html><head><title>DeployMonster</title></head>
+			_, _ = w.Write([]byte(`<!DOCTYPE html><html><head><title>DeployMonster</title></head>
 <body style="font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#0f172a;color:#f1f5f9">
 <div style="text-align:center"><h1 style="color:#10b981">DeployMonster</h1><p>UI not embedded. Run <code>npm run build</code> in web/ first.</p></div>
 </body></html>`))

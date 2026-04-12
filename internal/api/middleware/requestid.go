@@ -78,13 +78,13 @@ func parseTraceparent(header string) (traceID, parentID string) {
 // generateTraceID returns a 16-byte (32 hex char) random trace ID.
 func generateTraceID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
 // generateSpanID returns an 8-byte (16 hex char) random span/parent ID.
 func generateSpanID() string {
 	b := make([]byte, 8)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }

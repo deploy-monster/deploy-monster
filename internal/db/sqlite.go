@@ -179,7 +179,7 @@ func (s *SQLiteDB) migrate() error {
 
 		// Check if already applied
 		var count int
-		s.db.QueryRow("SELECT COUNT(*) FROM _migrations WHERE version = ?", version).Scan(&count)
+		_ = s.db.QueryRow("SELECT COUNT(*) FROM _migrations WHERE version = ?", version).Scan(&count)
 		if count > 0 {
 			continue
 		}
@@ -196,12 +196,12 @@ func (s *SQLiteDB) migrate() error {
 		}
 
 		if _, err := tx.Exec(string(data)); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
 
 		if _, err := tx.Exec("INSERT INTO _migrations (version, name) VALUES (?, ?)", version, name); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("record migration %s: %w", name, err)
 		}
 

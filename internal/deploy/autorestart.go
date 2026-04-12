@@ -85,9 +85,9 @@ func (ar *AutoRestarter) handleCrash(ctx context.Context, appID, containerID str
 		"container_id", containerID,
 	)
 
-	ar.store.UpdateAppStatus(ctx, appID, "crashed")
+	_ = ar.store.UpdateAppStatus(ctx, appID, "crashed")
 
-	ar.events.Publish(ctx, core.NewEvent(core.EventAppCrashed, "deploy",
+	_ = ar.events.Publish(ctx, core.NewEvent(core.EventAppCrashed, "deploy",
 		core.AppEventData{AppID: appID, Status: "crashed"}))
 
 	// Attempt restart with backoff
@@ -111,7 +111,7 @@ func (ar *AutoRestarter) handleCrash(ctx context.Context, appID, containerID str
 			"app_id", appID,
 			"attempt", attempt,
 		)
-		ar.store.UpdateAppStatus(ctx, appID, "running")
+		_ = ar.store.UpdateAppStatus(ctx, appID, "running")
 		return
 	}
 
@@ -119,7 +119,7 @@ func (ar *AutoRestarter) handleCrash(ctx context.Context, appID, containerID str
 		"app_id", appID,
 		"max_retries", ar.maxRetries,
 	)
-	ar.store.UpdateAppStatus(ctx, appID, "failed")
+	_ = ar.store.UpdateAppStatus(ctx, appID, "failed")
 }
 
 func (ar *AutoRestarter) checkCrashed() {

@@ -159,8 +159,8 @@ func (c *AgentClient) dial(ctx context.Context) error {
 		conn.Close()
 		return fmt.Errorf("read upgrade response: %w", err)
 	}
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		conn.Close()

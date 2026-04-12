@@ -43,7 +43,7 @@ func writeErrorJSON(w http.ResponseWriter, status int, message string) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // Chain applies middlewares in order (last applied runs first).

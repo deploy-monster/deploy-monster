@@ -28,7 +28,7 @@ func ETag(next http.HandlerFunc) http.HandlerFunc {
 		if rec.status != 0 {
 			w.WriteHeader(rec.status)
 		}
-		w.Write(rec.body)
+		_, _ = w.Write(rec.body)
 	}
 }
 

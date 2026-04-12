@@ -167,7 +167,7 @@ func (p *OAuthProvider) exchange(ctx context.Context, code, redirectURI, codeVer
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return "", fmt.Errorf("token exchange: HTTP %d", resp.StatusCode)
 	}
 
@@ -201,7 +201,7 @@ func (p *OAuthProvider) GetUser(ctx context.Context, accessToken string) (*OAuth
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil, fmt.Errorf("get user info: HTTP %d", resp.StatusCode)
 	}
 

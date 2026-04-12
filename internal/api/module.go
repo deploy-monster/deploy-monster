@@ -46,7 +46,7 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	m.logger = c.Logger.With("module", m.ID())
 
 	// Get module references
-	m.authMod = c.Registry.Get("core.auth").(*auth.Module)
+	m.authMod, _ = c.Registry.Get("core.auth").(*auth.Module)
 	m.store = c.Store
 
 	// Create router with all handlers

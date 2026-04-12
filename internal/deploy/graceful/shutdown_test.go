@@ -121,4 +121,3 @@ func TestShutdown_BothErrorsReported(t *testing.T) {
 		t.Fatal("Shutdown with both errors = nil, want error")
 	}
 }
-

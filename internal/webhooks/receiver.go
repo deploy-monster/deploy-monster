@@ -99,7 +99,7 @@ func (recv *Receiver) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Emit webhook received event
-	recv.events.Publish(r.Context(), core.NewEvent(
+	_ = recv.events.Publish(r.Context(), core.NewEvent(
 		core.EventWebhookReceived, "webhooks",
 		core.WebhookEventData{
 			WebhookID: webhookID,
@@ -112,7 +112,7 @@ func (recv *Receiver) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "received"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "received"})
 }
 
 // detectProvider identifies the Git provider from request headers.

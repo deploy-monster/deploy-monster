@@ -79,7 +79,7 @@ func (m *Module) healthHandler() http.HandlerFunc {
 			w.WriteHeader(http.StatusOK)
 		}
 
-		json.NewEncoder(w).Encode(health)
+		_ = json.NewEncoder(w).Encode(health)
 	}
 }
 
@@ -99,7 +99,7 @@ func (m *Module) readyHandler() http.HandlerFunc {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	}
 }
 
@@ -108,6 +108,6 @@ func (m *Module) readyHandler() http.HandlerFunc {
 func (m *Module) liveHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	}
 }

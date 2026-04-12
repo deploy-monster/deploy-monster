@@ -50,7 +50,7 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 				}
 				w.Header().Set("X-Idempotent-Replayed", "true")
 				w.WriteHeader(cached.StatusCode)
-				w.Write(cached.Body)
+				_, _ = w.Write(cached.Body)
 				return
 			}
 

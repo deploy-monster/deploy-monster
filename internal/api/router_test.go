@@ -1258,7 +1258,7 @@ func (s *testStore) ListDeploymentsByApp(_ context.Context, _ string, _ int) ([]
 func (s *testStore) ListDeploymentsByStatus(_ context.Context, _ string) ([]core.Deployment, error) {
 	return nil, nil
 }
-func (s *testStore) UpdateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
+func (s *testStore) UpdateDeployment(_ context.Context, _ *core.Deployment) error  { return nil }
 func (s *testStore) GetNextDeployVersion(_ context.Context, _ string) (int, error) { return 1, nil }
 func (s *testStore) CreateDomain(_ context.Context, _ *core.Domain) error          { return nil }
 func (s *testStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {

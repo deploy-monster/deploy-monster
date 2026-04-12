@@ -242,9 +242,7 @@ func TestTier74_AutoRestarter_NilLogger(t *testing.T) {
 
 // ─── ImageUpdateChecker Stop idempotency ───────────────────────────────────
 
-
 // ─── ImageUpdateChecker nil-logger guard ───────────────────────────────────
-
 
 // ─── Concurrent Stop storm ─────────────────────────────────────────────────
 

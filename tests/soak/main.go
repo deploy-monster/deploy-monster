@@ -138,8 +138,8 @@ func main() {
 					totalErrs.Add(1)
 					continue
 				}
-				io.Copy(io.Discard, resp.Body)
-				resp.Body.Close()
+				defer resp.Body.Close()
+				_, _ = io.Copy(io.Discard, resp.Body)
 				if resp.StatusCode >= 400 {
 					totalErrs.Add(1)
 				}
@@ -268,7 +268,7 @@ sampleLoop:
 		Passed:              len(regressions) == 0,
 	}
 	if data, err := json.MarshalIndent(&summary, "", "  "); err == nil {
-		os.WriteFile(*outPath, data, 0o644)
+		_ = os.WriteFile(*outPath, data, 0o644)
 	}
 
 	log("final: samples=%d reqs=%d errs=%d goroutines %d→%d heap_inuse %s→%s",

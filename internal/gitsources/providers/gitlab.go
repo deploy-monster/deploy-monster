@@ -45,7 +45,9 @@ func (g *GitLab) ListRepos(ctx context.Context, page, perPage int) ([]core.GitRe
 		DefaultBranch string `json:"default_branch"`
 		Visibility    string `json:"visibility"`
 	}
-	json.Unmarshal(body, &raw)
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("invalid response: %w", err)
+	}
 
 	repos := make([]core.GitRepo, len(raw))
 	for i, r := range raw {
@@ -65,7 +67,9 @@ func (g *GitLab) ListBranches(ctx context.Context, repoFullName string) ([]strin
 	var raw []struct {
 		Name string `json:"name"`
 	}
-	json.Unmarshal(body, &raw)
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("invalid response: %w", err)
+	}
 	branches := make([]string, len(raw))
 	for i, b := range raw {
 		branches[i] = b.Name
@@ -85,7 +89,9 @@ func (g *GitLab) GetRepoInfo(ctx context.Context, repoFullName string) (*core.Gi
 		Description   string `json:"description"`
 		DefaultBranch string `json:"default_branch"`
 	}
-	json.Unmarshal(body, &r)
+	if err := json.Unmarshal(body, &r); err != nil {
+		return nil, fmt.Errorf("invalid response: %w", err)
+	}
 	return &core.GitRepo{
 		FullName: r.PathWithNS, CloneURL: r.HTTPURLToRepo, SSHURL: r.SSHURLToRepo,
 		Description: r.Description, DefaultBranch: r.DefaultBranch,
@@ -107,7 +113,9 @@ func (g *GitLab) CreateWebhook(ctx context.Context, repoFullName, url, secret st
 	var resp struct {
 		ID int `json:"id"`
 	}
-	json.Unmarshal(body, &resp)
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", fmt.Errorf("invalid response: %w", err)
+	}
 	return fmt.Sprintf("%d", resp.ID), nil
 }
 

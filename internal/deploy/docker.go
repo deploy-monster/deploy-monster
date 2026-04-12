@@ -87,8 +87,8 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 	if err != nil {
 		return "", fmt.Errorf("pull image %s: %w", opts.Image, err)
 	}
-	io.Copy(io.Discard, reader)
-	reader.Close()
+	defer reader.Close()
+	_, _ = io.Copy(io.Discard, reader)
 
 	// Container config
 	containerCfg := &container.Config{
@@ -332,8 +332,8 @@ func (d *DockerManager) ImagePull(ctx context.Context, img string) error {
 	if err != nil {
 		return fmt.Errorf("pull image %s: %w", img, err)
 	}
-	io.Copy(io.Discard, reader)
-	reader.Close()
+	defer reader.Close()
+	_, _ = io.Copy(io.Discard, reader)
 	return nil
 }
 

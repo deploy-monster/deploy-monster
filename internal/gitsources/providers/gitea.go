@@ -44,7 +44,9 @@ func (g *Gitea) ListRepos(ctx context.Context, page, perPage int) ([]core.GitRep
 		DefaultBranch string `json:"default_branch"`
 		Private       bool   `json:"private"`
 	}
-	json.Unmarshal(body, &raw)
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("invalid response: %w", err)
+	}
 
 	repos := make([]core.GitRepo, len(raw))
 	for i, r := range raw {
@@ -64,7 +66,9 @@ func (g *Gitea) ListBranches(ctx context.Context, repoFullName string) ([]string
 	var raw []struct {
 		Name string `json:"name"`
 	}
-	json.Unmarshal(body, &raw)
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("invalid response: %w", err)
+	}
 	branches := make([]string, len(raw))
 	for i, b := range raw {
 		branches[i] = b.Name
@@ -85,7 +89,9 @@ func (g *Gitea) GetRepoInfo(ctx context.Context, repoFullName string) (*core.Git
 		DefaultBranch string `json:"default_branch"`
 		Private       bool   `json:"private"`
 	}
-	json.Unmarshal(body, &r)
+	if err := json.Unmarshal(body, &r); err != nil {
+		return nil, fmt.Errorf("invalid response: %w", err)
+	}
 	return &core.GitRepo{
 		FullName: r.FullName, CloneURL: r.CloneURL, SSHURL: r.SSHURL,
 		Description: r.Description, DefaultBranch: r.DefaultBranch, Private: r.Private,
@@ -110,7 +116,9 @@ func (g *Gitea) CreateWebhook(ctx context.Context, repoFullName, url, secret str
 	var resp struct {
 		ID int `json:"id"`
 	}
-	json.Unmarshal(body, &resp)
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", fmt.Errorf("invalid response: %w", err)
+	}
 	return fmt.Sprintf("%d", resp.ID), nil
 }
 

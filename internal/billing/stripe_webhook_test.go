@@ -432,4 +432,3 @@ func TestFindPlanByID(t *testing.T) {
 		t.Errorf("expected nil for nil plans, got %+v", got)
 	}
 }
-

@@ -201,6 +201,6 @@ func (m *Module) PrometheusHandler() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		w.Write([]byte(sb.String()))
+		_, _ = w.Write([]byte(sb.String()))
 	}
 }

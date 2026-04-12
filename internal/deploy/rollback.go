@@ -75,12 +75,12 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 	if err := r.store.CreateDeployment(ctx, deployment); err != nil {
 		return nil, fmt.Errorf("create rollback deployment: %w", err)
 	}
-	r.store.UpdateAppStatus(ctx, appID, "deploying")
+	_ = r.store.UpdateAppStatus(ctx, appID, "deploying")
 
 	// Stop old container
 	if oldContainerID != "" && r.runtime != nil {
-		r.runtime.Stop(ctx, oldContainerID, 30)
-		r.runtime.Remove(ctx, oldContainerID, true)
+		_ = r.runtime.Stop(ctx, oldContainerID, 30)
+		_ = r.runtime.Remove(ctx, oldContainerID, true)
 	}
 
 	// Get domains for routing labels
@@ -124,10 +124,10 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 			failed := time.Now()
 			deployment.FinishedAt = &failed
 			_ = r.store.UpdateDeployment(ctx, deployment)
-			r.store.UpdateAppStatus(ctx, appID, "failed")
+			_ = r.store.UpdateAppStatus(ctx, appID, "failed")
 			// Attempt cleanup of partially created container
-			r.runtime.Stop(ctx, containerName, 10)
-			r.runtime.Remove(ctx, containerName, true)
+			_ = r.runtime.Stop(ctx, containerName, 10)
+			_ = r.runtime.Remove(ctx, containerName, true)
 			return nil, fmt.Errorf("rollback deploy: %w", err)
 		}
 		deployment.ContainerID = containerID
@@ -140,9 +140,9 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 	if err := r.store.UpdateDeployment(ctx, deployment); err != nil {
 		return nil, fmt.Errorf("persist rollback deployment status: %w", err)
 	}
-	r.store.UpdateAppStatus(ctx, appID, "running")
+	_ = r.store.UpdateAppStatus(ctx, appID, "running")
 
-	r.events.Publish(ctx, core.NewEvent(core.EventRollbackDone, "deploy",
+	_ = r.events.Publish(ctx, core.NewEvent(core.EventRollbackDone, "deploy",
 		core.DeployEventData{
 			AppID:        appID,
 			DeploymentID: deployment.ID,
