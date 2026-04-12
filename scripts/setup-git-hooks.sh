@@ -98,8 +98,8 @@ echo "✅ Pre-push checks passed"
 exit 0
 EOF
 
-# Make scripts executable
-chmod +x "$HOOKS_DIR" "$HOOKS_DIR"
+# Make hooks executable
+chmod +x "$PRE_COMMIT_HOOK" "$PRE_PUSH_HOOK"
 
 echo -e "${GREEN}Git hooks installed!${NC}"
 echo ""
