@@ -36,10 +36,10 @@ func TestTier70_NewScheduler_NilLogger(t *testing.T) {
 		t.Error("logger should default to slog.Default when nil")
 	}
 	if s.stopCtx == nil || s.stopCancel == nil {
-		t.Error("stopCtx/stopCancel should be initialised")
+		t.Error("stopCtx/stopCancel should be initialized")
 	}
 	if s.stopCh == nil {
-		t.Error("stopCh should be initialised")
+		t.Error("stopCh should be initialized")
 	}
 }
 
@@ -376,7 +376,7 @@ func TestTier70_Scheduler_RunCtx_NilFallback(t *testing.T) {
 		t.Fatal("runCtx must not return nil")
 	}
 	if ctx.Err() != nil {
-		t.Errorf("fallback background context should not be cancelled: %v", ctx.Err())
+		t.Errorf("fallback background context should not be canceled: %v", ctx.Err())
 	}
 }
 

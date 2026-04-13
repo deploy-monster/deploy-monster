@@ -410,7 +410,7 @@ func TestTier77_Hub_Broadcast_DoesNotHoldWriteLock(t *testing.T) {
 
 	// Build two bogus clientConns by hand — we don't need real sockets
 	// because we only care about whether Register/Unregister are
-	// serialised with the broadcast's write phase.
+	// serialized with the broadcast's write phase.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 		conn, err := up.Upgrade(w, r, nil)

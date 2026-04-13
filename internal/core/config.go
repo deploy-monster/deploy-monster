@@ -24,7 +24,6 @@ type Config struct {
 	GitSources    GitSourcesConfig   `yaml:"git_sources"`
 	Marketplace   MarketplaceConfig  `yaml:"marketplace"`
 	Registration  RegistrationConfig `yaml:"registration"`
-	SSO           SSOConfig          `yaml:"sso"`
 	Secrets       SecretsConfig      `yaml:"secrets"`
 	Billing       BillingConfig      `yaml:"billing"`
 	Limits        LimitsConfig       `yaml:"limits"`
@@ -111,11 +110,6 @@ type BackupS3Config struct {
 
 // NotificationConfig holds notification channel configuration.
 type NotificationConfig struct {
-	// Deprecated: use SMTP instead. EmailSMTP was a bare connection
-	// string that no module ever consumed; the new SMTPConfig is the
-	// supported knob for email delivery going forward.
-	EmailSMTP string `yaml:"email_smtp,omitempty"`
-
 	SMTP SMTPConfig `yaml:"smtp"`
 
 	SlackWebhook   string `yaml:"slack_webhook"`
@@ -174,13 +168,7 @@ type MarketplaceConfig struct {
 
 // RegistrationConfig holds user registration configuration.
 type RegistrationConfig struct {
-	Mode string `yaml:"mode"` // open, invite_only, approval, disabled, sso_only
-}
-
-// SSOConfig holds SSO provider configuration.
-type SSOConfig struct {
-	GoogleClientID     string `yaml:"google_client_id"`
-	GoogleClientSecret string `yaml:"google_client_secret"`
+	Mode string `yaml:"mode"` // open, invite_only, approval, disabled
 }
 
 // SecretsConfig holds secret vault configuration.
@@ -358,10 +346,10 @@ func (c *Config) Validate() error {
 
 	// Registration mode
 	switch c.Registration.Mode {
-	case "open", "invite_only", "approval", "disabled", "sso_only":
+	case "open", "invite_only", "approval", "disabled":
 		// valid
 	default:
-		return fmt.Errorf("config: registration.mode %q not recognized (open, invite_only, approval, disabled, sso_only)", c.Registration.Mode)
+		return fmt.Errorf("config: registration.mode %q not recognized (open, invite_only, approval, disabled)", c.Registration.Mode)
 	}
 
 	// Resource limits
@@ -390,7 +378,6 @@ func (c *Config) AuditSecrets() []string {
 		{"dns.cloudflare_token", c.DNS.CloudflareToken, "MONSTER_CLOUDFLARE_TOKEN"},
 		{"git_sources.github_client_secret", c.GitSources.GitHubClientSecret, "MONSTER_GITHUB_CLIENT_SECRET"},
 		{"git_sources.gitlab_client_secret", c.GitSources.GitLabClientSecret, "MONSTER_GITLAB_CLIENT_SECRET"},
-		{"sso.google_client_secret", c.SSO.GoogleClientSecret, "MONSTER_GOOGLE_CLIENT_SECRET"},
 		{"secrets.encryption_key", c.Secrets.EncryptionKey, "MONSTER_ENCRYPTION_KEY"},
 		{"billing.stripe_secret_key", c.Billing.StripeSecretKey, "MONSTER_STRIPE_SECRET_KEY"},
 		{"billing.stripe_webhook_key", c.Billing.StripeWebhookKey, "MONSTER_STRIPE_WEBHOOK_KEY"},
@@ -510,9 +497,6 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("MONSTER_GITLAB_CLIENT_SECRET"); v != "" {
 		cfg.GitSources.GitLabClientSecret = v
-	}
-	if v := os.Getenv("MONSTER_GOOGLE_CLIENT_SECRET"); v != "" {
-		cfg.SSO.GoogleClientSecret = v
 	}
 	if v := os.Getenv("MONSTER_ENCRYPTION_KEY"); v != "" {
 		cfg.Secrets.EncryptionKey = v

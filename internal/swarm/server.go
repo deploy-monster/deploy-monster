@@ -22,12 +22,12 @@ import (
 // Lifecycle notes for Tier 76:
 //
 //   - Pre-Tier-76 readLoop, heartbeatLoop, and per-agent ping goroutines
-//     were all fire-and-forget. Stop closed s.stop and cancelled agent
+//     were all fire-and-forget. Stop closed s.stop and canceled agent
 //     contexts but never waited for any of them, so Module.Stop could
 //     return while goroutines were still mid-write into an
 //     about-to-be-closed net.Conn or mid-PublishAsync into an
 //     about-to-shutdown EventBus. All three lifetimes are now tracked
-//     by a single wg that Stop drains after signalling shutdown.
+//     by a single wg that Stop drains after signaling shutdown.
 //   - readLoop, heartbeatLoop, and the ping goroutine had no defer
 //     /recover. A panic inside handleAgentMessage or Send would crash
 //     the whole master process. All three now recover and log.
@@ -39,7 +39,7 @@ import (
 //     progress. Both now derive from stopCtx so Stop cancels in-flight
 //     work in addition to waking the heartbeat loop.
 //   - HandleConnect did not check the closed flag, so an HTTP request
-//     arriving between Stop signalling shutdown and Module.Stop
+//     arriving between Stop signaling shutdown and Module.Stop
 //     returning would spawn a brand-new untracked readLoop on an
 //     already-shutting-down server. The closed flag now short-circuits
 //     HandleConnect (and StartHeartbeat) after Stop has run.
@@ -268,7 +268,7 @@ func (s *AgentServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	// under the same critical section so a concurrent Stop cannot race
 	// past wg.Wait while a new readLoop is being spawned. Once Stop
 	// has set closed=true, HandleConnect refuses the connection and
-	// tears down the half-initialised ac instead.
+	// tears down the half-initialized ac instead.
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -342,7 +342,7 @@ func (s *AgentServer) readLoop(ac *AgentConn) {
 		var msg core.AgentMessage
 		if err := ac.decoder.Decode(&msg); err != nil {
 			if ac.ctx.Err() != nil {
-				return // context cancelled, graceful shutdown
+				return // context canceled, graceful shutdown
 			}
 			s.logger.Warn("agent read error", "server_id", ac.ServerID, "error", err)
 			return
@@ -622,12 +622,12 @@ func (s *AgentServer) pubCtx() context.Context {
 //
 // Tier 76 guarantees:
 //
-//   - stopOnce serialises the close(stop) + stopCancel so concurrent
+//   - stopOnce serializes the close(stop) + stopCancel so concurrent
 //     Stop calls never panic with "close of closed channel".
 //   - closed is flipped under s.mu BEFORE any wg-tracked work can be
 //     newly spawned, which is what gives HandleConnect/StartHeartbeat/
 //     heartbeatTick a safe check against wg.Wait.
-//   - All agent conns are cancelled + closed inside the Do so the
+//   - All agent conns are canceled + closed inside the Do so the
 //     readLoops observe EOF on decoder.Decode and exit, and in-flight
 //     pings error out of encoder.Encode on the now-closed conn.
 //   - wg.Wait drains readLoop, heartbeatLoop, AND per-agent ping

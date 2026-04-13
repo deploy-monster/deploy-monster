@@ -25,10 +25,10 @@ import (
 //     the Docker manager was being torn down.
 //   - Pre-Tier-74 handleFailure used the event's context for the
 //     rollback engine. During shutdown the publisher's context is
-//     often already cancelled, but if a caller used Background the
+//     often already canceled, but if a caller used Background the
 //     rollback would run to completion regardless of module Stop.
 //   - Pre-Tier-74 the struct had no panic recovery. A panic inside
-//     the rollback engine (e.g. nil pointer through a half-initialised
+//     the rollback engine (e.g. nil pointer through a half-initialized
 //     store) would take down the async worker pool.
 //   - Pre-Tier-74 NewAutoRollbackManager had no nil-logger guard.
 //
@@ -47,7 +47,7 @@ type AutoRollbackManager struct {
 	lastAttempt map[string]time.Time // appID -> last rollback attempt time
 	closed      bool                 // true once Stop has been called
 
-	// Shutdown plumbing. stopCtx is cancelled by Stop so in-flight
+	// Shutdown plumbing. stopCtx is canceled by Stop so in-flight
 	// rollback work can unblock cleanly. wg tracks the async handler
 	// goroutines spawned by SubscribeAsync so Wait() can drain them.
 	// stopOnce guards stopCancel + the closed flag against double Stop.
@@ -159,7 +159,7 @@ func (ar *AutoRollbackManager) isClosed() bool {
 // runCtx returns the manager's stopCtx, or the incoming event ctx
 // as a fallback if the manager was constructed without stopCtx
 // (e.g. via a struct literal in a test). If stopCtx has already
-// been cancelled we propagate that so downstream rollback work
+// been canceled we propagate that so downstream rollback work
 // observes the shutdown immediately.
 func (ar *AutoRollbackManager) runCtx(eventCtx context.Context) context.Context {
 	if ar.stopCtx != nil {

@@ -29,7 +29,7 @@ import (
 // ─── helpers ───────────────────────────────────────────────────────────────
 
 // blockingStorage hangs on Upload until unblocked or the context is
-// cancelled. Used to prove that Stop actually unblocks in-flight
+// canceled. Used to prove that Stop actually unblocks in-flight
 // uploads rather than letting them run to completion.
 type blockingStorage struct {
 	release   chan struct{}
@@ -130,7 +130,7 @@ func TestTier67_NewScheduler_NilLogger(t *testing.T) {
 		t.Error("logger should default to slog.Default when nil")
 	}
 	if s.stopCtx == nil || s.stopCancel == nil {
-		t.Error("stopCtx/stopCancel should be initialised")
+		t.Error("stopCtx/stopCancel should be initialized")
 	}
 }
 
@@ -200,7 +200,7 @@ func TestTier67_Scheduler_Stop_WaitsForLoop(t *testing.T) {
 // ─── Stop cancels in-flight uploads via context ────────────────────────────
 
 // TestTier67_Scheduler_Stop_CancelsInFlightUpload proves that a
-// long-running Upload is cancelled by Stop instead of running to
+// long-running Upload is canceled by Stop instead of running to
 // completion. We directly invoke runBackupsCtx with the scheduler's
 // stopCtx so we can race Stop against the hanging upload.
 func TestTier67_Scheduler_Stop_CancelsInFlightUpload(t *testing.T) {
@@ -238,7 +238,7 @@ func TestTier67_Scheduler_Stop_CancelsInFlightUpload(t *testing.T) {
 		t.Fatal("runBackupsCtx did not exit after Stop — ctx cancellation is not plumbed")
 	}
 
-	// Upload should have seen the ctx-cancelled path, not the
+	// Upload should have seen the ctx-canceled path, not the
 	// release-channel path.
 	if bs.uploaded.Load() != 0 {
 		t.Error("Upload completed despite Stop — ctx was not propagated")
@@ -414,9 +414,9 @@ func TestTier67_Scheduler_RunBackupsCtx_CancelledContext(t *testing.T) {
 
 	s.runBackupsCtx(ctx)
 
-	// A cancelled context at entry means no ListAllTenants call at all.
+	// A canceled context at entry means no ListAllTenants call at all.
 	if store.listCalls.Load() != 0 {
-		t.Errorf("expected 0 ListAllTenants calls on cancelled ctx, got %d", store.listCalls.Load())
+		t.Errorf("expected 0 ListAllTenants calls on canceled ctx, got %d", store.listCalls.Load())
 	}
 }
 
@@ -433,7 +433,7 @@ func TestTier67_Scheduler_RunBackups_UsesStopCtx(t *testing.T) {
 	s.runBackups()
 
 	if store.listCalls.Load() != 0 {
-		t.Errorf("expected runBackups to respect cancelled stopCtx, got %d calls", store.listCalls.Load())
+		t.Errorf("expected runBackups to respect canceled stopCtx, got %d calls", store.listCalls.Load())
 	}
 }
 
@@ -447,6 +447,6 @@ func TestTier67_Scheduler_RunCtx_NilFallback(t *testing.T) {
 		t.Fatal("runCtx must not return nil")
 	}
 	if ctx.Err() != nil {
-		t.Errorf("fallback background context should not be cancelled: %v", ctx.Err())
+		t.Errorf("fallback background context should not be canceled: %v", ctx.Err())
 	}
 }

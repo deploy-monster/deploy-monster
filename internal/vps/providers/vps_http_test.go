@@ -264,7 +264,7 @@ func TestVPSDoRequest_ContextCanceled(t *testing.T) {
 	defer srv.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // pre-cancelled
+	cancel() // pre-canceled
 
 	_, err := vpsDoRequest(
 		ctx,

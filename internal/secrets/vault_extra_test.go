@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"context"
 	"encoding/base64"
 	"strings"
 	"testing"
@@ -295,8 +296,7 @@ func TestModule_VaultAccessor(t *testing.T) {
 
 func TestModule_StopIsNoop(t *testing.T) {
 	m := New()
-	//lint:ignore SA1012 nil context triggers the error path
-	if err := m.Stop(nil); err != nil {
+	if err := m.Stop(context.TODO()); err != nil {
 		t.Errorf("Stop: unexpected error: %v", err)
 	}
 }

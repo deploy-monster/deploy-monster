@@ -23,16 +23,12 @@ const (
 	PermSecretView     = "secret.view"
 	PermSecretCreate   = "secret.create"
 	PermSecretDelete   = "secret.delete"
-	PermServerView     = "server.view"
-	PermServerManage   = "server.manage"
 	PermDomainView     = "domain.view"
 	PermDomainManage   = "domain.manage"
 	PermBillingView    = "billing.view"
 	PermBillingManage  = "billing.manage"
 	PermDatabaseView   = "db.view"
 	PermDatabaseManage = "db.manage"
-	PermBackupView     = "backup.view"
-	PermBackupManage   = "backup.manage"
 	PermAdminAll       = "*"
 )
 

@@ -531,22 +531,3 @@ func TestACMEManager_CheckRenewals_WithCachedCerts(t *testing.T) {
 	// Call checkRenewals with cached cert
 	am.checkRenewals()
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// issueCertificate — direct invocation
-// ═══════════════════════════════════════════════════════════════════════════════
-
-func TestACMEManager_IssueCertificate(t *testing.T) {
-	cs := NewCertStore()
-	am := NewACMEManager(cs, "test@example.com", true, slog.Default())
-
-	// Call issueCertificate directly
-	am.issueCertificate("test.example.com")
-}
-
-func TestACMEManager_IssueCertificate_StagingMode(t *testing.T) {
-	cs := NewCertStore()
-	am := NewACMEManager(cs, "test@example.com", false, slog.Default()) // production mode
-
-	am.issueCertificate("prod.example.com")
-}

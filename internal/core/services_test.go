@@ -86,9 +86,6 @@ func TestNewServices(t *testing.T) {
 	if svc.Notifications != nil {
 		t.Error("Notifications should be nil on new Services")
 	}
-	if svc.Webhooks != nil {
-		t.Error("Webhooks should be nil on new Services")
-	}
 
 	// Provider registries should be initialized but empty
 	if providers := svc.DNSProviders(); len(providers) != 0 {

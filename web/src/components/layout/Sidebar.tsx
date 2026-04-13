@@ -141,7 +141,7 @@ function useBadgeCounts(): Record<string, number | undefined> {
 // Sidebar component
 // ---------------------------------------------------------------------------
 
-export interface SidebarProps {
+interface SidebarProps {
   open?: boolean;
   onClose?: () => void;
 }

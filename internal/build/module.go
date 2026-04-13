@@ -131,13 +131,6 @@ type WorkerPool struct {
 	stopCh chan struct{}
 }
 
-// NewWorkerPool creates a pool with the default logger. Prefer
-// NewWorkerPoolWithLogger from production code so panic logs are
-// scoped to the calling module.
-func NewWorkerPool(max int) *WorkerPool {
-	return NewWorkerPoolWithLogger(max, slog.Default())
-}
-
 // NewWorkerPoolWithLogger creates a pool bound to a structured logger.
 // A negative max is clamped to 0 because make(chan struct{}, -1)
 // panics at runtime — the pre-Tier-69 code would crash the process on

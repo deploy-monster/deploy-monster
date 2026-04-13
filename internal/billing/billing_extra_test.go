@@ -1,6 +1,7 @@
 package billing
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -128,7 +129,7 @@ func TestQuotaCheck_ZeroLimit(t *testing.T) {
 	store := &mockStore{total: 0}
 	plan := Plan{MaxApps: 0}
 
-	status, err := QuotaCheck(store, "tenant-1", plan)
+	status, err := QuotaCheckCtx(context.Background(), store, "tenant-1", plan)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -156,7 +157,7 @@ func TestQuotaCheck_NegativeLimit_IsUnlimited(t *testing.T) {
 			store := &mockStore{total: tt.total}
 			plan := Plan{MaxApps: tt.maxApps}
 
-			status, err := QuotaCheck(store, "t1", plan)
+			status, err := QuotaCheckCtx(context.Background(), store, "t1", plan)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -171,7 +172,7 @@ func TestQuotaCheck_StatusFieldValues(t *testing.T) {
 	store := &mockStore{total: 7}
 	plan := Plan{MaxApps: 25}
 
-	status, err := QuotaCheck(store, "tenant-x", plan)
+	status, err := QuotaCheckCtx(context.Background(), store, "tenant-x", plan)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

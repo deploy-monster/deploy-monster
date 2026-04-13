@@ -47,7 +47,7 @@ const schedulerTickInterval = 1 * time.Minute
 //   - Start is now a no-op after Stop has run, not just a
 //     no-op-after-first-Start. Before, calling NewScheduler → Stop
 //     → Start would still spawn a loop goroutine that immediately
-//     exited on the cancelled stopCtx — harmless but noisy and a
+//     exited on the canceled stopCtx — harmless but noisy and a
 //     source of confusing test output.
 //   - Closed() exposes the stopped state to tests and higher-level
 //     schedulers that want to short-circuit before touching state.
@@ -96,7 +96,7 @@ func (s *Scheduler) Start() {
 	s.startOnce.Do(func() {
 		// Refuse to spawn the loop if Stop already ran. Without this,
 		// a test that does NewScheduler → Stop → Start would fire a
-		// goroutine that immediately hits the cancelled stopCtx and
+		// goroutine that immediately hits the canceled stopCtx and
 		// exits — functionally fine but surfaces as a confusing log
 		// line and a phantom wg.Add/Done pair.
 		if s.stopCtx != nil && s.stopCtx.Err() != nil {
@@ -261,7 +261,7 @@ func (s *Scheduler) runBackupsCtx(ctx context.Context) {
 	offset := 0
 	for {
 		if err := ctx.Err(); err != nil {
-			s.logger.Info("backup run cancelled", "error", err)
+			s.logger.Info("backup run canceled", "error", err)
 			return
 		}
 		tenants, _, err := s.store.ListAllTenants(ctx, pageSize, offset)
@@ -274,7 +274,7 @@ func (s *Scheduler) runBackupsCtx(ctx context.Context) {
 		}
 		for _, tenant := range tenants {
 			if err := ctx.Err(); err != nil {
-				s.logger.Info("backup run cancelled mid-tenant", "error", err)
+				s.logger.Info("backup run canceled mid-tenant", "error", err)
 				return
 			}
 			b, f := s.backupTenant(ctx, tenant, storage, storageName)

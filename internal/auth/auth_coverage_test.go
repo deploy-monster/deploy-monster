@@ -3,8 +3,6 @@ package auth
 import (
 	"context"
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -320,52 +318,6 @@ func TestValidatePasswordStrength_CustomMinLength(t *testing.T) {
 	err = ValidatePasswordStrength("LongEnough1Ab", 12)
 	if err != nil {
 		t.Errorf("13-char password should pass with minLength 12: %v", err)
-	}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// OAuth edge cases
-// ═══════════════════════════════════════════════════════════════════════════════
-
-func TestGetUser_UnknownProvider(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"id": "123", "email": "test@test.com"}`))
-	}))
-	defer srv.Close()
-
-	p := &OAuthProvider{
-		Name:        "unknown-provider",
-		UserInfoURL: srv.URL,
-		client:      &http.Client{},
-	}
-
-	user, err := p.GetUser(context.Background(), "tok")
-	if err != nil {
-		t.Fatalf("GetUser: %v", err)
-	}
-
-	// Unknown provider should return empty user data since no case matches
-	if user.Provider != "unknown-provider" {
-		t.Errorf("Provider = %q, want unknown-provider", user.Provider)
-	}
-	// ID/Email should be empty because no case matches in the switch
-	if user.ID != "" {
-		t.Errorf("ID should be empty for unknown provider, got %q", user.ID)
-	}
-}
-
-func TestJoinScopes_Empty(t *testing.T) {
-	result := joinScopes(nil)
-	if result != "" {
-		t.Errorf("joinScopes(nil) = %q, want empty", result)
-	}
-}
-
-func TestJoinScopes_Single(t *testing.T) {
-	result := joinScopes([]string{"email"})
-	if result != "email" {
-		t.Errorf("joinScopes([email]) = %q, want email", result)
 	}
 }
 

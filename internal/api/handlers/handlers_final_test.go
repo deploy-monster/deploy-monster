@@ -800,56 +800,6 @@ func TestFinal_Secret_Create_VersionError(t *testing.T) {
 }
 
 // =============================================================================
-// ServiceMeshHandler.Delete — bolt Set error (line 100-101)
-// =============================================================================
-
-func TestFinal_ServiceMesh_Delete_BoltSetError(t *testing.T) {
-	bolt := newMockBoltStore()
-	// Pre-populate with a link
-	bolt.Set("service_mesh", "app-1", serviceLinkList{
-		Links: []ServiceLink{{ID: "link-1", SourceAppID: "app-1", TargetAppID: "app-2"}},
-	}, 0)
-
-	// Replace with a failing bolt
-	failBolt := &boltFailOnFirstSet{mockBoltStore: bolt}
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "App"})
-	h := NewServiceMeshHandler(store, failBolt)
-
-	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/links/link-1", nil)
-	req.SetPathValue("id", "app-1")
-	req.SetPathValue("targetId", "link-1")
-	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
-	rr := httptest.NewRecorder()
-	h.Delete(rr, req)
-
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d: %s", rr.Code, rr.Body.String())
-	}
-}
-
-// =============================================================================
-// ServiceMeshHandler.Delete — bolt Get error (no links, line 88)
-// =============================================================================
-
-func TestFinal_ServiceMesh_Delete_NoLinks(t *testing.T) {
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "App"})
-	h := NewServiceMeshHandler(store, newMockBoltStore())
-
-	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/links/link-1", nil)
-	req.SetPathValue("id", "app-1")
-	req.SetPathValue("targetId", "link-1")
-	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
-	rr := httptest.NewRecorder()
-	h.Delete(rr, req)
-
-	if rr.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", rr.Code)
-	}
-}
-
-// =============================================================================
 // SessionHandler.UpdateProfile — GetUser error (line 72)
 // =============================================================================
 

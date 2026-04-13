@@ -127,8 +127,7 @@ func TestStatusWriter_CapturesStatusCode(t *testing.T) {
 }
 
 func TestStatusWriter_DefaultStatus(t *testing.T) {
-	rr := httptest.NewRecorder()
-	sw := &statusWriter{ResponseWriter: rr, status: http.StatusOK}
+	sw := &statusWriter{status: http.StatusOK}
 
 	// Without calling WriteHeader, status should remain at the default
 	if sw.status != http.StatusOK {
@@ -166,8 +165,7 @@ func TestStatusWriter_TracksBytesWritten(t *testing.T) {
 }
 
 func TestStatusWriter_ZeroBytesDefault(t *testing.T) {
-	rr := httptest.NewRecorder()
-	sw := &statusWriter{ResponseWriter: rr, status: http.StatusOK}
+	sw := &statusWriter{}
 
 	if sw.bytesWritten != 0 {
 		t.Errorf("bytesWritten should be 0 initially, got %d", sw.bytesWritten)

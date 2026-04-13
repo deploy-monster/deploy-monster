@@ -13,7 +13,7 @@ import (
 // Postgres rejects it with a foreign_key_violation (Tier 101 fix).
 // SQLite happened to tolerate the empty string due to looser FK
 // semantics but we normalise on the write path to keep both backends
-// behaviourally identical.
+// behaviorally identical.
 func nullIfEmpty(s string) any {
 	if s == "" {
 		return nil

@@ -1,6 +1,7 @@
 package marketplace
 
 import (
+	"context"
 	"testing"
 )
 
@@ -290,8 +291,7 @@ func TestModule_Lifecycle(t *testing.T) {
 // uninitialized module without error.
 func TestModule_StopIsIdempotent(t *testing.T) {
 	m := New()
-	//lint:ignore SA1012 nil context triggers the error path
-	if err := m.Stop(nil); err != nil {
+	if err := m.Stop(context.TODO()); err != nil {
 		t.Errorf("Stop on uninitialized module should not error, got: %v", err)
 	}
 }

@@ -151,7 +151,6 @@ func TestConfig_RoundTripMarshalUnmarshal(t *testing.T) {
 			},
 		},
 		Notifications: NotificationConfig{
-			EmailSMTP:      "smtp://mail:587",
 			SlackWebhook:   "https://hooks.slack.com/services/T/B/X",
 			DiscordWebhook: "https://discord.com/api/webhooks/id/tok",
 			TelegramToken:  "bot:token",
@@ -175,11 +174,7 @@ func TestConfig_RoundTripMarshalUnmarshal(t *testing.T) {
 			CommunitySync: true,
 		},
 		Registration: RegistrationConfig{Mode: "invite_only"},
-		SSO: SSOConfig{
-			GoogleClientID:     "google-client",
-			GoogleClientSecret: "google-secret",
-		},
-		Secrets: SecretsConfig{EncryptionKey: "encryption-key-value-0123456789ab"},
+		Secrets:      SecretsConfig{EncryptionKey: "encryption-key-value-0123456789ab"},
 		Billing: BillingConfig{
 			Enabled:          true,
 			StripeSecretKey:  "sk_test_xxx",
@@ -223,7 +218,6 @@ func TestConfig_RoundTripMarshalUnmarshal(t *testing.T) {
 		compareSection(t, "GitSources", orig.GitSources, round.GitSources)
 		compareSection(t, "Marketplace", orig.Marketplace, round.Marketplace)
 		compareSection(t, "Registration", orig.Registration, round.Registration)
-		compareSection(t, "SSO", orig.SSO, round.SSO)
 		compareSection(t, "Secrets", orig.Secrets, round.Secrets)
 		compareSection(t, "Billing", orig.Billing, round.Billing)
 		compareSection(t, "Limits", orig.Limits, round.Limits)

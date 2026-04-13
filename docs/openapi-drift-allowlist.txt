@@ -22,9 +22,7 @@ PATCH /api/v1/admin/settings
 POST /api/v1/admin/api-keys
 POST /api/v1/admin/license
 
-DELETE /api/v1/apps/{id}/canary
 DELETE /api/v1/apps/{id}/cron/{jobId}
-DELETE /api/v1/apps/{id}/deploy/scheduled/{scheduleId}
 DELETE /api/v1/apps/{id}/links/{targetId}
 DELETE /api/v1/apps/{id}/pin
 DELETE /api/v1/apps/{id}/redirects/{ruleId}
@@ -34,18 +32,15 @@ DELETE /api/v1/dns/records/{id}
 DELETE /api/v1/images/prune
 GET /api/v1/agents
 GET /api/v1/agents/{id}
-GET /api/v1/apps/{id}/access
 GET /api/v1/apps/{id}/autoscale
 GET /api/v1/apps/{id}/basic-auth
 GET /api/v1/apps/{id}/builds/latest/log
 GET /api/v1/apps/{id}/builds/latest/log/download
-GET /api/v1/apps/{id}/canary
 GET /api/v1/apps/{id}/commands
 GET /api/v1/apps/{id}/containers/history
 GET /api/v1/apps/{id}/cron
 GET /api/v1/apps/{id}/dependencies
 GET /api/v1/apps/{id}/deploy-notifications
-GET /api/v1/apps/{id}/deploy/scheduled
 GET /api/v1/apps/{id}/deployments/diff
 GET /api/v1/apps/{id}/deployments/latest
 GET /api/v1/apps/{id}/disk
@@ -101,13 +96,10 @@ PATCH /api/v1/tenant/settings
 POST /api/v1/apps/bulk
 POST /api/v1/apps/env/compare
 POST /api/v1/apps/import
-POST /api/v1/apps/{id}/canary
-POST /api/v1/apps/{id}/canary/promote
 POST /api/v1/apps/{id}/clone
 POST /api/v1/apps/{id}/commands
 POST /api/v1/apps/{id}/cron
 POST /api/v1/apps/{id}/deploy/preview
-POST /api/v1/apps/{id}/deploy/schedule
 POST /api/v1/apps/{id}/env/import
 POST /api/v1/apps/{id}/exec
 POST /api/v1/apps/{id}/links
@@ -135,11 +127,9 @@ POST /api/v1/domains/verify-batch
 POST /api/v1/networks/connect
 POST /api/v1/projects/{id}/environment
 POST /api/v1/registries
-POST /api/v1/servers/{id}/reboot
 POST /api/v1/ssh-keys/generate
 POST /api/v1/volumes
 POST /api/v1/webhooks/stripe
-PUT /api/v1/apps/{id}/access
 PUT /api/v1/apps/{id}/autoscale
 PUT /api/v1/apps/{id}/basic-auth
 PUT /api/v1/apps/{id}/deploy-notifications

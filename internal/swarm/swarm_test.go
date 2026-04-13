@@ -530,14 +530,8 @@ func TestAgentServer_HandleConnect_BadToken(t *testing.T) {
 // =============================================================================
 
 func TestAgentConn_PendingMap(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	ac := &AgentConn{
-		ServerID: "test-conn",
-		ctx:      ctx,
-		cancel:   cancel,
-		pending:  make(map[string]chan core.AgentMessage),
+		pending: make(map[string]chan core.AgentMessage),
 	}
 
 	// Add a pending request
@@ -1354,7 +1348,7 @@ func TestAgentServer_RemoveAgent(t *testing.T) {
 		pending:  make(map[string]chan core.AgentMessage),
 	}
 
-	// Add a pending request that should get cancelled
+	// Add a pending request that should get canceled
 	pendingCh := make(chan core.AgentMessage, 1)
 	ac.pending["req-1"] = pendingCh
 
@@ -1613,7 +1607,7 @@ func TestAgentServer_Send_ContextCancelled(t *testing.T) {
 
 	_, err := s.Send(ctx, ac, msg)
 	if err == nil {
-		t.Fatal("expected error from cancelled context")
+		t.Fatal("expected error from canceled context")
 	}
 }
 

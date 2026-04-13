@@ -460,8 +460,8 @@
 
 ### 3.4 Deploy Strategies
 
-- [x] **T-3.4.1** — Implement `internal/deploy/strategies/recreate.go` — stop old → start new
-- [x] **T-3.4.2** — Implement `internal/deploy/strategies/rolling.go` — gradual replacement (start new → health check → stop old)
+- [x] **T-3.4.1** — Implement deploy recreate strategy — stop old → start new (later merged into `internal/deploy`)
+- [x] **T-3.4.2** — Implement deploy rolling strategy — gradual replacement (later merged into `internal/deploy`)
 - [x] **T-3.4.3** — Implement `internal/deploy/rollback.go`:
   - Store last 10 deployment versions
   - `Rollback(ctx, appID, version)` — redeploy specific version's image
@@ -538,7 +538,7 @@
 - [x] **T-6.4** — Implement `internal/database/engines/redis.go` — Redis 7.x provisioning
 - [x] **T-6.5** — Implement `internal/backup/volume.go` — Docker volume tar + gzip snapshot
 - [x] **T-6.6** — Implement `internal/backup/database.go` — pg_dump / mysqldump / redis BGSAVE wrappers
-- [x] **T-6.7** — Implement `internal/backup/storage/local.go` — local filesystem backup target
+- [x] **T-6.7** — Local filesystem backup target (removed in dead-code sweep; local backups handled directly in `internal/backup`)
 - [x] **T-6.8** — Implement `internal/backup/storage/s3.go` — S3/S3-compatible upload (MinIO, R2, Backblaze)
 - [x] **T-6.9** — Implement `internal/backup/scheduler.go` — cron-based backup scheduling with retention policy
 - [x] **T-6.10** — Implement `internal/backup/encryption.go` — AES-256-GCM backup encryption
@@ -557,7 +557,7 @@
 - [x] **T-7.5** — Implement secret rotation: change value → auto-redeploy affected containers
 - [x] **T-7.6** — Implement .env import/export: `POST /api/v1/secrets/import`, `GET /api/v1/secrets/export`
 - [x] **T-7.7** — Implement secret masking in all log outputs (build logs, deploy logs, API responses)
-- [x] **T-7.8** — Implement registration modes: open, invite_only, approval, disabled, sso_only
+- [x] **T-7.8** — Implement registration modes: open, invite_only, approval, disabled
 - [x] **T-7.9** — Implement invite system: create invite → email → accept with token → create user
 - [x] **T-7.10** — Implement approval queue: register → pending → admin approve/reject
 - [x] **T-7.11** — Implement SSO/OAuth login: Google, GitHub, GitLab providers

@@ -40,7 +40,7 @@ type DeployCompleteMessage struct {
 // clientConn wraps a gorilla/websocket connection with a write mutex.
 //
 // Tier 77: gorilla/websocket explicitly requires that concurrent writes
-// to the same connection be serialised by the caller ("Connections
+// to the same connection be serialized by the caller ("Connections
 // support one concurrent reader and one concurrent writer" — godoc).
 // Pre-Tier-77, multiple concurrent BroadcastProgress / BroadcastComplete
 // calls on the same conn raced inside beginMessage → messageWriter and
@@ -51,7 +51,7 @@ type clientConn struct {
 	writeMu sync.Mutex
 }
 
-// safeWrite serialises writes on the wrapped connection via writeMu and
+// safeWrite serializes writes on the wrapped connection via writeMu and
 // applies the standard write deadline. All writes that touch a
 // registered conn (broadcasts and pings) go through this helper.
 func (cc *clientConn) safeWrite(messageType int, data []byte) error {
@@ -190,7 +190,7 @@ func (h *DeployHub) Unregister(projectID string, conn *websocket.Conn) {
 //
 // Tier 77: the snapshot-and-release pattern below means broadcasts do
 // NOT hold h.mu while writing to the network. Per-conn writeMu (via
-// safeWrite) serialises concurrent broadcasts on the same connection
+// safeWrite) serializes concurrent broadcasts on the same connection
 // and prevents gorilla/websocket frame corruption.
 func (h *DeployHub) BroadcastProgress(projectID, stage, message string, progress int) {
 	msg := DeployProgressMessage{
@@ -452,7 +452,7 @@ func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID st
 			case <-done:
 				return
 			case <-ticker.C:
-				// safeWrite serialises with any concurrent broadcast on
+				// safeWrite serializes with any concurrent broadcast on
 				// the same cc — Tier 77's per-conn writeMu.
 				if err := cc.safeWrite(websocket.PingMessage, nil); err != nil {
 					return

@@ -37,7 +37,7 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	validModes := map[string]bool{
-		"open": true, "invite_only": true, "approval": true, "disabled": true, "sso_only": true,
+		"open": true, "invite_only": true, "approval": true, "disabled": true,
 	}
 	if !validModes[cfg.Registration.Mode] {
 		return fmt.Errorf("invalid registration mode: %s", cfg.Registration.Mode)

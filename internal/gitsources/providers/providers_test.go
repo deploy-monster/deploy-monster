@@ -1167,7 +1167,7 @@ func TestBitbucket_DoNetworkError(t *testing.T) {
 	}
 }
 
-// Test with cancelled context to trigger NewRequestWithContext error or client.Do error
+// Test with canceled context to trigger NewRequestWithContext error or client.Do error
 func TestGitHub_DoCancelledContext(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode([]map[string]any{})
@@ -1180,7 +1180,7 @@ func TestGitHub_DoCancelledContext(t *testing.T) {
 	g := &GitHub{token: "tok", client: newRedirectClient(srv)}
 	_, err := g.ListRepos(ctx, 1, 10)
 	if err == nil {
-		t.Fatal("expected error with cancelled context")
+		t.Fatal("expected error with canceled context")
 	}
 }
 
@@ -1196,7 +1196,7 @@ func TestGitLab_DoCancelledContext(t *testing.T) {
 	g := &GitLab{token: "tok", baseURL: srv.URL, client: srv.Client()}
 	_, err := g.ListRepos(ctx, 1, 10)
 	if err == nil {
-		t.Fatal("expected error with cancelled context")
+		t.Fatal("expected error with canceled context")
 	}
 }
 
@@ -1212,7 +1212,7 @@ func TestGitea_DoCancelledContext(t *testing.T) {
 	g := &Gitea{token: "tok", baseURL: srv.URL, client: srv.Client()}
 	_, err := g.ListRepos(ctx, 1, 10)
 	if err == nil {
-		t.Fatal("expected error with cancelled context")
+		t.Fatal("expected error with canceled context")
 	}
 }
 
@@ -1228,7 +1228,7 @@ func TestBitbucket_DoCancelledContext(t *testing.T) {
 	b := &Bitbucket{token: "tok", client: newRedirectClient(srv)}
 	_, err := b.ListRepos(ctx, 1, 10)
 	if err == nil {
-		t.Fatal("expected error with cancelled context")
+		t.Fatal("expected error with canceled context")
 	}
 }
 

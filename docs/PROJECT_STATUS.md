@@ -28,7 +28,6 @@ DeployMonster is a **production-ready** self-hosted PaaS platform. Single binary
 |---------|----------|
 | `internal/compose` | 100.0% |
 | `internal/api/middleware` | 100.0% |
-| `internal/deploy/strategies` | 100.0% |
 | `internal/database/engines` | 100.0% |
 | `internal/enterprise/integrations` | 100.0% |
 | `internal/ingress/middleware` | 100.0% |
@@ -92,7 +91,6 @@ DeployMonster is a **production-ready** self-hosted PaaS platform. Single binary
 - [x] JWT tokens (HS256, key rotation support)
 - [x] bcrypt password hashing
 - [x] TOTP 2FA
-- [x] OAuth (Google, GitHub)
 - [x] RBAC (6 built-in roles)
 - [x] Tenant isolation
 - [x] API keys with scopes

@@ -576,9 +576,9 @@ func TestAgentServer_HandleConnect_ReplacesExistingAgent(t *testing.T) {
 		t.Errorf("expected 1 agent with ID 'dup-agent', got %d", count)
 	}
 
-	// Verify old connection was cancelled
+	// Verify old connection was canceled
 	if oldCtx.Err() == nil {
-		t.Error("old agent context should be cancelled")
+		t.Error("old agent context should be canceled")
 	}
 
 	conn.Close()
@@ -2209,7 +2209,7 @@ func TestAgentClient_ConnectWithRetry_BackoffCap(t *testing.T) {
 	// We need 6 iterations to hit the cap. Since Connect to port 1 fails
 	// immediately, we only wait for the backoff sleeps: 1+2+4+8+16 = 31s.
 	// That's too long. Instead, we can verify the retry loop runs multiple
-	// iterations by cancelling after a reasonable time.
+	// iterations by canceling after a reasonable time.
 	rt := &mockRuntime{}
 	client := NewAgentClient("http://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger())
 
@@ -2342,7 +2342,7 @@ func TestAgentServer_HandleConnect_NoHijacker(t *testing.T) {
 }
 
 // =============================================================================
-// AgentServer.readLoop — context cancelled during read
+// AgentServer.readLoop — context canceled during read
 // =============================================================================
 
 func TestAgentServer_ReadLoop_ContextCancelled(t *testing.T) {
@@ -2989,7 +2989,7 @@ func TestAgentServer_HandleConnect_UnmarshalablePayload(t *testing.T) {
 }
 
 // =============================================================================
-// readLoop — context cancelled during read error (ctx.Err() != nil path)
+// readLoop — context canceled during read error (ctx.Err() != nil path)
 // =============================================================================
 
 func TestAgentServer_ReadLoop_ContextCancelledDuringRead(t *testing.T) {
@@ -3081,14 +3081,14 @@ func TestModule_Init_RouterHandler(t *testing.T) {
 }
 
 // =============================================================================
-// ConnectWithRetry — context cancelled after first successful connect attempt
+// ConnectWithRetry — context canceled after first successful connect attempt
 // =============================================================================
 
 func TestAgentClient_ConnectWithRetry_ContextCancelledDuringConnect(t *testing.T) {
 	// Start a server that accepts the upgrade, waits a moment, then closes.
 	// While Connect is in readLoop, we cancel the context.
 	// Connect passes ctx to readLoop, and readLoop checks ctx.Done() in its
-	// select statement. When ctx is cancelled, readLoop returns ctx.Err(),
+	// select statement. When ctx is canceled, readLoop returns ctx.Err(),
 	// which Connect returns. Then ConnectWithRetry checks ctx.Err() at line 85.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

@@ -36,7 +36,7 @@ const (
 //     fix Stop only closed the channel and returned, leaving the loop
 //     goroutine racing past the module shutdown.
 //   - A cancellable stopCtx is derived from NewMeter and plumbed into
-//     every collect/reportUsageToStripe call. Cancelling it (from Stop)
+//     every collect/reportUsageToStripe call. Canceling it (from Stop)
 //     aborts any in-flight Docker list, database write, or Stripe API
 //     call at the next I/O boundary.
 //   - Start uses startOnce so a double-Start cannot spawn two goroutines
@@ -159,7 +159,7 @@ func (m *Meter) loop() {
 		case <-ticker.C:
 			// Guard against a tick that lands in the same scheduler
 			// window as a concurrent Stop — bail instead of entering
-			// collect with a cancelled context.
+			// collect with a canceled context.
 			if m.stopCtx != nil && m.stopCtx.Err() != nil {
 				return
 			}
@@ -255,7 +255,7 @@ func (m *Meter) collect() {
 // metered usage records. Tenants without a linked Stripe subscription
 // item are silently skipped — that's the expected state for free-plan
 // tenants. The ctx is the per-tick deadline derived in collect; if it
-// is cancelled we abort the remaining tenants rather than pushing stale
+// is canceled we abort the remaining tenants rather than pushing stale
 // usage after a Stop.
 func (m *Meter) reportUsageToStripe(ctx context.Context, tenantUsage map[string]*TenantUsage, bucket time.Time) {
 	for tenantID, usage := range tenantUsage {
@@ -307,16 +307,6 @@ type TenantUsage struct {
 	CPUSeconds  float64
 	RAMMBHours  float64
 	BandwidthMB float64
-}
-
-// QuotaCheck verifies if a tenant is within their plan limits.
-//
-// This is a backwards-compatibility wrapper around QuotaCheckCtx that
-// passes a background context. New call sites should prefer
-// QuotaCheckCtx so HTTP handlers can propagate their request context
-// (and thus cancel a slow quota probe when the client disconnects).
-func QuotaCheck(store core.Store, tenantID string, plan Plan) (*QuotaStatus, error) {
-	return QuotaCheckCtx(context.Background(), store, tenantID, plan)
 }
 
 // QuotaCheckCtx is the context-aware quota check. Before Tier 68 the

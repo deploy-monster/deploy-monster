@@ -203,7 +203,7 @@ sampleLoop:
 	}
 
 	// Stop the load generator. Any in-flight requests were already
-	// cancelled by the parent ctx timeout; loadWG just drains goroutines.
+	// canceled by the parent ctx timeout; loadWG just drains goroutines.
 	loadStopped.Store(true)
 	loadWG.Wait()
 

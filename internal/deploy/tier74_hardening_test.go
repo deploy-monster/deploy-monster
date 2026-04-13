@@ -38,10 +38,10 @@ func TestTier74_NewAutoRollbackManager_NilLogger(t *testing.T) {
 		t.Error("logger should default to slog.Default when nil")
 	}
 	if ar.stopCtx == nil {
-		t.Error("stopCtx should be initialised")
+		t.Error("stopCtx should be initialized")
 	}
 	if ar.stopCancel == nil {
-		t.Error("stopCancel should be initialised")
+		t.Error("stopCancel should be initialized")
 	}
 }
 
@@ -272,17 +272,17 @@ func TestTier74_AutoRollback_Stop_CancelsStopCtx(t *testing.T) {
 	// Before Stop, stopCtx must be live.
 	select {
 	case <-ar.stopCtx.Done():
-		t.Fatal("stopCtx was cancelled before Stop")
+		t.Fatal("stopCtx was canceled before Stop")
 	default:
 	}
 
 	ar.Stop()
 
-	// After Stop, stopCtx must be cancelled.
+	// After Stop, stopCtx must be canceled.
 	select {
 	case <-ar.stopCtx.Done():
 	case <-time.After(100 * time.Millisecond):
-		t.Fatal("stopCtx was not cancelled by Stop")
+		t.Fatal("stopCtx was not canceled by Stop")
 	}
 }
 

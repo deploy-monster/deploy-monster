@@ -335,8 +335,7 @@ func TestModule_Init_ValidConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	//lint:ignore SA1012 nil context triggers the error path
-	defer m.Stop(nil)
+	defer m.Stop(context.TODO())
 
 	if m.Store() == nil {
 		t.Error("Store() should not be nil after Init")

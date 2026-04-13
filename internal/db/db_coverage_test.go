@@ -60,8 +60,7 @@ func TestModule_Init_SQLite_InvalidBoltPath(t *testing.T) {
 		t.Error("expected error when bolt path is invalid")
 	}
 	// Ensure cleanup happens even on failure
-	//lint:ignore SA1012 nil context triggers the error path
-	m.Stop(nil)
+	m.Stop(context.TODO())
 }
 
 // =============================================================================
@@ -87,8 +86,7 @@ func TestModule_Stop_SQLiteError_BoltOK(t *testing.T) {
 	// Close sqlite first to cause error on Stop
 	sqliteDB.Close()
 
-	//lint:ignore SA1012 nil context triggers the error path
-	err = m.Stop(nil)
+	err = m.Stop(context.TODO())
 	// SQLite close error is returned as firstErr
 	// Bolt should still close successfully
 	_ = err
@@ -113,8 +111,7 @@ func TestModule_Stop_SQLiteOK_BoltError(t *testing.T) {
 	// Close bolt first to cause error on Stop
 	boltStore.Close()
 
-	//lint:ignore SA1012 nil context triggers the error path
-	err = m.Stop(nil)
+	err = m.Stop(context.TODO())
 	// The bolt close error path is exercised (but firstErr may or may not be nil
 	// depending on whether SQLite close succeeds)
 	_ = err
@@ -140,8 +137,7 @@ func TestModule_Stop_BothErrors(t *testing.T) {
 	sqliteDB.Close()
 	boltStore.Close()
 
-	//lint:ignore SA1012 nil context triggers the error path
-	err = m.Stop(nil)
+	err = m.Stop(context.TODO())
 	// firstErr should be the sqlite error; bolt error is swallowed
 	_ = err
 }
@@ -165,8 +161,7 @@ func TestModule_Init_SetsDBSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	//lint:ignore SA1012 nil context triggers the error path
-	defer m.Stop(nil)
+	defer m.Stop(context.TODO())
 
 	if c.DB == nil {
 		t.Fatal("core.DB should be set")

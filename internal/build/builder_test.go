@@ -141,7 +141,7 @@ func TestModule_RoutesAndEvents(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestWorkerPool_Basic(t *testing.T) {
-	pool := NewWorkerPool(3)
+	pool := NewWorkerPoolWithLogger(3, nil)
 
 	results := make(chan int, 5)
 	for i := 0; i < 5; i++ {
@@ -164,7 +164,7 @@ func TestWorkerPool_Basic(t *testing.T) {
 }
 
 func TestWorkerPool_SingleWorker(t *testing.T) {
-	pool := NewWorkerPool(1)
+	pool := NewWorkerPoolWithLogger(1, nil)
 
 	var order []int
 	for i := 0; i < 3; i++ {
@@ -181,8 +181,8 @@ func TestWorkerPool_SingleWorker(t *testing.T) {
 	}
 }
 
-func TestNewWorkerPool(t *testing.T) {
-	pool := NewWorkerPool(10)
+func TestNewWorkerPoolWithLogger(t *testing.T) {
+	pool := NewWorkerPoolWithLogger(10, nil)
 	if pool.maxWorkers != 10 {
 		t.Errorf("expected maxWorkers=10, got %d", pool.maxWorkers)
 	}

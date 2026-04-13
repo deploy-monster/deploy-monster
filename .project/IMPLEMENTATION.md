@@ -23,10 +23,8 @@ mkdir -p cmd/deploymonster
 mkdir -p internal/{core,auth,api,db,ingress,deploy,build,discovery,dns,resource,backup,database,swarm,vps,gitsources,compose,marketplace,mcp,notifications,webhooks,secrets,billing,enterprise}
 mkdir -p internal/api/{handlers,middleware,ws}
 mkdir -p internal/ingress/{middleware,lb}
-mkdir -p internal/deploy/strategies
 mkdir -p internal/build/templates
 mkdir -p internal/dns/providers
-mkdir -p internal/backup/storage
 mkdir -p internal/database/engines
 mkdir -p internal/vps/providers
 mkdir -p internal/gitsources/providers

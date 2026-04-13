@@ -194,24 +194,6 @@ type Notification struct {
 	Metadata  map[string]string // Channel-specific metadata
 }
 
-// --- Outbound Webhooks ---
-
-// OutboundWebhookSender sends webhook payloads to external URLs.
-// Implemented by: webhooks module
-type OutboundWebhookSender interface {
-	Send(ctx context.Context, webhook OutboundWebhook) error
-}
-
-// OutboundWebhook represents a webhook delivery to an external URL.
-type OutboundWebhook struct {
-	URL     string
-	Method  string // POST, PUT
-	Headers map[string]string
-	Payload any
-	Secret  string // HMAC signing secret
-	Timeout int    // Seconds
-}
-
 // --- DNS ---
 
 // DNSProvider manages DNS records for a specific provider.
@@ -382,7 +364,6 @@ type Services struct {
 	SSH           SSHClient
 	Secrets       SecretResolver
 	Notifications NotificationSender
-	Webhooks      OutboundWebhookSender
 
 	// Provider registries — support multiple implementations
 	dnsProviders    map[string]DNSProvider

@@ -92,13 +92,13 @@ func TestTier75_Module_Init_InitializesStopCtx(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	if m.stopCtx == nil {
-		t.Error("stopCtx should be initialised by Init")
+		t.Error("stopCtx should be initialized by Init")
 	}
 	if m.stopCancel == nil {
-		t.Error("stopCancel should be initialised by Init")
+		t.Error("stopCancel should be initialized by Init")
 	}
 	if m.stopCh == nil {
-		t.Error("stopCh should be initialised by Init")
+		t.Error("stopCh should be initialized by Init")
 	}
 }
 
@@ -112,7 +112,7 @@ func TestTier75_Module_Stop_CancelsStopCtx(t *testing.T) {
 
 	select {
 	case <-m.stopCtx.Done():
-		t.Fatal("stopCtx was cancelled before Stop")
+		t.Fatal("stopCtx was canceled before Stop")
 	default:
 	}
 
@@ -123,7 +123,7 @@ func TestTier75_Module_Stop_CancelsStopCtx(t *testing.T) {
 	select {
 	case <-m.stopCtx.Done():
 	case <-time.After(100 * time.Millisecond):
-		t.Fatal("stopCtx was not cancelled by Stop")
+		t.Fatal("stopCtx was not canceled by Stop")
 	}
 }
 
@@ -139,10 +139,10 @@ func TestTier75_Module_runCtx_Fallback(t *testing.T) {
 	if ctx == nil {
 		t.Fatal("runCtx returned nil")
 	}
-	// Should not be cancelled.
+	// Should not be canceled.
 	select {
 	case <-ctx.Done():
-		t.Fatal("fallback ctx should not be cancelled")
+		t.Fatal("fallback ctx should not be canceled")
 	default:
 	}
 }
@@ -197,7 +197,7 @@ func TestTier75_Module_ConcurrentStop_NoPanic(t *testing.T) {
 
 // TestTier75_Module_Stop_LegacyStructLiteralCompat mirrors the
 // pre-Tier-75 test pattern where a caller builds a Module by hand
-// and sets stopCh manually. The stopOnce guard must still serialise
+// and sets stopCh manually. The stopOnce guard must still serialize
 // the close so this path does not panic on double Stop.
 func TestTier75_Module_Stop_LegacyStructLiteralCompat(t *testing.T) {
 	m := New()

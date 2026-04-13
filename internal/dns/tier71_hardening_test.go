@@ -37,7 +37,7 @@ func TestTier71_NewSyncQueue_NilLogger(t *testing.T) {
 		t.Error("logger should default to slog.Default when nil")
 	}
 	if q.stopCtx == nil || q.stopCancel == nil {
-		t.Error("stopCtx/stopCancel should be initialised")
+		t.Error("stopCtx/stopCancel should be initialized")
 	}
 }
 
@@ -85,13 +85,13 @@ func TestTier71_SyncQueue_Start_Idempotent(t *testing.T) {
 
 // ─── Stop cancels in-flight provider RPC ───────────────────────────────────
 
-// blockingProvider hangs on CreateRecord until ctx is cancelled. We
+// blockingProvider hangs on CreateRecord until ctx is canceled. We
 // use it to prove that Stop actually aborts the in-flight RPC through
 // the shared stopCtx plumbing.
 type blockingProvider struct {
-	name      string
-	started   chan struct{}
-	cancelled atomic.Bool
+	name     string
+	started  chan struct{}
+	canceled atomic.Bool
 }
 
 func (b *blockingProvider) Name() string { return b.name }
@@ -102,7 +102,7 @@ func (b *blockingProvider) CreateRecord(ctx context.Context, _ core.DNSRecord) e
 		close(b.started)
 	}
 	<-ctx.Done()
-	b.cancelled.Store(true)
+	b.canceled.Store(true)
 	return ctx.Err()
 }
 func (b *blockingProvider) UpdateRecord(ctx context.Context, _ core.DNSRecord) error {
@@ -146,10 +146,10 @@ func TestTier71_SyncQueue_Stop_CancelsInFlightRPC(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("Stop did not return — in-flight RPC was not cancelled")
+		t.Fatal("Stop did not return — in-flight RPC was not canceled")
 	}
 
-	if !prov.cancelled.Load() {
+	if !prov.canceled.Load() {
 		t.Error("CreateRecord did not observe ctx cancellation")
 	}
 }
@@ -240,7 +240,7 @@ func TestTier71_SyncQueue_EnqueueAfterStop_Dropped(t *testing.T) {
 // ─── Stop waits for verify goroutine ───────────────────────────────────────
 
 // slowVerifyProvider reports a successful create immediately but
-// blocks in Verify until ctx is cancelled. This lets us prove that
+// blocks in Verify until ctx is canceled. This lets us prove that
 // Stop actually drains the verify goroutine rather than letting it
 // leak past shutdown.
 type slowVerifyProvider struct {
@@ -289,7 +289,7 @@ func TestTier71_SyncQueue_Stop_DrainsVerifyGoroutine(t *testing.T) {
 	// Wait for the verify goroutine to enter its RPC. Note: verify
 	// waits verifyDelay (5s) after create before calling provider.Verify,
 	// so we only assert the goroutine exists by waiting on stopCh
-	// behaviour below — not on verifyStarted directly.
+	// behavior below — not on verifyStarted directly.
 
 	// Stop should cancel the pending verify delay AND wait for the
 	// goroutine to return before unblocking the caller.
@@ -336,7 +336,7 @@ func TestTier71_SyncQueue_RunCtx_NilFallback(t *testing.T) {
 		t.Fatal("runCtx must not return nil")
 	}
 	if ctx.Err() != nil {
-		t.Errorf("fallback background context should not be cancelled: %v", ctx.Err())
+		t.Errorf("fallback background context should not be canceled: %v", ctx.Err())
 	}
 }
 

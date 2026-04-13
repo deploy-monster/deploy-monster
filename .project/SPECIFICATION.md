@@ -2808,7 +2808,7 @@ Admin controls how customers access the platform:
 | `invite_only` | Admin sends invite links | Email invite with expiring token |
 | `approval` | User registers, admin approves | Pending queue in admin panel |
 | `disabled` | No registration | Admin creates accounts manually |
-| `sso_only` | SSO providers only | Google, GitHub, GitLab OAuth |
+
 
 **Registration Flow:**
 ```
@@ -3671,7 +3671,7 @@ marketplace:
   allow_custom_templates: true
 
 registration:
-  mode: invite_only              # open | invite_only | approval | disabled | sso_only
+  mode: invite_only              # open | invite_only | approval | disabled
   require_email_verification: true
   allowed_email_domains: []      # Empty = all domains, ["example.com"] = restrict
   default_plan: free
@@ -3891,7 +3891,6 @@ deploy-monster/
 │   ├── gitsources/                    # Universal Git Source Manager
 │   │   ├── module.go
 │   │   ├── manager.go
-│   │   ├── oauth.go                   # OAuth2 flow handler
 │   │   ├── providers/
 │   │   │   ├── provider.go            # Git provider interface
 │   │   │   ├── github.go

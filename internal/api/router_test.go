@@ -656,6 +656,12 @@ func TestPaginatedResponse_Fields(t *testing.T) {
 	if resp.TotalPages != 5 {
 		t.Errorf("TotalPages = %d, want 5", resp.TotalPages)
 	}
+	data, ok := resp.Data.([]string)
+	if !ok {
+		t.Errorf("Data type = %T, want []string", resp.Data)
+	} else if len(data) != 2 {
+		t.Errorf("len(Data) = %d, want 2", len(data))
+	}
 }
 
 // =====================================================

@@ -27,7 +27,7 @@ func writeYAML(t *testing.T, path, body string) {
 // these alongside ReloadConfig callers to drive the concurrent path.
 //
 // Returns the number of iterations the goroutine completed before
-// ctx was cancelled. Any visible corruption (nil-pointer panic, a
+// ctx was canceled. Any visible corruption (nil-pointer panic, a
 // reload mid-field that leaves a struct half-mutated) would surface
 // as a recover() catching a panic; the test asserts the recovered
 // count stays at zero.

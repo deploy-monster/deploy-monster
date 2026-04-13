@@ -304,37 +304,24 @@ const (
 	EventAppScaled   = "app.scaled"
 
 	// Build pipeline
-	EventBuildQueued    = "build.queued"
 	EventBuildStarted   = "build.started"
 	EventBuildCompleted = "build.completed"
 	EventBuildFailed    = "build.failed"
-	EventBuildLog       = "build.log"
 
 	// Domain & SSL
-	EventDomainAdded    = "domain.added"
-	EventDomainRemoved  = "domain.removed"
-	EventDomainVerified = "domain.verified"
-	EventSSLIssued      = "ssl.issued"
-	EventSSLExpiring    = "ssl.expiring"
-	EventSSLRenewed     = "ssl.renewed"
-	EventSSLFailed      = "ssl.failed"
+	EventDomainAdded   = "domain.added"
+	EventDomainRemoved = "domain.removed"
 
 	// Container
 	EventContainerStarted = "container.started"
 	EventContainerStopped = "container.stopped"
 	EventContainerDied    = "container.died"
-	EventContainerHealthy = "container.healthy"
 
 	// Server / Infrastructure
-	EventServerAdded     = "server.added"
-	EventServerRemoved   = "server.removed"
-	EventServerDown      = "server.down"
-	EventServerRecovered = "server.recovered"
+	EventServerAdded = "server.added"
 
 	// Webhook (inbound)
-	EventWebhookReceived  = "webhook.received"
-	EventWebhookProcessed = "webhook.processed"
-	EventWebhookFailed    = "webhook.failed"
+	EventWebhookReceived = "webhook.received"
 
 	// Webhook (outbound)
 	EventOutboundSent   = "outbound.sent"
@@ -350,25 +337,12 @@ const (
 	EventAlertResolved  = "alert.resolved"
 
 	// User / Auth
-	EventUserCreated   = "user.created"
-	EventUserLoggedIn  = "user.logged_in"
-	EventUserLoggedOut = "user.logged_out"
-	EventUserInvited   = "user.invited"
-
-	// Tenant
-	EventTenantCreated   = "tenant.created"
-	EventTenantUpdated   = "tenant.updated"
-	EventTenantSuspended = "tenant.suspended"
+	EventUserInvited = "user.invited"
 
 	// Secret
 	EventSecretCreated = "secret.created"
-	EventSecretUpdated = "secret.updated"
-	EventSecretRotated = "secret.rotated"
-	EventSecretDeleted = "secret.deleted"
 
 	// Billing
-	EventQuotaExceeded               = "quota.exceeded"
-	EventQuotaWarning                = "quota.warning"
 	EventInvoiceGenerated            = "invoice.generated"
 	EventPaymentReceived             = "payment.received"
 	EventPaymentFailed               = "payment.failed"
@@ -379,11 +353,8 @@ const (
 
 	// Database
 	EventDatabaseCreated = "database.created"
-	EventDatabaseDeleted = "database.deleted"
-	EventDatabaseBackup  = "database.backup"
 
 	// Deployment
-	EventDeployStarted  = "deploy.started"
 	EventDeployFinished = "deploy.finished"
 	EventDeployFailed   = "deploy.failed"
 	EventRollbackDone   = "deploy.rollback"
@@ -410,19 +381,15 @@ const (
 	EventRedirectCreated = "redirect.created"
 	EventRedirectDeleted = "redirect.deleted"
 
-	// Service Mesh
-	EventServiceMeshDeleted = "service_mesh.deleted"
-
 	// Config changes (security/operational)
 	EventAutoscaleUpdated = "autoscale.updated"
 	EventBasicAuthUpdated = "basicauth.updated"
 	EventGPUConfigUpdated = "gpu.updated"
 
 	// System
-	EventSystemStarted       = "system.started"
-	EventSystemStopping      = "system.stopping"
-	EventConfigReloaded      = "system.config_reloaded"
-	EventModuleHealthChanged = "module.health_changed"
+	EventSystemStarted  = "system.started"
+	EventSystemStopping = "system.stopping"
+	EventConfigReloaded = "system.config_reloaded"
 )
 
 // EventData types provide typed payloads for common events.
@@ -457,15 +424,6 @@ type BuildEventData struct {
 	CommitSHA string        `json:"commit_sha,omitempty"`
 	Duration  time.Duration `json:"duration,omitempty"`
 	Error     string        `json:"error,omitempty"`
-}
-
-// BuildLogEventData is the payload for per-line build.log events. SSE
-// and WebSocket listeners can subscribe to these to tail a running
-// build in real time.
-type BuildLogEventData struct {
-	AppID     string `json:"app_id"`
-	Line      string `json:"line"`
-	Timestamp int64  `json:"ts"`
 }
 
 // DomainEventData is the payload for domain events.
@@ -509,13 +467,6 @@ type NotificationEventData struct {
 	Recipient string `json:"recipient"`
 	Subject   string `json:"subject"`
 	Error     string `json:"error,omitempty"`
-}
-
-// UserEventData is the payload for user events.
-type UserEventData struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
-	Action string `json:"action"`
 }
 
 type correlationKeyType struct{}

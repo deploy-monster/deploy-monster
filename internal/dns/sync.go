@@ -60,7 +60,7 @@ type SyncJob struct {
 //   - process() used context.WithTimeout(context.Background(), 30s),
 //     so a Stop in the middle of a slow Cloudflare call could not
 //     abort it. The parent is now a shared stopCtx derived in
-//     NewSyncQueue and cancelled by Stop.
+//     NewSyncQueue and canceled by Stop.
 //   - The verify goroutine also used context.Background(); it now
 //     inherits from stopCtx and is tracked by wg.
 //   - Retry backoff used time.Sleep(), blocking the single worker
@@ -88,7 +88,7 @@ type SyncQueue struct {
 	// without churn.
 	stopCh chan struct{}
 
-	// Shutdown plumbing. stopCtx is cancelled by Stop so any in-flight
+	// Shutdown plumbing. stopCtx is canceled by Stop so any in-flight
 	// DNS provider RPC, verification probe, or retry backoff unblocks
 	// promptly. wg tracks the worker goroutine and every per-job
 	// verification goroutine so Stop can wait for all of them to exit.
@@ -104,7 +104,7 @@ type SyncQueue struct {
 	stopCancel context.CancelFunc
 	wg         sync.WaitGroup
 
-	// mu serialises started/closed with Enqueue and Start/Stop so a
+	// mu serializes started/closed with Enqueue and Start/Stop so a
 	// Stop that races a concurrent Enqueue cannot accept a job the
 	// worker will never see, and a Start that races a concurrent Stop
 	// cannot reuse a drained wg.
@@ -135,7 +135,7 @@ func NewSyncQueue(services *core.Services, store core.Store, events *core.EventB
 
 // Enqueue adds a DNS operation to the queue. Submissions to a closed
 // queue are silently dropped (with a warn log) — the pre-Tier-71
-// behaviour of letting jobs pile up in the buffered channel after
+// behavior of letting jobs pile up in the buffered channel after
 // Stop left the queue state unbounded and invisible to operators.
 func (q *SyncQueue) Enqueue(job *SyncJob) {
 	if job.ID == "" {

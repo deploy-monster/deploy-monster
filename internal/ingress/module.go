@@ -40,7 +40,7 @@ type Module struct {
 	tlsServer  *http.Server
 	logger     *slog.Logger
 
-	// stopCtx is cancelled by Stop so the ACME renewal loop (and any
+	// stopCtx is canceled by Stop so the ACME renewal loop (and any
 	// future background workers on the ingress module) can unblock
 	// cleanly instead of being left running until process exit.
 	stopCtx    context.Context
@@ -140,7 +140,7 @@ func (m *Module) Start(_ context.Context) error {
 			}
 		}()
 
-		// Start ACME certificate renewal loop. The context is cancelled
+		// Start ACME certificate renewal loop. The context is canceled
 		// by Module.Stop so the loop exits cleanly instead of leaking.
 		go m.acme.RenewalLoop(m.stopCtx)
 	}
@@ -194,7 +194,7 @@ func (m *Module) Router() *RouteTable {
 
 // CertStatus returns a snapshot of the certificates currently held by
 // this module's cert store, or nil if the store hasn't been
-// initialised yet (e.g. when the module hasn't run Init). It is safe
+// initialized yet (e.g. when the module hasn't run Init). It is safe
 // to call from any goroutine.
 func (m *Module) CertStatus() []CertInfo {
 	if m.certStore == nil {

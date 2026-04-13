@@ -286,11 +286,11 @@ func TestModule_Stop_CleansUpHealthChecker(t *testing.T) {
 		t.Fatalf("second Stop: %v", err)
 	}
 
-	// Confirm the watcher context was cancelled.
+	// Confirm the watcher context was canceled.
 	select {
 	case <-m.watcherCtx.Done():
 	default:
-		t.Error("watcher context should be cancelled after Module.Stop")
+		t.Error("watcher context should be canceled after Module.Stop")
 	}
 }
 

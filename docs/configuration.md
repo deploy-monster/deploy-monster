@@ -118,7 +118,6 @@ backup:
 
 ```yaml
 notifications:
-  email_smtp: ""             # SMTP connection string for email notifications
   slack_webhook: ""          # Slack webhook URL
   discord_webhook: ""        # Discord webhook URL
   telegram_token: ""         # Telegram bot token
@@ -171,15 +170,6 @@ registration:
 - `invite_only` — Registration requires an invitation
 - `approval` — Registration requires admin approval
 - `disabled` — Registration is disabled
-- `sso_only` — Only SSO authentication is allowed
-
-### sso
-
-```yaml
-sso:
-  google_client_id: ""       # Google OAuth client ID
-  google_client_secret: ""   # Google OAuth client secret
-```
 
 ### secrets
 

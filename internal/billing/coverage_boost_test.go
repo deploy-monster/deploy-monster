@@ -216,8 +216,7 @@ func TestStripeClient_Post_Success(t *testing.T) {
 	defer server.Close()
 
 	client := &StripeClient{
-		secretKey: "sk_test",
-		client:    server.Client(),
+		client: server.Client(),
 	}
 
 	var resp struct {
@@ -256,8 +255,7 @@ func TestStripeClient_Post_ErrorResponse(t *testing.T) {
 	defer server.Close()
 
 	client := &StripeClient{
-		secretKey: "sk_test_err",
-		client:    server.Client(),
+		client: server.Client(),
 	}
 
 	// Use the raw post method path — we can test it by making a manual request
@@ -315,7 +313,7 @@ func TestQuotaCheck_StoreError_Propagated(t *testing.T) {
 	store := &mockStore{err: fmt.Errorf("connection refused")}
 	plan := Plan{MaxApps: 10}
 
-	_, err := QuotaCheck(store, "tenant-1", plan)
+	_, err := QuotaCheckCtx(context.Background(), store, "tenant-1", plan)
 	if err == nil {
 		t.Fatal("expected error from store")
 	}

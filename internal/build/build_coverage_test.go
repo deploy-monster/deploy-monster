@@ -539,14 +539,14 @@ func TestWorkerPool_ZeroCapacity(t *testing.T) {
 		}
 	}()
 
-	pool := NewWorkerPool(0)
+	pool := NewWorkerPoolWithLogger(0, nil)
 	if pool.maxWorkers != 0 {
 		t.Errorf("expected maxWorkers=0, got %d", pool.maxWorkers)
 	}
 }
 
 func TestWorkerPool_ConcurrentSubmit(t *testing.T) {
-	pool := NewWorkerPool(5)
+	pool := NewWorkerPoolWithLogger(5, nil)
 	results := make(chan int, 20)
 
 	for i := 0; i < 20; i++ {

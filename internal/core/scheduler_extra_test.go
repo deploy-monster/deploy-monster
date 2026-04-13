@@ -71,13 +71,12 @@ func TestScheduler_Stop_Idempotent(t *testing.T) {
 	// This test documents the behavior: calling Stop() twice panics.
 	// If the implementation is changed to be idempotent, update this test.
 	defer func() {
-		if r := recover(); r == nil {
-			// If it doesn't panic, that means Stop is idempotent (good).
-			// No error needed.
+		if r := recover(); r != nil {
+			t.Errorf("Stop() panicked on second call: %v", r)
 		}
 	}()
 
-	// This may panic since we're closing an already-closed channel
+	// This should be safe if the implementation is idempotent
 	s.Stop()
 }
 

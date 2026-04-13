@@ -529,6 +529,15 @@ func TestVersionInfo_Struct(t *testing.T) {
 	if v.Version != 3 {
 		t.Errorf("Version = %d", v.Version)
 	}
+	if v.Image != "app:v3" {
+		t.Errorf("Image = %q", v.Image)
+	}
+	if v.Status != "running" {
+		t.Errorf("Status = %q", v.Status)
+	}
+	if v.CommitSHA != "abc123" {
+		t.Errorf("CommitSHA = %q", v.CommitSHA)
+	}
 	if !v.IsCurrent {
 		t.Error("IsCurrent should be true")
 	}

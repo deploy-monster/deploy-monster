@@ -333,14 +333,14 @@ func TestTelegramProvider_Send_WithHTTPTest(t *testing.T) {
 
 	// Instead, let's test the Telegram provider end-to-end using a modified approach:
 	// Create a TelegramProvider that uses a custom HTTP client pointing to our server.
-	// But the URL is hardcoded. So we test with a cancelled context to verify error handling.
+	// But the URL is hardcoded. So we test with a canceled context to verify error handling.
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	err := p.Send(ctx, "", "Alert", "CPU usage high", "text")
 	if err == nil {
-		t.Log("Send with cancelled context may not return error if request is fast enough")
+		t.Log("Send with canceled context may not return error if request is fast enough")
 	}
 }
 
@@ -361,9 +361,9 @@ func TestTelegramProvider_Send_ServerReturnsError(t *testing.T) {
 	cancel()
 
 	err := p.Send(ctx, "", "Alert", "Body", "text")
-	// With cancelled context, we expect an error
+	// With canceled context, we expect an error
 	if err == nil {
-		t.Log("Telegram Send with cancelled context did not error")
+		t.Log("Telegram Send with canceled context did not error")
 	}
 }
 

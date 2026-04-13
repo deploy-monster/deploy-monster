@@ -7,7 +7,7 @@ import (
 )
 
 // Timeout adds a context deadline to each request.
-// If the handler takes longer than the timeout, the context is cancelled.
+// If the handler takes longer than the timeout, the context is canceled.
 func Timeout(duration time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

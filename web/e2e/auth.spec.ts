@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_USER, loginViaUI, registerViaUI, uniqueId } from './helpers';
+import { TEST_USER, loginViaUI } from './helpers';
 
 /**
  * Authentication E2E tests.

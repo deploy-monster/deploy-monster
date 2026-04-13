@@ -55,7 +55,7 @@ func NewWatcher(runtime core.ContainerRuntime, rt *ingress.RouteTable, events *c
 }
 
 // Start begins the periodic container scan. It blocks until either
-// Stop is called or ctx is cancelled — callers who want it in the
+// Stop is called or ctx is canceled — callers who want it in the
 // background must invoke it in a goroutine and track the lifetime via
 // the watcher's own Stop. Start is a no-op if already running or if
 // Stop has already been called; that avoids the WaitGroup-reuse race

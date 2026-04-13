@@ -187,7 +187,7 @@ func TestAutoRestarterCoverage_HandleCrash_ZeroRetries(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CheckDockerHubTag — context cancelled
+// CheckDockerHubTag — context canceled
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════════

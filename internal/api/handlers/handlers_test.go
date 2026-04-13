@@ -367,13 +367,13 @@ func TestSetServerContext_DeployTrigger(t *testing.T) {
 		t.Error("SetServerContext did not set the context")
 	}
 
-	// Cancelling should propagate
+	// Canceling should propagate
 	cancel()
 	select {
 	case <-h.serverCtx.Done():
-		// OK — context cancelled
+		// OK — context canceled
 	default:
-		t.Error("expected serverCtx to be cancelled")
+		t.Error("expected serverCtx to be canceled")
 	}
 }
 
@@ -391,7 +391,7 @@ func TestSetServerContext_Compose(t *testing.T) {
 	select {
 	case <-h.serverCtx.Done():
 	default:
-		t.Error("expected serverCtx to be cancelled")
+		t.Error("expected serverCtx to be canceled")
 	}
 }
 
@@ -409,7 +409,7 @@ func TestSetServerContext_MarketplaceDeploy(t *testing.T) {
 	select {
 	case <-h.serverCtx.Done():
 	default:
-		t.Error("expected serverCtx to be cancelled")
+		t.Error("expected serverCtx to be canceled")
 	}
 }
 

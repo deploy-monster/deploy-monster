@@ -103,8 +103,7 @@ func TestModule_Init_EmptyDriver_DefaultsSQLite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Init with empty driver: %v", err)
 	}
-	//lint:ignore SA1012 nil context triggers the error path
-	defer m.Stop(nil)
+	defer m.Stop(context.TODO())
 
 	if m.SQLite() == nil {
 		t.Error("SQLite should be initialized when driver is empty")

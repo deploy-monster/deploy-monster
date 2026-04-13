@@ -254,7 +254,7 @@ func TestQuotaCheck_WithinLimits(t *testing.T) {
 	store := &mockStore{total: 2}
 	plan := Plan{MaxApps: 10}
 
-	status, err := QuotaCheck(store, "tenant-1", plan)
+	status, err := QuotaCheckCtx(context.Background(), store, "tenant-1", plan)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestQuotaCheck_AtLimit(t *testing.T) {
 	store := &mockStore{total: 10}
 	plan := Plan{MaxApps: 10}
 
-	status, err := QuotaCheck(store, "tenant-1", plan)
+	status, err := QuotaCheckCtx(context.Background(), store, "tenant-1", plan)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestQuotaCheck_OverLimit(t *testing.T) {
 	store := &mockStore{total: 15}
 	plan := Plan{MaxApps: 10}
 
-	status, err := QuotaCheck(store, "tenant-1", plan)
+	status, err := QuotaCheckCtx(context.Background(), store, "tenant-1", plan)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestQuotaCheck_UnlimitedPlan(t *testing.T) {
 	store := &mockStore{total: 9999}
 	plan := Plan{MaxApps: -1} // -1 = unlimited
 
-	status, err := QuotaCheck(store, "tenant-1", plan)
+	status, err := QuotaCheckCtx(context.Background(), store, "tenant-1", plan)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -315,7 +315,7 @@ func TestQuotaCheck_ZeroApps(t *testing.T) {
 	store := &mockStore{total: 0}
 	plan := Plan{MaxApps: 5}
 
-	status, err := QuotaCheck(store, "tenant-1", plan)
+	status, err := QuotaCheckCtx(context.Background(), store, "tenant-1", plan)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestQuotaCheck_StoreError(t *testing.T) {
 	store := &mockStore{err: fmt.Errorf("database unavailable")}
 	plan := Plan{MaxApps: 10}
 
-	_, err := QuotaCheck(store, "tenant-1", plan)
+	_, err := QuotaCheckCtx(context.Background(), store, "tenant-1", plan)
 	if err == nil {
 		t.Fatal("expected error from store")
 	}
@@ -360,7 +360,7 @@ func TestQuotaCheck_TableDriven(t *testing.T) {
 			store := &mockStore{total: tt.total}
 			plan := Plan{MaxApps: tt.maxApps}
 
-			status, err := QuotaCheck(store, "test-tenant", plan)
+			status, err := QuotaCheckCtx(context.Background(), store, "test-tenant", plan)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -391,7 +391,7 @@ func TestQuotaCheck_BuiltinPlans(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.planID, func(t *testing.T) {
 			store := &mockStore{total: tt.appCount}
-			status, err := QuotaCheck(store, "t1", tt.plan)
+			status, err := QuotaCheckCtx(context.Background(), store, "t1", tt.plan)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

@@ -37,10 +37,10 @@ func TestTier68_NewMeter_NilLogger(t *testing.T) {
 		t.Error("logger should default to slog.Default when nil")
 	}
 	if meter.stopCtx == nil || meter.stopCancel == nil {
-		t.Error("stopCtx/stopCancel should be initialised")
+		t.Error("stopCtx/stopCancel should be initialized")
 	}
 	if meter.stopCh == nil {
-		t.Error("stopCh should be initialised")
+		t.Error("stopCh should be initialized")
 	}
 }
 
@@ -110,13 +110,13 @@ func TestTier68_Meter_Stop_WaitsForLoop(t *testing.T) {
 
 // ─── Stop cancels in-flight collect via ctx ────────────────────────────────
 
-// blockingRuntime hangs on ListByLabels until the context is cancelled.
+// blockingRuntime hangs on ListByLabels until the context is canceled.
 // Used to prove that Stop actually cancels in-flight Docker calls
 // instead of letting them run against a dead meter.
 type blockingRuntime struct {
 	mockContainerRuntime
-	started   chan struct{}
-	cancelled atomic.Bool
+	started  chan struct{}
+	canceled atomic.Bool
 }
 
 func (b *blockingRuntime) ListByLabels(ctx context.Context, _ map[string]string) ([]core.ContainerInfo, error) {
@@ -127,7 +127,7 @@ func (b *blockingRuntime) ListByLabels(ctx context.Context, _ map[string]string)
 		close(b.started)
 	}
 	<-ctx.Done()
-	b.cancelled.Store(true)
+	b.canceled.Store(true)
 	return nil, ctx.Err()
 }
 
@@ -159,14 +159,14 @@ func TestTier68_Meter_Stop_CancelsInFlightCollect(t *testing.T) {
 		t.Fatal("collect did not return after Stop — ctx cancellation is not plumbed")
 	}
 
-	if !runtime.cancelled.Load() {
+	if !runtime.canceled.Load() {
 		t.Error("ListByLabels did not observe ctx cancellation")
 	}
 }
 
 // ─── Per-tick timeout bounds a stuck collect ───────────────────────────────
 
-// hangingRuntime hangs forever unless ctx is cancelled. We use it to
+// hangingRuntime hangs forever unless ctx is canceled. We use it to
 // prove that the per-tick timeout eventually aborts a stuck Docker
 // call even if nobody called Stop.
 type hangingRuntime struct {
@@ -185,7 +185,7 @@ func (h *hangingRuntime) ListByLabels(ctx context.Context, _ map[string]string) 
 //
 // We also provide an inner helper that lets the test file drive the
 // timeout with a much shorter deadline — we do this by replacing the
-// meter's stopCtx with an already-cancelled context derived from a
+// meter's stopCtx with an already-canceled context derived from a
 // WithTimeout of 10ms. That exercises the exact same abort path as a
 // real 45-second deadline hit.
 func TestTier68_Meter_CollectTimeout_BoundsStuckCall(t *testing.T) {
@@ -217,7 +217,7 @@ func TestTier68_Meter_CollectTimeout_BoundsStuckCall(t *testing.T) {
 // ─── QuotaCheckCtx accepts external context ────────────────────────────────
 
 // ctxObservingStore records whether ListAppsByTenant was called with a
-// cancelled context. Used to prove that QuotaCheckCtx actually plumbs
+// canceled context. Used to prove that QuotaCheckCtx actually plumbs
 // the caller's ctx to the store, instead of hardcoding Background
 // (which is what the pre-Tier-68 QuotaCheck did).
 type ctxObservingStore struct {
@@ -240,7 +240,7 @@ func TestTier68_QuotaCheckCtx_PlumbsContext(t *testing.T) {
 	plan := Plan{MaxApps: 10}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // pre-cancelled
+	cancel() // pre-canceled
 
 	_, err := QuotaCheckCtx(ctx, store, "tenant-1", plan)
 	if err == nil {
@@ -253,26 +253,7 @@ func TestTier68_QuotaCheckCtx_PlumbsContext(t *testing.T) {
 		t.Errorf("expected exactly 1 ListAppsByTenant call, got %d", store.calls.Load())
 	}
 	if seen, _ := store.sawCtxErr.Load().(error); seen == nil {
-		t.Error("ListAppsByTenant did not observe the cancelled context")
-	}
-}
-
-func TestTier68_QuotaCheck_WrapperDelegatesToCtxVariant(t *testing.T) {
-	// QuotaCheck is retained as a backwards-compatibility wrapper; it
-	// should behave identically to QuotaCheckCtx with a background ctx.
-	store := &mockStore{total: 3}
-	plan := Plan{MaxApps: 10}
-
-	a, err := QuotaCheck(store, "t1", plan)
-	if err != nil {
-		t.Fatalf("QuotaCheck: %v", err)
-	}
-	b, err := QuotaCheckCtx(context.Background(), store, "t1", plan)
-	if err != nil {
-		t.Fatalf("QuotaCheckCtx: %v", err)
-	}
-	if a.AppsUsed != b.AppsUsed || a.AppsLimit != b.AppsLimit || a.AppsOK != b.AppsOK {
-		t.Errorf("wrapper diverged from ctx variant: %#v vs %#v", a, b)
+		t.Error("ListAppsByTenant did not observe the canceled context")
 	}
 }
 
@@ -286,7 +267,7 @@ func TestTier68_Meter_RunCtx_NilFallback(t *testing.T) {
 		t.Fatal("runCtx must not return nil")
 	}
 	if ctx.Err() != nil {
-		t.Errorf("fallback background context should not be cancelled: %v", ctx.Err())
+		t.Errorf("fallback background context should not be canceled: %v", ctx.Err())
 	}
 }
 

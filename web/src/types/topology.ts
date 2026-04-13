@@ -114,14 +114,7 @@ export interface TopologyActions {
 
 export type TopologyStore = TopologyState & TopologyActions;
 
-// API request/response types
-export interface TopologyDeployRequest {
-  nodes: TopologyNode[];
-  edges: TopologyEdge[];
-  projectId: string;
-  environment: string;
-}
-
+// API response type
 export interface TopologyDeployResponse {
   success: boolean;
   message: string;
@@ -141,54 +134,3 @@ export interface CompileResult {
   envFile?: string;
   errors?: string[];
 }
-
-// Component palette item
-export interface PaletteItem {
-  type: TopologyNodeType;
-  label: string;
-  icon: string;
-  color: string;
-  description: string;
-}
-
-// Default node positions
-export const DEFAULT_NODE_POSITION = { x: 250, y: 150 };
-
-// Palette items configuration
-export const PALETTE_ITEMS: PaletteItem[] = [
-  {
-    type: 'app',
-    label: 'App',
-    icon: 'Container',
-    color: 'blue',
-    description: 'Container application from Git',
-  },
-  {
-    type: 'database',
-    label: 'Database',
-    icon: 'Database',
-    color: 'green',
-    description: 'Managed database (PostgreSQL, MySQL, Redis, etc.)',
-  },
-  {
-    type: 'domain',
-    label: 'Domain',
-    icon: 'Globe',
-    color: 'purple',
-    description: 'Custom domain with SSL',
-  },
-  {
-    type: 'volume',
-    label: 'Volume',
-    icon: 'HardDrive',
-    color: 'orange',
-    description: 'Persistent storage volume',
-  },
-  {
-    type: 'worker',
-    label: 'Worker',
-    icon: 'Cog',
-    color: 'yellow',
-    description: 'Background worker process',
-  },
-];

@@ -34,7 +34,7 @@ func TestTier72_NewGlobalRateLimiterWithLogger_NilLogger(t *testing.T) {
 		t.Error("logger should default to slog.Default when nil")
 	}
 	if rl.stopCh == nil {
-		t.Error("stopCh should be initialised")
+		t.Error("stopCh should be initialized")
 	}
 }
 

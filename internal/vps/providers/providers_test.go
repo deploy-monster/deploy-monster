@@ -442,34 +442,34 @@ func TestHetzner_WithMockServer(t *testing.T) {
 	defer srv.Close()
 
 	// We can't override the base URL since it's a const, but we can test
-	// the do() method directly with a cancelled context to exercise error paths
+	// the do() method directly with a canceled context to exercise error paths
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
 	p := &Hetzner{token: "test-token", client: srv.Client()}
 	_, err := p.ListRegions(ctx)
 	if err == nil {
-		t.Error("expected error with cancelled context")
+		t.Error("expected error with canceled context")
 	}
 
 	_, err = p.ListSizes(ctx, "fsn1")
 	if err == nil {
-		t.Error("expected error with cancelled context")
+		t.Error("expected error with canceled context")
 	}
 
 	_, err = p.Create(ctx, core.VPSCreateOpts{Name: "test"})
 	if err == nil {
-		t.Error("expected error with cancelled context")
+		t.Error("expected error with canceled context")
 	}
 
 	err = p.Delete(ctx, "123")
 	if err == nil {
-		t.Error("expected error with cancelled context")
+		t.Error("expected error with canceled context")
 	}
 
 	_, err = p.Status(ctx, "123")
 	if err == nil {
-		t.Error("expected error with cancelled context")
+		t.Error("expected error with canceled context")
 	}
 }
 

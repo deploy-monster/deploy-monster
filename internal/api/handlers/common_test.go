@@ -27,7 +27,7 @@ const testJWTSecret = "test-secret-key-for-jwt-signing-min32"
 type mockStore struct {
 	mu sync.Mutex
 
-	// Configurable behaviour per-test.
+	// Configurable behavior per-test.
 	users        map[string]*core.User       // keyed by ID
 	usersByEmail map[string]*core.User       // keyed by email
 	memberships  map[string]*core.TeamMember // keyed by userID

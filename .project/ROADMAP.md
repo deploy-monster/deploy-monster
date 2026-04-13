@@ -394,9 +394,7 @@ Covered in Phase 6 outstanding. Do it after v0.0.1 cut so the audit output stays
 **State**: Landed ahead of v0.0.1 during the Tier 105 stabilization pass.
 
 **Evidence**:
-- `internal/deploy/strategies/strategy_test.go:551` — `TestRolling_Execute_HealthCheckChaosRecovery` tolerates transient `Stats` errors and an intermediate `"unhealthy"` state before converging on `"healthy"`.
-- `internal/deploy/strategies/strategy_test.go:601` — `TestRolling_Execute_ContainerDiesMidHealthCheck` asserts that if the new container dies before becoming healthy, the deployment fails and the new container is cleaned up.
-- `internal/deploy/strategies/strategy.go:256` — tightened the no-explicit-healthcheck path so the 2-second stabilization sleep is followed by a re-verify; containers that crash during that window are no longer falsely declared healthy.
+- The strategy package (`internal/deploy/strategies`) was removed in a dead-code sweep; deploy logic is now handled directly by `internal/deploy`.
 
 ### 8.6 Secrets vault hardware-backing exploration (5 days, P3)
 

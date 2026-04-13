@@ -34,7 +34,7 @@ type Router struct {
 	apiMetrics       *middleware.APIMetrics
 	gracefulShutdown *middleware.GracefulShutdown
 	globalRL         *middleware.GlobalRateLimiter
-	serverCtx        context.Context    // cancelled on graceful shutdown
+	serverCtx        context.Context    // canceled on graceful shutdown
 	serverCancel     context.CancelFunc // called by Stop to signal goroutines
 	startedAt        time.Time          // server start time for uptime reporting
 }
@@ -203,24 +203,10 @@ func (r *Router) registerRoutes() {
 	crH := handlers.NewCommitRollbackHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/rollback-to-commit", protected(http.HandlerFunc(crH.RollbackToCommit)))
 
-	// ── Canary Deployments ────────────────────────────
-	canaryH := handlers.NewCanaryHandler(r.store, r.core.Events)
-	r.mux.Handle("GET /api/v1/apps/{id}/canary", protected(http.HandlerFunc(canaryH.Get)))
-	r.mux.Handle("POST /api/v1/apps/{id}/canary", protected(http.HandlerFunc(canaryH.Start)))
-	r.mux.Handle("POST /api/v1/apps/{id}/canary/promote", protected(http.HandlerFunc(canaryH.Promote)))
-	r.mux.Handle("DELETE /api/v1/apps/{id}/canary", protected(http.HandlerFunc(canaryH.Cancel)))
-
 	// ── Snapshots ─────────────────────────────────────
 	snapH := handlers.NewSnapshotHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/snapshots", protected(http.HandlerFunc(snapH.List)))
 	r.mux.Handle("POST /api/v1/apps/{id}/snapshots", protected(http.HandlerFunc(snapH.Create)))
-
-	// ── Service Links (Mesh) ──────────────────────────
-	meshH := handlers.NewServiceMeshHandler(r.store, r.core.DB.Bolt)
-	meshH.SetEvents(r.core.Events)
-	r.mux.Handle("GET /api/v1/apps/{id}/links", protected(http.HandlerFunc(meshH.List)))
-	r.mux.Handle("POST /api/v1/apps/{id}/links", protected(http.HandlerFunc(meshH.Create)))
-	r.mux.Handle("DELETE /api/v1/apps/{id}/links/{targetId}", protected(http.HandlerFunc(meshH.Delete)))
 
 	// ── Webhook Replay ────────────────────────────────
 	whReplayH := handlers.NewWebhookReplayHandler(r.store, r.core.Events)
@@ -264,11 +250,6 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/commands", protected(http.HandlerFunc(cmdH.Run)))
 	r.mux.Handle("GET /api/v1/apps/{id}/commands", protected(http.HandlerFunc(cmdH.History)))
 
-	// ── IP Access Control ─────────────────────────────
-	ipH := handlers.NewIPWhitelistHandler(r.store)
-	r.mux.Handle("GET /api/v1/apps/{id}/access", protected(http.HandlerFunc(ipH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/access", protected(http.HandlerFunc(ipH.Update)))
-
 	// ── Log Retention ─────────────────────────────────
 	lrH := handlers.NewLogRetentionHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/log-retention", protected(http.HandlerFunc(lrH.Get)))
@@ -292,10 +273,6 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/deploy/preview", protected(http.HandlerFunc(dpH.Preview)))
 	diffH := handlers.NewDeployDiffHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/deployments/diff", protected(http.HandlerFunc(diffH.Diff)))
-	schedH := handlers.NewDeployScheduleHandler(r.store, r.core.Events, r.core.DB.Bolt)
-	r.mux.Handle("POST /api/v1/apps/{id}/deploy/schedule", protected(http.HandlerFunc(schedH.Schedule)))
-	r.mux.Handle("GET /api/v1/apps/{id}/deploy/scheduled", protected(http.HandlerFunc(schedH.ListScheduled)))
-	r.mux.Handle("DELETE /api/v1/apps/{id}/deploy/scheduled/{scheduleId}", protected(http.HandlerFunc(schedH.CancelScheduled)))
 
 	// ── Build Logs ────────────────────────────────────
 	bldLogH := handlers.NewBuildLogHandler(r.store)
@@ -504,9 +481,6 @@ func (r *Router) registerRoutes() {
 	dbH := handlers.NewDatabaseHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.HandleFunc("GET /api/v1/databases/engines", dbH.ListEngines)
 	r.mux.Handle("POST /api/v1/databases", protected(http.HandlerFunc(dbH.Create)))
-	dbPoolH := handlers.NewDBPoolHandler(r.store, r.core.DB.Bolt)
-	r.mux.Handle("GET /api/v1/databases/{id}/pool", protected(http.HandlerFunc(dbPoolH.Get)))
-	r.mux.Handle("PUT /api/v1/databases/{id}/pool", protected(http.HandlerFunc(dbPoolH.Update)))
 
 	// ── Backups ───────────────────────────────────────
 	backupStorage := r.core.Services.BackupStorage("local")
@@ -523,11 +497,6 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/servers/provision", protected(http.HandlerFunc(serverH.Provision)))
 	sshTestH := handlers.NewSSHTestHandler(r.core.Services)
 	r.mux.Handle("POST /api/v1/servers/test-ssh", protected(http.HandlerFunc(sshTestH.Test)))
-
-	// ── Server Management ─────────────────────────────
-	srvMgmtH := handlers.NewServerManageHandler(r.core.Services, r.store, r.core.Events)
-	r.mux.Handle("POST /api/v1/servers/{id}/decommission", protected(http.HandlerFunc(srvMgmtH.Decommission)))
-	r.mux.Handle("POST /api/v1/servers/{id}/reboot", protected(http.HandlerFunc(srvMgmtH.Reboot)))
 
 	// ── Build Cache ──────────────────────────────────
 	bcH := handlers.NewBuildCacheHandler(r.core.Services.Container, r.core.DB.Bolt)

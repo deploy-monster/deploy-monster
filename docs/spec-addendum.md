@@ -4,30 +4,7 @@ This document records features that were **not in the original base specificatio
 
 ---
 
-## 1. Canary Deployments
-
-### Motivation
-The base spec defined `recreate` and `rolling` strategies. For risk-sensitive production workloads, a gradual traffic-shift strategy was needed to reduce blast radius.
-
-### Behavior
-- A new container is started alongside the old one.
-- Traffic is split in configurable phases (default: 10 % → 50 % → 100 %).
-- Each phase has a **dwell time** (default 2 min). If health checks fail at any phase, traffic is reverted to 0 % and the new container is removed.
-- On success, the old container is drained and removed after the final phase.
-
-### API / UI Impact
-- `DeployStrategy` enum gained `canary`.
-- `AppConfig.Canary` holds phases, dwell, and health-check parameters.
-- UI deployment dialog shows canary progress bars and per-phase health status.
-
-### Technical Notes
-- `internal/deploy/graceful/canary.go` implements `CanaryController`.
-- Weight adjustment is delegated to the ingress layer (`ingress/lb/weighted.go`) so the strategy does not need to know the load-balancer internals.
-- Context cancellation during a dwell period triggers an automatic rollback (0 % weight + cleanup).
-
----
-
-## 2. Deploy Freeze, Schedule & Approval
+## 2. Deploy Freeze & Approval
 
 ### 2.1 Deploy Freeze
 
@@ -40,18 +17,7 @@ The base spec defined `recreate` and `rolling` strategies. For risk-sensitive pr
 
 **Files**: `internal/deploy/freeze.go`, `internal/db/freeze_store.go`.
 
-### 2.2 Scheduled Deploy
-
-**Motivation**: Time-zone-aware teams need to queue a deploy for off-peak hours.
-
-**Behavior**:
-- `Deployment.ScheduledAt` stores the target time.
-- `core.Scheduler` polls the pending queue every minute and promotes due items to the build queue.
-- If a freeze window overlaps with `ScheduledAt`, the deployment is rejected at promotion time (not at scheduling time).
-
-**Files**: `internal/core/scheduler.go`, `internal/deploy/scheduler_consumer.go`.
-
-### 2.3 Approval Workflow
+### 2.2 Approval Workflow
 
 **Motivation**: Enterprise tenants want a second pair of eyes before production changes.
 
@@ -112,9 +78,7 @@ The initial implementation used a hard-coded fallback salt for the secrets vault
 
 | Feature | Test Evidence |
 |---------|---------------|
-| Canary | `internal/deploy/strategies/strategy_test.go` — canary phase transition + rollback tests |
 | Freeze | `internal/deploy/freeze_test.go` — window overlap + API rejection tests |
-| Schedule | `internal/core/scheduler_test.go` — due-time promotion tests |
 | Approval | `internal/api/handlers/approval_test.go` — admin approve/reject flow |
 | Bounded async | `internal/core/events_test.go` — 64-worker saturation + drop tests |
 | Per-install salt | `internal/secrets/vault_test.go` — legacy migration + KEK derivation tests |

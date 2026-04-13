@@ -500,7 +500,7 @@ func TestS3Storage_Retry_ContextCancelled(t *testing.T) {
 	})
 
 	if err == nil {
-		t.Fatal("expected error from cancelled context")
+		t.Fatal("expected error from canceled context")
 	}
 	// Should have tried once, then context is done
 	if calls < 1 {

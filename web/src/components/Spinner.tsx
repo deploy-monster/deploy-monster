@@ -9,14 +9,6 @@ export function Spinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   );
 }
 
-export function PageLoader() {
-  return (
-    <div className="flex items-center justify-center h-64">
-      <Spinner />
-    </div>
-  );
-}
-
 export function FullPageLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface">

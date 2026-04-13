@@ -122,7 +122,7 @@ func TestTier73_ACME_GetCertificate_LocalhostNoDispatch(t *testing.T) {
 
 // ─── RenewalLoop respects ctx cancellation ─────────────────────────────────
 
-// TestTier73_ACME_RenewalLoop_StopsOnCancel proves that cancelling
+// TestTier73_ACME_RenewalLoop_StopsOnCancel proves that canceling
 // the parent context unblocks the RenewalLoop. Pre-Tier-73 the caller
 // at ingress/module.go passed context.Background() so the loop could
 // never be stopped.
@@ -181,27 +181,5 @@ func TestTier73_ACME_ConcurrentDispatch_Wait(t *testing.T) {
 	case <-done:
 	case <-time.After(3 * time.Second):
 		t.Fatal("Wait did not drain after concurrent dispatch")
-	}
-}
-
-// ─── HandleHTTPChallenge still works after Wait ────────────────────────────
-
-func TestTier73_ACME_HandleHTTPChallenge_AfterWait(t *testing.T) {
-	cs := NewCertStore()
-	am := NewACMEManager(cs, "ops@example.com", true, nil)
-
-	// Seed a challenge.
-	am.mu.Lock()
-	am.challenges["tok-73"] = "key-auth-73"
-	am.mu.Unlock()
-
-	am.Wait() // No-op, but must not clobber state.
-
-	keyAuth, ok := am.HandleHTTPChallenge("tok-73")
-	if !ok {
-		t.Fatal("HandleHTTPChallenge should still find the seeded token after Wait")
-	}
-	if keyAuth != "key-auth-73" {
-		t.Errorf("unexpected keyAuth %q", keyAuth)
 	}
 }

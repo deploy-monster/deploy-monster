@@ -20,14 +20,13 @@ const acmeRenewalInterval = 24 * time.Hour
 // ACMEManager handles automatic SSL certificate provisioning via Let's Encrypt.
 // It wraps golang.org/x/crypto/acme/autocert for HTTP-01 challenges.
 type ACMEManager struct {
-	mu         sync.Mutex
-	mgr        *autocert.Manager
-	certStore  *CertStore
-	email      string
-	staging    bool
-	challenges map[string]string // kept for backward test compat
-	logger     *slog.Logger
-	wg         sync.WaitGroup
+	mu        sync.Mutex
+	mgr       *autocert.Manager
+	certStore *CertStore
+	email     string
+	staging   bool
+	logger    *slog.Logger
+	wg        sync.WaitGroup
 }
 
 // NewACMEManager creates a certificate manager. If email is empty, ACME is
@@ -37,11 +36,10 @@ func NewACMEManager(certStore *CertStore, email string, staging bool, logger *sl
 		logger = slog.Default()
 	}
 	a := &ACMEManager{
-		certStore:  certStore,
-		email:      email,
-		staging:    staging,
-		challenges: make(map[string]string),
-		logger:     logger,
+		certStore: certStore,
+		email:     email,
+		staging:   staging,
+		logger:    logger,
 	}
 	if email != "" {
 		directoryURL := acme.LetsEncryptURL
@@ -96,15 +94,6 @@ func (a *ACMEManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certifica
 	return GenerateSelfSigned(domain)
 }
 
-// HandleHTTPChallenge responds to ACME HTTP-01 challenges.
-// The challenges map is retained for backward compatibility with tests.
-func (a *ACMEManager) HandleHTTPChallenge(token string) (string, bool) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	keyAuth, ok := a.challenges[token]
-	return keyAuth, ok
-}
-
 // HTTPHandler returns an http.Handler that serves ACME HTTP-01 challenges.
 // If ACME is disabled it returns the provided fallback handler unchanged.
 func (a *ACMEManager) HTTPHandler(fallback http.Handler) http.Handler {
@@ -140,11 +129,6 @@ func (a *ACMEManager) RenewalLoop(ctx context.Context) {
 			return
 		}
 	}
-}
-
-// issueCertificate is a no-op stub kept for test compatibility.
-func (a *ACMEManager) issueCertificate(domain string) {
-	a.logger.Info("ACME certificate issuance queued", "domain", domain)
 }
 
 func (a *ACMEManager) checkRenewals() {

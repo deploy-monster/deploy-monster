@@ -203,7 +203,7 @@ func TestSlackProvider_Send_CancelledContext(t *testing.T) {
 
 	err := p.Send(ctx, "", "Alert", "Body", "text")
 	if err == nil {
-		t.Error("expected error with cancelled context")
+		t.Error("expected error with canceled context")
 	}
 }
 
@@ -219,7 +219,7 @@ func TestDiscordProvider_Send_CancelledContext(t *testing.T) {
 
 	err := p.Send(ctx, "", "Alert", "Body", "text")
 	if err == nil {
-		t.Error("expected error with cancelled context")
+		t.Error("expected error with canceled context")
 	}
 }
 

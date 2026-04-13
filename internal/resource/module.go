@@ -34,7 +34,7 @@ func init() {
 //     for the goroutine to exit, so the ticker + BoltBatchSet work
 //     could race with the BBolt shutdown. wg now tracks the loop.
 //   - collectionLoop had no defer/recover. A panic inside
-//     collectOnce (e.g. nil pointer through a half-initialised
+//     collectOnce (e.g. nil pointer through a half-initialized
 //     bolt store) would crash the whole process instead of the
 //     goroutine. The loop now recovers and logs.
 //   - collectOnce used a fresh context.Background for every tick,

@@ -16,7 +16,7 @@ type DeployTriggerHandler struct {
 	store     core.Store
 	runtime   core.ContainerRuntime
 	events    *core.EventBus
-	serverCtx context.Context // cancelled on graceful shutdown; goroutines should select on this
+	serverCtx context.Context // canceled on graceful shutdown; goroutines should select on this
 }
 
 func NewDeployTriggerHandler(store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *DeployTriggerHandler {

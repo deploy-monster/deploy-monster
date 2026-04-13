@@ -62,7 +62,7 @@ func (c *AgentClient) SetDefaultPort(port int) {
 }
 
 // Connect establishes a connection to the master and enters the message loop.
-// It blocks until the context is cancelled or the connection drops.
+// It blocks until the context is canceled or the connection drops.
 func (c *AgentClient) Connect(ctx context.Context) error {
 	if err := c.dial(ctx); err != nil {
 		return fmt.Errorf("connect to master: %w", err)
@@ -92,7 +92,7 @@ func (c *AgentClient) Connect(ctx context.Context) error {
 }
 
 // ConnectWithRetry connects to the master with exponential backoff.
-// It retries indefinitely until the context is cancelled.
+// It retries indefinitely until the context is canceled.
 func (c *AgentClient) ConnectWithRetry(ctx context.Context) error {
 	backoff := time.Second
 	maxBackoff := 30 * time.Second

@@ -1180,103 +1180,6 @@ func TestCronJobHandler_Delete_NoExisting(t *testing.T) {
 }
 
 // =============================================================================
-// DeployScheduleHandler — CancelScheduled with existing
-// =============================================================================
-
-func TestDeployScheduleHandler_CancelScheduled_WithExisting(t *testing.T) {
-	bolt := newMockBoltStore()
-	bolt.Set("deploy_schedule", "app-1", scheduledDeployList{
-		Items: []ScheduledDeploy{
-			{ID: "sd1", AppID: "app-1", Status: "pending"},
-			{ID: "sd2", AppID: "app-1", Status: "pending"},
-		},
-	}, 0)
-
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
-	h := NewDeployScheduleHandler(store, core.NewEventBus(slog.Default()), bolt)
-	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/deploy/scheduled/sd1", nil)
-	req.SetPathValue("id", "app-1")
-	req.SetPathValue("scheduleId", "sd1")
-	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
-	rr := httptest.NewRecorder()
-	h.CancelScheduled(rr, req)
-
-	if rr.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", rr.Code)
-	}
-
-	var list scheduledDeployList
-	bolt.Get("deploy_schedule", "app-1", &list)
-	for _, item := range list.Items {
-		if item.ID == "sd1" && item.Status != "cancelled" {
-			t.Errorf("sd1 should be cancelled, got %q", item.Status)
-		}
-	}
-}
-
-func TestDeployScheduleHandler_CancelScheduled_NoExisting(t *testing.T) {
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
-	h := NewDeployScheduleHandler(store, core.NewEventBus(slog.Default()), newMockBoltStore())
-	req := httptest.NewRequest("DELETE", "/api/v1/apps/app-1/deploy/scheduled/sd1", nil)
-	req.SetPathValue("id", "app-1")
-	req.SetPathValue("scheduleId", "sd1")
-	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
-	rr := httptest.NewRecorder()
-	h.CancelScheduled(rr, req)
-
-	if rr.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", rr.Code)
-	}
-}
-
-// =============================================================================
-// DBPoolHandler — Get stored, Update with corrections
-// =============================================================================
-
-func TestDBPoolHandler_Get_Stored(t *testing.T) {
-	bolt := newMockBoltStore()
-	bolt.Set("dbpool", "db-1", PoolConfig{MaxConnections: 50, MinConnections: 5, IdleTimeout: 600, MaxLifetime: 7200}, 0)
-
-	h := NewDBPoolHandler(newMockStore(), bolt)
-	req := httptest.NewRequest("GET", "/api/v1/databases/db-1/pool", nil)
-	req.SetPathValue("id", "db-1")
-	rr := httptest.NewRecorder()
-	h.Get(rr, req)
-
-	var resp PoolConfig
-	json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp.MaxConnections != 50 {
-		t.Errorf("expected 50, got %d", resp.MaxConnections)
-	}
-}
-
-func TestDBPoolHandler_Update_WithCorrections(t *testing.T) {
-	bolt := newMockBoltStore()
-	h := NewDBPoolHandler(newMockStore(), bolt)
-
-	body := `{"max_connections":0,"min_connections":-1}`
-	req := httptest.NewRequest("PUT", "/api/v1/databases/db-1/pool", strings.NewReader(body))
-	req.SetPathValue("id", "db-1")
-	rr := httptest.NewRecorder()
-	h.Update(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
-	}
-	// Verify defaults were applied
-	var cfg PoolConfig
-	bolt.Get("dbpool", "db-1", &cfg)
-	if cfg.MaxConnections != 20 {
-		t.Errorf("expected default max 20, got %d", cfg.MaxConnections)
-	}
-	if cfg.MinConnections != 2 {
-		t.Errorf("expected default min 2, got %d", cfg.MinConnections)
-	}
-}
-
-// =============================================================================
 // DeployApprovalHandler — ListPending with items, Approve/Reject found
 // =============================================================================
 
@@ -1661,36 +1564,6 @@ func TestExecHandler_Exec_AppNotFound(t *testing.T) {
 }
 
 // =============================================================================
-// DeployScheduleHandler — ListScheduled with stored items
-// =============================================================================
-
-func TestDeployScheduleHandler_ListScheduled_WithItems(t *testing.T) {
-	bolt := newMockBoltStore()
-	bolt.Set("deploy_schedule", "app-1", scheduledDeployList{
-		Items: []ScheduledDeploy{
-			{ID: "sd1", AppID: "app-1", Status: "pending"},
-			{ID: "sd2", AppID: "app-1", Status: "cancelled"},
-			{ID: "sd3", AppID: "app-1", Status: "pending"},
-		},
-	}, 0)
-
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
-	h := NewDeployScheduleHandler(store, core.NewEventBus(slog.Default()), bolt)
-	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/deploy/scheduled", nil)
-	req.SetPathValue("id", "app-1")
-	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
-	rr := httptest.NewRecorder()
-	h.ListScheduled(rr, req)
-
-	var resp map[string]any
-	json.Unmarshal(rr.Body.Bytes(), &resp)
-	if int(resp["total"].(float64)) != 2 {
-		t.Errorf("expected 2 pending, got %v", resp["total"])
-	}
-}
-
-// =============================================================================
 // GPUHandler — detectGPU with nvidia images
 // =============================================================================
 
@@ -1859,18 +1732,6 @@ func TestDeployNotifyHandler_Update_BoltError(t *testing.T) {
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/deploy-notifications", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
-	rr := httptest.NewRecorder()
-	h.Update(rr, req)
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", rr.Code)
-	}
-}
-
-func TestDBPoolHandler_Update_BoltError(t *testing.T) {
-	h := NewDBPoolHandler(newMockStore(), newErrorBoltStore())
-	body := `{"max_connections":10,"min_connections":2}`
-	req := httptest.NewRequest("PUT", "/api/v1/databases/db-1/pool", strings.NewReader(body))
-	req.SetPathValue("id", "db-1")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -2072,28 +1933,6 @@ func TestErrorPageHandler_Update_BoltError(t *testing.T) {
 	}
 }
 
-// =============================================================================
-// DeployScheduleHandler — Schedule errors
-// =============================================================================
-
-func TestDeployScheduleHandler_Schedule_BoltError(t *testing.T) {
-	eb := newErrorBoltStore()
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
-	h := NewDeployScheduleHandler(store, core.NewEventBus(slog.Default()), eb)
-	futureTime := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
-	body := `{"scheduled_at":"` + futureTime + `","image":"nginx:latest"}`
-	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/deploy/schedule", strings.NewReader(body))
-	req.SetPathValue("id", "app-1")
-	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
-	rr := httptest.NewRecorder()
-	h.Schedule(rr, req)
-
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", rr.Code)
-	}
-}
-
 func TestDeployFreezeHandler_Create_BoltError(t *testing.T) {
 	eb := newErrorBoltStore()
 	h := NewDeployFreezeHandler(newMockStore(), core.NewEventBus(slog.Default()), eb)
@@ -2232,21 +2071,6 @@ func TestTenantRateLimitHandler_Update_BoltError(t *testing.T) {
 	req = withClaims(req, "u1", "t1", "role_super_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", rr.Code)
-	}
-}
-
-func TestServiceMeshHandler_Create_BoltError(t *testing.T) {
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app-a", TenantID: "t1", Name: "test", Status: "running"})
-	h := NewServiceMeshHandler(store, newErrorBoltStore())
-	body := `{"target_app_id":"app-b","port":8080}`
-	req := httptest.NewRequest("POST", "/api/v1/apps/app-a/mesh/links", strings.NewReader(body))
-	req.SetPathValue("id", "app-a")
-	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
-	rr := httptest.NewRecorder()
-	h.Create(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)
 	}

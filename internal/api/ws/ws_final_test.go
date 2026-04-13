@@ -130,5 +130,5 @@ func TestFinal_StreamEvents_ContextCancel(t *testing.T) {
 	rr := newFlushRecorder()
 	es.StreamEvents(rr, req)
 
-	// Should return without blocking since context is already cancelled
+	// Should return without blocking since context is already canceled
 }

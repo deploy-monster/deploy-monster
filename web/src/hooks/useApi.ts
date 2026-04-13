@@ -78,30 +78,3 @@ export function useMutation<TInput = unknown, TOutput = unknown>(
   return { ...state, mutate };
 }
 
-/** Paginated list hook with page controls. */
-export function usePaginatedApi<T>(basePath: string, perPage = 20) {
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-
-  const path = `${basePath}?page=${page}&per_page=${perPage}`;
-
-  const { data, error, loading, refetch } = useApi<T>(path);
-
-  const nextPage = useCallback(() => {
-    if (page < totalPages) setPage(p => p + 1);
-  }, [page, totalPages]);
-
-  const prevPage = useCallback(() => {
-    if (page > 1) setPage(p => p - 1);
-  }, [page]);
-
-  const goToPage = useCallback((p: number) => {
-    if (p >= 1 && p <= totalPages) setPage(p);
-  }, [totalPages]);
-
-  return {
-    data, error, loading, refetch,
-    page, totalPages, nextPage, prevPage, goToPage,
-    setTotalPages,
-  };
-}

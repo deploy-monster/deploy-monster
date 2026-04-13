@@ -24,37 +24,6 @@ func TestNewACMEManager(t *testing.T) {
 	if !am.staging {
 		t.Error("expected staging to be true")
 	}
-	if am.challenges == nil {
-		t.Error("expected challenges map to be initialized")
-	}
-}
-
-func TestACMEManager_HandleHTTPChallenge_NotFound(t *testing.T) {
-	cs := NewCertStore()
-	am := NewACMEManager(cs, "test@example.com", true, slog.Default())
-
-	_, ok := am.HandleHTTPChallenge("nonexistent-token")
-	if ok {
-		t.Error("expected challenge not found")
-	}
-}
-
-func TestACMEManager_HandleHTTPChallenge_Found(t *testing.T) {
-	cs := NewCertStore()
-	am := NewACMEManager(cs, "test@example.com", true, slog.Default())
-
-	// Manually insert a challenge
-	am.mu.Lock()
-	am.challenges["test-token"] = "test-key-auth"
-	am.mu.Unlock()
-
-	keyAuth, ok := am.HandleHTTPChallenge("test-token")
-	if !ok {
-		t.Error("expected challenge to be found")
-	}
-	if keyAuth != "test-key-auth" {
-		t.Errorf("expected keyAuth 'test-key-auth', got %q", keyAuth)
-	}
 }
 
 func TestACMEManager_GetCertificate_CachedCert(t *testing.T) {
@@ -116,12 +85,4 @@ func TestACMEManager_checkRenewals(t *testing.T) {
 
 	// Just verify it doesn't panic
 	am.checkRenewals()
-}
-
-func TestACMEManager_issueCertificate(t *testing.T) {
-	cs := NewCertStore()
-	am := NewACMEManager(cs, "test@example.com", true, slog.Default())
-
-	// Just verify it doesn't panic
-	am.issueCertificate("test.example.com")
 }

@@ -324,7 +324,7 @@ func TestMasterAgent_Integration_FullProtocol(t *testing.T) {
 	// the agent conn close and fires the disconnect callback; the
 	// agent-side readLoop returns from Decode and Connect unwinds. We
 	// do this BEFORE waiting on clientDone because AgentClient.readLoop
-	// parks on Decode without observing the context, so cancelling
+	// parks on Decode without observing the context, so canceling
 	// clientCtx alone would not wake it within the test deadline.
 	teardownMaster()
 	masterDown = true

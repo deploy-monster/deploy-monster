@@ -745,6 +745,12 @@ func TestPropertyWithEnum(t *testing.T) {
 	if len(p.Enum) != 2 {
 		t.Errorf("Enum length = %d", len(p.Enum))
 	}
+	if p.Type != "string" {
+		t.Errorf("Type = %q", p.Type)
+	}
+	if p.Description != "Engine" {
+		t.Errorf("Description = %q", p.Description)
+	}
 }
 
 func TestContentBlock(t *testing.T) {

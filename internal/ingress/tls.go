@@ -49,7 +49,7 @@ func (cs *CertStore) Remove(domain string) {
 	delete(cs.certs, domain)
 }
 
-// CertInfo summarises one certificate as surfaced to operators via the
+// CertInfo summarizes one certificate as surfaced to operators via the
 // cert monitor and /system/certs endpoints. DaysLeft is rounded down
 // and clamped at zero for expired certificates.
 type CertInfo struct {

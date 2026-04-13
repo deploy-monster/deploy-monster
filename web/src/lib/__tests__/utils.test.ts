@@ -7,6 +7,7 @@ describe('cn utility', () => {
   });
 
   it('handles conditional classes', () => {
+    // eslint-disable-next-line no-constant-binary-expression
     expect(cn('base', false && 'hidden', 'active')).toBe('base active');
   });
 

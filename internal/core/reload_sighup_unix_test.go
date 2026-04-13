@@ -69,7 +69,7 @@ func TestReloadConfig_SIGHUPTriggersReload(t *testing.T) {
 
 	// Rewrite the YAML, then send SIGHUP. Repeat a few times so any
 	// racing in signal delivery surfaces. syscall.Kill to self is
-	// the standard trick for self-signalling in Go tests on Unix.
+	// the standard trick for self-signaling in Go tests on Unix.
 	for i := 0; i < 3; i++ {
 		writeYAML(t, yamlPath, `server:
   port: 8443

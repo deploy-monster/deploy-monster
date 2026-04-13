@@ -51,14 +51,14 @@ func TestTier76_NewAgentServer_NilLogger(t *testing.T) {
 func TestTier76_NewAgentServer_InitialisesStopCtx(t *testing.T) {
 	s := NewAgentServer(core.NewEventBus(discardLogger()), "tok", discardLogger())
 	if s.stopCtx == nil {
-		t.Error("stopCtx should be initialised by NewAgentServer")
+		t.Error("stopCtx should be initialized by NewAgentServer")
 	}
 	if s.stopCancel == nil {
-		t.Error("stopCancel should be initialised by NewAgentServer")
+		t.Error("stopCancel should be initialized by NewAgentServer")
 	}
 	select {
 	case <-s.stopCtx.Done():
-		t.Fatal("stopCtx was cancelled before Stop")
+		t.Fatal("stopCtx was canceled before Stop")
 	default:
 	}
 }
@@ -70,7 +70,7 @@ func TestTier76_Stop_CancelsStopCtx(t *testing.T) {
 	case <-s.stopCtx.Done():
 		// expected
 	case <-time.After(100 * time.Millisecond):
-		t.Fatal("stopCtx was not cancelled by Stop")
+		t.Fatal("stopCtx was not canceled by Stop")
 	}
 }
 
@@ -116,7 +116,7 @@ func TestTier76_PubCtx_FallbackForStructLiteral(t *testing.T) {
 	}
 	select {
 	case <-ctx.Done():
-		t.Fatal("fallback pubCtx should not be cancelled")
+		t.Fatal("fallback pubCtx should not be canceled")
 	default:
 	}
 }

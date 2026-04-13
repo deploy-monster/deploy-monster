@@ -58,13 +58,13 @@ func TestTimeout_ContextHasDeadline(t *testing.T) {
 
 func TestTimeout_ContextCancelledAfterHandler(t *testing.T) {
 	// Short timeout — after ServeHTTP returns, the cancel is deferred.
-	// We verify the context is not cancelled during handler execution.
+	// We verify the context is not canceled during handler execution.
 	handler := Timeout(10 * time.Second)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
-			t.Error("context should not be cancelled during handler")
+			t.Error("context should not be canceled during handler")
 		default:
-			// Good — context not yet cancelled
+			// Good — context not yet canceled
 		}
 		w.WriteHeader(http.StatusOK)
 	}))

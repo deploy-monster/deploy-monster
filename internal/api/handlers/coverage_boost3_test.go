@@ -249,50 +249,6 @@ func TestSnapshotHandler_List(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ServerManageHandler
-// ═══════════════════════════════════════════════════════════════════════════════
-
-func TestServerManageHandler_New(t *testing.T) {
-	h := NewServerManageHandler(core.NewServices(), newMockStore(), core.NewEventBus(nil))
-	if h == nil {
-		t.Fatal("NewServerManageHandler returned nil")
-	}
-}
-
-func TestServerManageHandler_Decommission(t *testing.T) {
-	h := NewServerManageHandler(core.NewServices(), newMockStore(), core.NewEventBus(slog.Default()))
-	req := httptest.NewRequest("POST", "/api/v1/servers/srv-1/decommission", nil)
-	req.SetPathValue("id", "srv-1")
-	rr := httptest.NewRecorder()
-	h.Decommission(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
-	}
-}
-
-func TestServerManageHandler_Decommission_Destroy(t *testing.T) {
-	h := NewServerManageHandler(core.NewServices(), newMockStore(), core.NewEventBus(slog.Default()))
-	req := httptest.NewRequest("POST", "/api/v1/servers/srv-1/decommission?destroy=true", nil)
-	req.SetPathValue("id", "srv-1")
-	rr := httptest.NewRecorder()
-	h.Decommission(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
-	}
-}
-
-func TestServerManageHandler_Reboot(t *testing.T) {
-	h := NewServerManageHandler(core.NewServices(), newMockStore(), core.NewEventBus(nil))
-	req := httptest.NewRequest("POST", "/api/v1/servers/srv-1/reboot", nil)
-	req.SetPathValue("id", "srv-1")
-	rr := httptest.NewRecorder()
-	h.Reboot(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
-	}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // UsageHistoryHandler
 // ═══════════════════════════════════════════════════════════════════════════════
 

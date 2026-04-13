@@ -17,7 +17,6 @@ linters:
   disable:
     - exhaustive
     - wrapcheck
-    - gomnd
 
 linters-settings:
   errcheck:

@@ -131,32 +131,6 @@ func TestSSLIntegration_CertStoreCallback(t *testing.T) {
 	}
 }
 
-// TestSSLIntegration_ACMEChallengeHandling verifies ACME HTTP-01 challenge flow.
-func TestSSLIntegration_ACMEChallengeHandling(t *testing.T) {
-	store := NewCertStore()
-	mgr := NewACMEManager(store, "test@example.com", true, nil)
-
-	// Simulate adding a challenge token
-	token := "test-challenge-token-abc123"
-	auth := "test-authorization-response"
-	mgr.challenges[token] = auth
-
-	// Verify challenge is retrievable
-	got, ok := mgr.HandleHTTPChallenge(token)
-	if !ok {
-		t.Error("expected challenge to be found")
-	}
-	if got != auth {
-		t.Errorf("challenge response = %q, want %q", got, auth)
-	}
-
-	// Verify unknown token returns false
-	_, ok = mgr.HandleHTTPChallenge("nonexistent-token")
-	if ok {
-		t.Error("expected false for nonexistent token")
-	}
-}
-
 // TestSSLIntegration_MultipleDomainsCertRotation verifies cert replacement works.
 func TestSSLIntegration_MultipleDomainsCertRotation(t *testing.T) {
 	store := NewCertStore()

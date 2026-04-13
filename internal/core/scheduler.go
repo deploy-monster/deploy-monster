@@ -115,7 +115,7 @@ func (s *Scheduler) Add(job *CronJob) {
 		job.ID = GenerateID()
 	}
 	// Default to enabled only when the caller did not explicitly say
-	// otherwise. Pre-Tier-70 behaviour overrode an explicit Enabled=false.
+	// otherwise. Pre-Tier-70 behavior overrode an explicit Enabled=false.
 	// The CronJob zero value is Enabled=false, so we can only
 	// distinguish "caller forgot" from "caller said no" if they opt in
 	// by calling an explicit disable path. We keep the historical
@@ -333,7 +333,7 @@ func (s *Scheduler) calcNextRun(schedule string) time.Time {
 		return next
 	}
 
-	s.logger.Warn("scheduler: unrecognised schedule format — defaulting to 1h", "schedule", schedule)
+	s.logger.Warn("scheduler: unrecognized schedule format — defaulting to 1h", "schedule", schedule)
 	return now.Add(time.Hour)
 }
 

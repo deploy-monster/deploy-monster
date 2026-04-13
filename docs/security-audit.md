@@ -139,12 +139,6 @@ with example passwords like `POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}`.
 These are *template defaults* meant to be overridden at deploy time via the
 marketplace form, not real credentials. False positives — no fix applied.
 
-**G101 — hardcoded credentials in `internal/auth/oauth.go` (2 sites).**
-gosec flags `NewGoogleOAuth(clientID, clientSecret)` and its GitHub twin
-because the struct literal contains a field literally named `ClientSecret`.
-The value is passed in as a parameter and comes from the user's config file.
-False positives — no fix applied.
-
 **G118 — goroutine uses `context.Background()` while request-scoped ctx is
 available (2 sites).** `internal/ingress/module.go:120` starts the ACME
 renewal loop and `internal/discovery/module.go:81` starts the Docker event

@@ -32,7 +32,7 @@ var ErrNotificationsClosed = errors.New("notifications: module is closed")
 //     async handler) had no wg to wait on. The module now tracks
 //     every accepted Send call on its own wg and Stop drains them
 //     with the shutdown ctx as a deadline.
-//   - Send is now guarded by a closed flag serialised with wg.Add
+//   - Send is now guarded by a closed flag serialized with wg.Add
 //     so a Send that lands after Stop returns ErrNotificationsClosed
 //     immediately instead of racing into a half-torn-down module.
 //   - The alert dispatcher recovers from provider panics so a
@@ -42,13 +42,13 @@ type Module struct {
 	dispatcher *Dispatcher
 	logger     *slog.Logger
 
-	// stopCtx is cancelled by Stop so async sends spawned from
+	// stopCtx is canceled by Stop so async sends spawned from
 	// dispatchAlert can abort their provider calls at the next ctx
 	// boundary instead of burning the shutdown deadline.
 	stopCtx    context.Context
 	stopCancel context.CancelFunc
 
-	// mu guards closed and serialises the closed-check with wg.Add
+	// mu guards closed and serializes the closed-check with wg.Add
 	// so a Send can never observe a "not closed" snapshot that races
 	// with Stop's wg.Wait — the same contract backup/Scheduler uses.
 	mu     sync.Mutex
@@ -208,7 +208,7 @@ func (m *Module) Events() []core.EventHandler {
 // Send implements core.NotificationSender.
 // Routes the notification to the appropriate provider.
 func (m *Module) Send(ctx context.Context, notification core.Notification) (err error) {
-	// Serialise the closed-check with wg.Add so Stop can rely on a
+	// Serialize the closed-check with wg.Add so Stop can rely on a
 	// happens-before relationship when it waits for the drain. A Send
 	// that slips in between "Stop sets closed=true" and "Stop waits"
 	// would otherwise race wg.Add against wg.Wait, violating Go's

@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"log/slog"
-	"net/http"
 	"testing"
 	"time"
 
@@ -230,47 +229,6 @@ func TestModule_Routes_ReturnsNil(t *testing.T) {
 	m := New()
 	if r := m.Routes(); r != nil {
 		t.Errorf("Routes() = %v, want nil", r)
-	}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// GenerateAPIKey — covers apikey.go:20 (all fields populated)
-// The rand.Read error path is impossible to trigger.
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ExchangeCode — covers oauth.go:84 (request creation error)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-func TestExchangeCode_NilContext(t *testing.T) {
-	p := &OAuthProvider{
-		Name:     "test",
-		TokenURL: "https://example.com/token",
-		client:   &http.Client{},
-	}
-
-	//lint:ignore SA1012 nil context triggers the error path
-	_, err := p.ExchangeCode(nil, "code", "http://localhost/cb")
-	if err == nil {
-		t.Error("expected error with nil context")
-	}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// GetUser — covers oauth.go:112 (request creation error)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-func TestGetUser_NilContext(t *testing.T) {
-	p := &OAuthProvider{
-		Name:        "google",
-		UserInfoURL: "https://example.com/userinfo",
-		client:      &http.Client{},
-	}
-
-	//lint:ignore SA1012 nil context triggers the error path
-	_, err := p.GetUser(nil, "token")
-	if err == nil {
-		t.Error("expected error with nil context")
 	}
 }
 
