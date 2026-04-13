@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 
@@ -22,11 +24,31 @@ func NewEventWebhookHandler(store core.Store, events *core.EventBus, bolt core.B
 
 // EventWebhookConfig represents an outbound event webhook.
 type EventWebhookConfig struct {
-	ID     string   `json:"id"`
-	URL    string   `json:"url"`
-	Secret string   `json:"secret,omitempty"`
-	Events []string `json:"events"` // app.deployed, app.crashed, alert.triggered, etc.
-	Active bool     `json:"active"`
+	ID         string   `json:"id"`
+	URL        string   `json:"url"`
+	SecretHash string   `json:"secret_hash,omitempty"` // SHA-256 hash of secret (not the secret itself)
+	Events     []string `json:"events"`                // app.deployed, app.crashed, alert.triggered, etc.
+	Active     bool     `json:"active"`
+	TenantID   string   `json:"tenant_id,omitempty"` // Tenant that owns this webhook
+}
+
+// hashSecret creates a SHA-256 hash of a webhook secret for storage.
+// The original secret cannot be recovered from the hash.
+func hashSecret(secret string) string {
+	h := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(h[:])
+}
+
+// checkSecret verifies if a provided secret matches the stored hash.
+// Used during outbound webhook delivery to sign requests.
+func checkSecret(provided, storedHash string) bool {
+	h := hashSecret(provided)
+	return h == storedHash
+}
+
+// webhookListKey returns the BBolt bucket key for a tenant's webhook list.
+func webhookListKey(tenantID string) string {
+	return "tenant:" + tenantID
 }
 
 // eventWebhookList wraps the persisted list of outbound webhook configs.
@@ -35,20 +57,28 @@ type eventWebhookList struct {
 }
 
 // List handles GET /api/v1/webhooks/outbound
-func (h *EventWebhookHandler) List(w http.ResponseWriter, _ *http.Request) {
-	var list eventWebhookList
-	_ = h.bolt.Get("event_webhooks", "all", &list)
+func (h *EventWebhookHandler) List(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
-	// Mask secrets in response
+	pg := parsePagination(r)
+
+	var list eventWebhookList
+	key := webhookListKey(claims.TenantID)
+	_ = h.bolt.Get("event_webhooks", key, &list)
+
+	// Don't return secret hash to clients — webhooks are write-only
 	safe := make([]EventWebhookConfig, len(list.Webhooks))
 	for i, wh := range list.Webhooks {
 		safe[i] = wh
-		if safe[i].Secret != "" {
-			safe[i].Secret = "****"
-		}
+		safe[i].SecretHash = "" // Strip hash from list response
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": safe, "total": len(safe)})
+	paged, total := paginateSlice(safe, pg)
+	writePaginatedJSON(w, paged, total, pg)
 }
 
 // Create handles POST /api/v1/webhooks/outbound
@@ -59,7 +89,11 @@ func (h *EventWebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req EventWebhookConfig
+	var req struct {
+		URL    string   `json:"url"`
+		Secret string   `json:"secret,omitempty"`
+		Events []string `json:"events"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -78,28 +112,50 @@ func (h *EventWebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.ID = core.GenerateID()
-	req.Active = true
-
-	if req.Secret == "" {
-		req.Secret = core.GenerateSecret(32)
+	// Generate secret if not provided; this is returned once only at creation
+	secret := req.Secret
+	if secret == "" {
+		secret = core.GenerateSecret(32)
 	}
 
-	var list eventWebhookList
-	_ = h.bolt.Get("event_webhooks", "all", &list)
+	wh := EventWebhookConfig{
+		ID:         core.GenerateID(),
+		URL:        req.URL,
+		SecretHash: hashSecret(secret), // Store hash, not plaintext
+		Events:     req.Events,
+		Active:     true,
+		TenantID:   claims.TenantID,
+	}
 
-	if len(list.Webhooks) >= 100 {
-		writeError(w, http.StatusConflict, "webhook limit reached (100)")
+	key := webhookListKey(claims.TenantID)
+	var list eventWebhookList
+	_ = h.bolt.Get("event_webhooks", key, &list)
+
+	// Per-tenant limit: max 20 webhooks per tenant (prevents one tenant exhausting global limit)
+	const maxWebhooksPerTenant = 20
+	if len(list.Webhooks) >= maxWebhooksPerTenant {
+		writeError(w, http.StatusConflict, "webhook limit reached (20 per tenant)")
 		return
 	}
-	list.Webhooks = append(list.Webhooks, req)
+	list.Webhooks = append(list.Webhooks, wh)
 
-	if err := h.bolt.Set("event_webhooks", "all", list, 0); err != nil {
+	if err := h.bolt.Set("event_webhooks", key, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save webhook config")
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, req)
+	// Return the config WITH the plaintext secret — client must save it
+	// since it cannot be recovered from the stored hash.
+	response := wh
+	response.SecretHash = "" // Don't leak hash in response
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":          wh.ID,
+		"url":         wh.URL,
+		"secret":      secret, // Plaintext — shown only once at creation
+		"events":      wh.Events,
+		"active":      wh.Active,
+		"secret_hash": "", // Never returned
+	})
 }
 
 // Delete handles DELETE /api/v1/webhooks/outbound/{id}
@@ -115,8 +171,9 @@ func (h *EventWebhookHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	key := webhookListKey(claims.TenantID)
 	var list eventWebhookList
-	if err := h.bolt.Get("event_webhooks", "all", &list); err != nil {
+	if err := h.bolt.Get("event_webhooks", key, &list); err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -129,7 +186,7 @@ func (h *EventWebhookHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	list.Webhooks = filtered
 
-	if err := h.bolt.Set("event_webhooks", "all", list, 0); err != nil {
+	if err := h.bolt.Set("event_webhooks", key, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update webhook configs")
 		return
 	}

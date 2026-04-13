@@ -3,7 +3,9 @@ package lb
 import (
 	"hash/fnv"
 	"math"
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -75,13 +77,33 @@ func (lc *LeastConn) Release(backend string) {
 	}
 }
 
+// parseXFF takes a raw X-Forwarded-For header value and returns the
+// first valid IP address or empty string if none is found.
+// This prevents XFF injection attacks where arbitrary bytes could be
+// passed through to hash functions.
+func parseXFF(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	// XFF can be comma-separated: "203.0.113.1, 10.0.0.1, client"
+	// Take only the first element (closest proxy to client)
+	first := strings.TrimSpace(strings.SplitN(raw, ",", 2)[0])
+	first = strings.TrimSpace(first)
+	if ip := net.ParseIP(first); ip != nil {
+		return ip.String()
+	}
+	return ""
+}
+
 // IPHash consistently routes requests from the same IP to the same backend.
 type IPHash struct{}
 
 func (ih *IPHash) Next(backends []string, r *http.Request) string {
 	ip := r.RemoteAddr
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		ip = xff
+	if raw := r.Header.Get("X-Forwarded-For"); raw != "" {
+		if sanitized := parseXFF(raw); sanitized != "" {
+			ip = sanitized
+		}
 	}
 	h := fnv.New32a()
 	h.Write([]byte(ip))

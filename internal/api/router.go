@@ -557,7 +557,7 @@ func (r *Router) registerRoutes() {
 	// Registered only when the billing module has Stripe wired up.
 	if billingMod, ok := r.core.Registry.Get("billing").(*billing.Module); ok {
 		if wh := billingMod.WebhookHandler(); wh != nil {
-			stripeWH := handlers.NewStripeWebhookHandler(wh, r.core.Logger)
+			stripeWH := handlers.NewStripeWebhookHandler(wh, r.core.DB.Bolt, r.core.Logger)
 			r.mux.Handle("POST /api/v1/webhooks/stripe", stripeWH)
 		}
 	}

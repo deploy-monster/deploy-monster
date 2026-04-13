@@ -1429,7 +1429,7 @@ func (b *boltGetOkSetFail) Set(_, _ string, _ any, _ int64) error {
 
 func TestFinal95_EventWebhook_Delete_BoltSetError(t *testing.T) {
 	bolt := newMockBoltStore()
-	bolt.Set("event_webhooks", "all", eventWebhookList{
+	bolt.Set("event_webhooks", "tenant:t1", eventWebhookList{
 		Webhooks: []EventWebhookConfig{
 			{ID: "wh1", URL: "https://example.com/hook", Events: []string{"deploy.success"}},
 		},

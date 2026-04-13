@@ -79,11 +79,11 @@ func newStripeWebhookTestHandler(t *testing.T) (*StripeWebhookHandler, string, *
 	events := core.NewEventBus(slog.Default())
 	plans := []billing.Plan{{ID: "free"}, {ID: "pro", StripePriceID: "price_pro"}}
 	eventHandler := billing.NewStripeEventHandler(store, events, client, plans, slog.Default())
-	return NewStripeWebhookHandler(eventHandler, slog.Default()), secret, store
+	return NewStripeWebhookHandler(eventHandler, nil, slog.Default()), secret, store
 }
 
 func TestStripeWebhookHandler_NilEventsReturns503(t *testing.T) {
-	h := NewStripeWebhookHandler(nil, slog.Default())
+	h := NewStripeWebhookHandler(nil, nil, slog.Default())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(`{}`))
 	req.Header.Set("Stripe-Signature", "t=1,v1=abc")
@@ -215,7 +215,7 @@ func TestStripeWebhookHandler_NilLoggerDefaults(t *testing.T) {
 		billing.NewStripeClient("sk_test", "whsec_test"),
 		nil, slog.Default(),
 	)
-	h := NewStripeWebhookHandler(events, nil)
+	h := NewStripeWebhookHandler(events, nil, nil)
 	if h == nil || h.logger == nil {
 		t.Fatal("expected handler with defaulted logger")
 	}

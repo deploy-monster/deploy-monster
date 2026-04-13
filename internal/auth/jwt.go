@@ -8,6 +8,12 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// RotationGracePeriod is how long previous keys remain valid after rotation.
+// Access tokens are valid for 15 min, so we accept previous keys for 1 hour
+// to cover the worst-case: a token issued just before rotation is valid for
+// up to 15 min, plus clock skew, plus some buffer for rollouts.
+const RotationGracePeriod = 1 * time.Hour
+
 // Claims represents the JWT token claims.
 type Claims struct {
 	jwt.RegisteredClaims
@@ -28,26 +34,64 @@ type TokenPair struct {
 // JWTService handles JWT token generation and validation.
 type JWTService struct {
 	secretKey     []byte
-	previousKeys  [][]byte
+	previousKeys  [][]byte    // ordered list of old keys
+	previousAdded []time.Time // wall-clock when each key was added
 	accessExpiry  time.Duration
 	refreshExpiry time.Duration
 }
 
 // NewJWTService creates a new JWT service. previousSecrets are old keys kept
 // for graceful rotation — tokens signed with them are still accepted for
-// validation but new tokens are always signed with the primary secret.
+// validation but only within RotationGracePeriod of when they were added.
+// This prevents indefinitely-valid compromised keys.
 func NewJWTService(secret string, previousSecrets ...string) *JWTService {
 	prev := make([][]byte, 0, len(previousSecrets))
+	added := make([]time.Time, 0, len(previousSecrets))
+	now := time.Now()
 	for _, s := range previousSecrets {
 		if s != "" {
 			prev = append(prev, []byte(s))
+			added = append(added, now) // assume all provided previous keys are fresh
 		}
 	}
 	return &JWTService{
 		secretKey:     []byte(secret),
 		previousKeys:  prev,
+		previousAdded: added,
 		accessExpiry:  15 * time.Minute,
 		refreshExpiry: 7 * 24 * time.Hour,
+	}
+}
+
+// AddPreviousKey adds an old key that was rotated out. Call this during
+// key rotation to register the old primary as a fallback with its add time.
+// The key will be accepted for validation only within RotationGracePeriod.
+func (j *JWTService) AddPreviousKey(secret string) {
+	if secret == "" {
+		return
+	}
+	j.previousKeys = append(j.previousKeys, []byte(secret))
+	j.previousAdded = append(j.previousAdded, time.Now())
+	j.purgeExpiredPreviousKeys()
+}
+
+// purgeExpiredPreviousKeys removes keys older than RotationGracePeriod.
+// Called before every validation and after key additions.
+func (j *JWTService) purgeExpiredPreviousKeys() {
+	cutoff := time.Now().Add(-RotationGracePeriod)
+	validIdx := 0
+	for i, t := range j.previousAdded {
+		if t.After(cutoff) {
+			if validIdx != i {
+				j.previousKeys[validIdx] = j.previousKeys[i]
+				j.previousAdded[validIdx] = j.previousAdded[i]
+			}
+			validIdx++
+		}
+	}
+	if validIdx < len(j.previousKeys) {
+		j.previousKeys = j.previousKeys[:validIdx]
+		j.previousAdded = j.previousAdded[:validIdx]
 	}
 }
 
@@ -144,8 +188,10 @@ func (j *JWTService) ValidateRefreshToken(tokenStr string) (*RefreshTokenClaims,
 	return nil, jwt.ErrTokenSignatureInvalid
 }
 
-// allKeys returns the active key followed by any previous keys.
+// allKeys returns the active key followed by previous keys that are still
+// within RotationGracePeriod. Expired keys are purged before returning.
 func (j *JWTService) allKeys() [][]byte {
+	j.purgeExpiredPreviousKeys()
 	keys := make([][]byte, 0, 1+len(j.previousKeys))
 	keys = append(keys, j.secretKey)
 	keys = append(keys, j.previousKeys...)

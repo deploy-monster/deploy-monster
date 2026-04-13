@@ -183,6 +183,7 @@ func TestEventWebhookHandler_List_Empty(t *testing.T) {
 	h := NewEventWebhookHandler(newMockStore(), core.NewEventBus(nil), newMockBoltStore())
 
 	req := httptest.NewRequest("GET", "/api/v1/webhooks/outbound", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@test.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 
@@ -195,15 +196,16 @@ func TestEventWebhookHandler_List_WithData(t *testing.T) {
 	bolt := newMockBoltStore()
 	list := eventWebhookList{
 		Webhooks: []EventWebhookConfig{
-			{ID: "wh1", URL: "https://example.com/hook", Secret: "s3cret", Events: []string{"app.deployed"}, Active: true},
-			{ID: "wh2", URL: "https://example.com/hook2", Secret: "", Events: []string{"app.crashed"}, Active: true},
+			{ID: "wh1", URL: "https://example.com/hook", SecretHash: hashSecret("s3cret"), Events: []string{"app.deployed"}, Active: true},
+			{ID: "wh2", URL: "https://example.com/hook2", SecretHash: "", Events: []string{"app.crashed"}, Active: true},
 		},
 	}
-	bolt.Set("event_webhooks", "all", list, 0)
+	bolt.Set("event_webhooks", "tenant:tenant1", list, 0)
 
 	h := NewEventWebhookHandler(newMockStore(), core.NewEventBus(nil), bolt)
 
 	req := httptest.NewRequest("GET", "/api/v1/webhooks/outbound", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@test.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 
@@ -213,9 +215,12 @@ func TestEventWebhookHandler_List_WithData(t *testing.T) {
 
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)
-	total := int(body["total"].(float64))
-	if total != 2 {
-		t.Errorf("total = %d, want 2", total)
+	data := body["data"].([]any)
+	if len(data) != 2 {
+		t.Errorf("len(data) = %d, want 2", len(data))
+	}
+	if body["total"] != float64(2) {
+		t.Errorf("total = %v, want 2", body["total"])
 	}
 }
 
@@ -307,7 +312,7 @@ func TestEventWebhookHandler_Delete_Success(t *testing.T) {
 			{ID: "wh-2", URL: "https://other.com", Events: []string{"app.crashed"}},
 		},
 	}
-	bolt.Set("event_webhooks", "all", list, 0)
+	bolt.Set("event_webhooks", "tenant:t1", list, 0)
 
 	h := NewEventWebhookHandler(newMockStore(), core.NewEventBus(nil), bolt)
 

@@ -54,7 +54,7 @@ func setTokenCookies(w http.ResponseWriter, r *http.Request, tokens *internalAut
 		MaxAge:   tokens.ExpiresIn,
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieRefresh,
@@ -63,7 +63,7 @@ func setTokenCookies(w http.ResponseWriter, r *http.Request, tokens *internalAut
 		MaxAge:   internalAuth.RefreshTokenTTLSeconds,
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	})
 }
 
@@ -77,7 +77,7 @@ func clearTokenCookies(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieRefresh,
@@ -86,7 +86,7 @@ func clearTokenCookies(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	})
 }
 

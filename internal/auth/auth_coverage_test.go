@@ -265,9 +265,9 @@ func TestGenerateAPIKey_PrefixLength(t *testing.T) {
 		t.Fatalf("GenerateAPIKey: %v", err)
 	}
 
-	// Prefix = "dm_" + 8 hex chars = 11 chars total
-	if len(pair.Prefix) != 11 {
-		t.Errorf("prefix length = %d, want 11", len(pair.Prefix))
+	// Prefix = "dm_" + 12 hex chars = 15 chars total
+	if len(pair.Prefix) != 15 {
+		t.Errorf("prefix length = %d, want 15", len(pair.Prefix))
 	}
 }
 

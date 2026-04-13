@@ -255,6 +255,52 @@ func ValidateGitURL(raw string) error {
 	return nil
 }
 
+// validateResolvedHost performs a real-time DNS lookup and validates the
+// resolved IP against the private/blocked ranges. This closes the DNS
+// rebinding window where a URL validated at store time (clean DNS) could
+// resolve to a private IP at clone time (TTL expiry or attack).
+func validateResolvedHost(repoURL string) error {
+	parsed, err := url.Parse(repoURL)
+	if err != nil {
+		return err
+	}
+
+	// Only check schemes that involve network access
+	switch parsed.Scheme {
+	case "https", "http", "ssh", "git":
+		// SSH shorthand (git@host:path) — can't resolve without DNS
+		if parsed.Scheme == "ssh" && parsed.Host == "" {
+			return nil
+		}
+		if parsed.Host == "" {
+			return nil
+		}
+
+		// Resolve the hostname to IP
+		addrs, err := net.LookupHost(parsed.Host)
+		if err != nil {
+			// DNS lookup failed — DNS rebinding attack in progress or legit DNS issue.
+			// Fail closed: block the clone rather than allow potentially unsafe URL.
+			return fmt.Errorf("git URL host %q DNS lookup failed (possible DNS rebinding attack)", parsed.Host)
+		}
+
+		// Check all resolved IPs against private/blocked ranges
+		for _, addr := range addrs {
+			ip := net.ParseIP(addr)
+			if ip == nil {
+				continue
+			}
+			if isPrivateOrBlockedIP(addr) {
+				return fmt.Errorf("git URL host %q resolved to private/blocked IP %q", parsed.Host, addr)
+			}
+		}
+		return nil
+	}
+
+	// file:// and local paths don't involve network — skip
+	return nil
+}
+
 // isAbsPath checks if a string looks like an absolute filesystem path.
 func isAbsPath(s string) bool {
 	if strings.HasPrefix(s, "/") {
@@ -271,6 +317,13 @@ func isAbsPath(s string) bool {
 func gitClone(ctx context.Context, repoURL, branch, token, dir string, logWriter io.Writer) (string, error) {
 	if err := ValidateGitURL(repoURL); err != nil {
 		return "", fmt.Errorf("invalid git URL: %w", err)
+	}
+
+	// Re-validate at clone time: resolve DNS and check for private/blocked IPs.
+	// This closes the DNS rebinding window where a URL validated at store time
+	// (when DNS was clean) could resolve to a private IP at clone time.
+	if err := validateResolvedHost(repoURL); err != nil {
+		return "", fmt.Errorf("git URL resolved to blocked range: %w", err)
 	}
 
 	// Inject token into HTTPS URL if provided

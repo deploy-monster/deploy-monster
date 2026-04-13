@@ -126,10 +126,7 @@ func (m *Module) firstRunSetup(ctx context.Context) error {
 		credPath := filepath.Join(filepath.Dir(m.core.Config.Database.Path), ".credentials")
 		content := fmt.Sprintf("email: %s\npassword: %s\n", email, password)
 		if err := os.WriteFile(credPath, []byte(content), 0600); err != nil {
-			m.logger.Warn("auto-generated admin credentials — could not write credentials file, set MONSTER_ADMIN_PASSWORD env var",
-				"email", email,
-				"error", err,
-			)
+			return fmt.Errorf("write auto-generated admin credentials to file %q: %w", credPath, err)
 		} else {
 			m.logger.Warn("auto-generated admin credentials written to file",
 				"path", credPath,

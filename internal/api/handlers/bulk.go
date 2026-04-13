@@ -55,6 +55,21 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := make([]bulkResult, len(req.AppIDs))
+	completed := make([]struct {
+		appID    string
+		original string // original status before this bulk op
+	}, 0)
+
+	// Collect original statuses before making any changes.
+	// This enables rollback if a later operation fails.
+	appOriginalStatus := make(map[string]string)
+	for _, appID := range req.AppIDs {
+		if app, err := h.store.GetApp(r.Context(), appID); err == nil && app.TenantID == claims.TenantID {
+			appOriginalStatus[appID] = app.Status
+		}
+	}
+
+	succeeded := 0
 
 	for i, appID := range req.AppIDs {
 		results[i] = bulkResult{AppID: appID}
@@ -66,6 +81,7 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 				results[i].Error = err.Error()
 			} else {
 				results[i].Status = "started"
+				completed = append(completed, struct{ appID, original string }{appID, appOriginalStatus[appID]})
 			}
 		case "stop":
 			if err := h.store.UpdateAppStatus(r.Context(), appID, "stopped"); err != nil {
@@ -73,34 +89,70 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 				results[i].Error = err.Error()
 			} else {
 				results[i].Status = "stopped"
+				completed = append(completed, struct{ appID, original string }{appID, appOriginalStatus[appID]})
 			}
 		case "restart":
-			h.store.UpdateAppStatus(r.Context(), appID, "running")
-			results[i].Status = "restarted"
+			origStatus := appOriginalStatus[appID]
+			// Restart = stop + start. If start fails, rollback to stopped.
+			if err := h.store.UpdateAppStatus(r.Context(), appID, "stopped"); err != nil {
+				results[i].Status = "error"
+				results[i].Error = err.Error()
+			} else {
+				// Track stop as completed (for rollback)
+				completed = append(completed, struct{ appID, original string }{appID, origStatus})
+				if startErr := h.store.UpdateAppStatus(r.Context(), appID, "running"); startErr != nil {
+					// Rollback to original status
+					h.store.UpdateAppStatus(r.Context(), appID, origStatus)
+					results[i].Status = "error"
+					results[i].Error = "restart failed: " + startErr.Error()
+					// Remove from completed (rollback happened)
+					completed = completed[:len(completed)-1]
+				} else {
+					results[i].Status = "restarted"
+				}
+			}
 		case "delete":
 			if err := h.store.DeleteApp(r.Context(), appID); err != nil {
 				results[i].Status = "error"
 				results[i].Error = err.Error()
 			} else {
 				results[i].Status = "deleted"
+				// No rollback for delete — can't undo
 			}
 		default:
 			results[i].Status = "error"
 			results[i].Error = "unknown action: " + req.Action
 		}
-	}
 
-	succeeded := 0
-	for _, r := range results {
-		if r.Status != "error" {
+		// Rollback: if any operation fails (after at least one succeeded),
+		// reverse all already-completed changes to maintain consistency.
+		if results[i].Status == "error" && succeeded > 0 {
+			for _, done := range completed {
+				if orig, ok := appOriginalStatus[done.appID]; ok {
+					h.store.UpdateAppStatus(r.Context(), done.appID, orig)
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"results":     results,
+				"total":       len(results),
+				"succeeded":   0,
+				"failed":      len(results),
+				"rolled_back": true,
+				"message":     "operation failed — already-completed apps have been rolled back",
+			})
+			return
+		}
+
+		if results[i].Status != "" && results[i].Status != "error" {
 			succeeded++
 		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"results":   results,
-		"total":     len(results),
-		"succeeded": succeeded,
-		"failed":    len(results) - succeeded,
+		"results":     results,
+		"total":       len(results),
+		"succeeded":   succeeded,
+		"failed":      len(results) - succeeded,
+		"rolled_back": false,
 	})
 }

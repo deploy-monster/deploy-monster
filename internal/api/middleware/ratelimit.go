@@ -3,7 +3,9 @@ package middleware
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -11,28 +13,104 @@ import (
 
 // AuthRateLimiter enforces per-IP rate limits on auth endpoints using BBolt.
 type AuthRateLimiter struct {
-	bolt   core.BoltStorer
-	rate   int
-	window time.Duration
-	prefix string
-	logger *slog.Logger
-}
-
-type authRateLimitEntry struct {
-	Count   int   `json:"c"`
-	ResetAt int64 `json:"r"`
+	bolt     core.BoltStorer
+	rate     int
+	window   time.Duration
+	prefix   string
+	logger   *slog.Logger
+	trustXFF bool // if true, trust X-Forwarded-For; if false, only use RemoteAddr
 }
 
 // NewAuthRateLimiter creates a rate limiter for auth endpoints.
 // rate is the max number of requests allowed per window per IP.
 // prefix differentiates keys (e.g., "login", "register").
-func NewAuthRateLimiter(bolt core.BoltStorer, rate int, window time.Duration, prefix string) *AuthRateLimiter {
-	return &AuthRateLimiter{
-		bolt:   bolt,
-		rate:   rate,
-		window: window,
-		prefix: prefix,
+// opts: WithTrustXFF(false) to disable XFF-based limiting (safer default —
+// prevents spoofing when no trusted proxy is in front).
+func NewAuthRateLimiter(bolt core.BoltStorer, rate int, window time.Duration, prefix string, opts ...Option) *AuthRateLimiter {
+	rl := &AuthRateLimiter{
+		bolt:     bolt,
+		rate:     rate,
+		window:   window,
+		prefix:   prefix,
+		trustXFF: true, // default: match original behavior (trust XFF)
 	}
+	for _, opt := range opts {
+		opt(rl)
+	}
+	return rl
+}
+
+// Option configures an AuthRateLimiter.
+type Option func(*AuthRateLimiter)
+
+// WithTrustXFF enables trusting X-Forwarded-For header for rate limiting.
+// Only use this if a trusted reverse proxy (e.g., nginx, Traefik) is in front
+// that always sets XFF. Without a trusted proxy, attackers can spoof XFF to
+// bypass rate limits.
+func WithTrustXFF() Option {
+	return func(rl *AuthRateLimiter) { rl.trustXFF = true }
+}
+
+// safeClientIP returns the real client IP, respecting the trustXFF setting.
+// When trustXFF is false (default), only r.RemoteAddr is used.
+// When trustXFF is true, X-Real-IP and X-Forwarded-For are used if available,
+// but XFF is validated to prevent spoofing attacks.
+func safeClientIP(r *http.Request, trustXFF bool) string {
+	if !trustXFF {
+		return stripPort(r.RemoteAddr)
+	}
+
+	// X-Real-IP takes priority (set by nginx Real IP module)
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		if validated := validateIP(ip); validated != "" {
+			return validated
+		}
+	}
+
+	// X-Forwarded-For: first IP in the chain (closest proxy to client)
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// XFF can be "client, proxy1, proxy2" — take first (client)
+		first := strings.TrimSpace(strings.SplitN(xff, ",", 2)[0])
+		if validated := validateIP(first); validated != "" {
+			return validated
+		}
+	}
+
+	return stripPort(r.RemoteAddr)
+}
+
+// validateIP returns the IP string if it is a valid public IP, else empty string.
+// This prevents arbitrary byte injection via crafted XFF values.
+func validateIP(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	ip := net.ParseIP(strings.TrimSpace(raw))
+	if ip == nil {
+		return ""
+	}
+	// Reject private, loopback, link-local IPs in rate limit context
+	// to prevent attackers from using internal IPs to bypass limits.
+	if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+		return ""
+	}
+	return ip.String()
+}
+
+// stripPort removes the :port suffix from RemoteAddr (e.g., "1.2.3.4:8080" -> "1.2.3.4").
+func stripPort(addr string) string {
+	if i := strings.LastIndex(addr, ":"); i >= 0 {
+		// Check if it looks like an IPv6 address (contains multiple colons)
+		if !strings.Contains(addr, "]") && strings.Count(addr, ":") == 1 {
+			return addr[:i]
+		}
+	}
+	return addr
+}
+
+type authRateLimitEntry struct {
+	Count   int   `json:"c"`
+	ResetAt int64 `json:"r"`
 }
 
 // Wrap returns a handler function that enforces the rate limit before calling next.
@@ -42,7 +120,7 @@ func (rl *AuthRateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := realIP(r)
+		ip := safeClientIP(r, rl.trustXFF)
 		key := fmt.Sprintf("auth_rl:%s:%s", rl.prefix, ip)
 
 		var entry authRateLimitEntry

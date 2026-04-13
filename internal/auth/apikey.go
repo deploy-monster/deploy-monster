@@ -13,7 +13,7 @@ const apiKeyPrefix = "dm_"
 type APIKeyPair struct {
 	Key    string // Full key (only shown once): dm_xxxx...
 	Hash   string // SHA-256 hash (stored in DB)
-	Prefix string // First 8 chars for display: dm_xxxx
+	Prefix string // First 12 chars for display: dm_xxxx...
 }
 
 // GenerateAPIKey creates a new API key with the dm_ prefix.
@@ -25,7 +25,7 @@ func GenerateAPIKey() (*APIKeyPair, error) {
 
 	key := apiKeyPrefix + hex.EncodeToString(b)
 	hash := HashAPIKey(key)
-	prefix := key[:len(apiKeyPrefix)+8]
+	prefix := key[:len(apiKeyPrefix)+12]
 
 	return &APIKeyPair{
 		Key:    key,

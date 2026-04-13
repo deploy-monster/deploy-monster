@@ -7,7 +7,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const bcryptCost = 12
+const bcryptCost = 13
 
 // HashPassword creates a bcrypt hash of the password.
 func HashPassword(password string) (string, error) {
