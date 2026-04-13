@@ -844,6 +844,13 @@ function LogsPanel({ appId }: { appId: string }) {
   useEffect(() => {
     if (!appId) return;
 
+    // Validate appId to prevent URL injection attacks
+    // Only allow safe characters: alphanumeric, dashes, underscores
+    if (!/^[a-zA-Z0-9_-]+$/.test(appId)) {
+      console.error('Invalid appId format');
+      return;
+    }
+
     const eventSource = new EventSource(`/api/v1/apps/${appId}/logs/stream`);
 
     eventSource.onopen = () => {

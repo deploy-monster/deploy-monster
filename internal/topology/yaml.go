@@ -6,6 +6,13 @@ import (
 	"strings"
 )
 
+// yamlCommandEscape ensures a string is safely embedded in YAML double-quotes.
+// It escapes \, ", and control chars so that malicious input can't break out
+// of the YAML string and inject arbitrary YAML structure.
+func yamlCommandEscape(s string) string {
+	return `"` + string(strconv.AppendQuote(nil, s)) + `"`
+}
+
 // ToYAML converts ComposeConfig to YAML string
 func (c *ComposeConfig) ToYAML() string {
 	var sb strings.Builder
@@ -200,7 +207,7 @@ func (s *Service) toYAML(indent int) string {
 
 	// Command
 	if s.Command != "" {
-		sb.WriteString(fmt.Sprintf("%scommand: %s\n", pad, s.Command))
+		sb.WriteString(fmt.Sprintf("%scommand: %s\n", pad, yamlCommandEscape(s.Command)))
 	}
 
 	// Deploy

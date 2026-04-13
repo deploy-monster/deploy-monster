@@ -117,7 +117,6 @@ YAML file `monster.yaml` + environment variable overrides (`MONSTER_*` prefix). 
 - `docs/openapi.yaml` — OpenAPI 3.0.3 specification
 - `docs/examples/api-quickstart.md` — API usage examples with curl
 
-
 <!-- rtk-instructions v2 -->
 # RTK (Rust Token Killer) - Token-Optimized Commands
 

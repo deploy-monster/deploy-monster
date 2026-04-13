@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/marketplace"
 )
@@ -275,6 +276,10 @@ func TestFinal_Certificate_Upload_InvalidPair(t *testing.T) {
 
 	body := `{"domain_id":"d1","cert_pem":"not-a-cert","key_pem":"not-a-key"}`
 	req := httptest.NewRequest("POST", "/api/v1/certificates", strings.NewReader(body))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 	h.Upload(rr, req)
 
@@ -294,6 +299,10 @@ func TestFinal_Certificate_Upload_BoltError(t *testing.T) {
 	// Use a valid self-signed cert/key pair is complex; test just the field validation
 	body := `{"domain_id":"","cert_pem":"x","key_pem":"y"}`
 	req := httptest.NewRequest("POST", "/api/v1/certificates", strings.NewReader(body))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 	h.Upload(rr, req)
 
@@ -541,6 +550,12 @@ func TestFinal_Import_WithProject(t *testing.T) {
 func TestFinal_Invite_Create_StoreError(t *testing.T) {
 	store := newMockStore()
 	store.errCreateInvite = fmt.Errorf("db error")
+	// Seed role so RBAC check passes
+	store.roles["t1"] = append(store.roles["t1"], core.Role{
+		ID:              "role_owner",
+		TenantID:        "t1",
+		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	})
 	events := core.NewEventBus(slog.Default())
 	h := NewInviteHandler(store, events)
 

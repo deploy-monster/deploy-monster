@@ -15,6 +15,9 @@ import (
 
 func TestListDomains_All(t *testing.T) {
 	store := newMockStore()
+	// Seed apps so domain filtering by tenant works
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1"})
+	store.addApp(&core.Application{ID: "app2", TenantID: "tenant1"})
 	store.addDomain(&core.Domain{ID: "d1", AppID: "app1", FQDN: "example.com", Type: "custom"})
 	store.addDomain(&core.Domain{ID: "d2", AppID: "app2", FQDN: "api.example.com", Type: "custom"})
 

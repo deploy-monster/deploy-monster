@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -239,6 +240,24 @@ type Role struct {
 	PermissionsJSON string    `json:"permissions_json"`
 	IsBuiltin       bool      `json:"is_builtin"`
 	CreatedAt       time.Time `json:"created_at"`
+}
+
+// HasPermission returns true if the role has the given permission.
+// Supports wildcard "*" which means all permissions.
+func (r *Role) HasPermission(permission string) bool {
+	if r.PermissionsJSON == "" {
+		return false
+	}
+	var perms []string
+	if err := json.Unmarshal([]byte(r.PermissionsJSON), &perms); err != nil {
+		return false
+	}
+	for _, p := range perms {
+		if p == "*" || p == permission {
+			return true
+		}
+	}
+	return false
 }
 
 // TeamMember links a user to a tenant with a role.

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -28,7 +29,18 @@ func NewLocalStorage(basePath string) *LocalStorage {
 func (l *LocalStorage) Name() string { return "local" }
 
 func (l *LocalStorage) Upload(_ context.Context, key string, reader io.Reader, _ int64) error {
-	path := filepath.Join(l.basePath, key)
+	// Reject absolute paths to prevent bypassing the join with an absolute key
+	if filepath.IsAbs(key) {
+		return fmt.Errorf("invalid backup key: absolute paths not allowed")
+	}
+	// Join and clean ensures the key is resolved within basePath (not current dir)
+	fullPath := filepath.Join(l.basePath, key)
+	cleanPath := filepath.Clean(fullPath)
+	rel, err := filepath.Rel(l.basePath, cleanPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("invalid backup key: path outside storage root")
+	}
+	path := cleanPath
 	_ = os.MkdirAll(filepath.Dir(path), 0750)
 
 	f, err := os.Create(path)
@@ -44,8 +56,19 @@ func (l *LocalStorage) Upload(_ context.Context, key string, reader io.Reader, _
 }
 
 func (l *LocalStorage) Download(_ context.Context, key string) (io.ReadCloser, error) {
-	path := filepath.Join(l.basePath, key)
-	f, err := os.Open(path)
+	// Reject absolute paths to prevent bypassing the join with an absolute key
+	if filepath.IsAbs(key) {
+		return nil, fmt.Errorf("invalid backup key: absolute paths not allowed")
+	}
+	// Join and clean ensures the key is resolved within basePath (not current dir)
+	fullPath := filepath.Join(l.basePath, key)
+	cleanPath := filepath.Clean(fullPath)
+	// Use filepath.Rel to ensure the resolved path is within basePath
+	rel, err := filepath.Rel(l.basePath, cleanPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return nil, fmt.Errorf("invalid backup key: path outside storage root")
+	}
+	f, err := os.Open(cleanPath)
 	if err != nil {
 		return nil, fmt.Errorf("open backup: %w", err)
 	}
@@ -53,12 +76,28 @@ func (l *LocalStorage) Download(_ context.Context, key string) (io.ReadCloser, e
 }
 
 func (l *LocalStorage) Delete(_ context.Context, key string) error {
-	path := filepath.Join(l.basePath, key)
-	return os.Remove(path)
+	// Reject absolute paths to prevent bypassing the join with an absolute key
+	if filepath.IsAbs(key) {
+		return fmt.Errorf("invalid backup key: absolute paths not allowed")
+	}
+	// Join and clean ensures the key is resolved within basePath (not current dir)
+	fullPath := filepath.Join(l.basePath, key)
+	cleanPath := filepath.Clean(fullPath)
+	// Use filepath.Rel to ensure the resolved path is within basePath
+	rel, err := filepath.Rel(l.basePath, cleanPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("invalid backup key: path outside storage root")
+	}
+	return os.Remove(cleanPath)
 }
 
 func (l *LocalStorage) List(_ context.Context, prefix string) ([]core.BackupEntry, error) {
-	pattern := filepath.Join(l.basePath, prefix+"*")
+	// Sanitize prefix to prevent path traversal.
+	cleanPrefix := filepath.Clean(l.basePath + "/" + prefix)
+	if !strings.HasPrefix(cleanPrefix, l.basePath) {
+		return nil, fmt.Errorf("invalid backup prefix: path outside storage root")
+	}
+	pattern := cleanPrefix + "*"
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, err

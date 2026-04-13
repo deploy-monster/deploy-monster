@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 )
 
 // ─── List Certificates ───────────────────────────────────────────────────────
@@ -15,6 +17,10 @@ func TestCertificateList_Success(t *testing.T) {
 	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/certificates", nil)
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -52,6 +58,10 @@ func TestCertificateUpload_InvalidCertKeyPair(t *testing.T) {
 		KeyPEM:   "-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader(body))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 
 	handler.Upload(rr, req)
@@ -67,6 +77,10 @@ func TestCertificateUpload_InvalidJSON(t *testing.T) {
 	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader([]byte("bad")))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 
 	handler.Upload(rr, req)
@@ -86,6 +100,10 @@ func TestCertificateUpload_MissingDomainID(t *testing.T) {
 		KeyPEM:  "key",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader(body))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 
 	handler.Upload(rr, req)
@@ -105,6 +123,10 @@ func TestCertificateUpload_MissingCertPEM(t *testing.T) {
 		KeyPEM:   "key",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader(body))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 
 	handler.Upload(rr, req)
@@ -124,6 +146,10 @@ func TestCertificateUpload_MissingKeyPEM(t *testing.T) {
 		CertPEM:  "cert",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader(body))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 
 	handler.Upload(rr, req)
@@ -140,6 +166,10 @@ func TestCertificateUpload_AllFieldsMissing(t *testing.T) {
 
 	body, _ := json.Marshal(uploadCertRequest{})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader(body))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 
 	handler.Upload(rr, req)

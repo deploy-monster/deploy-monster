@@ -1,8 +1,8 @@
 package core
 
 import (
+	"fmt"
 	"log/slog"
-	"runtime/debug"
 )
 
 // SafeGo launches a goroutine with panic recovery. If the goroutine panics,
@@ -17,8 +17,7 @@ func SafeGo(logger *slog.Logger, name string, fn func()) {
 				}
 				logger.Error("goroutine panic recovered",
 					"goroutine", name,
-					"error", r,
-					"stack", string(debug.Stack()),
+					"error", fmt.Sprintf("%v", r),
 				)
 			}
 		}()

@@ -639,8 +639,8 @@ func (r *Router) registerRoutes() {
 
 	// ── MCP Protocol ──────────────────────────────────
 	mcpH := handlers.NewMCPHandler(r.core, r.store, r.core.Services.Container, r.core.Events)
-	r.mux.HandleFunc("GET /mcp/v1/tools", mcpH.ListTools)
-	r.mux.HandleFunc("POST /mcp/v1/tools/{name}", mcpH.CallTool)
+	r.mux.Handle("GET /mcp/v1/tools", protected(http.HandlerFunc(mcpH.ListTools)))
+	r.mux.Handle("POST /mcp/v1/tools/{name}", protected(http.HandlerFunc(mcpH.CallTool)))
 
 	// ── Streaming (SSE) ────────────────────────────────
 	logStreamer := ws.NewLogStreamer(r.core.Services.Container, r.core.Logger)
@@ -662,10 +662,11 @@ func (r *Router) registerRoutes() {
 	// ── Admin routes ─────────────────────────────────
 	registerAdminRoutes(r, adminOnly)
 
-	// ── Prometheus metrics (no auth — internal) ───────
+	// ── Prometheus metrics (internal, auth-protected) ──
+	// Exposes runtime metrics — protect with auth to prevent info disclosure
 	promExporter := integrations.NewPrometheusExporter(r.core.Registry, r.core.Events, r.core.Services)
-	r.mux.HandleFunc("GET /metrics", promExporter.Handler())
-	r.mux.HandleFunc("GET /metrics/api", r.apiMetrics.Handler())
+	r.mux.Handle("GET /metrics", protected(http.HandlerFunc(promExporter.Handler())))
+	r.mux.Handle("GET /metrics/api", protected(http.HandlerFunc(r.apiMetrics.Handler())))
 
 	// ── pprof (opt-in, auth-protected) ───────────────
 	if r.core.Config.Server.EnablePprof {

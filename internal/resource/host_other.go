@@ -2,7 +2,10 @@
 
 package resource
 
-import "runtime"
+import (
+	"math"
+	"runtime"
+)
 
 // hostStats is the non-Linux fallback metrics provider. The real
 // platform-level numbers live in host_linux.go — on macOS, Windows,
@@ -28,8 +31,12 @@ func (h *hostStats) CPUPercent() (float64, error) { return 0, nil }
 func (h *hostStats) MemoryMB() (used, total int64, err error) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	sysMB := int64(m.Sys / (1024 * 1024))
-	return sysMB, sysMB, nil
+	sys := m.Sys / (1024 * 1024)
+	// Defensive: clamp uint64->int64 overflow
+	if sys > (1<<63)-1 {
+		return math.MaxInt64, math.MaxInt64, nil
+	}
+	return int64(sys), int64(sys), nil
 }
 
 // DiskMB is unimplemented off-Linux — returning zeros keeps the JSON

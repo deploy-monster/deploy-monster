@@ -45,7 +45,9 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	token := c.Config.Swarm.JoinToken
 	if token == "" {
 		token = core.GenerateSecret(32)
-		m.logger.Info("generated agent join token (set swarm.join_token in config to persist)")
+		// Only log a prefix for operator reference — never log the full secret
+		m.logger.Info("generated agent join token (set swarm.join_token in config to persist)",
+			"token_prefix", token[:8]+"...")
 	}
 
 	// Create the agent server

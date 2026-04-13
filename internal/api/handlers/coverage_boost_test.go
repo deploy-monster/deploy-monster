@@ -832,8 +832,9 @@ func TestEnvImportHandler_Export_DotEnv(t *testing.T) {
 		t.Errorf("expected Content-Type text/plain, got %q", rr.Header().Get("Content-Type"))
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "FOO=bar") {
-		t.Errorf("expected FOO=bar in output, got %q", body)
+	// Values are quoted by sanitizeEnvValue for injection prevention
+	if !strings.Contains(body, "FOO=\"bar\"") {
+		t.Errorf("expected FOO=\"bar\" in output, got %q", body)
 	}
 }
 

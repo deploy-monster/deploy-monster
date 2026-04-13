@@ -88,9 +88,9 @@ func TestEnvVarGet_SecretReference(t *testing.T) {
 
 	data := resp["data"].([]any)
 	entry := data[0].(map[string]any)
-	// Secret references should NOT be masked
-	if entry["value"] != "${SECRET:db_password}" {
-		t.Errorf("expected unmasked secret reference, got %v", entry["value"])
+	// Secret references are masked to prevent exposure
+	if entry["value"] != "${SECRET:***}" {
+		t.Errorf("expected masked secret reference, got %v", entry["value"])
 	}
 }
 
@@ -416,11 +416,12 @@ func TestEnvExport_DotEnvFormat(t *testing.T) {
 	}
 
 	body := rr.Body.String()
-	if !strings.Contains(body, "DB_HOST=localhost") {
-		t.Errorf("expected DB_HOST=localhost in body, got %q", body)
+	// Values are quoted by sanitizeEnvValue for injection prevention
+	if !strings.Contains(body, "DB_HOST=\"localhost\"") {
+		t.Errorf("expected DB_HOST=\"localhost\" in body, got %q", body)
 	}
-	if !strings.Contains(body, "DB_PORT=5432") {
-		t.Errorf("expected DB_PORT=5432 in body, got %q", body)
+	if !strings.Contains(body, "DB_PORT=\"5432\"") {
+		t.Errorf("expected DB_PORT=\"5432\" in body, got %q", body)
 	}
 }
 
@@ -751,7 +752,7 @@ func TestMaskValue(t *testing.T) {
 		{"abcd", "****"},
 		{"abcde", "ab*de"},
 		{"secret123", "se*****23"},
-		{"${SECRET:name}", "${SECRET:name}"},
+		{"${SECRET:name}", "${SECRET:***}"},
 	}
 
 	for _, tt := range tests {

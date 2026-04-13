@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	csrfCookieName = "dm_csrf"
+	csrfCookieName = "__Host-dm_csrf" // __Host- prefix enforced by browsers
 	csrfHeaderName = "X-CSRF-Token"
 )
 

@@ -21,7 +21,7 @@ func TestEnvVarMasking(t *testing.T) {
 		{"abcd", "****"},
 		{"abcde", "ab*de"},
 		{"secretvalue123", "se**********23"},
-		{"${SECRET:db_pass}", "${SECRET:db_pass}"}, // Secret refs not masked
+		{"${SECRET:db_pass}", "${SECRET:***}"}, // Secret refs masked to hide secret name
 		{"password123!", "pa********3!"},
 	}
 

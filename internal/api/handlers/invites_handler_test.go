@@ -14,6 +14,11 @@ import (
 
 func TestInviteCreate_Success(t *testing.T) {
 	store := newMockStore()
+	store.roles["tenant1"] = append(store.roles["tenant1"], core.Role{
+		ID:              "role_owner",
+		TenantID:        "tenant1",
+		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	})
 	events := core.NewEventBus(nil)
 	handler := NewInviteHandler(store, events)
 
@@ -41,11 +46,8 @@ func TestInviteCreate_Success(t *testing.T) {
 		t.Errorf("expected role_id 'role_member', got %v", resp["role_id"])
 	}
 
-	token, ok := resp["token"].(string)
-	if !ok || token == "" {
-		t.Error("expected non-empty token in response")
-	}
-
+	// Token is no longer returned in response (security: sent via email instead)
+	// But token_hash is still returned for verification
 	tokenHash, ok := resp["token_hash"].(string)
 	if !ok || tokenHash == "" {
 		t.Error("expected non-empty token_hash in response")
@@ -77,6 +79,12 @@ func TestInviteCreate_NoClaims(t *testing.T) {
 
 func TestInviteCreate_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	// Seed the role so permission check passes
+	store.roles["tenant1"] = append(store.roles["tenant1"], core.Role{
+		ID:              "role_owner",
+		TenantID:        "tenant1",
+		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	})
 	events := core.NewEventBus(nil)
 	handler := NewInviteHandler(store, events)
 
@@ -94,6 +102,11 @@ func TestInviteCreate_InvalidJSON(t *testing.T) {
 
 func TestInviteCreate_MissingEmail(t *testing.T) {
 	store := newMockStore()
+	store.roles["tenant1"] = append(store.roles["tenant1"], core.Role{
+		ID:              "role_owner",
+		TenantID:        "tenant1",
+		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	})
 	events := core.NewEventBus(nil)
 	handler := NewInviteHandler(store, events)
 
@@ -112,6 +125,11 @@ func TestInviteCreate_MissingEmail(t *testing.T) {
 
 func TestInviteCreate_MissingRoleID(t *testing.T) {
 	store := newMockStore()
+	store.roles["tenant1"] = append(store.roles["tenant1"], core.Role{
+		ID:              "role_owner",
+		TenantID:        "tenant1",
+		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	})
 	events := core.NewEventBus(nil)
 	handler := NewInviteHandler(store, events)
 
@@ -130,6 +148,11 @@ func TestInviteCreate_MissingRoleID(t *testing.T) {
 
 func TestInviteCreate_BothFieldsMissing(t *testing.T) {
 	store := newMockStore()
+	store.roles["tenant1"] = append(store.roles["tenant1"], core.Role{
+		ID:              "role_owner",
+		TenantID:        "tenant1",
+		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	})
 	events := core.NewEventBus(nil)
 	handler := NewInviteHandler(store, events)
 
@@ -148,11 +171,16 @@ func TestInviteCreate_BothFieldsMissing(t *testing.T) {
 
 func TestInviteCreate_TokenIsUnique(t *testing.T) {
 	store := newMockStore()
+	store.roles["tenant1"] = append(store.roles["tenant1"], core.Role{
+		ID:              "role_owner",
+		TenantID:        "tenant1",
+		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	})
 	events := core.NewEventBus(nil)
 	handler := NewInviteHandler(store, events)
 
-	// Create two invites and verify tokens differ
-	var tokens []string
+	// Create two invites and verify token hashes differ (token itself is no longer returned)
+	var hashes []string
 	for i := 0; i < 2; i++ {
 		body, _ := json.Marshal(inviteRequest{
 			Email:  "user@example.com",
@@ -170,11 +198,11 @@ func TestInviteCreate_TokenIsUnique(t *testing.T) {
 
 		var resp map[string]any
 		json.Unmarshal(rr.Body.Bytes(), &resp)
-		tokens = append(tokens, resp["token"].(string))
+		hashes = append(hashes, resp["token_hash"].(string))
 	}
 
-	if tokens[0] == tokens[1] {
-		t.Error("expected unique tokens for separate invites")
+	if hashes[0] == hashes[1] {
+		t.Error("expected unique token hashes for separate invites")
 	}
 }
 

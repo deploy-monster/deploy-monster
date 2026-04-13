@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -79,18 +78,21 @@ func NewEventBus(logger *slog.Logger) *EventBus {
 // Subscribe registers a synchronous handler for the given event type.
 // Use "*" to subscribe to all events.
 // Use "app.*" to subscribe to all events starting with "app.".
-func (eb *EventBus) Subscribe(eventType string, handler func(ctx context.Context, event Event) error) {
-	eb.SubscribeNamed(eventType, "", false, handler)
+// Returns the subscription ID for later unsubscription.
+func (eb *EventBus) Subscribe(eventType string, handler func(ctx context.Context, event Event) error) string {
+	return eb.SubscribeNamed(eventType, "", false, handler)
 }
 
 // SubscribeAsync registers an asynchronous handler that runs in its own goroutine.
 // Errors from async handlers are logged but do not propagate to the publisher.
-func (eb *EventBus) SubscribeAsync(eventType string, handler func(ctx context.Context, event Event) error) {
-	eb.SubscribeNamed(eventType, "", true, handler)
+// Returns the subscription ID for later unsubscription.
+func (eb *EventBus) SubscribeAsync(eventType string, handler func(ctx context.Context, event Event) error) string {
+	return eb.SubscribeNamed(eventType, "", true, handler)
 }
 
 // SubscribeNamed registers a named handler with explicit sync/async mode.
-func (eb *EventBus) SubscribeNamed(eventType, name string, async bool, handler func(ctx context.Context, event Event) error) {
+// Returns the subscription ID for later unsubscription.
+func (eb *EventBus) SubscribeNamed(eventType, name string, async bool, handler func(ctx context.Context, event Event) error) string {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 
@@ -102,6 +104,7 @@ func (eb *EventBus) SubscribeNamed(eventType, name string, async bool, handler f
 		handler:   handler,
 	}
 	eb.subscriptions = append(eb.subscriptions, sub)
+	return sub.ID
 }
 
 // OnError sets a custom error callback for handler failures.
@@ -109,6 +112,22 @@ func (eb *EventBus) OnError(fn func(event Event, sub *Subscription, err error)) 
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 	eb.onError = fn
+}
+
+// Unsubscribe removes a subscription by ID.
+// Returns true if the subscription was found and removed.
+func (eb *EventBus) Unsubscribe(subID string) bool {
+	eb.mu.Lock()
+	defer eb.mu.Unlock()
+	for i, sub := range eb.subscriptions {
+		if sub.ID == subID {
+			// Remove subscription by swapping with last element
+			eb.subscriptions[i] = eb.subscriptions[len(eb.subscriptions)-1]
+			eb.subscriptions = eb.subscriptions[:len(eb.subscriptions)-1]
+			return true
+		}
+	}
+	return false
 }
 
 // Publish emits an event to all matching subscribers.
@@ -146,7 +165,7 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 						eb.mu.Unlock()
 						eb.logger.Error("async event handler panicked",
 							"event", event.Type, "subscriber", s.ID,
-							"panic", r, "stack", string(debug.Stack()))
+							"panic", fmt.Sprintf("%v", r))
 					}
 				}()
 				if err := s.handler(ctx, event); err != nil {

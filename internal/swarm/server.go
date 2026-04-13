@@ -3,6 +3,7 @@ package swarm
 import (
 	"bufio"
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -199,12 +200,12 @@ func (s *AgentServer) SetLocal(local *LocalExecutor) {
 // HandleConnect is the HTTP handler that upgrades a connection to the agent
 // protocol. It must be registered at GET /api/v1/agent/ws.
 func (s *AgentServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
-	// 1. Verify auth token
-	token := r.URL.Query().Get("token")
+	// 1. Verify auth token — prefer X-Agent-Token header (not in URLs), fall back to query
+	token := r.Header.Get("X-Agent-Token")
 	if token == "" {
-		token = r.Header.Get("X-Agent-Token")
+		token = r.URL.Query().Get("token")
 	}
-	if token != s.expectedToken {
+	if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(s.expectedToken)) != 1 {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}

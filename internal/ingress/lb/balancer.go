@@ -99,6 +99,8 @@ func (rn *Random) Next(backends []string, r *http.Request) string {
 	rn.counter.Add(1)
 	h := fnv.New32a()
 	h.Write([]byte(r.RemoteAddr))
-	idx := (h.Sum32() + uint32(rn.counter.Load())) % uint32(len(backends))
+	// Use uint64 to prevent overflow when counter exceeds MaxUint32
+	sum := uint64(h.Sum32()) + rn.counter.Load()
+	idx := sum % uint64(len(backends))
 	return backends[idx]
 }

@@ -34,6 +34,22 @@ func (h *InviteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// RBAC: check member.invite permission
+	member, err := h.store.GetUserMembership(r.Context(), claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusForbidden, "not authorized to invite members")
+		return
+	}
+	role, err := h.store.GetRole(r.Context(), member.RoleID)
+	if err != nil {
+		writeError(w, http.StatusForbidden, "not authorized to invite members")
+		return
+	}
+	if !role.HasPermission(auth.PermMemberInvite) && !role.HasPermission(auth.PermAdminAll) {
+		writeError(w, http.StatusForbidden, "missing member.invite permission")
+		return
+	}
+
 	var req inviteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -77,7 +93,6 @@ func (h *InviteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		"id":         invite.ID,
 		"email":      req.Email,
 		"role_id":    req.RoleID,
-		"token":      token, // Only returned once
 		"token_hash": tokenHash,
 		"expires_at": expiresAt,
 	})

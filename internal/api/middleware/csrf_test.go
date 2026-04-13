@@ -66,7 +66,7 @@ func TestCSRFProtect_CookieWithoutHeader_Rejects(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
-	req.AddCookie(&http.Cookie{Name: "dm_csrf", Value: "valid-token"})
+	req.AddCookie(&http.Cookie{Name: "__Host-dm_csrf", Value: "valid-token"})
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
@@ -79,7 +79,7 @@ func TestCSRFProtect_MismatchToken_Rejects(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
-	req.AddCookie(&http.Cookie{Name: "dm_csrf", Value: "token-a"})
+	req.AddCookie(&http.Cookie{Name: "__Host-dm_csrf", Value: "token-a"})
 	req.Header.Set("X-CSRF-Token", "token-b")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -93,7 +93,7 @@ func TestCSRFProtect_MatchingToken_Passes(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
-	req.AddCookie(&http.Cookie{Name: "dm_csrf", Value: "valid-token"})
+	req.AddCookie(&http.Cookie{Name: "__Host-dm_csrf", Value: "valid-token"})
 	req.Header.Set("X-CSRF-Token", "valid-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -107,7 +107,7 @@ func TestCSRFProtect_EmptyCookieValue_PassesThrough(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
-	req.AddCookie(&http.Cookie{Name: "dm_csrf", Value: ""})
+	req.AddCookie(&http.Cookie{Name: "__Host-dm_csrf", Value: ""})
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -124,7 +124,7 @@ func TestSetCSRFCookie_SetsCookie(t *testing.T) {
 	cookies := rec.Result().Cookies()
 	var found *http.Cookie
 	for _, c := range cookies {
-		if c.Name == "dm_csrf" {
+		if c.Name == "__Host-dm_csrf" {
 			found = c
 			break
 		}
@@ -160,7 +160,7 @@ func TestSetCSRFCookie_PlainHTTPNotSecure(t *testing.T) {
 
 	var found *http.Cookie
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "dm_csrf" {
+		if c.Name == "__Host-dm_csrf" {
 			found = c
 			break
 		}
@@ -183,12 +183,12 @@ func TestSetCSRFCookie_UniqueTokens(t *testing.T) {
 
 	var token1, token2 string
 	for _, c := range rec1.Result().Cookies() {
-		if c.Name == "dm_csrf" {
+		if c.Name == "__Host-dm_csrf" {
 			token1 = c.Value
 		}
 	}
 	for _, c := range rec2.Result().Cookies() {
-		if c.Name == "dm_csrf" {
+		if c.Name == "__Host-dm_csrf" {
 			token2 = c.Value
 		}
 	}

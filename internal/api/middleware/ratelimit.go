@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -14,6 +15,7 @@ type AuthRateLimiter struct {
 	rate   int
 	window time.Duration
 	prefix string
+	logger *slog.Logger
 }
 
 type authRateLimitEntry struct {
@@ -53,7 +55,9 @@ func (rl *AuthRateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 				Count:   1,
 				ResetAt: now + int64(rl.window.Seconds()),
 			}
-			_ = rl.bolt.Set("ratelimit", key, entry, int64(rl.window.Seconds()))
+			if err := rl.bolt.Set("ratelimit", key, entry, int64(rl.window.Seconds())); err != nil && rl.logger != nil {
+				rl.logger.Error("auth ratelimit set failed", "key", key, "error", err)
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -68,7 +72,9 @@ func (rl *AuthRateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		entry.Count++
-		_ = rl.bolt.Set("ratelimit", key, entry, int64(rl.window.Seconds()))
+		if err := rl.bolt.Set("ratelimit", key, entry, int64(rl.window.Seconds())); err != nil && rl.logger != nil {
+			rl.logger.Error("auth ratelimit increment failed", "key", key, "error", err)
+		}
 
 		next.ServeHTTP(w, r)
 	}

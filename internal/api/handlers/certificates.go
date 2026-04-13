@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -22,6 +23,7 @@ func NewCertificateHandler(store core.Store, bolt core.BoltStorer) *CertificateH
 // CertInfo represents certificate information returned by the API.
 type CertInfo struct {
 	ID        string    `json:"id"`
+	TenantID  string    `json:"tenant_id"` // required for tenant isolation
 	Domain    string    `json:"domain"`
 	Issuer    string    `json:"issuer"`
 	ExpiresAt time.Time `json:"expires_at"`
@@ -35,21 +37,36 @@ type certStore struct {
 }
 
 // List handles GET /api/v1/certificates
-func (h *CertificateHandler) List(w http.ResponseWriter, _ *http.Request) {
+func (h *CertificateHandler) List(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	var cs certStore
-	_ = h.bolt.Get("certificates", "all", &cs)
+	if err := h.bolt.Get("certificates", "all", &cs); err != nil {
+		// No certs stored yet — return empty list
+		cs.Certs = []CertInfo{}
+	}
 
 	if cs.Certs == nil {
 		cs.Certs = []CertInfo{}
 	}
 
-	// Filter out expired certs from active status
+	// Filter out expired certs from active status and apply tenant isolation
 	now := time.Now()
+	filtered := make([]CertInfo, 0, len(cs.Certs))
 	for i := range cs.Certs {
 		if cs.Certs[i].ExpiresAt.Before(now) && cs.Certs[i].Status == "active" {
 			cs.Certs[i].Status = "expired"
 		}
+		// Tenant isolation: only show certs belonging to this tenant
+		if cs.Certs[i].TenantID == claims.TenantID {
+			filtered = append(filtered, cs.Certs[i])
+		}
 	}
+	cs.Certs = filtered
 
 	writeJSON(w, http.StatusOK, map[string]any{"data": cs.Certs, "total": len(cs.Certs)})
 }
@@ -63,6 +80,12 @@ type uploadCertRequest struct {
 // Upload handles POST /api/v1/certificates
 // Allows uploading custom SSL certificates.
 func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	var req uploadCertRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -92,6 +115,7 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 
 	info := CertInfo{
 		ID:        core.GenerateID(),
+		TenantID:  claims.TenantID,
 		Domain:    req.DomainID,
 		Issuer:    issuer,
 		ExpiresAt: expiresAt,

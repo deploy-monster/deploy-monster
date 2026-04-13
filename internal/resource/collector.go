@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"log/slog"
+	"math"
 	"runtime"
 	"time"
 
@@ -87,9 +88,15 @@ func (c *Collector) CollectServer(ctx context.Context) *core.ServerMetrics {
 	if m.RAMTotalMB == 0 {
 		var ms runtime.MemStats
 		runtime.ReadMemStats(&ms)
-		sys := int64(ms.Sys / (1024 * 1024))
-		m.RAMUsedMB = sys
-		m.RAMTotalMB = sys
+		sys := ms.Sys / (1024 * 1024)
+		// Defensive: clamp uint64->int64 overflow
+		if sys > (1<<63)-1 {
+			m.RAMUsedMB = math.MaxInt64
+			m.RAMTotalMB = math.MaxInt64
+		} else {
+			m.RAMUsedMB = int64(sys)
+			m.RAMTotalMB = int64(sys)
+		}
 	}
 
 	return m

@@ -31,6 +31,7 @@ func NewDeployApprovalHandler(store core.Store, events *core.EventBus) *DeployAp
 type ApprovalRequest struct {
 	ID          string     `json:"id"`
 	AppID       string     `json:"app_id"`
+	TenantID    string     `json:"tenant_id"` // required for tenant isolation
 	RequestedBy string     `json:"requested_by"`
 	Image       string     `json:"image"`
 	Branch      string     `json:"branch"`
@@ -39,6 +40,13 @@ type ApprovalRequest struct {
 	ReviewedBy  string     `json:"reviewed_by,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
+}
+
+// CreatePending adds a new pending approval request. Call this when a deploy needs approval.
+func (h *DeployApprovalHandler) CreatePending(req *ApprovalRequest) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.pending[req.ID] = req
 }
 
 // ListPending handles GET /api/v1/deploy/approvals
@@ -72,6 +80,12 @@ func (h *DeployApprovalHandler) Approve(w http.ResponseWriter, r *http.Request) 
 	h.mu.Lock()
 	req, exists := h.pending[approvalID]
 	if exists && req.Status == "pending" {
+		// Tenant isolation: only the owning tenant can approve its own deploys
+		if req.TenantID != claims.TenantID {
+			h.mu.Unlock()
+			writeError(w, http.StatusForbidden, "not authorized to approve this request")
+			return
+		}
 		now := time.Now()
 		req.Status = "approved"
 		req.ReviewedBy = claims.UserID
@@ -115,6 +129,12 @@ func (h *DeployApprovalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	req, exists := h.pending[approvalID]
 	if exists && req.Status == "pending" {
+		// Tenant isolation: only the owning tenant can reject its own deploys
+		if req.TenantID != claims.TenantID {
+			h.mu.Unlock()
+			writeError(w, http.StatusForbidden, "not authorized to reject this request")
+			return
+		}
 		now := time.Now()
 		req.Status = "rejected"
 		req.Reason = body.Reason

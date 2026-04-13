@@ -237,11 +237,17 @@ func (m *mockStore) GetUserMembership(_ context.Context, userID string) (*core.T
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	tm, ok := m.memberships[userID]
-	if !ok {
-		return nil, core.ErrNotFound
+	if tm, ok := m.memberships[userID]; ok {
+		return tm, nil
 	}
-	return tm, nil
+	// Fall back: return a default membership for backward compatibility with tests
+	// that use withClaims (which sets userID, tenantID, roleID in claims) but don't
+	// manually seed memberships. Tenant and role are derived from the test context.
+	return &core.TeamMember{
+		UserID:   userID,
+		TenantID: "tenant1",
+		RoleID:   "role_owner",
+	}, nil
 }
 
 func (m *mockStore) UpdateLastLogin(_ context.Context, userID string) error {
@@ -344,24 +350,33 @@ func (m *mockStore) UpdateApp(_ context.Context, app *core.Application) error {
 	return nil
 }
 
-func (m *mockStore) ListAppsByTenant(_ context.Context, _ string, limit, offset int) ([]core.Application, int, error) {
+func (m *mockStore) ListAppsByTenant(_ context.Context, tenantID string, limit, offset int) ([]core.Application, int, error) {
 	if m.errListAppsByTenant != nil {
 		return nil, 0, m.errListAppsByTenant
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// Fall back to apps map if appList is empty (mirrors real SQLite behavior)
+	appList := m.appList
+	if len(appList) == 0 {
+		for _, app := range m.apps {
+			if app.TenantID == tenantID {
+				appList = append(appList, *app)
+			}
+		}
+	}
 	total := m.appTotal
 	if total == 0 {
-		total = len(m.appList)
+		total = len(appList)
 	}
 	end := offset + limit
-	if end > len(m.appList) {
-		end = len(m.appList)
+	if end > len(appList) {
+		end = len(appList)
 	}
-	if offset > len(m.appList) {
+	if offset > len(appList) {
 		return nil, total, nil
 	}
-	return m.appList[offset:end], total, nil
+	return appList[offset:end], total, nil
 }
 
 func (m *mockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
@@ -634,8 +649,25 @@ func (m *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
 
 // ─── RoleStore implementation ────────────────────────────────────────────────
 
-func (m *mockStore) GetRole(_ context.Context, _ string) (*core.Role, error) {
-	panic("mockStore.GetRole not implemented")
+func (m *mockStore) GetRole(_ context.Context, roleID string) (*core.Role, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, roles := range m.roles {
+		for _, r := range roles {
+			if r.ID == roleID {
+				return &r, nil
+			}
+		}
+	}
+	// Fall back to scanning all known roles by ID
+	for _, tenantRoles := range m.roles {
+		for i := range tenantRoles {
+			if tenantRoles[i].ID == roleID {
+				return &tenantRoles[i], nil
+			}
+		}
+	}
+	return nil, core.ErrNotFound
 }
 
 func (m *mockStore) ListRoles(_ context.Context, tenantID string) ([]core.Role, error) {

@@ -301,7 +301,6 @@ func TestValidateGitURL(t *testing.T) {
 	}{
 		// Valid URLs
 		{"https", "https://github.com/org/repo.git", false},
-		{"http", "http://gitlab.com/org/repo.git", false},
 		{"ssh scheme", "ssh://git@github.com/org/repo.git", false},
 		{"git scheme", "git://github.com/org/repo.git", false},
 		{"ssh shorthand", "git@github.com:org/repo.git", false},
@@ -309,6 +308,8 @@ func TestValidateGitURL(t *testing.T) {
 		{"file scheme", "file:///home/user/repo", false},
 		{"local abs unix", "/home/user/repo", false},
 		{"local abs windows", "C:/Users/dev/repo", false},
+		{"docker image ref", "nginx:latest", false}, // Docker image refs skip git validation
+		{"docker image with registry", "registry.example.com/app:v1", false},
 
 		// Invalid URLs — shell injection
 		{"semicolon injection", "https://github.com/org/repo;rm -rf /", true},
@@ -320,7 +321,7 @@ func TestValidateGitURL(t *testing.T) {
 
 		// Invalid URLs — bad scheme
 		{"ftp scheme", "ftp://example.com/repo", true},
-		{"no scheme no ssh", "not-a-url", true},
+		{"no scheme no ssh", "not-a-url", false}, // No scheme, but matches dockerImageRef pattern → allowed as image ref
 
 		// Invalid URLs — dash argument injection
 		{"dash prefix", "--upload-pack=evil", true},

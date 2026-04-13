@@ -46,6 +46,12 @@ func (h *TransferHandler) TransferApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Super-admin transfer: app must have valid tenant assignment
+	if app.TenantID == "" {
+		writeError(w, http.StatusBadRequest, "app has no tenant assigned")
+		return
+	}
+
 	// Verify target tenant exists
 	_, err = h.store.GetTenant(r.Context(), req.TargetTenantID)
 	if err != nil {

@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -464,15 +465,19 @@ func TestBackupHandler_Download_NotFound(t *testing.T) {
 
 func TestCertificateHandler_List_ExpiredCerts(t *testing.T) {
 	bolt := newMockBoltStore()
-	// Seed with one expired cert
+	// Seed with one expired cert (with matching TenantID so filter passes)
 	bolt.Set("certificates", "all", certStore{
 		Certs: []CertInfo{
-			{ID: "c1", Domain: "example.com", ExpiresAt: time.Now().Add(-24 * time.Hour), Status: "active"},
+			{ID: "c1", TenantID: "test-tenant", Domain: "example.com", ExpiresAt: time.Now().Add(-24 * time.Hour), Status: "active"},
 		},
 	}, 0)
 
 	h := NewCertificateHandler(newMockStore(), bolt)
 	req := httptest.NewRequest("GET", "/api/v1/certificates", nil)
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 
@@ -492,6 +497,10 @@ func TestCertificateHandler_Upload_MissingFields(t *testing.T) {
 	h := NewCertificateHandler(newMockStore(), newMockBoltStore())
 
 	req := httptest.NewRequest("POST", "/api/v1/certificates", strings.NewReader(`{"domain_id":"","cert_pem":"","key_pem":""}`))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 	h.Upload(rr, req)
 
@@ -505,6 +514,10 @@ func TestCertificateHandler_Upload_InvalidCert(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/v1/certificates",
 		strings.NewReader(`{"domain_id":"d1","cert_pem":"not-a-cert","key_pem":"not-a-key"}`))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 	h.Upload(rr, req)
 
@@ -1202,7 +1215,7 @@ func TestDeployApprovalHandler_ListPending_WithItems(t *testing.T) {
 
 func TestDeployApprovalHandler_Approve_Found(t *testing.T) {
 	h := NewDeployApprovalHandler(newMockStore(), core.NewEventBus(slog.Default()))
-	h.pending["a1"] = &ApprovalRequest{ID: "a1", AppID: "app-1", Status: "pending"}
+	h.pending["a1"] = &ApprovalRequest{ID: "a1", AppID: "app-1", TenantID: "t1", Status: "pending"}
 
 	req := httptest.NewRequest("POST", "/api/v1/deploy/approvals/a1/approve", nil)
 	req.SetPathValue("id", "a1")
@@ -1220,7 +1233,7 @@ func TestDeployApprovalHandler_Approve_Found(t *testing.T) {
 
 func TestDeployApprovalHandler_Reject_Found(t *testing.T) {
 	h := NewDeployApprovalHandler(newMockStore(), core.NewEventBus(slog.Default()))
-	h.pending["a1"] = &ApprovalRequest{ID: "a1", AppID: "app-1", Status: "pending"}
+	h.pending["a1"] = &ApprovalRequest{ID: "a1", AppID: "app-1", TenantID: "t1", Status: "pending"}
 
 	body := `{"reason":"not ready"}`
 	req := httptest.NewRequest("POST", "/api/v1/deploy/approvals/a1/reject", strings.NewReader(body))
@@ -1618,6 +1631,10 @@ func TestCertificateHandler_Upload_ValidCert(t *testing.T) {
 
 	body := `{"domain_id":"d1","cert_pem":"` + escapeJSON(cert) + `","key_pem":"` + escapeJSON(key) + `"}`
 	req := httptest.NewRequest("POST", "/api/v1/certificates", strings.NewReader(body))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 	h.Upload(rr, req)
 

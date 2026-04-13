@@ -81,6 +81,9 @@ func TestDomainsList_Paginated(t *testing.T) {
 	events := core.NewEventBus(nil)
 	handler := NewDomainHandler(store, events)
 
+	// Seed an app for tenant1 so domain filtering works
+	store.apps["app1"] = &core.Application{ID: "app1", TenantID: "tenant1"}
+
 	// Seed 15 domains
 	for i := 0; i < 15; i++ {
 		d := &core.Domain{ID: "d-" + string(rune('A'+i)), AppID: "app1", FQDN: "test.com"}

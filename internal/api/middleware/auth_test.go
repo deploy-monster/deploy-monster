@@ -241,12 +241,13 @@ func TestRequireAuth_ValidAPIKey(t *testing.T) {
 	jwtSvc := testJWT()
 	bolt := newMockBoltStore()
 	// Add a test API key to the mock store
+	// KeyHash must be the SHA-256 of the plaintext key "dm_test_api_key_12345"
 	bolt.apiKeys["dm_test_"] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-key-user",
 		TenantID:  "api-key-tenant",
 		KeyPrefix: "dm_test_",
-		KeyHash:   "dm_test_api_key_12345", // In real code this would be hashed
+		KeyHash:   auth.HashAPIKey("dm_test_api_key_12345"),
 		CreatedAt: time.Now(),
 	}
 
@@ -433,7 +434,7 @@ func TestRequireAuth_APIKeyNotExpired(t *testing.T) {
 		UserID:    "api-user",
 		TenantID:  "api-tenant",
 		KeyPrefix: "dm_test_",
-		KeyHash:   "dm_test_not_expired_key",
+		KeyHash:   auth.HashAPIKey("dm_test_not_expired_key"),
 		ExpiresAt: &futureTime,
 		CreatedAt: time.Now(),
 	}

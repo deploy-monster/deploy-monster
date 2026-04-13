@@ -75,6 +75,12 @@ func (h *EnvironmentHandler) ApplyPreset(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Verify project belongs to the caller's tenant (prevents cross-tenant access)
+	if project.TenantID != claims.TenantID {
+		writeError(w, http.StatusForbidden, "access denied")
+		return
+	}
+
 	project.Environment = req.Environment
 	// Would update project in DB
 

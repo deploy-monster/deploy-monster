@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/deploy-monster/deploy-monster/internal/build"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -37,6 +38,12 @@ func (h *AppHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.SourceURL) > 2048 {
 		fieldErrs = append(fieldErrs, FieldError{Field: "source_url", Message: "must be 2048 characters or fewer"})
+	}
+	// Validate git URL format before storing to prevent SSRF at build time
+	if req.SourceURL != "" {
+		if err := build.ValidateGitURL(req.SourceURL); err != nil {
+			fieldErrs = append(fieldErrs, FieldError{Field: "source_url", Message: "invalid git URL: " + err.Error()})
+		}
 	}
 	if len(req.Branch) > 100 {
 		fieldErrs = append(fieldErrs, FieldError{Field: "branch", Message: "must be 100 characters or fewer"})

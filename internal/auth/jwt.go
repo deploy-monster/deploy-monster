@@ -60,6 +60,7 @@ func (j *JWTService) GenerateTokenPair(userID, tenantID, roleID, email string) (
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(j.accessExpiry)),
 			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
 			ID:        generateTokenID(),
 		},
 		UserID:   userID,

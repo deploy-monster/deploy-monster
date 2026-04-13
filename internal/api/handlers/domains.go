@@ -43,7 +43,31 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 	if appID != "" {
 		domains, err = h.store.ListDomainsByApp(r.Context(), appID)
 	} else {
-		domains, err = h.store.ListAllDomains(r.Context())
+		// SECURITY: No app_id means list domains for the current tenant's apps only.
+		// ListAllDomains returns ALL domains across all tenants — use it only after
+		// we've loaded the tenant's apps and filtered.
+		tenantDomains, terr := h.store.ListAllDomains(r.Context())
+		if terr != nil {
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		// Filter to only domains whose app belongs to this tenant
+		// Use large limit to retrieve all tenant apps (limit=0 means 0 rows in SQL)
+		tenantApps, _, aerr := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 10000, 0)
+		if aerr != nil {
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		appIDs := make(map[string]bool)
+		for _, app := range tenantApps {
+			appIDs[app.ID] = true
+		}
+		for _, d := range tenantDomains {
+			if appIDs[d.AppID] {
+				domains = append(domains, d)
+			}
+		}
+		err = nil
 	}
 
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -292,9 +293,18 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 	for _, entry := range stats.BlkioStats.IoServiceBytesRecursive {
 		switch entry.Op {
 		case "read", "Read":
-			blockRead += int64(entry.Value)
+			// Guard uint64->int64 overflow
+			if entry.Value > (1<<63)-1 {
+				blockRead = math.MaxInt64
+			} else {
+				blockRead += int64(entry.Value)
+			}
 		case "write", "Write":
-			blockWrite += int64(entry.Value)
+			if entry.Value > (1<<63)-1 {
+				blockWrite = math.MaxInt64
+			} else {
+				blockWrite += int64(entry.Value)
+			}
 		}
 	}
 
@@ -311,8 +321,8 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 
 	return &core.ContainerStats{
 		CPUPercent:    cpuPercent,
-		MemoryUsage:   int64(stats.MemoryStats.Usage),
-		MemoryLimit:   int64(stats.MemoryStats.Limit),
+		MemoryUsage:   clampToInt64(stats.MemoryStats.Usage),
+		MemoryLimit:   clampToInt64(stats.MemoryStats.Limit),
 		MemoryPercent: memPercent,
 		NetworkRx:     netRx,
 		NetworkTx:     netTx,
@@ -428,4 +438,13 @@ func (d *DockerManager) EnsureNetwork(ctx context.Context, name string) error {
 		return fmt.Errorf("create network %s: %w", name, err)
 	}
 	return nil
+}
+
+// clampToInt64 converts uint64 to int64 safely, clamping to MaxInt64 on overflow.
+// This prevents uint64->int64 wraparound in metrics reporting.
+func clampToInt64(v uint64) int64 {
+	if v > (1<<63)-1 {
+		return math.MaxInt64
+	}
+	return int64(v)
 }

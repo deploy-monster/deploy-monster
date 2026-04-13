@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -29,6 +30,61 @@ func NewTerminal(runtime core.ContainerRuntime, store core.Store, logger *slog.L
 		store:   store,
 		logger:  logger,
 	}
+}
+
+// blockedPatterns commands that should never run in a tenant container.
+var blockedPatterns = []string{
+	"rm -rf /", "rm -rf /*", ":(){ :|:& };:", "mkfs",
+	"dd if=/dev/zero", "> /dev/sd", "chmod -R 777 /", "chown -R",
+	"curl | sh", "wget | sh", "curl | bash", "wget | bash",
+}
+
+// isCommandSafe checks if a command contains dangerous patterns.
+func isCommandSafe(cmd string) bool {
+	cmdLower := strings.ToLower(cmd)
+	for _, pattern := range blockedPatterns {
+		if strings.Contains(cmdLower, strings.ToLower(pattern)) {
+			return false
+		}
+	}
+	return true
+}
+
+// splitCommand splits a command string into tokens, respecting quotes.
+// Replaces "sh -c" usage to prevent shell injection.
+func splitCommand(cmd string) []string {
+	var tokens []string
+	var current strings.Builder
+	inQuote := rune(0)
+	for i := 0; i < len(cmd); i++ {
+		ch := rune(cmd[i])
+		if inQuote != 0 {
+			if ch == inQuote {
+				inQuote = 0
+			} else {
+				current.WriteRune(ch)
+			}
+		} else {
+			switch ch {
+			case '\'', '"':
+				inQuote = rune(ch)
+			case ' ', '\t', '\n', '\r':
+				if current.Len() > 0 {
+					tokens = append(tokens, current.String())
+					current.Reset()
+				}
+			default:
+				current.WriteRune(ch)
+			}
+		}
+	}
+	if current.Len() > 0 {
+		tokens = append(tokens, current.String())
+	}
+	if len(tokens) == 0 {
+		return []string{"/bin/true"}
+	}
+	return tokens
 }
 
 // StreamOutput handles GET /api/v1/apps/{id}/terminal
@@ -143,14 +199,25 @@ func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 
 	containerID := containers[0].ID
 
+	// Security: validate command against blocklist before execution
+	if !isCommandSafe(req.Command) {
+		t.logger.Warn("terminal blocked dangerous command",
+			"app_id", appID,
+			"container", containerID[:12],
+			"command", req.Command,
+		)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "command contains blocked pattern"})
+		return
+	}
+
 	t.logger.Info("terminal exec",
 		"app_id", appID,
 		"container", containerID[:12],
 		"command", req.Command,
 	)
 
-	// Execute the command via sh -c for shell interpretation
-	cmd := []string{"sh", "-c", req.Command}
+	// Execute directly without sh -c to prevent shell injection
+	cmd := splitCommand(req.Command)
 	output, err := t.runtime.Exec(r.Context(), containerID, cmd)
 	if err != nil {
 		t.logger.Error("terminal exec failed",

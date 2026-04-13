@@ -113,8 +113,8 @@ func (es *EventStreamer) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	// Channel to receive events
 	ch := make(chan core.Event, 100)
 
-	// Subscribe to events
-	es.events.SubscribeAsync(typeFilter, func(_ context.Context, event core.Event) error {
+	// Subscribe to events and get subscription ID for cleanup
+	subID := es.events.SubscribeAsync(typeFilter, func(_ context.Context, event core.Event) error {
 		select {
 		case ch <- event:
 		default:
@@ -128,6 +128,8 @@ func (es *EventStreamer) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ctx.Done():
+			// Clean up subscription to prevent goroutine leak
+			es.events.Unsubscribe(subID)
 			return
 		case event := <-ch:
 			data := event.DebugString()

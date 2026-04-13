@@ -114,8 +114,34 @@ func (h *EnvImportHandler) Export(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Content-Disposition", "attachment; filename=.env")
 	for _, v := range vars {
-		w.Write([]byte(v.Key + "=" + v.Value + "\n"))
+		val := sanitizeEnvValue(v.Value)
+		w.Write([]byte(v.Key + "=" + val + "\n"))
 	}
+}
+
+// sanitizeEnvValue quotes and escapes a .env value to prevent injection.
+// It wraps the value in double quotes and escapes \, ", and $ within.
+func sanitizeEnvValue(value string) string {
+	var result strings.Builder
+	result.WriteByte('"')
+	for _, ch := range value {
+		switch ch {
+		case '\\':
+			result.WriteString("\\\\")
+		case '"':
+			result.WriteString("\\\"")
+		case '$':
+			result.WriteString("$$")
+		case '\n':
+			result.WriteString("\\n")
+		case '\r':
+			result.WriteString("\\r")
+		default:
+			result.WriteRune(ch)
+		}
+	}
+	result.WriteByte('"')
+	return result.String()
 }
 
 func parseDotEnv(content string) []envVarEntry {

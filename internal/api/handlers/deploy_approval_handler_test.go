@@ -46,9 +46,10 @@ func TestDeployApproval_Approve_Success(t *testing.T) {
 
 	// Pre-populate a pending approval request so Approve can find it.
 	handler.pending["appr1"] = &ApprovalRequest{
-		ID:     "appr1",
-		AppID:  "app1",
-		Status: "pending",
+		ID:       "appr1",
+		AppID:    "app1",
+		TenantID: "tenant1", // Must match the tenant from withClaims
+		Status:   "pending",
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/approvals/appr1/approve", nil)
@@ -100,9 +101,10 @@ func TestDeployApproval_Reject_Success(t *testing.T) {
 
 	// Pre-populate a pending approval request so Reject can find it.
 	handler.pending["appr1"] = &ApprovalRequest{
-		ID:     "appr1",
-		AppID:  "app1",
-		Status: "pending",
+		ID:       "appr1",
+		AppID:    "app1",
+		TenantID: "tenant1",
+		Status:   "pending",
 	}
 
 	body, _ := json.Marshal(map[string]string{"reason": "not ready for production"})
@@ -138,9 +140,10 @@ func TestDeployApproval_Reject_NoReason(t *testing.T) {
 
 	// Pre-populate a pending approval request so Reject can find it.
 	handler.pending["appr1"] = &ApprovalRequest{
-		ID:     "appr1",
-		AppID:  "app1",
-		Status: "pending",
+		ID:       "appr1",
+		AppID:    "app1",
+		TenantID: "tenant1",
+		Status:   "pending",
 	}
 
 	body, _ := json.Marshal(map[string]string{})

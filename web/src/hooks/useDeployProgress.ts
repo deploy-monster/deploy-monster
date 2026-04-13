@@ -68,6 +68,13 @@ export function useDeployProgress({
     const connect = () => {
       if (!enabled || !projectId) return;
 
+      // Validate projectId to prevent URL injection attacks
+      // Only allow safe characters: alphanumeric, dashes, underscores
+      if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+        console.error('Invalid projectId format');
+        return;
+      }
+
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}/api/v1/topology/deploy/${projectId}/progress`;
 

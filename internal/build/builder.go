@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -167,9 +168,41 @@ var shellMetaChars = regexp.MustCompile("[;|&$`!><(){}\\[\\]\n\r]")
 // sshLikeURL matches git@host:org/repo patterns (valid SSH URLs).
 var sshLikeURL = regexp.MustCompile(`^[\w.-]+@[\w.-]+:[\w./-]+$`)
 
+// isPrivateOrBlockedIP returns true if the host is a private IP, loopback,
+// link-local (cloud metadata), or multicast range.
+func isPrivateOrBlockedIP(host string) bool {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	// Private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+	if ip.IsPrivate() {
+		return true
+	}
+	// Loopback: 127.0.0.0/8
+	if ip.IsLoopback() {
+		return true
+	}
+	// Link-local: 169.254.0.0/16 (includes AWS/GCP/Azure cloud metadata 169.254.169.254)
+	if ip.IsLinkLocalUnicast() {
+		return true
+	}
+	// Unspecified: 0.0.0.0 (used in some internal network configs)
+	if ip.IsUnspecified() {
+		return true
+	}
+	return false
+}
+
+// dockerImageRef matches Docker-style image references (e.g., nginx:latest,
+// registry.example.com/app:v1). These are not git URLs and should not be
+// validated as such — they are accepted as-is for source_type=image deployments.
+var dockerImageRef = regexp.MustCompile(`^[\w.\-/:]+$`)
+
 // ValidateGitURL checks that a git repository URL is safe to pass to git clone.
-// It rejects shell metacharacters, non-standard schemes, and suspicious patterns.
+// It rejects shell metacharacters, non-standard schemes, and private/internal IPs.
 // Local absolute paths (e.g. /home/user/repo) are allowed for development use.
+// Docker image references (e.g., nginx:latest) are accepted without git validation.
 func ValidateGitURL(raw string) error {
 	if raw == "" {
 		return fmt.Errorf("git URL is empty")
@@ -179,6 +212,11 @@ func ValidateGitURL(raw string) error {
 	}
 	if strings.HasPrefix(raw, "-") {
 		return fmt.Errorf("git URL must not start with a dash")
+	}
+
+	// Docker image references (source_type=image) — not git URLs, skip validation
+	if dockerImageRef.MatchString(raw) && !strings.Contains(raw, "://") {
+		return nil
 	}
 
 	// Local absolute path (Unix: /path, Windows: C:\path or C:/path)
@@ -192,20 +230,28 @@ func ValidateGitURL(raw string) error {
 		return nil
 	}
 
-	// Standard URL: https://, http://, ssh://, git://, file://
+	// Standard URL: https://, ssh://, git://, file:// (http:// is NOT allowed — SSRF risk)
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return fmt.Errorf("git URL is malformed: %w", err)
 	}
 	switch parsed.Scheme {
-	case "https", "http", "ssh", "git", "file":
+	case "https", "ssh", "git", "file":
 		// allowed
+	case "http":
+		return fmt.Errorf("git URL scheme %q is not allowed (use HTTPS)", parsed.Scheme)
 	default:
 		return fmt.Errorf("git URL scheme %q is not allowed", parsed.Scheme)
 	}
 	if parsed.Scheme != "file" && parsed.Host == "" {
 		return fmt.Errorf("git URL has no host")
 	}
+
+	// Block private/internal IPs and cloud metadata endpoints
+	if parsed.Host != "" && isPrivateOrBlockedIP(parsed.Host) {
+		return fmt.Errorf("git URL host %q resolves to a private or blocked IP range", parsed.Host)
+	}
+
 	return nil
 }
 
@@ -232,7 +278,7 @@ func gitClone(ctx context.Context, repoURL, branch, token, dir string, logWriter
 		repoURL = injectToken(repoURL, token)
 	}
 
-	args := []string{"clone", "--depth=1"}
+	args := []string{"clone", "--depth=1", "-q"} // -q suppresses URL output that could leak token
 	if branch != "" {
 		args = append(args, "--branch", branch)
 	}

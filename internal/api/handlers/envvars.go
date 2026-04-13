@@ -99,9 +99,10 @@ func (h *EnvVarHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 // maskValue hides the value, showing only first/last chars for non-secret references.
 func maskValue(value string) string {
-	// Don't mask ${SECRET:...} references — show them as-is
+	// Mask ${SECRET:...} references by showing only the prefix so it's clear
+	// a secret is referenced, without exposing the secret name.
 	if strings.HasPrefix(value, "${SECRET:") {
-		return value
+		return "${SECRET:***}"
 	}
 
 	if len(value) <= 4 {

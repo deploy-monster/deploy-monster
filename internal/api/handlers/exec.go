@@ -41,6 +41,45 @@ func isCommandSafe(cmd string) bool {
 	return true
 }
 
+// splitCommand splits a command string into tokens, respecting single/double
+// quotes. This replaces "sh -c" injection by passing each token as a direct
+// exec argument. Shell operators (&&, ||, |, $, subshells) are treated as
+// data by the exec binary rather than interpreted.
+func splitCommand(cmd string) []string {
+	var tokens []string
+	var current strings.Builder
+	inQuote := rune(0)
+	for i := 0; i < len(cmd); i++ {
+		ch := rune(cmd[i])
+		if inQuote != 0 {
+			if ch == inQuote {
+				inQuote = 0
+			} else {
+				current.WriteRune(ch)
+			}
+		} else {
+			switch ch {
+			case '\'', '"':
+				inQuote = rune(ch)
+			case ' ', '\t', '\n', '\r':
+				if current.Len() > 0 {
+					tokens = append(tokens, current.String())
+					current.Reset()
+				}
+			default:
+				current.WriteRune(ch)
+			}
+		}
+	}
+	if current.Len() > 0 {
+		tokens = append(tokens, current.String())
+	}
+	if len(tokens) == 0 {
+		return []string{"/bin/true"}
+	}
+	return tokens
+}
+
 // ExecHandler handles container exec endpoints.
 type ExecHandler struct {
 	runtime core.ContainerRuntime
@@ -180,12 +219,13 @@ func (h *ExecHandler) Exec(w http.ResponseWriter, r *http.Request) {
 	containerID := containers[0].ID
 
 	// Build the command slice. If args are provided explicitly, use them.
-	// Otherwise, wrap the command string with sh -c for shell interpretation.
+	// Otherwise, split the command string into tokens and pass directly to
+	// exec — this avoids shell interpretation (no &&, ||, $, subshells).
 	var cmd []string
 	if len(req.Args) > 0 {
 		cmd = append([]string{req.Command}, req.Args...)
 	} else {
-		cmd = []string{"sh", "-c", req.Command}
+		cmd = splitCommand(req.Command)
 	}
 
 	// Execute the command inside the container

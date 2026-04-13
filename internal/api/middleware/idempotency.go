@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -24,6 +25,7 @@ type idempotencyEntry struct {
 // identified by the Idempotency-Key header. Only applies to POST/PUT/PATCH methods.
 // Keys are stored in BoltDB with a 24-hour TTL.
 func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler {
+	var logger *slog.Logger
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Only intercept state-changing methods
@@ -72,7 +74,9 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 					Headers:    headers,
 					Body:       rec.body.Bytes(),
 				}
-				_ = bolt.Set(idempotencyBucket, scopedKey, entry, idempotencyTTLSecs)
+				if err := bolt.Set(idempotencyBucket, scopedKey, entry, idempotencyTTLSecs); err != nil && logger != nil {
+					logger.Error("idempotency cache write failed", "key", scopedKey, "error", err)
+				}
 			}
 		})
 	}

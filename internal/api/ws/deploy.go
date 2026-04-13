@@ -120,6 +120,8 @@ func (h *DeployHub) upgrader() websocket.Upgrader {
 			h.logger.Warn("WebSocket origin rejected", "origin", origin)
 			return false
 		},
+		ReadBufferSize:  4096,
+		WriteBufferSize: 4096,
 	}
 }
 
@@ -398,6 +400,9 @@ func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID st
 		return
 	}
 	defer conn.Close()
+
+	// Set read limit to prevent memory exhaustion from large messages
+	conn.SetReadLimit(4096)
 
 	cc := h.Register(projectID, conn)
 	if cc == nil {

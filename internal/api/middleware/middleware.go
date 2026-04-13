@@ -3,9 +3,9 @@ package middleware
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
-	"runtime/debug"
 	"strings"
 	"time"
 
@@ -61,8 +61,8 @@ func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 			defer func() {
 				if rec := recover(); rec != nil {
 					logger.Error("panic recovered",
-						"error", rec,
-						"stack", string(debug.Stack()),
+						"error", fmt.Sprintf("%v", rec),
+
 						"path", r.URL.Path,
 					)
 					writeErrorJSON(w, http.StatusInternalServerError, "internal server error")
@@ -108,17 +108,24 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 
 // CORS returns middleware that sets CORS headers.
 // Pass "*" to allow all origins, or comma-separated list for specific origins.
+// If credentials=true, wildcard origin is not allowed (CORS spec violation).
 func CORS(allowedOrigins string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
+			var originMatched bool
 
+			// SECURITY: Never allow wildcard + credentials (CORS spec forbids it).
+			// If credentials are needed, a valid origin must be explicitly listed.
 			if allowedOrigins == "*" {
+				// Wildcard — set but credentials only added below if no explicit origin match
 				w.Header().Set("Access-Control-Allow-Origin", "*")
+				w.Header().Set("Vary", "Origin")
 			} else if origin != "" {
 				// Check if origin is in allowed list
 				for _, allowed := range strings.Split(allowedOrigins, ",") {
 					if strings.TrimSpace(allowed) == origin {
+						originMatched = true
 						w.Header().Set("Access-Control-Allow-Origin", origin)
 						w.Header().Set("Vary", "Origin")
 						break
@@ -129,8 +136,13 @@ func CORS(allowedOrigins string) func(http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Request-ID, X-CSRF-Token")
 			w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-DeployMonster-Version, X-API-Version")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Max-Age", "86400")
+
+			// Only set Allow-Credentials when origin explicitly matched
+			// (wildcard "*" alone cannot be used with credentials per CORS spec)
+			if originMatched {
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
@@ -203,8 +215,9 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 					return
 				}
 
-				// Verify the full key using constant-time comparison to prevent timing attacks
-				if subtle.ConstantTimeCompare([]byte(apiKey), []byte(storedKey.KeyHash)) != 1 {
+				// Verify: hash the incoming plaintext key, compare to stored SHA-256 hash.
+				// HashAPIKey applies the same SHA-256 used when the key was stored.
+				if subtle.ConstantTimeCompare([]byte(auth.HashAPIKey(apiKey)), []byte(storedKey.KeyHash)) != 1 {
 					writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
 					return
 				}
