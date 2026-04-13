@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Grouped into **Breaking**, **Security**, **Features**, **Fixes**, and **Performance**
 at the request of the Phase 7 roadmap.
 
+## [0.0.2] — 2026-04-14 — Security hardenting follow-up
+
+Second release focused on security audit remediation and dependency updates.
+All 13 Phase 3 verified findings from the security audit have been resolved.
+
+### Security
+
+- **13 security findings remediated** (Phase 3 audit, all verified):
+  - XFF injection in IPHash load balancer — parseXFF() via net.ParseIP validation
+  - Webhook secret plaintext storage — SHA-256 hash storage, shown once at creation
+  - SSRF DNS rebinding window — validateResolvedHost() re-validates at clone time
+  - Bulk operations without rollback — original status tracking + rollback on partial failure
+  - JWT key rotation no expiration — RotationGracePeriod (1h) + auto-purge on every validation
+  - CSRF SameSite=LaxMode — SameSiteStrictMode on access and refresh cookies
+  - Rate limiter XFF spoof — validateIP() rejects private/loopback/link-local IPs
+  - Global webhook limit (no per-tenant) — per-tenant keys + 20 limit
+  - Stripe webhook no rate limit — 30 req/min per IP in-memory limiter
+  - API key entropy increase — 32 random bytes (256-bit entropy)
+  - bcrypt cost 12→13
+  - Credentials file write error not fatal → startup fails on error
+  - Webhook list no pagination — paginateSlice() + writePaginatedJSON()
+- **modernc.org/sqlite bumped 1.48.0 → 1.48.2** — 13 bugfixes including memory corruption fixes, data races, resource leaks, ABI fixes
+- **golang.org/x/crypto bumped 0.49.0 → 0.50.0**
+- **github.com/mattn/go-isatty bumped 0.0.20 → 0.0.21**
+
+### Web UI Dependencies
+
+- **react 19.2.4 → 19.2.5** (React Server Components cycle protections)
+- **lucide-react 1.7.0 → 1.8.0** (new icons, aria-hidden fix)
+- **globals 17.4.0 → 17.5.0**
+- **typescript-eslint 8.57.2 → 8.58.1** (TypeScript 6 support)
+
+### Infrastructure
+
+- **Production-ready report added** — PRODUCTION-READY.md with full audit summary
+- **Security reports updated** — Full 4-phase audit documented in security-report/
+
 ## [0.0.1] — 2026-04-12 — Initial public release
 
 The first release to ship after the Phase 1–6 audit and the 105-tier
