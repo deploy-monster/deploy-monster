@@ -38,6 +38,8 @@ function userFromTokenResponse(pair: TokenPair): User | null {
   }
 }
 
+let initGuard = false;
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
@@ -63,6 +65,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   initialize: async () => {
+    // Prevent double initialization in React 19 StrictMode (dev-only double-invoke)
+    if (initGuard) {
+      set({ isLoading: false });
+      return;
+    }
+    initGuard = true;
     try {
       // Try to fetch current user — if cookies are valid, this succeeds
       const user = await api.get<User>('/auth/me');

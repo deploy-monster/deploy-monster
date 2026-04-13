@@ -52,7 +52,10 @@ export default function App() {
   useEffect(() => {
     initAuth();
     initTheme();
-  }, [initAuth, initTheme]);
+    // initAuth/initTheme are stable Zustand function refs — intentionally omit deps
+    // to prevent double-initialization in React 19 StrictMode
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <ErrorBoundary>
