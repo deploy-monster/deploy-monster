@@ -112,6 +112,21 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 func CORS(allowedOrigins string, enforceHTTPS bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Skip CORS enforcement for static assets - they are public resources
+			// and don't require origin validation. This prevents 403 errors when
+			// accessing via HTTP while server has enable_https: true.
+			path := r.URL.Path
+			if strings.HasPrefix(path, "/assets/") ||
+				strings.HasPrefix(path, "/chunks/") ||
+				strings.HasSuffix(path, ".js") ||
+				strings.HasSuffix(path, ".css") ||
+				strings.HasSuffix(path, ".svg") ||
+				strings.HasSuffix(path, ".png") ||
+				strings.HasSuffix(path, ".woff2") {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			origin := r.Header.Get("Origin")
 			var originMatched bool
 
