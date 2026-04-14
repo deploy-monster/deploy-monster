@@ -17,21 +17,76 @@ The codebase shows good dependency hygiene with recent versions and proper lock 
 
 ## Findings
 
+## Findings
+
+### DEP-006: Docker AuthZ Plugin Bypass (GO-2026-4887)
+**Severity:** High  
+**Confidence:** Medium  
+**Package:** github.com/docker/docker v28.5.2+incompatible  
+**CVE:** GO-2026-4887  
+**CWE:** CWE-863: Incorrect Authorization
+
+**Description:**  
+Moby (Docker Engine) has an AuthZ plugin bypass vulnerability when provided oversized request bodies. The issue exists in the authorization plugin system where large request bodies may bypass authorization checks.
+
+**Impact:**  
+If DeployMonster used Docker AuthZ plugins, an attacker could potentially bypass authorization controls by sending specially crafted large requests. However, DeployMonster does not use or configure Docker AuthZ plugins - it only uses the standard Docker API client for container operations.
+
+**Affected Code:**  
+- `internal/deploy/docker.go` - Docker client initialization and all Docker API calls
+
+**Remediation:**  
+1. **Current Status:** DeployMonster is NOT affected in practice as it does not use AuthZ plugins
+2. **Monitor:** Track https://github.com/moby/moby/issues for a fix release
+3. **When Fixed:** Upgrade to docker/docker v29+ when a patched version becomes available
+4. **Defense in Depth:** Added input validation for container operations to limit request sizes
+
+---
+
+### DEP-007: Docker Plugin Privilege Validation Off-by-One (GO-2026-4883)
+**Severity:** High  
+**Confidence:** Medium  
+**Package:** github.com/docker/docker v28.5.2+incompatible  
+**CVE:** GO-2026-4883  
+**CWE:** CWE-193: Off-by-one Error
+
+**Description:**  
+Moby has an off-by-one error in its plugin privilege validation. This could allow a plugin to receive more privileges than intended due to incorrect boundary checking.
+
+**Impact:**  
+If DeployMonster installed or managed Docker plugins, this could lead to privilege escalation. However, DeployMonster does not manage Docker plugins - it only manages containers and images.
+
+**Affected Code:**  
+- `internal/deploy/docker.go` - Docker client usage
+
+**Remediation:**  
+1. **Current Status:** DeployMonster is NOT affected as it does not install or manage Docker plugins
+2. **Monitor:** Track https://github.com/moby/moby/issues for a fix release  
+3. **When Fixed:** Upgrade to docker/docker v29+ when available
+4. **Verification:** Confirmed no plugin management code exists in codebase
+
+---
+
 ### DEP-001: Docker Engine +incompatible Version Tag
 **Severity:** Medium  
 **Confidence:** High  
 **Package:** github.com/docker/docker v28.5.2+incompatible  
-**CVE:** None directly assigned  
+**CVE:** GO-2026-4887, GO-2026-4883 (see DEP-006, DEP-007)  
 **CWE:** CWE-1104: Use of Unmaintained Third-Party Components
 
 **Description:**  
 The Docker client library uses the `+incompatible` version suffix, indicating it uses the old v1 module system. While this is not inherently vulnerable, it may miss security updates that require module-aware versioning.
 
+**Security Note:**  
+This version has two known high-severity vulnerabilities (GO-2026-4887 and GO-2026-4883) related to Docker AuthZ plugins. However, DeployMonster does not use Docker AuthZ plugins or plugin management functionality, so these vulnerabilities do not affect the application in practice.
+
 **Impact:**  
 Potential for missed security patches if the Docker team releases module-aware versions with security fixes.
 
 **Remediation:**  
-Monitor for a v29+ release that properly supports Go modules and upgrade when available. The current version (v28.5.2) is the latest as of April 2025.
+1. Monitor for a v29+ release that properly supports Go modules and upgrade when available
+2. The current version (v28.5.2) is the latest as of April 2025
+3. Track https://github.com/moby/moby for security fixes
 
 ---
 
