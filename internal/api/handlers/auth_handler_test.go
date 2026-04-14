@@ -635,7 +635,7 @@ func TestGetCurrentUser_Success(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
@@ -667,7 +667,7 @@ func TestGetCurrentUser_Success(t *testing.T) {
 
 func TestGetCurrentUser_NoClaims(t *testing.T) {
 	store := newMockStore()
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
 	// No claims in context.
@@ -682,7 +682,7 @@ func TestGetCurrentUser_NoClaims(t *testing.T) {
 
 func TestGetCurrentUser_UserNotFound(t *testing.T) {
 	store := newMockStore()
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
 	req = withClaims(req, "ghost", "tenant1", "role_owner", "ghost@example.com")
@@ -701,7 +701,7 @@ func TestUpdateProfile_Success(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	body, _ := json.Marshal(map[string]string{"name": "Updated Name"})
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/auth/me", bytes.NewReader(body))
@@ -724,7 +724,7 @@ func TestUpdateProfile_Success(t *testing.T) {
 
 func TestUpdateProfile_NoClaims(t *testing.T) {
 	store := newMockStore()
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	body, _ := json.Marshal(map[string]string{"name": "X"})
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/auth/me", bytes.NewReader(body))
@@ -740,7 +740,7 @@ func TestUpdateProfile_NoClaims(t *testing.T) {
 func TestUpdateProfile_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/auth/me", bytes.NewReader([]byte("not json")))
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
@@ -758,7 +758,7 @@ func TestUpdateProfile_StoreError(t *testing.T) {
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 	store.errUpdateUser = errors.New("db error")
 
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	body, _ := json.Marshal(map[string]string{"name": "Fail"})
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/auth/me", bytes.NewReader(body))
@@ -775,7 +775,7 @@ func TestUpdateProfile_StoreError(t *testing.T) {
 func TestUpdateProfile_FieldValidation(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	// Both fields too long — should get both errors at once.
 	body, _ := json.Marshal(map[string]string{
@@ -798,7 +798,7 @@ func TestUpdateProfile_FieldValidation(t *testing.T) {
 func TestChangePassword_PasswordTooLong(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	body, _ := json.Marshal(map[string]string{
 		"current_password": "Password1",
@@ -819,7 +819,7 @@ func TestChangePassword_Success(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	body, _ := json.Marshal(map[string]string{
 		"current_password": "Password1",
@@ -849,7 +849,7 @@ func TestChangePassword_WrongCurrentPassword(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	body, _ := json.Marshal(map[string]string{
 		"current_password": "WrongPass1",
@@ -871,7 +871,7 @@ func TestChangePassword_WeakNewPassword(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	body, _ := json.Marshal(map[string]string{
 		"current_password": "Password1",
@@ -890,7 +890,7 @@ func TestChangePassword_WeakNewPassword(t *testing.T) {
 
 func TestChangePassword_NoClaims(t *testing.T) {
 	store := newMockStore()
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	body, _ := json.Marshal(map[string]string{
 		"current_password": "X",
@@ -908,7 +908,7 @@ func TestChangePassword_NoClaims(t *testing.T) {
 
 func TestChangePassword_InvalidJSON(t *testing.T) {
 	store := newMockStore()
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/change-password", bytes.NewReader([]byte("bad")))
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
@@ -926,7 +926,7 @@ func TestChangePassword_StoreError(t *testing.T) {
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 	store.errUpdatePassword = errors.New("db failure")
 
-	handler := NewSessionHandler(store)
+	handler := NewSessionHandler(store, nil, nil)
 
 	body, _ := json.Marshal(map[string]string{
 		"current_password": "Password1",

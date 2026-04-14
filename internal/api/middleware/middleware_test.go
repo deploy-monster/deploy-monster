@@ -24,7 +24,7 @@ func TestRecovery(t *testing.T) {
 }
 
 func TestCORS(t *testing.T) {
-	handler := CORS("*")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("*", false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 

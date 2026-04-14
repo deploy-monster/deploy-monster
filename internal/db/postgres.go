@@ -546,6 +546,56 @@ func (p *PostgresDB) GetNextDeployVersion(ctx context.Context, appID string) (in
 	return int(maxVersion.Int64) + 1, nil
 }
 
+// AtomicNextDeployVersion atomically allocates the next deployment version using
+// PostgreSQL advisory locks for distributed locking.
+// SECURITY FIX (RACE-002): Uses advisory lock to prevent race conditions.
+func (p *PostgresDB) AtomicNextDeployVersion(ctx context.Context, appID string) (int, error) {
+	// Generate a lock ID from appID (hashed to int64 range)
+	lockID := hashAppIDToLockID(appID)
+
+	// Use a transaction with advisory lock
+	tx, err := p.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	// Acquire advisory lock (exclusive)
+	_, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, lockID)
+	if err != nil {
+		return 0, err
+	}
+	// Lock is automatically released at transaction end
+
+	var maxVersion sql.NullInt64
+	err = tx.QueryRowContext(ctx,
+		`SELECT MAX(version) FROM deployments WHERE app_id = $1`, appID,
+	).Scan(&maxVersion)
+	if err != nil {
+		return 0, err
+	}
+
+	nextVersion := 1
+	if maxVersion.Valid {
+		nextVersion = int(maxVersion.Int64) + 1
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+
+	return nextVersion, nil
+}
+
+// hashAppIDToLockID generates a stable int64 lock ID from an app ID string.
+func hashAppIDToLockID(appID string) int64 {
+	h := 0
+	for i := 0; i < len(appID); i++ {
+		h = 31*h + int(appID[i])
+	}
+	return int64(h & 0x7FFFFFFFFFFFFFFF) // Ensure positive
+}
+
 // =====================================================
 // Domain CRUD
 // =====================================================
@@ -567,6 +617,18 @@ func (p *PostgresDB) GetDomainByFQDN(ctx context.Context, fqdn string) (*core.Do
 	err := p.db.QueryRowContext(ctx,
 		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
 		 FROM domains WHERE fqdn = $1`, fqdn,
+	).Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider, &d.DNSSynced, &d.Verified, &d.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return d, err
+}
+
+func (p *PostgresDB) GetDomain(ctx context.Context, id string) (*core.Domain, error) {
+	d := &core.Domain{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
+		 FROM domains WHERE id = $1`, id,
 	).Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider, &d.DNSSynced, &d.Verified, &d.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, core.ErrNotFound

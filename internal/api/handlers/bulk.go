@@ -78,7 +78,7 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		case "start":
 			if err := h.store.UpdateAppStatus(r.Context(), appID, "running"); err != nil {
 				results[i].Status = "error"
-				results[i].Error = err.Error()
+				results[i].Error = sanitizeError(err)
 			} else {
 				results[i].Status = "started"
 				completed = append(completed, struct{ appID, original string }{appID, appOriginalStatus[appID]})
@@ -86,7 +86,7 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		case "stop":
 			if err := h.store.UpdateAppStatus(r.Context(), appID, "stopped"); err != nil {
 				results[i].Status = "error"
-				results[i].Error = err.Error()
+				results[i].Error = sanitizeError(err)
 			} else {
 				results[i].Status = "stopped"
 				completed = append(completed, struct{ appID, original string }{appID, appOriginalStatus[appID]})
@@ -96,7 +96,7 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 			// Restart = stop + start. If start fails, rollback to stopped.
 			if err := h.store.UpdateAppStatus(r.Context(), appID, "stopped"); err != nil {
 				results[i].Status = "error"
-				results[i].Error = err.Error()
+				results[i].Error = sanitizeError(err)
 			} else {
 				// Track stop as completed (for rollback)
 				completed = append(completed, struct{ appID, original string }{appID, origStatus})
@@ -104,7 +104,7 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 					// Rollback to original status
 					h.store.UpdateAppStatus(r.Context(), appID, origStatus)
 					results[i].Status = "error"
-					results[i].Error = "restart failed: " + startErr.Error()
+					results[i].Error = "restart failed"
 					// Remove from completed (rollback happened)
 					completed = completed[:len(completed)-1]
 				} else {
@@ -114,7 +114,7 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		case "delete":
 			if err := h.store.DeleteApp(r.Context(), appID); err != nil {
 				results[i].Status = "error"
-				results[i].Error = err.Error()
+				results[i].Error = sanitizeError(err)
 			} else {
 				results[i].Status = "deleted"
 				// No rollback for delete — can't undo
@@ -155,4 +155,74 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		"failed":      len(results) - succeeded,
 		"rolled_back": false,
 	})
+}
+
+// sanitizeError removes potentially sensitive information from error messages.
+// SECURITY FIX (AUTHZ-005): Sanitizes error messages to prevent information leakage.
+func sanitizeError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+
+	// Sanitize common database error patterns that might leak internal details
+	if strContains(msg, "sql") || strContains(msg, "connection refused") ||
+		strContains(msg, "timeout") || strContains(msg, "deadline exceeded") {
+		return "operation failed"
+	}
+
+	// Sanitize file system errors
+	if strContains(msg, "no such file") || strContains(msg, "permission denied") {
+		return "operation failed"
+	}
+
+	// Return generic error for internal errors
+	if strContains(msg, "internal") || strContains(msg, "panic") {
+		return "internal error"
+	}
+
+	// For other errors, return a generic message
+	return "operation failed"
+}
+
+func strContains(s, substr string) bool {
+	return len(s) >= len(substr) && containsCaseInsensitive(s, substr)
+}
+
+func containsCaseInsensitive(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr ||
+		strContain(s, substr) || strContain(s, toUpper(substr)) || strContain(s, toLower(substr)))
+}
+
+func strContain(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+func toUpper(s string) string {
+	result := make([]byte, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'a' && c <= 'z' {
+			c = c - 'a' + 'A'
+		}
+		result[i] = c
+	}
+	return string(result)
+}
+
+func toLower(s string) string {
+	result := make([]byte, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'A' && c <= 'Z' {
+			c = c - 'A' + 'a'
+		}
+		result[i] = c
+	}
+	return string(result)
 }

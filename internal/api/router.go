@@ -86,7 +86,7 @@ func (r *Router) Handler() http.Handler {
 		middleware.Timeout(requestTimeout),
 		middleware.Recovery(r.core.Logger),
 		middleware.RequestLogger(r.core.Logger),
-		middleware.CORS(r.core.Config.Server.CORSOrigins),
+		middleware.CORS(r.core.Config.Server.CORSOrigins, r.core.Config.Ingress.EnableHTTPS),
 		middleware.CSRFProtect,
 		middleware.IdempotencyMiddleware(r.core.DB.Bolt),
 		middleware.AuditLog(r.store, r.core.Logger),
@@ -132,10 +132,12 @@ func (r *Router) registerRoutes() {
 	r.mux.HandleFunc("POST /api/v1/auth/logout", authH.Logout)
 
 	// ── Session / Profile ─────────────────────────────
-	sessionH := handlers.NewSessionHandler(r.store)
+	sessionH := handlers.NewSessionHandler(r.store, r.core.DB.Bolt, r.authMod)
 	r.mux.Handle("GET /api/v1/auth/me", protected(http.HandlerFunc(sessionH.GetCurrentUser)))
 	r.mux.Handle("PATCH /api/v1/auth/me", protected(http.HandlerFunc(sessionH.UpdateProfile)))
 	r.mux.Handle("POST /api/v1/auth/change-password", protected(http.HandlerFunc(sessionH.ChangePassword)))
+	r.mux.Handle("GET /api/v1/auth/sessions", protected(http.HandlerFunc(sessionH.ListSessions)))
+	r.mux.Handle("POST /api/v1/auth/logout-all", protected(http.HandlerFunc(sessionH.LogoutAll)))
 
 	// ── Webhooks (signature-verified, not JWT) ─────────
 	// Tighter 1MB body limit for external webhook payloads (vs global 10MB)
@@ -431,8 +433,8 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/certificates/wildcard", protected(http.HandlerFunc(wildcardH.Request)))
 
 	// ── Image Tags & Cleanup ──────────────────────────
-	imgTagH := handlers.NewImageTagHandler(r.core.Services.Container)
-	r.mux.HandleFunc("GET /api/v1/images/tags", imgTagH.List)
+	imgTagH := handlers.NewImageTagHandler(r.store, r.core.Services.Container)
+	r.mux.Handle("GET /api/v1/images/tags", protected(http.HandlerFunc(imgTagH.List)))
 	imgCleanH := handlers.NewImageCleanupHandler(r.core.Services.Container)
 	r.mux.Handle("GET /api/v1/images/dangling", protected(http.HandlerFunc(imgCleanH.DanglingImages)))
 	r.mux.Handle("DELETE /api/v1/images/prune", protected(http.HandlerFunc(imgCleanH.Prune)))

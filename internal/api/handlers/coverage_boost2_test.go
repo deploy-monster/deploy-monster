@@ -1681,14 +1681,14 @@ func TestTenantRateLimitHandler_Update_DefaultValues(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestImageTagHandler_New(t *testing.T) {
-	h := NewImageTagHandler(nil)
+	h := NewImageTagHandler(newMockStore(), nil)
 	if h == nil {
 		t.Fatal("NewImageTagHandler returned nil")
 	}
 }
 
 func TestImageTagHandler_List_MissingImage(t *testing.T) {
-	h := NewImageTagHandler(&mockContainerRuntime{})
+	h := NewImageTagHandler(newMockStore(), &mockContainerRuntime{})
 
 	req := httptest.NewRequest("GET", "/api/v1/images/tags", nil)
 	rr := httptest.NewRecorder()
@@ -1700,7 +1700,7 @@ func TestImageTagHandler_List_MissingImage(t *testing.T) {
 }
 
 func TestImageTagHandler_List_Success(t *testing.T) {
-	h := NewImageTagHandler(&mockContainerRuntime{})
+	h := NewImageTagHandler(newMockStore(), &mockContainerRuntime{})
 
 	req := httptest.NewRequest("GET", "/api/v1/images/tags?image=nginx", nil)
 	rr := httptest.NewRecorder()

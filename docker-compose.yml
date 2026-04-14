@@ -13,7 +13,7 @@ services:
       - "80:80"       # HTTP (redirect + ACME)
       - "443:443"     # HTTPS (reverse proxy)
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - dm-data:/var/lib/deploymonster
     environment:
       - MONSTER_DOMAIN=${MONSTER_DOMAIN:-localhost}

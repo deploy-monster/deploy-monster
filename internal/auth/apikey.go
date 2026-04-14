@@ -2,9 +2,10 @@ package auth
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 const apiKeyPrefix = "dm_"
@@ -12,7 +13,7 @@ const apiKeyPrefix = "dm_"
 // APIKeyPair contains a generated API key and its hash.
 type APIKeyPair struct {
 	Key    string // Full key (only shown once): dm_xxxx...
-	Hash   string // SHA-256 hash (stored in DB)
+	Hash   string // bcrypt hash (stored in DB)
 	Prefix string // First 12 chars for display: dm_xxxx...
 }
 
@@ -24,7 +25,10 @@ func GenerateAPIKey() (*APIKeyPair, error) {
 	}
 
 	key := apiKeyPrefix + hex.EncodeToString(b)
-	hash := HashAPIKey(key)
+	hash, err := HashAPIKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("hash api key: %w", err)
+	}
 	prefix := key[:len(apiKeyPrefix)+12]
 
 	return &APIKeyPair{
@@ -34,8 +38,20 @@ func GenerateAPIKey() (*APIKeyPair, error) {
 	}, nil
 }
 
-// HashAPIKey creates a SHA-256 hash of an API key.
-func HashAPIKey(key string) string {
-	h := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(h[:])
+// HashAPIKey creates a bcrypt hash of an API key.
+// SECURITY FIX (CRYPTO-001): Changed from SHA-256 to bcrypt to prevent rainbow table attacks.
+// bcrypt's adaptive cost factor makes offline attacks computationally expensive.
+func HashAPIKey(key string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(key), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("bcrypt hash: %w", err)
+	}
+	return string(hash), nil
+}
+
+// VerifyAPIKey compares a provided API key against a stored bcrypt hash.
+// Uses constant-time comparison to prevent timing attacks.
+func VerifyAPIKey(key, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(key))
+	return err == nil
 }

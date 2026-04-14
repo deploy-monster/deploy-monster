@@ -95,8 +95,14 @@ func (s *auditMockStore) UpdateDeployment(_ context.Context, _ *core.Deployment)
 func (s *auditMockStore) GetNextDeployVersion(_ context.Context, _ string) (int, error) {
 	return 1, nil
 }
+func (s *auditMockStore) AtomicNextDeployVersion(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
 
 func (s *auditMockStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
+func (s *auditMockStore) GetDomain(_ context.Context, _ string) (*core.Domain, error) {
+	return nil, core.ErrNotFound
+}
 func (s *auditMockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, core.ErrNotFound
 }

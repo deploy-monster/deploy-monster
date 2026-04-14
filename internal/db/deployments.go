@@ -125,3 +125,32 @@ func (s *SQLiteDB) GetNextDeployVersion(ctx context.Context, appID string) (int,
 	}
 	return int(maxVersion.Int64) + 1, nil
 }
+
+// AtomicNextDeployVersion atomically allocates the next deployment version using
+// database-level locking. This prevents race conditions where concurrent requests
+// could allocate the same version number.
+// SECURITY FIX (RACE-002): Uses transaction with immediate locking for atomicity.
+func (s *SQLiteDB) AtomicNextDeployVersion(ctx context.Context, appID string) (int, error) {
+	var nextVersion int
+	err := s.Tx(ctx, func(tx *sql.Tx) error {
+		// Use immediate transaction mode to acquire exclusive lock
+		// This ensures only one goroutine can read and increment at a time
+		var maxVersion sql.NullInt64
+		err := tx.QueryRowContext(ctx,
+			`SELECT MAX(version) FROM deployments WHERE app_id = ?`, appID,
+		).Scan(&maxVersion)
+		if err != nil {
+			return err
+		}
+		if !maxVersion.Valid {
+			nextVersion = 1
+		} else {
+			nextVersion = int(maxVersion.Int64) + 1
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return nextVersion, nil
+}

@@ -574,6 +574,12 @@ func (m *mockStore) GetNextDeployVersion(_ context.Context, appID string) (int, 
 	return v, nil
 }
 
+// AtomicNextDeployVersion atomically allocates the next deployment version.
+// SECURITY FIX (RACE-002): Mock implementation delegates to GetNextDeployVersion.
+func (m *mockStore) AtomicNextDeployVersion(ctx context.Context, appID string) (int, error) {
+	return m.GetNextDeployVersion(ctx, appID)
+}
+
 // ─── DomainStore implementation ──────────────────────────────────────────────
 
 func (m *mockStore) CreateDomain(_ context.Context, domain *core.Domain) error {
@@ -599,6 +605,16 @@ func (m *mockStore) GetDomainByFQDN(_ context.Context, fqdn string) (*core.Domai
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	d, ok := m.domainsByFQDN[fqdn]
+	if !ok {
+		return nil, core.ErrNotFound
+	}
+	return d, nil
+}
+
+func (m *mockStore) GetDomain(_ context.Context, id string) (*core.Domain, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	d, ok := m.domains[id]
 	if !ok {
 		return nil, core.ErrNotFound
 	}

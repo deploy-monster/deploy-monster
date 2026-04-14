@@ -81,11 +81,16 @@ type DeploymentStore interface {
 	// behind by a crashed master (Phase 3.1.2 restart storm).
 	ListDeploymentsByStatus(ctx context.Context, status string) ([]Deployment, error)
 	GetNextDeployVersion(ctx context.Context, appID string) (int, error)
+	// AtomicNextDeployVersion atomically allocates the next deployment version.
+	// SECURITY FIX (RACE-002): Uses database-level locking to prevent race conditions
+	// where concurrent requests could allocate the same version number.
+	AtomicNextDeployVersion(ctx context.Context, appID string) (int, error)
 }
 
 // DomainStore manages domain CRUD.
 type DomainStore interface {
 	CreateDomain(ctx context.Context, domain *Domain) error
+	GetDomain(ctx context.Context, id string) (*Domain, error)
 	GetDomainByFQDN(ctx context.Context, fqdn string) (*Domain, error)
 	ListDomainsByApp(ctx context.Context, appID string) ([]Domain, error)
 	DeleteDomain(ctx context.Context, id string) error

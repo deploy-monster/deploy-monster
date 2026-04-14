@@ -26,9 +26,10 @@ func TestGenerateAPIKey(t *testing.T) {
 		t.Error("hash should not be empty")
 	}
 
-	// Hash should match
-	if HashAPIKey(pair.Key) != pair.Hash {
-		t.Error("HashAPIKey should produce same hash")
+	// SECURITY FIX (CRYPTO-001): With bcrypt, hash is not deterministic (different salt each time)
+	// Verify by checking the key can be verified against the hash
+	if !VerifyAPIKey(pair.Key, pair.Hash) {
+		t.Error("VerifyAPIKey should verify the key against its hash")
 	}
 }
 
@@ -39,17 +40,51 @@ func TestGenerateAPIKey_Unique(t *testing.T) {
 	if pair1.Key == pair2.Key {
 		t.Error("two API keys should be different")
 	}
+	// SECURITY FIX (CRYPTO-001): With bcrypt, hashes will be different due to unique salts
 	if pair1.Hash == pair2.Hash {
-		t.Error("two API key hashes should be different")
+		t.Error("two API key hashes should be different (bcrypt uses unique salts)")
 	}
 }
 
-func TestHashAPIKey_Deterministic(t *testing.T) {
+func TestHashAPIKey_Bcrypt(t *testing.T) {
 	key := "dm_abc123def456"
-	h1 := HashAPIKey(key)
-	h2 := HashAPIKey(key)
+	h1, err := HashAPIKey(key)
+	if err != nil {
+		t.Fatalf("HashAPIKey: %v", err)
+	}
 
-	if h1 != h2 {
-		t.Error("HashAPIKey should be deterministic")
+	// SECURITY FIX (CRYPTO-001): bcrypt hashes are not deterministic (random salt)
+	// but both should verify the same key
+	h2, err := HashAPIKey(key)
+	if err != nil {
+		t.Fatalf("HashAPIKey: %v", err)
+	}
+
+	// Hashes should be different due to different salts
+	if h1 == h2 {
+		t.Error("bcrypt hashes should be different (different salts)")
+	}
+
+	// But both should verify the original key
+	if !VerifyAPIKey(key, h1) {
+		t.Error("VerifyAPIKey should verify against h1")
+	}
+	if !VerifyAPIKey(key, h2) {
+		t.Error("VerifyAPIKey should verify against h2")
+	}
+}
+
+func TestVerifyAPIKey_InvalidKey(t *testing.T) {
+	key := "dm_validkey123"
+	hash, _ := HashAPIKey(key)
+
+	// Wrong key should not verify
+	if VerifyAPIKey("dm_wrongkey456", hash) {
+		t.Error("VerifyAPIKey should reject wrong key")
+	}
+
+	// Empty key should not verify
+	if VerifyAPIKey("", hash) {
+		t.Error("VerifyAPIKey should reject empty key")
 	}
 }

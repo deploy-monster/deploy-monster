@@ -2,7 +2,12 @@ import { create } from 'zustand';
 import dagre from 'dagre';
 import type { TopologyStore, TopologyNode, TopologyEdge, TopologyEdgeType } from '@/types/topology';
 
-const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+// SECURITY FIX: Use crypto.getRandomValues instead of Math.random for ID generation
+const generateId = () => {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return `${Date.now()}-${Array.from(array, b => b.toString(16).padStart(2, '0')).join('')}`;
+};
 
 // Dagre layout configuration
 const layoutWithDagre = (nodes: TopologyNode[], edges: TopologyEdge[]): TopologyNode[] => {

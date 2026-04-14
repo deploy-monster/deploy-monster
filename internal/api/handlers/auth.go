@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/mail"
+	"strings"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/api/middleware"
 	internalAuth "github.com/deploy-monster/deploy-monster/internal/auth"
@@ -116,6 +118,11 @@ type refreshRequest struct {
 
 // Login handles POST /api/v1/auth/login
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	// SECURITY FIX: Session fixation prevention
+	// Clear any existing authentication cookies before login
+	// This ensures a new session is created even if an attacker provided a known session ID
+	clearTokenCookies(w, r)
+
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -172,6 +179,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	setTokenCookies(w, r, tokens)
 	middleware.SetCSRFCookie(w, r)
+
+	// SESS-003: Track this session for concurrent session limiting
+	h.trackSession(r, user.ID, tokens.RefreshToken)
+
 	writeJSON(w, http.StatusOK, tokens)
 }
 
@@ -322,6 +333,10 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	setTokenCookies(w, r, tokens)
 	middleware.SetCSRFCookie(w, r)
+
+	// SESS-003: Track the new session after rotation
+	h.trackSession(r, user.ID, tokens.RefreshToken)
+
 	writeJSON(w, http.StatusOK, tokens)
 }
 
@@ -368,7 +383,108 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// Me handles GET /api/v1/auth/me — returns the current user from JWT claims.
+// trackSession extracts the JTI from a refresh token and stores session info.
+// Used for SESS-003 concurrent session limiting.
+func (h *AuthHandler) trackSession(r *http.Request, userID, refreshToken string) {
+	if h.bolt == nil {
+		return
+	}
+
+	// Parse the refresh token to get JTI
+	rtClaims, err := h.authMod.JWT().ValidateRefreshToken(refreshToken)
+	if err != nil {
+		return
+	}
+
+	// Get client IP and User-Agent
+	ip := r.RemoteAddr
+	if fwdFor := r.Header.Get("X-Forwarded-For"); fwdFor != "" {
+		ip = string(fwdFor)
+	}
+	userAgent := r.Header.Get("User-Agent")
+
+	// Store session tracking info
+	sessionKey := userID + ":" + rtClaims.JTI
+	session := map[string]any{
+		"user_id":    userID,
+		"jti":        rtClaims.JTI,
+		"ip":         ip,
+		"user_agent": userAgent,
+		"created_at": time.Now(),
+	}
+
+	if err := h.bolt.Set("user_sessions", sessionKey, session, internalAuth.RefreshTokenTTLSeconds); err != nil {
+		slog.Warn("failed to track session", "user_id", userID, "error", err)
+		return
+	}
+
+	// Enforce concurrent session limit
+	h.enforceSessionLimit(userID)
+}
+
+// enforceSessionLimit revokes oldest sessions if user exceeds maxConcurrentSessions
+func (h *AuthHandler) enforceSessionLimit(userID string) {
+	if h.bolt == nil {
+		return
+	}
+
+	keys, err := h.bolt.List("user_sessions")
+	if err != nil {
+		return
+	}
+
+	// Collect sessions for this user
+	type sessionInfo struct {
+		key       string
+		jti       string
+		createdAt time.Time
+	}
+	var sessions []sessionInfo
+	prefix := userID + ":"
+
+	for _, key := range keys {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		var session struct {
+			JTI       string    `json:"jti"`
+			CreatedAt time.Time `json:"created_at"`
+		}
+		if err := h.bolt.Get("user_sessions", key, &session); err == nil {
+			sessions = append(sessions, sessionInfo{
+				key:       key,
+				jti:       session.JTI,
+				createdAt: session.CreatedAt,
+			})
+		}
+	}
+
+	// Sort by creation time (oldest first)
+	for i := 0; i < len(sessions)-1; i++ {
+		for j := i + 1; j < len(sessions); j++ {
+			if sessions[j].createdAt.Before(sessions[i].createdAt) {
+				sessions[i], sessions[j] = sessions[j], sessions[i]
+			}
+		}
+	}
+
+	// SESS-003: If over limit, revoke oldest sessions
+	const maxConcurrentSessions = 10
+	if len(sessions) > maxConcurrentSessions {
+		toRevoke := len(sessions) - maxConcurrentSessions
+		for i := 0; i < toRevoke && i < len(sessions); i++ {
+			s := sessions[i]
+			if err := h.bolt.Set("revoked_tokens", s.jti, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
+				slog.Warn("failed to revoke old session", "user_id", userID, "jti", s.jti, "error", err)
+			}
+			if err := h.bolt.Delete("user_sessions", s.key); err != nil {
+				slog.Warn("failed to delete old session tracking", "user_id", userID, "key", s.key, "error", err)
+			}
+		}
+	}
+}
+
+// generateSlug converts a name to a URL-friendly slug.
 func generateSlug(name string) string {
 	slug := ""
 	for _, r := range name {

@@ -48,6 +48,13 @@ func (h *DatabaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SECURITY FIX: Validate user has permission to create databases
+	// Only admin, owner, and developer roles can create databases
+	if claims.RoleID != "role_admin" && claims.RoleID != "role_owner" && claims.RoleID != "role_developer" {
+		writeError(w, http.StatusForbidden, "insufficient permissions to create databases")
+		return
+	}
+
 	var req createDBRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")

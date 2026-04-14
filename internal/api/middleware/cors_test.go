@@ -7,7 +7,7 @@ import (
 )
 
 func TestCORS_WildcardOrigin(t *testing.T) {
-	handler := CORS("*")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("*", false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -34,7 +34,7 @@ func TestCORS_WildcardOrigin(t *testing.T) {
 }
 
 func TestCORS_SpecificAllowedOrigin(t *testing.T) {
-	handler := CORS("https://app.deploy.monster,https://admin.deploy.monster")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("https://app.deploy.monster,https://admin.deploy.monster", false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -52,7 +52,7 @@ func TestCORS_SpecificAllowedOrigin(t *testing.T) {
 }
 
 func TestCORS_DisallowedOrigin(t *testing.T) {
-	handler := CORS("https://app.deploy.monster")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("https://app.deploy.monster", false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -67,7 +67,7 @@ func TestCORS_DisallowedOrigin(t *testing.T) {
 }
 
 func TestCORS_NoOriginHeader(t *testing.T) {
-	handler := CORS("https://app.deploy.monster")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("https://app.deploy.monster", false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -87,7 +87,7 @@ func TestCORS_NoOriginHeader(t *testing.T) {
 
 func TestCORS_PreflightOptions(t *testing.T) {
 	handlerCalled := false
-	handler := CORS("*")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("*", false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handlerCalled = true
 	}))
 
@@ -106,7 +106,7 @@ func TestCORS_PreflightOptions(t *testing.T) {
 
 func TestCORS_NonPreflightPassesThrough(t *testing.T) {
 	handlerCalled := false
-	handler := CORS("*")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS("*", false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handlerCalled = true
 		w.WriteHeader(http.StatusOK)
 	}))

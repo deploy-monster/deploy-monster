@@ -76,7 +76,8 @@ class APIError extends Error {
 }
 
 function getCSRFToken(): string {
-  const match = document.cookie.match(/(?:^|;\s*)dm_csrf=([^;]*)/);
+  // SECURITY FIX: Backend sets cookie as __Host-dm_csrf, frontend was looking for dm_csrf
+  const match = document.cookie.match(/(?:^|;\s*)__Host-dm_csrf=([^;]*)/);
   return match ? match[1] : '';
 }
 
@@ -241,7 +242,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({ error: response.statusText }));
-    throw new APIError(response.status, data.error || response.statusText);
+    // SECURITY FIX: Sanitize error message to prevent potential XSS through error messages
+    const rawError = data.error || response.statusText;
+    // Remove potential HTML/script tags from error messages
+    const sanitizedError = typeof rawError === 'string'
+      ? rawError.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '[script removed]')
+                .replace(/<[^>]*>/g, '') // Remove all HTML tags
+      : 'An error occurred';
+    throw new APIError(response.status, sanitizedError);
   }
 
   if (response.status === 204) {

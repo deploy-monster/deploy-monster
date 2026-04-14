@@ -74,7 +74,7 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 			slog.Error("deploy: failed to update app status", "app_id", appID, "error", err)
 		}
 
-		version, err := h.store.GetNextDeployVersion(r.Context(), appID)
+		version, err := h.store.AtomicNextDeployVersion(r.Context(), appID)
 		if err != nil {
 			slog.Error("deploy: failed to get next version", "app_id", appID, "error", err)
 			writeError(w, http.StatusInternalServerError, "internal error")
@@ -158,7 +158,9 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 		if sErr := h.store.UpdateAppStatus(ctx, appID, "deploying"); sErr != nil {
 			slog.Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
 		}
-		version, vErr := h.store.GetNextDeployVersion(ctx, appID)
+		// SECURITY FIX (RACE-003): Use AtomicNextDeployVersion to prevent race conditions
+		// in background deployment goroutine
+		version, vErr := h.store.AtomicNextDeployVersion(ctx, appID)
 		if vErr != nil {
 			slog.Error("deploy: failed to get next version", "app_id", appID, "error", vErr)
 			h.events.PublishAsync(ctx, core.NewEvent(core.EventDeployFailed, "deploy_trigger", map[string]string{

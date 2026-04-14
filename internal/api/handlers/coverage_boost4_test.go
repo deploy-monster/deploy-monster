@@ -1399,7 +1399,7 @@ func TestImageTagHandler_List_WithMatches(t *testing.T) {
 			{ID: "img2", Tags: []string{"redis:7"}, Size: 50 * 1024 * 1024},
 		},
 	}
-	h := NewImageTagHandler(runtime)
+	h := NewImageTagHandler(newMockStore(), runtime)
 	req := httptest.NewRequest("GET", "/api/v1/images/tags?image=nginx", nil)
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
@@ -1415,7 +1415,7 @@ func TestImageTagHandler_List_NoMatch(t *testing.T) {
 	runtime := &mockContainerRuntimeWithImages{
 		images: []core.ImageInfo{{ID: "img1", Tags: []string{"redis:7"}}},
 	}
-	h := NewImageTagHandler(runtime)
+	h := NewImageTagHandler(newMockStore(), runtime)
 	req := httptest.NewRequest("GET", "/api/v1/images/tags?image=nginx", nil)
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
@@ -1429,7 +1429,7 @@ func TestImageTagHandler_List_NoMatch(t *testing.T) {
 
 func TestImageTagHandler_List_Error(t *testing.T) {
 	runtime := &mockContainerRuntimeWithImages{imageListErr: io.EOF}
-	h := NewImageTagHandler(runtime)
+	h := NewImageTagHandler(newMockStore(), runtime)
 	req := httptest.NewRequest("GET", "/api/v1/images/tags?image=nginx", nil)
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
@@ -2368,7 +2368,7 @@ func TestSessionHandler_UpdateProfile_Error(t *testing.T) {
 	store.errUpdateUser = io.EOF
 	seedTestUser(store, "u1", "test@x.com", "pass123", "t1", "role_admin")
 
-	h := NewSessionHandler(store)
+	h := NewSessionHandler(store, nil, nil)
 	body := `{"name":"New Name"}`
 	req := httptest.NewRequest("PUT", "/api/v1/auth/profile", strings.NewReader(body))
 	req = withClaims(req, "u1", "t1", "role_admin", "test@x.com")
@@ -2383,7 +2383,7 @@ func TestSessionHandler_ChangePassword_WrongOld(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "u1", "test@x.com", "correct-password", "t1", "role_admin")
 
-	h := NewSessionHandler(store)
+	h := NewSessionHandler(store, nil, nil)
 	body := `{"current_password":"wrong-old","new_password":"new-pass-123456"}`
 	req := httptest.NewRequest("PUT", "/api/v1/auth/password", strings.NewReader(body))
 	req = withClaims(req, "u1", "t1", "role_admin", "test@x.com")

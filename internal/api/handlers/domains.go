@@ -82,6 +82,12 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Create handles POST /api/v1/domains
 func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	var req createDomainRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -90,6 +96,17 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	if req.AppID == "" || req.FQDN == "" {
 		writeError(w, http.StatusBadRequest, "app_id and fqdn are required")
+		return
+	}
+
+	// SECURITY: Verify the app belongs to this tenant
+	app, err := h.store.GetApp(r.Context(), req.AppID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "application not found")
+		return
+	}
+	if app.TenantID != claims.TenantID {
+		writeError(w, http.StatusForbidden, "access denied")
 		return
 	}
 
@@ -150,6 +167,27 @@ func (h *DomainHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	id, ok := requirePathParam(w, r, "id")
 	if !ok {
+		return
+	}
+
+	// SECURITY: Verify the domain belongs to an app owned by this tenant
+	domain, err := h.store.GetDomain(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, core.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "domain not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	app, err := h.store.GetApp(r.Context(), domain.AppID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	if app.TenantID != claims.TenantID {
+		writeError(w, http.StatusForbidden, "access denied")
 		return
 	}
 

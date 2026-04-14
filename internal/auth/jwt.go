@@ -3,16 +3,18 @@ package auth
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
 // RotationGracePeriod is how long previous keys remain valid after rotation.
-// Access tokens are valid for 15 min, so we accept previous keys for 1 hour
+// Access tokens are valid for 15 min, so we accept previous keys for 20 min
 // to cover the worst-case: a token issued just before rotation is valid for
-// up to 15 min, plus clock skew, plus some buffer for rollouts.
-const RotationGracePeriod = 1 * time.Hour
+// up to 15 min, plus clock skew (2-3 min), plus a small buffer.
+// SECURITY FIX (SESS-006): Reduced from 1 hour to 20 minutes to limit exposure window.
+const RotationGracePeriod = 20 * time.Minute
 
 // Claims represents the JWT token claims.
 type Claims struct {
@@ -44,7 +46,14 @@ type JWTService struct {
 // for graceful rotation — tokens signed with them are still accepted for
 // validation but only within RotationGracePeriod of when they were added.
 // This prevents indefinitely-valid compromised keys.
+// SECURITY: Enforces minimum secret length of 32 characters (256 bits).
 func NewJWTService(secret string, previousSecrets ...string) *JWTService {
+	// SECURITY FIX (JWT-002): Enforce minimum secret length
+	const minSecretLength = 32 // 256 bits minimum
+	if len(secret) < minSecretLength {
+		panic(fmt.Sprintf("JWT secret must be at least %d characters (256 bits) for security", minSecretLength))
+	}
+
 	prev := make([][]byte, 0, len(previousSecrets))
 	added := make([]time.Time, 0, len(previousSecrets))
 	now := time.Now()
@@ -139,6 +148,7 @@ func (j *JWTService) GenerateTokenPair(userID, tenantID, roleID, email string) (
 
 // ValidateAccessToken parses and validates an access token.
 // Tries the active key first, then falls back to previous keys for graceful rotation.
+// SECURITY: Caller should check if token JTI is in revocation list via IsAccessTokenRevoked.
 func (j *JWTService) ValidateAccessToken(tokenStr string) (*Claims, error) {
 	for _, key := range j.allKeys() {
 		token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
@@ -151,9 +161,48 @@ func (j *JWTService) ValidateAccessToken(tokenStr string) (*Claims, error) {
 		if !ok || !token.Valid {
 			continue
 		}
+		// SECURITY: Explicitly verify the signing method
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, jwt.ErrTokenSignatureInvalid
+		}
 		return claims, nil
 	}
 	return nil, jwt.ErrTokenSignatureInvalid
+}
+
+// AccessTokenRevocation stores a revoked access token JTI with expiration time.
+type AccessTokenRevocation struct {
+	JTI       string    `json:"jti"`
+	ExpiresAt time.Time `json:"expires_at"`
+	UserID    string    `json:"user_id"`
+}
+
+// RevokeAccessToken marks an access token as revoked by storing its JTI.
+// The revocation entry has the same TTL as the token's remaining lifetime.
+// This is typically called during logout to immediately invalidate the access token.
+func (j *JWTService) RevokeAccessToken(boltStorer interface {
+	Set(bucket, key string, value any, ttlSeconds int64) error
+}, jti, userID string, expiresAt time.Time) error {
+	revocation := AccessTokenRevocation{
+		JTI:       jti,
+		ExpiresAt: expiresAt,
+		UserID:    userID,
+	}
+	// Calculate remaining TTL
+	remaining := time.Until(expiresAt)
+	if remaining <= 0 {
+		return nil // Token already expired, no need to revoke
+	}
+	return boltStorer.Set("revoked_access_tokens", jti, revocation, int64(remaining.Seconds()))
+}
+
+// IsAccessTokenRevoked checks if an access token JTI is in the revocation list.
+func (j *JWTService) IsAccessTokenRevoked(boltStorer interface {
+	Get(bucket, key string, dest any) error
+}, jti string) bool {
+	var revocation AccessTokenRevocation
+	err := boltStorer.Get("revoked_access_tokens", jti, &revocation)
+	return err == nil // If no error, token is revoked
 }
 
 // RefreshTokenClaims holds the validated claims from a refresh token.
@@ -180,6 +229,10 @@ func (j *JWTService) ValidateRefreshToken(tokenStr string) (*RefreshTokenClaims,
 		if !ok || !token.Valid {
 			continue
 		}
+		// SECURITY: Explicitly verify the signing method (matches ValidateAccessToken)
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, jwt.ErrTokenSignatureInvalid
+		}
 		return &RefreshTokenClaims{
 			UserID: claims.Subject,
 			JTI:    claims.ID,
@@ -200,6 +253,10 @@ func (j *JWTService) allKeys() [][]byte {
 
 func generateTokenID() string {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// SECURITY: Panic on random generation failure - this should never happen
+		// and indicates a serious system issue (entropy exhaustion)
+		panic("failed to generate token ID: " + err.Error())
+	}
 	return hex.EncodeToString(b)
 }

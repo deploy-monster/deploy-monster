@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -21,9 +22,14 @@ type idempotencyEntry struct {
 	Body       []byte            `json:"body"`
 }
 
+// inFlight tracks requests currently being processed to prevent duplicate processing
+var inFlight = make(map[string]bool)
+var inFlightMu sync.Mutex
+
 // IdempotencyMiddleware replays cached responses for duplicate requests
 // identified by the Idempotency-Key header. Only applies to POST/PUT/PATCH methods.
 // Keys are stored in BoltDB with a 24-hour TTL.
+// SECURITY FIX (RACE-003): Added mutex locking to prevent race conditions.
 func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler {
 	var logger *slog.Logger
 	return func(next http.Handler) http.Handler {
@@ -42,6 +48,24 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 
 			// Scope key to method+path to prevent cross-endpoint collisions
 			scopedKey := r.Method + ":" + r.URL.Path + ":" + key
+
+			// SECURITY FIX (RACE-003): Lock to prevent race condition on read-modify-write
+			inFlightMu.Lock()
+			if inFlight[scopedKey] {
+				inFlightMu.Unlock()
+				writeErrorJSON(w, http.StatusConflict, "request with this idempotency key is already being processed")
+				return
+			}
+			// Mark as in-flight
+			inFlight[scopedKey] = true
+			inFlightMu.Unlock()
+
+			// Cleanup in-flight status when done
+			defer func() {
+				inFlightMu.Lock()
+				delete(inFlight, scopedKey)
+				inFlightMu.Unlock()
+			}()
 
 			// Check for cached response
 			var cached idempotencyEntry

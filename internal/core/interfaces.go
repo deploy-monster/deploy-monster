@@ -71,24 +71,43 @@ func (o *ContainerOpts) ValidateVolumePaths() error {
 		if strings.Contains(hostPath, "\x00") {
 			return fmt.Errorf("volume host path contains null byte")
 		}
-		cleaned := filepath.Clean(hostPath)
-		if strings.Contains(cleaned, "..") {
+
+		// SECURITY FIX: Pre-cleaning check for raw traversal attempts
+		// This catches .. before Clean() resolves them
+		if strings.Contains(hostPath, "..") {
 			return fmt.Errorf("volume host path %q contains path traversal", hostPath)
 		}
 
-		// Block Docker socket mounts unless explicitly allowed.
-		// Use forward-slash normalized path for cross-platform comparison.
+		cleaned := filepath.Clean(hostPath)
+
+		// SECURITY FIX: Post-cleaning check - ensure path is still absolute and not escaped
+		// filepath.Clean() resolves .. but we need to verify the result
+		if strings.Contains(cleaned, "..") {
+			return fmt.Errorf("volume host path %q contains path traversal after cleaning", hostPath)
+		}
+
+		// SECURITY FIX: Verify the path is absolute after cleaning
+		// This prevents relative paths that might resolve outside expected directories
+		if !filepath.IsAbs(cleaned) {
+			return fmt.Errorf("volume host path %q must be absolute", hostPath)
+		}
+
+		// SECURITY FIX: Check that cleaned path doesn't resolve to root or system directories
+		// Use forward-slash normalized path for cross-platform comparison
 		normalizedPath := strings.ReplaceAll(cleaned, "\\", "/")
+
+		// Block traversal to root
+		if normalizedPath == "/" || normalizedPath == "\\" {
+			return fmt.Errorf("volume host path %q cannot be root directory", hostPath)
+		}
+
+		// Block Docker socket mounts unless explicitly allowed
 		if !o.AllowDockerSocket {
 			for _, dangerous := range dangerousPaths {
 				if normalizedPath == dangerous {
 					return fmt.Errorf("volume host path %q is blocked — Docker socket access requires AllowDockerSocket", hostPath)
 				}
 			}
-		}
-
-		if !filepath.IsAbs(cleaned) {
-			return fmt.Errorf("volume host path %q must be absolute", hostPath)
 		}
 	}
 	return nil

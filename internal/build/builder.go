@@ -371,10 +371,20 @@ func injectToken(gitURL, token string) string {
 // intermediate layers are removed even if the build is aborted mid-run,
 // so a canceled build (via Builder.Stop) doesn't leak dangling
 // containers from failed stages.
+// SECURITY: Validates build arg keys and values to prevent command injection.
 func dockerBuild(ctx context.Context, contextDir, dockerfile, tag string, buildArgs map[string]string, logWriter io.Writer) error {
+	// Validate image tag format
+	if err := validateDockerImageTag(tag); err != nil {
+		return fmt.Errorf("invalid image tag: %w", err)
+	}
+
 	args := []string{"build", "--force-rm", "-t", tag, "-f", dockerfile}
 
 	for k, v := range buildArgs {
+		// SECURITY FIX: Validate build arg key and value
+		if err := validateBuildArg(k, v); err != nil {
+			return fmt.Errorf("invalid build arg %q: %w", k, err)
+		}
 		args = append(args, "--build-arg", k+"="+v)
 	}
 
@@ -385,4 +395,38 @@ func dockerBuild(ctx context.Context, contextDir, dockerfile, tag string, buildA
 	cmd.Stderr = logWriter
 
 	return cmd.Run()
+}
+
+// validateDockerImageTag checks if an image tag is safe.
+// Docker image tags must match: [registry/]name[:tag] with alphanumeric, dots, hyphens, underscores.
+var validImageTagPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*(/[a-zA-Z0-9][a-zA-Z0-9._-]*)*(:[a-zA-Z0-9._-]+)?(@[a-zA-Z0-9:]+)?$`)
+
+func validateDockerImageTag(tag string) error {
+	if tag == "" {
+		return fmt.Errorf("image tag is empty")
+	}
+	if !validImageTagPattern.MatchString(tag) {
+		return fmt.Errorf("image tag contains invalid characters: %q", tag)
+	}
+	return nil
+}
+
+// validateBuildArg checks if a build arg key/value is safe.
+// Prevents shell injection and flag injection attacks.
+func validateBuildArg(key, value string) error {
+	// Key validation: must be valid shell variable name format
+	validKeyPattern := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+	if !validKeyPattern.MatchString(key) {
+		return fmt.Errorf("invalid key format (must match [a-zA-Z_][a-zA-Z0-9_]*)")
+	}
+
+	// Value validation: prevent control characters and injection attempts
+	if strings.ContainsAny(value, "\x00\n\r") {
+		return fmt.Errorf("value contains control characters")
+	}
+	// Prevent flag injection (values starting with -)
+	if strings.HasPrefix(value, "-") {
+		return fmt.Errorf("value cannot start with '-'")
+	}
+	return nil
 }

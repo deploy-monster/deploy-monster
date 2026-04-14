@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -44,6 +45,17 @@ func (h *TransferHandler) TransferApp(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusNotFound, "app not found")
 		return
+	}
+
+	// SECURITY FIX (AUTHZ-008): Verify the user has access to this app's tenant
+	// Even though this is super-admin only, we verify the claim matches the app's current tenant
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims != nil && claims.TenantID != "" {
+		// If user is not super admin, they can only transfer apps from their own tenant
+		if claims.RoleID != "role_super_admin" && app.TenantID != claims.TenantID {
+			writeError(w, http.StatusForbidden, "access denied to this app")
+			return
+		}
 	}
 
 	// Super-admin transfer: app must have valid tenant assignment

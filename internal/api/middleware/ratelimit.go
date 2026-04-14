@@ -6,19 +6,22 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // AuthRateLimiter enforces per-IP rate limits on auth endpoints using BBolt.
+// SECURITY FIX: Uses mutex to prevent race conditions on read-modify-write operations.
 type AuthRateLimiter struct {
 	bolt     core.BoltStorer
 	rate     int
 	window   time.Duration
 	prefix   string
 	logger   *slog.Logger
-	trustXFF bool // if true, trust X-Forwarded-For; if false, only use RemoteAddr
+	trustXFF bool       // if true, trust X-Forwarded-For; if false, only use RemoteAddr
+	mu       sync.Mutex // protects bolt operations for same key
 }
 
 // NewAuthRateLimiter creates a rate limiter for auth endpoints.
@@ -114,6 +117,7 @@ type authRateLimitEntry struct {
 }
 
 // Wrap returns a handler function that enforces the rate limit before calling next.
+// SECURITY FIX: Uses mutex to prevent TOCTOU race condition on rate limit counter.
 func (rl *AuthRateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 	if rl.bolt == nil {
 		return next
@@ -122,6 +126,10 @@ func (rl *AuthRateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := safeClientIP(r, rl.trustXFF)
 		key := fmt.Sprintf("auth_rl:%s:%s", rl.prefix, ip)
+
+		// Acquire lock to prevent race condition
+		rl.mu.Lock()
+		defer rl.mu.Unlock()
 
 		var entry authRateLimitEntry
 		now := time.Now().Unix()

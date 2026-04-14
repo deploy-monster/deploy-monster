@@ -46,10 +46,12 @@ func (h *HealthCheckHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/v1/apps/{id}/healthcheck
 func (h *HealthCheckHandler) Update(w http.ResponseWriter, r *http.Request) {
-	appID, ok := requirePathParam(w, r, "id")
-	if !ok {
+	// SECURITY: Verify the app belongs to this tenant
+	app := requireTenantApp(w, r, h.store)
+	if app == nil {
 		return
 	}
+	appID := app.ID
 
 	var cfg HealthCheckConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {

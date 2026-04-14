@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -18,10 +19,14 @@ type tenantRateLimitConfig struct {
 // TenantRateLimiter enforces per-tenant API rate limits using BBolt storage.
 // It reads each tenant's configured limits from the "tenant_ratelimit" bucket
 // and enforces them with an in-memory sliding window per tenant.
+// SECURITY FIX (RACE-002): Uses sync.Map for thread-safe tenant tracking.
 type TenantRateLimiter struct {
 	bolt          core.BoltStorer
 	defaultRate   int
 	defaultWindow time.Duration
+	// SECURITY FIX (RACE-002): Use sync.Map for thread-safe access to tenant entries
+	entries sync.Map   // map[string]*tenantRateLimitEntry
+	mu      sync.Mutex // protects bolt operations for same key
 }
 
 type tenantRateLimitEntry struct {
@@ -41,6 +46,7 @@ func NewTenantRateLimiter(bolt core.BoltStorer, defaultRate int, window time.Dur
 
 // Middleware returns an HTTP middleware that enforces per-tenant rate limits.
 // Must be applied AFTER RequireAuth so claims are present in context.
+// SECURITY FIX (RACE-002): Uses mutex for thread-safe operations.
 func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 	if trl.bolt == nil {
 		return next
@@ -67,6 +73,10 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 		key := fmt.Sprintf("trl:%s", tenantID)
 		now := time.Now().Unix()
 		windowSec := int64(trl.defaultWindow.Seconds())
+
+		// SECURITY FIX (RACE-002): Lock for thread-safe read-modify-write
+		trl.mu.Lock()
+		defer trl.mu.Unlock()
 
 		var entry tenantRateLimitEntry
 		err := trl.bolt.Get("ratelimit", key, &entry)

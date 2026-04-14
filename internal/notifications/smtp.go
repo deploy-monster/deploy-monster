@@ -77,6 +77,16 @@ func (s *SMTPProvider) Validate() error {
 	if s.Username != "" && s.Password == "" {
 		return fmt.Errorf("smtp username set but password is empty")
 	}
+
+	// SECURITY WARNING: InsecureSkipVerify disables TLS certificate verification
+	// This should only be used in development environments or with trusted internal relays
+	if s.InsecureSkipVerify {
+		// Log warning - in production, this should be logged and alerted
+		fmt.Printf("SECURITY WARNING: SMTP InsecureSkipVerify is enabled for host %s. "+
+			"This disables TLS certificate verification and should only be used in "+
+			"development or with trusted internal relays.\n", s.Host)
+	}
+
 	return nil
 }
 

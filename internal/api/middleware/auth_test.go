@@ -241,13 +241,18 @@ func TestRequireAuth_ValidAPIKey(t *testing.T) {
 	jwtSvc := testJWT()
 	bolt := newMockBoltStore()
 	// Add a test API key to the mock store
-	// KeyHash must be the SHA-256 of the plaintext key "dm_test_api_key_12345"
+	// SECURITY FIX (CRYPTO-001): Generate bcrypt hash for the test key
+	testKey := "dm_test_api_key_12345"
+	keyHash, err := auth.HashAPIKey(testKey)
+	if err != nil {
+		t.Fatalf("failed to hash test API key: %v", err)
+	}
 	bolt.apiKeys["dm_test_"] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-key-user",
 		TenantID:  "api-key-tenant",
 		KeyPrefix: "dm_test_",
-		KeyHash:   auth.HashAPIKey("dm_test_api_key_12345"),
+		KeyHash:   keyHash,
 		CreatedAt: time.Now(),
 	}
 
@@ -266,7 +271,7 @@ func TestRequireAuth_ValidAPIKey(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
-	req.Header.Set("X-API-Key", "dm_test_api_key_12345")
+	req.Header.Set("X-API-Key", testKey)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -429,12 +434,18 @@ func TestRequireAuth_APIKeyNotExpired(t *testing.T) {
 	jwtSvc := testJWT()
 	bolt := newMockBoltStore()
 	futureTime := time.Now().Add(24 * time.Hour)
+	// SECURITY FIX (CRYPTO-001): Generate bcrypt hash for the test key
+	testKey := "dm_test_not_expired_key"
+	keyHash, err := auth.HashAPIKey(testKey)
+	if err != nil {
+		t.Fatalf("failed to hash test API key: %v", err)
+	}
 	bolt.apiKeys["dm_test_"] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-user",
 		TenantID:  "api-tenant",
 		KeyPrefix: "dm_test_",
-		KeyHash:   auth.HashAPIKey("dm_test_not_expired_key"),
+		KeyHash:   keyHash,
 		ExpiresAt: &futureTime,
 		CreatedAt: time.Now(),
 	}
@@ -451,7 +462,7 @@ func TestRequireAuth_APIKeyNotExpired(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
-	req.Header.Set("X-API-Key", "dm_test_not_expired_key")
+	req.Header.Set("X-API-Key", testKey)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 

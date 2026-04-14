@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -107,21 +106,43 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 }
 
 // CORS returns middleware that sets CORS headers.
-// Pass "*" to allow all origins, or comma-separated list for specific origins.
+// Pass explicit origin list for production. Wildcard "*" is discouraged and logged as warning.
 // If credentials=true, wildcard origin is not allowed (CORS spec violation).
-func CORS(allowedOrigins string) func(http.Handler) http.Handler {
+// SECURITY FIX (CORS-001): Added enforceHTTPS parameter to reject wildcard in production.
+func CORS(allowedOrigins string, enforceHTTPS bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 			var originMatched bool
 
-			// SECURITY: Never allow wildcard + credentials (CORS spec forbids it).
-			// If credentials are needed, a valid origin must be explicitly listed.
+			// SECURITY FIX: Reject wildcard in production (HTTPS mode)
 			if allowedOrigins == "*" {
-				// Wildcard — set but credentials only added below if no explicit origin match
+				if enforceHTTPS {
+					slog.Error("CORS wildcard origin (*) rejected in production mode (HTTPS enabled)",
+						"path", r.URL.Path,
+						"origin", origin,
+					)
+					writeErrorJSON(w, http.StatusForbidden, "CORS wildcard not allowed in production")
+					return
+				}
+				// Development mode: allow but warn
+				slog.Warn("CORS wildcard origin (*) configured - this is insecure",
+					"path", r.URL.Path,
+					"origin", origin,
+				)
 				w.Header().Set("Access-Control-Allow-Origin", "*")
 				w.Header().Set("Vary", "Origin")
 			} else if origin != "" {
+				// SECURITY FIX (CORS-003): Enforce HTTPS for origins in production
+				if enforceHTTPS && !strings.HasPrefix(origin, "https://") {
+					slog.Warn("CORS rejected non-HTTPS origin in production mode",
+						"origin", origin,
+						"path", r.URL.Path,
+					)
+					writeErrorJSON(w, http.StatusForbidden, "HTTPS required for CORS in production")
+					return
+				}
+
 				// Check if origin is in allowed list
 				for _, allowed := range strings.Split(allowedOrigins, ",") {
 					if strings.TrimSpace(allowed) == origin {
@@ -134,12 +155,12 @@ func CORS(allowedOrigins string) func(http.Handler) http.Handler {
 			}
 
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Request-ID, X-CSRF-Token")
+			// SECURITY FIX: Removed X-CSRF-Token from allowed headers to prevent token exfiltration
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Request-ID")
 			w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-DeployMonster-Version, X-API-Version")
 			w.Header().Set("Access-Control-Max-Age", "86400")
 
 			// Only set Allow-Credentials when origin explicitly matched
-			// (wildcard "*" alone cannot be used with credentials per CORS spec)
 			if originMatched {
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
@@ -168,6 +189,11 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 					writeErrorJSON(w, http.StatusUnauthorized, "invalid token")
 					return
 				}
+				// SECURITY FIX: Check if access token is revoked
+				if jwtSvc.IsAccessTokenRevoked(bolt, claims.ID) {
+					writeErrorJSON(w, http.StatusUnauthorized, "token has been revoked")
+					return
+				}
 				ctx := auth.ContextWithClaims(r.Context(), claims)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
@@ -178,6 +204,11 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 				claims, err := jwtSvc.ValidateAccessToken(c.Value)
 				if err != nil {
 					writeErrorJSON(w, http.StatusUnauthorized, "invalid token")
+					return
+				}
+				// SECURITY FIX: Check if access token is revoked
+				if jwtSvc.IsAccessTokenRevoked(bolt, claims.ID) {
+					writeErrorJSON(w, http.StatusUnauthorized, "token has been revoked")
 					return
 				}
 				ctx := auth.ContextWithClaims(r.Context(), claims)
@@ -215,9 +246,10 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 					return
 				}
 
-				// Verify: hash the incoming plaintext key, compare to stored SHA-256 hash.
-				// HashAPIKey applies the same SHA-256 used when the key was stored.
-				if subtle.ConstantTimeCompare([]byte(auth.HashAPIKey(apiKey)), []byte(storedKey.KeyHash)) != 1 {
+				// Verify: compare the incoming plaintext key against the stored bcrypt hash.
+				// SECURITY FIX (CRYPTO-001): Use bcrypt VerifyAPIKey instead of SHA-256 + ConstantTimeCompare
+				// bcrypt's adaptive cost factor provides protection against rainbow table attacks.
+				if !auth.VerifyAPIKey(apiKey, storedKey.KeyHash) {
 					writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
 					return
 				}

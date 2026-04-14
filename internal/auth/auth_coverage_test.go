@@ -284,11 +284,29 @@ func TestGenerateAPIKey_KeyLength(t *testing.T) {
 }
 
 func TestHashAPIKey_DifferentKeys(t *testing.T) {
-	h1 := HashAPIKey("dm_key1")
-	h2 := HashAPIKey("dm_key2")
+	h1, err := HashAPIKey("dm_key1")
+	if err != nil {
+		t.Fatalf("HashAPIKey: %v", err)
+	}
+	h2, err := HashAPIKey("dm_key2")
+	if err != nil {
+		t.Fatalf("HashAPIKey: %v", err)
+	}
 
 	if h1 == h2 {
 		t.Error("different keys should produce different hashes")
+	}
+
+	// SECURITY FIX (CRYPTO-001): Verify that correct keys verify against their hashes
+	if !VerifyAPIKey("dm_key1", h1) {
+		t.Error("key1 should verify against h1")
+	}
+	if !VerifyAPIKey("dm_key2", h2) {
+		t.Error("key2 should verify against h2")
+	}
+	// Cross-verification should fail
+	if VerifyAPIKey("dm_key1", h2) {
+		t.Error("key1 should not verify against h2")
 	}
 }
 

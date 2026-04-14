@@ -130,7 +130,13 @@ func (m *mockSecretStore) ListDeploymentsByStatus(_ context.Context, _ string) (
 func (m *mockSecretStore) GetNextDeployVersion(_ context.Context, _ string) (int, error) {
 	return 1, nil
 }
+func (m *mockSecretStore) AtomicNextDeployVersion(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
 func (m *mockSecretStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
+func (m *mockSecretStore) GetDomain(_ context.Context, _ string) (*core.Domain, error) {
+	return nil, core.ErrNotFound
+}
 func (m *mockSecretStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, core.ErrNotFound
 }

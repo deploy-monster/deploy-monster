@@ -106,8 +106,14 @@ func (s *mockStore) ListDeploymentsByStatus(_ context.Context, _ string) ([]core
 func (s *mockStore) GetNextDeployVersion(_ context.Context, _ string) (int, error) {
 	return 1, nil
 }
+func (s *mockStore) AtomicNextDeployVersion(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
 
 func (s *mockStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
+func (s *mockStore) GetDomain(_ context.Context, _ string) (*core.Domain, error) {
+	return nil, core.ErrNotFound
+}
 func (s *mockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, nil
 }

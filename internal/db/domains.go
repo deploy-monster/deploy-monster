@@ -35,6 +35,19 @@ func (s *SQLiteDB) GetDomainByFQDN(ctx context.Context, fqdn string) (*core.Doma
 	return d, err
 }
 
+// GetDomain retrieves a domain by its ID.
+func (s *SQLiteDB) GetDomain(ctx context.Context, id string) (*core.Domain, error) {
+	d := &core.Domain{}
+	err := s.QueryRowContext(ctx,
+		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
+		 FROM domains WHERE id = ?`, id,
+	).Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider, &d.DNSSynced, &d.Verified, &d.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	return d, err
+}
+
 // ListDomainsByApp returns all domains for an application.
 func (s *SQLiteDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.Domain, error) {
 	rows, err := s.QueryContext(ctx,

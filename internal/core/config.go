@@ -232,10 +232,15 @@ func LoadConfig(configPath string) (*Config, error) {
 	applyEnvOverrides(cfg)
 
 	// Derive CORS origins from server domain if not explicitly set
+	// SECURITY FIX (CORS-003): Respect EnableHTTPS setting when deriving origins
 	if cfg.Server.CORSOrigins == "" && cfg.Server.Domain != "" {
-		origin := "https://" + cfg.Server.Domain
+		scheme := "https"
+		if !cfg.Ingress.EnableHTTPS {
+			scheme = "http"
+		}
+		origin := scheme + "://" + cfg.Server.Domain
 		if cfg.Server.Port != 443 && cfg.Server.Port != 80 {
-			origin = fmt.Sprintf("https://%s:%d", cfg.Server.Domain, cfg.Server.Port)
+			origin = fmt.Sprintf("%s://%s:%d", scheme, cfg.Server.Domain, cfg.Server.Port)
 		}
 		cfg.Server.CORSOrigins = origin
 	}

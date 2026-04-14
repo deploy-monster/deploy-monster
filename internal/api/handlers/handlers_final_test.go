@@ -821,7 +821,7 @@ func TestFinal_Secret_Create_VersionError(t *testing.T) {
 func TestFinal_Session_UpdateProfile_GetUserError(t *testing.T) {
 	store := newMockStore()
 	store.errGetUser = fmt.Errorf("user not found")
-	h := NewSessionHandler(store)
+	h := NewSessionHandler(store, nil, nil)
 
 	body := `{"name":"New Name"}`
 	req := httptest.NewRequest("PATCH", "/api/v1/auth/me", strings.NewReader(body))
@@ -842,7 +842,7 @@ func TestFinal_Session_UpdateProfile_UpdateError(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "u1", "test@test.com", "Pass123!", "t1", "role_owner")
 	store.errUpdateUser = fmt.Errorf("update failed")
-	h := NewSessionHandler(store)
+	h := NewSessionHandler(store, nil, nil)
 
 	body := `{"name":"New Name"}`
 	req := httptest.NewRequest("PATCH", "/api/v1/auth/me", strings.NewReader(body))
@@ -862,7 +862,7 @@ func TestFinal_Session_UpdateProfile_UpdateError(t *testing.T) {
 func TestFinal_Session_ChangePassword_WrongCurrent(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "u1", "test@test.com", "CurrentPass1!", "t1", "role_owner")
-	h := NewSessionHandler(store)
+	h := NewSessionHandler(store, nil, nil)
 
 	body := `{"current_password":"WrongPassword1!","new_password":"NewPass123!"}`
 	req := httptest.NewRequest("POST", "/api/v1/auth/change-password", strings.NewReader(body))
@@ -882,7 +882,7 @@ func TestFinal_Session_ChangePassword_WrongCurrent(t *testing.T) {
 func TestFinal_Session_ChangePassword_WeakNewPassword(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "u1", "test@test.com", "CurrentPass1!", "t1", "role_owner")
-	h := NewSessionHandler(store)
+	h := NewSessionHandler(store, nil, nil)
 
 	body := `{"current_password":"CurrentPass1!","new_password":"short"}`
 	req := httptest.NewRequest("POST", "/api/v1/auth/change-password", strings.NewReader(body))
@@ -903,7 +903,7 @@ func TestFinal_Session_ChangePassword_UpdateError(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "u1", "test@test.com", "CurrentPass1!", "t1", "role_owner")
 	store.errUpdatePassword = fmt.Errorf("db write error")
-	h := NewSessionHandler(store)
+	h := NewSessionHandler(store, nil, nil)
 
 	body := `{"current_password":"CurrentPass1!","new_password":"NewStrongPass1!"}`
 	req := httptest.NewRequest("POST", "/api/v1/auth/change-password", strings.NewReader(body))

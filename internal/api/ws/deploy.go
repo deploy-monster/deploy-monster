@@ -109,8 +109,11 @@ func (h *DeployHub) upgrader() websocket.Upgrader {
 				return true
 			}
 			origin := r.Header.Get("Origin")
+			// SECURITY FIX: Empty origin header no longer allowed
+			// This prevents cross-origin WebSocket connections from tools that don't send Origin headers
 			if origin == "" {
-				return true // same-origin requests have no Origin header
+				h.logger.Warn("WebSocket connection rejected: empty origin header")
+				return false
 			}
 			for _, allowed := range strings.Split(h.allowedOrigins, ",") {
 				if strings.TrimSpace(allowed) == origin {

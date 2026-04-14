@@ -208,7 +208,8 @@ func TestModule_Health_NilJWT_IsDown(t *testing.T) {
 
 func TestModule_Health_WithJWT_IsOK(t *testing.T) {
 	m := New()
-	m.jwt = NewJWTService("secret")
+	// SECURITY FIX (JWT-002): Use a secret that meets minimum length requirement (32 chars)
+	m.jwt = NewJWTService("this-is-a-very-long-secret-key-for-testing-only")
 	if h := m.Health(); h != core.HealthOK {
 		t.Errorf("Health() = %v, want HealthOK", h)
 	}
@@ -238,9 +239,10 @@ func TestGenerateAPIKey_FieldsConsistent(t *testing.T) {
 		t.Fatalf("GenerateAPIKey: %v", err)
 	}
 
-	// Hash must match HashAPIKey(key)
-	if pair.Hash != HashAPIKey(pair.Key) {
-		t.Error("hash should match HashAPIKey(key)")
+	// SECURITY FIX (CRYPTO-001): With bcrypt, hash includes random salt so we verify using VerifyAPIKey
+	// instead of direct comparison
+	if !VerifyAPIKey(pair.Key, pair.Hash) {
+		t.Error("hash should verify with VerifyAPIKey")
 	}
 
 	// Prefix should be start of key

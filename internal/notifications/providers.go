@@ -5,11 +5,70 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+// validateWebhookURL validates that a webhook URL is safe to use.
+// Prevents SSRF attacks by blocking private IPs, localhost, and file URLs.
+func validateWebhookURL(webhookURL string) error {
+	if webhookURL == "" {
+		return fmt.Errorf("webhook URL is required")
+	}
+
+	u, err := url.Parse(webhookURL)
+	if err != nil {
+		return fmt.Errorf("invalid webhook URL: %w", err)
+	}
+
+	// Only allow HTTPS URLs for webhooks
+	if u.Scheme != "https" {
+		return fmt.Errorf("webhook URL must use HTTPS scheme")
+	}
+
+	// Get the hostname
+	hostname := u.Hostname()
+	if hostname == "" {
+		return fmt.Errorf("webhook URL must have a hostname")
+	}
+
+	// Check for localhost variants
+	localhostVariants := []string{"localhost", "127.0.0.1", "::1", "0.0.0.0", "[::1]"}
+	for _, variant := range localhostVariants {
+		if strings.EqualFold(hostname, variant) {
+			return fmt.Errorf("webhook URL cannot point to localhost")
+		}
+	}
+
+	// Check for private/internal IP ranges
+	ip := net.ParseIP(hostname)
+	if ip != nil {
+		// Block private, loopback, link-local, and multicast ranges
+		if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+			ip.IsLinkLocalMulticast() || ip.IsMulticast() {
+			return fmt.Errorf("webhook URL cannot point to internal IP addresses")
+		}
+		// Block cloud metadata endpoints
+		if ip.String() == "169.254.169.254" {
+			return fmt.Errorf("webhook URL cannot point to cloud metadata endpoints")
+		}
+	}
+
+	// Block common internal hostnames
+	internalHostnames := []string{"metadata.google.internal", "metadata", "metadata.ec2.internal"}
+	for _, internal := range internalHostnames {
+		if strings.EqualFold(hostname, internal) || strings.HasSuffix(strings.ToLower(hostname), "."+strings.ToLower(internal)) {
+			return fmt.Errorf("webhook URL cannot point to internal hostnames")
+		}
+	}
+
+	return nil
+}
 
 // =====================================================
 // SLACK PROVIDER
@@ -32,8 +91,9 @@ func NewSlackProvider(webhookURL string) *SlackProvider {
 func (s *SlackProvider) Name() string { return "slack" }
 
 func (s *SlackProvider) Validate() error {
-	if s.WebhookURL == "" {
-		return fmt.Errorf("slack webhook URL is required")
+	// SECURITY FIX: Validate webhook URL to prevent SSRF
+	if err := validateWebhookURL(s.WebhookURL); err != nil {
+		return fmt.Errorf("slack: %w", err)
 	}
 	return nil
 }
@@ -87,8 +147,9 @@ func NewDiscordProvider(webhookURL string) *DiscordProvider {
 func (d *DiscordProvider) Name() string { return "discord" }
 
 func (d *DiscordProvider) Validate() error {
-	if d.WebhookURL == "" {
-		return fmt.Errorf("discord webhook URL is required")
+	// SECURITY FIX: Validate webhook URL to prevent SSRF
+	if err := validateWebhookURL(d.WebhookURL); err != nil {
+		return fmt.Errorf("discord: %w", err)
 	}
 	return nil
 }
