@@ -17,7 +17,7 @@ Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 
 </div>
 
-> **Status:** v0.1.0 released — Production ready! 88.4% test coverage, 240 REST API endpoints, React 19 frontend, comprehensive security audit complete.
+> **Status:** v0.1.3 released — Production ready! 88.4% test coverage, 240 REST API endpoints, React 19 frontend, comprehensive security audit complete.
 
 ---
 
@@ -25,7 +25,7 @@ Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 
 ```bash
 # One-line install
-curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.0/scripts/install.sh | bash -s -- --version=v0.1.0
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.3/scripts/install.sh | bash -s -- --version=v0.1.3
 
 # Interactive setup (domain, SSL, admin credentials)
 deploymonster setup
