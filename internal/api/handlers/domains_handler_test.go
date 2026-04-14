@@ -133,6 +133,7 @@ func TestCreateDomain_Success(t *testing.T) {
 		FQDN:  "myapp.example.com",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/domains", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -173,6 +174,7 @@ func TestCreateDomain_WithDNSProvider(t *testing.T) {
 		DNSProvider: "cloudflare",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/domains", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -244,6 +246,7 @@ func TestCreateDomain_Duplicate(t *testing.T) {
 
 	body, _ := json.Marshal(createDomainRequest{AppID: "app2", FQDN: "taken.com"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/domains", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -263,6 +266,7 @@ func TestCreateDomain_StoreError(t *testing.T) {
 
 	body, _ := json.Marshal(createDomainRequest{AppID: "app1", FQDN: "new.example.com"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/domains", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)

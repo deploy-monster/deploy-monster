@@ -86,6 +86,7 @@ func TestHealthCheckUpdate_Success(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/healthcheck", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -141,6 +142,7 @@ func TestHealthCheckUpdate_InvalidType(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/healthcheck", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -161,6 +163,7 @@ func TestHealthCheckUpdate_DefaultValues(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/healthcheck", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -196,6 +199,7 @@ func TestHealthCheckUpdate_NoneType(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/healthcheck", bytes.NewReader(body))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)

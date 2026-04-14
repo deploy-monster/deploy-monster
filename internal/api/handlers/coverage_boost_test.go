@@ -376,6 +376,7 @@ func TestPortHandler_Update(t *testing.T) {
 
 	body := `[{"container_port":8080,"protocol":"tcp","exposed":true}]`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/ports", strings.NewReader(body))
+	req = withClaims(req, "user-1", "tenant-1", "admin", "test@test.com")
 	req.SetPathValue("id", "app-1")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
@@ -391,6 +392,7 @@ func TestPortHandler_Update_InvalidPort(t *testing.T) {
 
 	body := `[{"container_port":-1,"protocol":"tcp"}]`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/ports", strings.NewReader(body))
+	req = withClaims(req, "user-1", "tenant-1", "admin", "test@test.com")
 	req.SetPathValue("id", "app-1")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
@@ -420,6 +422,7 @@ func TestPortHandler_Update_PortOverMax(t *testing.T) {
 
 	body := `[{"container_port":70000,"protocol":"tcp"}]`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/ports", strings.NewReader(body))
+	req = withClaims(req, "user-1", "tenant-1", "admin", "test@test.com")
 	req.SetPathValue("id", "app-1")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)

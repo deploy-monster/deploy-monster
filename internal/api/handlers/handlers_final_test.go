@@ -669,6 +669,7 @@ func TestFinal_Port_Update_InvalidPort(t *testing.T) {
 	body := `[{"container_port":0,"protocol":"tcp"}]`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/ports", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -687,6 +688,7 @@ func TestFinal_Port_Update_PortTooHigh(t *testing.T) {
 	body := `[{"container_port":70000,"protocol":"tcp"}]`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/ports", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
