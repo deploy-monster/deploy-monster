@@ -313,13 +313,18 @@ func TestDeployHub_OriginValidation_NoOriginHeader(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// No Origin header — same-origin request, should be allowed
+	// No Origin header — security fix: empty origin is rejected
+	// This prevents cross-origin WebSocket connections from tools that don't send Origin headers
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		t.Fatalf("expected same-origin (no Origin header) to be allowed, got: %v", err)
+	if err == nil {
+		conn.Close()
+		t.Fatal("expected connection to be rejected for empty origin header (security fix)")
 	}
-	conn.Close()
+	// Connection should be rejected with bad handshake
+	if !strings.Contains(err.Error(), "bad handshake") {
+		t.Fatalf("expected bad handshake error, got: %v", err)
+	}
 }
 
 func TestDeployHub_OriginValidation_StrictDefault(t *testing.T) {
