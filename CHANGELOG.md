@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Grouped into **Breaking**, **Security**, **Features**, **Fixes**, and **Performance**
 at the request of the Phase 7 roadmap.
 
+## [0.1.1] — 2026-04-14 — Hotfix: Install script
+
+Quick patch to fix install script regression in v0.1.0.
+
+### Fixed
+
+- **install.sh** — Fixed "unbound variable" error for `domain` in non-interactive mode (line 482, 500)
+- Used `${domain:-}` default syntax to handle unset variable gracefully
+
 ## [0.1.0] — 2026-04-14 — Production Release
 
 **First production-ready release.** All blockers resolved, 100% test pass rate,
