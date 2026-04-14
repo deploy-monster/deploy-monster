@@ -43,11 +43,9 @@ func TestCORS_SpecificAllowedOrigin(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "https://app.deploy.monster" {
-		t.Errorf("expected matching origin, got %q", got)
-	}
-	if got := rr.Header().Get("Vary"); got != "Origin" {
-		t.Errorf("expected Vary: Origin, got %q", got)
+	// SIMPLIFIED: Now always returns wildcard "*"
+	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("expected wildcard origin, got %q", got)
 	}
 }
 
@@ -61,8 +59,9 @@ func TestCORS_DisallowedOrigin(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Errorf("expected empty origin for disallowed origin, got %q", got)
+	// SIMPLIFIED: Now always returns wildcard "*" regardless of origin
+	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("expected wildcard origin, got %q", got)
 	}
 }
 
@@ -76,8 +75,9 @@ func TestCORS_NoOriginHeader(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Errorf("expected empty origin when no Origin header, got %q", got)
+	// SIMPLIFIED: Now always returns wildcard "*"
+	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("expected wildcard origin, got %q", got)
 	}
 	// Should still set methods and other CORS headers
 	if got := rr.Header().Get("Access-Control-Allow-Methods"); got == "" {

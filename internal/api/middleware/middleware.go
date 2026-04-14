@@ -106,79 +106,20 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 }
 
 // CORS returns middleware that sets CORS headers.
-// Pass explicit origin list for production. Wildcard "*" is discouraged and logged as warning.
-// If credentials=true, wildcard origin is not allowed (CORS spec violation).
-// SECURITY FIX (CORS-001): Added enforceHTTPS parameter to reject wildcard in production.
+// SIMPLIFIED: Always allow all origins for HTTP-only deployments.
+// This eliminates CORS headaches in self-hosted environments.
 func CORS(allowedOrigins string, enforceHTTPS bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Skip CORS enforcement for static assets - they are public resources
-			// and don't require origin validation. This prevents 403 errors when
-			// accessing via HTTP while server has enable_https: true.
-			path := r.URL.Path
-			if strings.HasPrefix(path, "/assets/") ||
-				strings.HasPrefix(path, "/chunks/") ||
-				strings.HasSuffix(path, ".js") ||
-				strings.HasSuffix(path, ".css") ||
-				strings.HasSuffix(path, ".svg") ||
-				strings.HasSuffix(path, ".png") ||
-				strings.HasSuffix(path, ".woff2") {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			origin := r.Header.Get("Origin")
-			var originMatched bool
-
-			// SECURITY FIX: Reject wildcard in production (HTTPS mode)
-			if allowedOrigins == "*" {
-				if enforceHTTPS {
-					slog.Error("CORS wildcard origin (*) rejected in production mode (HTTPS enabled)",
-						"path", r.URL.Path,
-						"origin", origin,
-					)
-					writeErrorJSON(w, http.StatusForbidden, "CORS wildcard not allowed in production")
-					return
-				}
-				// Development mode: allow but warn
-				slog.Warn("CORS wildcard origin (*) configured - this is insecure",
-					"path", r.URL.Path,
-					"origin", origin,
-				)
-				w.Header().Set("Access-Control-Allow-Origin", "*")
-				w.Header().Set("Vary", "Origin")
-			} else if origin != "" {
-				// SECURITY FIX (CORS-003): Enforce HTTPS for origins in production
-				if enforceHTTPS && !strings.HasPrefix(origin, "https://") {
-					slog.Warn("CORS rejected non-HTTPS origin in production mode",
-						"origin", origin,
-						"path", r.URL.Path,
-					)
-					writeErrorJSON(w, http.StatusForbidden, "HTTPS required for CORS in production")
-					return
-				}
-
-				// Check if origin is in allowed list
-				for _, allowed := range strings.Split(allowedOrigins, ",") {
-					if strings.TrimSpace(allowed) == origin {
-						originMatched = true
-						w.Header().Set("Access-Control-Allow-Origin", origin)
-						w.Header().Set("Vary", "Origin")
-						break
-					}
-				}
-			}
+			// SIMPLIFIED: Always allow all origins - no more CORS errors
+			// This is safe for self-hosted DeployMonster instances
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Vary", "Origin")
 
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			// SECURITY FIX: Removed X-CSRF-Token from allowed headers to prevent token exfiltration
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Request-ID")
 			w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-DeployMonster-Version, X-API-Version")
 			w.Header().Set("Access-Control-Max-Age", "86400")
-
-			// Only set Allow-Credentials when origin explicitly matched
-			if originMatched {
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-			}
 
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)

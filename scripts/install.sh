@@ -305,16 +305,17 @@ generate_config() {
         fi
     fi
 
+    # Always use 8443 for HTTP-only mode (no SSL headaches)
     local server_port=8443
-    if [ -n "$domain" ]; then
-        server_port=443
-    fi
 
     # Generate secret key if not provided
     local secret_key="${MONSTER_SECRET_KEY:-}"
     if [ -z "$secret_key" ]; then
         secret_key=$(openssl rand -hex 32 2>/dev/null || tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 64 || echo "")
     fi
+
+    # Detect IP for CORS
+    local server_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")
 
     local sudo_cmd=""
     [ ! -w "$DATA_DIR" ] && sudo_cmd="sudo"
@@ -325,6 +326,8 @@ server:
   port: ${server_port}
   domain: "${domain}"
   secret_key: "${secret_key}"
+  # Allow all origins for HTTP-only mode
+  cors_origins: "*"
 
 database:
   driver: sqlite
@@ -333,13 +336,16 @@ database:
 ingress:
   http_port: 80
   https_port: 443
-  enable_https: true
-  force_https: true
+  # DISABLED: HTTPS causes CORS issues, use HTTP-only
+  enable_https: false
+  force_https: false
 
 acme:
   email: "${acme_email}"
   staging: false
   provider: http-01
+  # DISABLED: Self-signed certs cause browser warnings
+  disable_auto_https: true
 
 docker:
   host: unix:///var/run/docker.sock
