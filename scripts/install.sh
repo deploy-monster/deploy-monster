@@ -310,6 +310,12 @@ generate_config() {
         server_port=443
     fi
 
+    # Generate secret key if not provided
+    local secret_key="${MONSTER_SECRET_KEY:-}"
+    if [ -z "$secret_key" ]; then
+        secret_key=$(openssl rand -hex 32 2>/dev/null || tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 64 || echo "")
+    fi
+
     local sudo_cmd=""
     [ ! -w "$DATA_DIR" ] && sudo_cmd="sudo"
 
@@ -318,7 +324,7 @@ server:
   host: 0.0.0.0
   port: ${server_port}
   domain: "${domain}"
-  secret_key: ""
+  secret_key: "${secret_key}"
 
 database:
   driver: sqlite
