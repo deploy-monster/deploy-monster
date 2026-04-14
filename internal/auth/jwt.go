@@ -200,6 +200,10 @@ func (j *JWTService) RevokeAccessToken(boltStorer interface {
 func (j *JWTService) IsAccessTokenRevoked(boltStorer interface {
 	Get(bucket, key string, dest any) error
 }, jti string) bool {
+	// If no revocation store provided, assume token is not revoked
+	if boltStorer == nil {
+		return false
+	}
 	var revocation AccessTokenRevocation
 	err := boltStorer.Get("revoked_access_tokens", jti, &revocation)
 	return err == nil // If no error, token is revoked

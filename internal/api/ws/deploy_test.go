@@ -214,6 +214,8 @@ func TestGetDeployHub_ReturnsSingleton(t *testing.T) {
 
 func TestServeWS_CleansUpOnDisconnect(t *testing.T) {
 	hub := NewDeployHub()
+	// Allow test connections without origin header
+	hub.SetAllowedOrigins("*")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hub.ServeWS(w, r, "proj-cleanup")

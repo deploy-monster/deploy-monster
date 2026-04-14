@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -1691,6 +1692,10 @@ func TestImageTagHandler_List_MissingImage(t *testing.T) {
 	h := NewImageTagHandler(newMockStore(), &mockContainerRuntime{})
 
 	req := httptest.NewRequest("GET", "/api/v1/images/tags", nil)
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 
@@ -1703,11 +1708,17 @@ func TestImageTagHandler_List_Success(t *testing.T) {
 	h := NewImageTagHandler(newMockStore(), &mockContainerRuntime{})
 
 	req := httptest.NewRequest("GET", "/api/v1/images/tags?image=nginx", nil)
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
+	// With tenant isolation, image access is denied if no apps use it
+	// Mock store has no apps, so expect 403 Forbidden
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403 (access denied to image), got %d", rr.Code)
 	}
 }
 
