@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Grouped into **Breaking**, **Security**, **Features**, **Fixes**, and **Performance**
 at the request of the Phase 7 roadmap.
 
+## [0.1.2] — 2026-04-14 — Hotfix: Install script variable scope
+
+Fixes install script regression where variables were not accessible
+outside the generate_config function.
+
+### Fixed
+
+- **install.sh** — Fixed variable scope issue:
+  - Removed `local` keyword from `domain`, `acme_email`, `admin_email`, `admin_password`
+  - Variables now accessible in main() scope after generate_config() call
+  - Fixes "unbound variable" errors for domain (lines 482, 500)
+  - Added explicit initialization for `GENERATED_ADMIN_EMAIL` and `GENERATED_ADMIN_PASSWORD`
+
 ## [0.1.1] — 2026-04-14 — Hotfix: Install script
 
 Quick patch to fix install script regression in v0.1.0.

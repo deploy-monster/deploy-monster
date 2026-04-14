@@ -259,11 +259,13 @@ generate_config() {
         info "Backed up existing config to ${config_path}${backup_suffix}"
     fi
 
-    local domain acme_email admin_email admin_password
+    # Global scope variables (not local) - used later in main()
     domain="${MONSTER_DOMAIN:-}"
     acme_email="${MONSTER_ACME_EMAIL:-}"
     admin_email="${MONSTER_ADMIN_EMAIL:-}"
     admin_password="${MONSTER_ADMIN_PASSWORD:-}"
+    GENERATED_ADMIN_EMAIL=""
+    GENERATED_ADMIN_PASSWORD=""
 
     if [ -t 0 ]; then
         echo
