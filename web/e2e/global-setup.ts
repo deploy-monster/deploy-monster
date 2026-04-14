@@ -69,8 +69,17 @@ setup('authenticate', async ({ page }) => {
   await page.goto('/');
   await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
-  // Confirm the user-menu / dashboard shell rendered — one more guard
-  // against saving a state where the app is still hanging on Suspense.
+  // Wait for auth initialization to complete (FullPageLoader disappears)
+  await expect(page.locator('[data-testid="full-page-loader"]')).not.toBeVisible({
+    timeout: 10_000,
+  });
+
+  // Confirm the dashboard shell rendered with greeting visible
+  await expect(page.getByText(/good (morning|afternoon|evening)/i)).toBeVisible({
+    timeout: 10_000,
+  });
+
+  // THEN check URL (confirm we're not on login/register)
   await expect(page).toHaveURL(/^(?!.*\/login)(?!.*\/register).+/);
 
   await page.context().storageState({ path: './e2e/.auth/user.json' });

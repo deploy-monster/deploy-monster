@@ -12,8 +12,8 @@ export const TEST_USER = {
 
 /** Wait for the dashboard to fully load (stat cards rendered). */
 export async function waitForDashboard(page: Page) {
-  // The dashboard has a welcome banner with a greeting
-  await expect(page.getByText(/good (morning|afternoon|evening)/i)).toBeVisible();
+  // Wait for the dashboard shell to be visible (more reliable than greeting text)
+  await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
 }
 
 /** Log in via the UI form (for tests that start without stored auth). */

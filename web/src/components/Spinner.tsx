@@ -11,7 +11,7 @@ export function Spinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
 
 export function FullPageLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface">
+    <div data-testid="full-page-loader" className="min-h-screen flex items-center justify-center bg-surface">
       <Spinner size="lg" />
     </div>
   );
