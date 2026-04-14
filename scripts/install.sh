@@ -479,7 +479,7 @@ main() {
     fi
 
     local access_url
-    if [ -n "${domain}" ]; then
+    if [ -n "${domain:-}" ]; then
         access_url="https://${domain}"
     else
         access_url="http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):8443"
@@ -497,7 +497,7 @@ ${GREEN}[INFO]${NC} DeployMonster ${VERSION} installed successfully.
 
 OUTRO
 
-    if [ -n "${domain}" ]; then
+    if [ -n "${domain:-}" ]; then
         cat <<SSLTIP
   SSL:            Automatic via Let's Encrypt (HTTP-01)
   Make sure:
