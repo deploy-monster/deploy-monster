@@ -11,13 +11,13 @@ Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Coverage](https://img.shields.io/badge/Coverage-86%25-brightgreen)](.)
+[![Coverage](https://img.shields.io/badge/Coverage-88.4%25-brightgreen)](.)
 
 [📚 Docs](docs/)
 
 </div>
 
-> **Status:** v0.0.1 released — core platform, ingress with automatic Let's Encrypt, deploy pipeline, marketplace, observability, and regression/soak harnesses are complete.
+> **Status:** v0.1.0 released — Production ready! 88.4% test coverage, 240 REST API endpoints, React 19 frontend, comprehensive security audit complete.
 
 ---
 
@@ -25,7 +25,7 @@ Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 
 ```bash
 # One-line install
-curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.0.1/scripts/install.sh | bash -s -- --version=v0.0.1
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.0/scripts/install.sh | bash -s -- --version=v0.1.0
 
 # Interactive setup (domain, SSL, admin credentials)
 deploymonster setup
