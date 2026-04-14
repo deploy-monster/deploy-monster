@@ -372,6 +372,7 @@ func TestPortHandler_Get_NotFound(t *testing.T) {
 
 func TestPortHandler_Update(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant-1", Name: "test-app"})
 	h := NewPortHandler(store)
 
 	body := `[{"container_port":8080,"protocol":"tcp","exposed":true}]`
@@ -388,6 +389,7 @@ func TestPortHandler_Update(t *testing.T) {
 
 func TestPortHandler_Update_InvalidPort(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant-1", Name: "test-app"})
 	h := NewPortHandler(store)
 
 	body := `[{"container_port":-1,"protocol":"tcp"}]`
@@ -404,10 +406,12 @@ func TestPortHandler_Update_InvalidPort(t *testing.T) {
 
 func TestPortHandler_Update_InvalidBody(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant-1", Name: "test-app"})
 	h := NewPortHandler(store)
 
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/ports", strings.NewReader("not-json"))
 	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user-1", "tenant-1", "admin", "test@test.com")
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
@@ -418,6 +422,7 @@ func TestPortHandler_Update_InvalidBody(t *testing.T) {
 
 func TestPortHandler_Update_PortOverMax(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant-1", Name: "test-app"})
 	h := NewPortHandler(store)
 
 	body := `[{"container_port":70000,"protocol":"tcp"}]`

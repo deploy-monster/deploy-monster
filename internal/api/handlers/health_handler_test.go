@@ -75,6 +75,7 @@ func TestHealthCheckGet_AppNotFound(t *testing.T) {
 
 func TestHealthCheckUpdate_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test-app"})
 	handler := NewHealthCheckHandler(store)
 
 	body, _ := json.Marshal(HealthCheckConfig{
@@ -116,10 +117,12 @@ func TestHealthCheckUpdate_Success(t *testing.T) {
 
 func TestHealthCheckUpdate_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test-app"})
 	handler := NewHealthCheckHandler(store)
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/healthcheck", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 
 	handler.Update(rr, req)
@@ -132,6 +135,7 @@ func TestHealthCheckUpdate_InvalidJSON(t *testing.T) {
 
 func TestHealthCheckUpdate_InvalidType(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test-app"})
 	handler := NewHealthCheckHandler(store)
 
 	body, _ := json.Marshal(HealthCheckConfig{
@@ -155,6 +159,7 @@ func TestHealthCheckUpdate_InvalidType(t *testing.T) {
 
 func TestHealthCheckUpdate_DefaultValues(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test-app"})
 	handler := NewHealthCheckHandler(store)
 
 	// Provide type but no interval/timeout/retries — should get defaults.
@@ -189,6 +194,7 @@ func TestHealthCheckUpdate_DefaultValues(t *testing.T) {
 
 func TestHealthCheckUpdate_NoneType(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test-app"})
 	handler := NewHealthCheckHandler(store)
 
 	body, _ := json.Marshal(HealthCheckConfig{

@@ -664,7 +664,9 @@ func TestFinal_MarketplaceDeploy_CreateAppError(t *testing.T) {
 // =============================================================================
 
 func TestFinal_Port_Update_InvalidPort(t *testing.T) {
-	h := NewPortHandler(newMockStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test-app"})
+	h := NewPortHandler(store)
 
 	body := `[{"container_port":0,"protocol":"tcp"}]`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/ports", strings.NewReader(body))
@@ -683,7 +685,9 @@ func TestFinal_Port_Update_InvalidPort(t *testing.T) {
 // =============================================================================
 
 func TestFinal_Port_Update_PortTooHigh(t *testing.T) {
-	h := NewPortHandler(newMockStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test-app"})
+	h := NewPortHandler(store)
 
 	body := `[{"container_port":70000,"protocol":"tcp"}]`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/ports", strings.NewReader(body))

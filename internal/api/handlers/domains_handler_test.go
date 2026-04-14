@@ -125,6 +125,7 @@ func TestListDomains_ByApp_StoreError(t *testing.T) {
 
 func TestCreateDomain_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "test-app"})
 	events := core.NewEventBus(nil)
 	handler := NewDomainHandler(store, events)
 
@@ -165,6 +166,7 @@ func TestCreateDomain_Success(t *testing.T) {
 
 func TestCreateDomain_WithDNSProvider(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "test-app"})
 	events := core.NewEventBus(nil)
 	handler := NewDomainHandler(store, events)
 
@@ -193,10 +195,12 @@ func TestCreateDomain_WithDNSProvider(t *testing.T) {
 
 func TestCreateDomain_InvalidJSON(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "test-app"})
 	events := core.NewEventBus(nil)
 	handler := NewDomainHandler(store, events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/domains", bytes.NewReader([]byte("bad")))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -209,6 +213,7 @@ func TestCreateDomain_InvalidJSON(t *testing.T) {
 
 func TestCreateDomain_MissingFields(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "test-app"})
 	events := core.NewEventBus(nil)
 	handler := NewDomainHandler(store, events)
 
@@ -225,6 +230,7 @@ func TestCreateDomain_MissingFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			body, _ := json.Marshal(tt.body)
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/domains", bytes.NewReader(body))
+			req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 			rr := httptest.NewRecorder()
 
 			handler.Create(rr, req)
@@ -239,12 +245,13 @@ func TestCreateDomain_MissingFields(t *testing.T) {
 
 func TestCreateDomain_Duplicate(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "test-app"})
 	store.addDomain(&core.Domain{ID: "d1", AppID: "app1", FQDN: "taken.com"})
 
 	events := core.NewEventBus(nil)
 	handler := NewDomainHandler(store, events)
 
-	body, _ := json.Marshal(createDomainRequest{AppID: "app2", FQDN: "taken.com"})
+	body, _ := json.Marshal(createDomainRequest{AppID: "app1", FQDN: "taken.com"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/domains", bytes.NewReader(body))
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
@@ -259,6 +266,7 @@ func TestCreateDomain_Duplicate(t *testing.T) {
 
 func TestCreateDomain_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "test-app"})
 	store.errCreateDomain = errors.New("db error")
 
 	events := core.NewEventBus(nil)
@@ -281,6 +289,7 @@ func TestCreateDomain_StoreError(t *testing.T) {
 
 func TestDeleteDomain_Success(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test-app"})
 	store.addDomain(&core.Domain{ID: "d1", AppID: "app1", FQDN: "delete-me.com"})
 
 	events := core.NewEventBus(nil)
@@ -322,6 +331,8 @@ func TestDeleteDomain_NotFound(t *testing.T) {
 
 func TestDeleteDomain_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test-app"})
+	store.addDomain(&core.Domain{ID: "d1", AppID: "app1", FQDN: "delete-me.com"})
 	store.errDeleteDomain = errors.New("constraint violation")
 
 	events := core.NewEventBus(nil)
@@ -344,12 +355,14 @@ func TestDeleteDomain_StoreError(t *testing.T) {
 
 func TestCreateThenDeleteDomain_Integration(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "test-app"})
 	events := core.NewEventBus(nil)
 	handler := NewDomainHandler(store, events)
 
 	// Create
 	body, _ := json.Marshal(createDomainRequest{AppID: "app1", FQDN: "ephemeral.io"})
 	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/domains", bytes.NewReader(body))
+	createReq = withClaims(createReq, "u1", "tenant1", "role_admin", "a@b.com")
 	createRR := httptest.NewRecorder()
 	handler.Create(createRR, createReq)
 
@@ -363,7 +376,7 @@ func TestCreateThenDeleteDomain_Integration(t *testing.T) {
 	// Delete
 	delReq := httptest.NewRequest(http.MethodDelete, "/api/v1/domains/"+created.ID, nil)
 	delReq.SetPathValue("id", created.ID)
-	delReq = withClaims(delReq, "u1", "t1", "role_admin", "a@b.com")
+	delReq = withClaims(delReq, "u1", "tenant1", "role_admin", "a@b.com")
 	delRR := httptest.NewRecorder()
 	handler.Delete(delRR, delReq)
 
@@ -374,7 +387,7 @@ func TestCreateThenDeleteDomain_Integration(t *testing.T) {
 	// Verify domain is gone — attempting to delete again should 404.
 	delReq2 := httptest.NewRequest(http.MethodDelete, "/api/v1/domains/"+created.ID, nil)
 	delReq2.SetPathValue("id", created.ID)
-	delReq2 = withClaims(delReq2, "u1", "t1", "role_admin", "a@b.com")
+	delReq2 = withClaims(delReq2, "u1", "tenant1", "role_admin", "a@b.com")
 	delRR2 := httptest.NewRecorder()
 	handler.Delete(delRR2, delReq2)
 
