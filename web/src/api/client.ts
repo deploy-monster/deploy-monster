@@ -281,7 +281,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   //   optionally "total".
   if (json && typeof json === 'object' && 'data' in json && !('error' in json)) {
     const keys = Object.keys(json);
-    const isSimpleWrapper = keys.length <= 2; // {"data": ...} or {"data": ..., "total": N}
+    // Marketplace: {"data": [...], "categories": [...], ...} → keep as-is (marketplace
+    // needs categories too). Detect by checking for the 'categories' key.
+    // Common wrappers: {"data": [...]} or {"data": [...], "total": N}
+    const isSimpleWrapper = keys.length <= 2 && !('categories' in json);
     if (isSimpleWrapper) {
       return json.data as T;
     }

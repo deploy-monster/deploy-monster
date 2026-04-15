@@ -12,94 +12,93 @@ import { test, expect, type Page } from '@playwright/test';
  */
 
 async function mockMarketplace(page: Page) {
-  // Intercept the marketplace list API - matches any URL containing /api/v1/marketplace
-  // but NOT the deploy endpoint (which is handled separately).
-  await page.route('**/api/v1/marketplace**', async (route) => {
-    const url = route.request().url();
+  const MOCK_BODY = {
+    data: [
+      {
+        slug: 'ghost',
+        name: 'Ghost',
+        description: 'A modern publishing platform for professional bloggers.',
+        category: 'cms',
+        icon: '👻',
+        author: 'Ghost Foundation',
+        tags: ['blog', 'node', 'cms'],
+        version: '5.0.0',
+        featured: true,
+        verified: true,
+        compose_yaml: 'services:\n  ghost:\n    image: ghost:5\n',
+        config_schema: {
+          properties: {
+            database_password: { type: 'string', title: 'Database Password', secret: true },
+            admin_password: { type: 'string', title: 'Admin Password', secret: true },
+          },
+        },
+        min_resources: { cpu_mb: 256, memory_mb: 512, disk_mb: 1024 },
+      },
+      {
+        slug: 'grafana',
+        name: 'Grafana',
+        description: 'Analytics and interactive visualization web application.',
+        category: 'monitoring',
+        icon: '📊',
+        author: 'Grafana Labs',
+        tags: ['metrics', 'dashboard', 'prometheus'],
+        version: '10.2.0',
+        featured: false,
+        verified: true,
+        compose_yaml: 'services:\n  grafana:\n    image: grafana/grafana\n',
+        config_schema: {
+          properties: {
+            admin_password: { type: 'string', title: 'Admin Password', secret: true },
+          },
+        },
+        min_resources: { cpu_mb: 128, memory_mb: 256, disk_mb: 512 },
+      },
+      {
+        slug: 'postgres',
+        name: 'PostgreSQL',
+        description: 'Powerful, open source object-relational database system.',
+        category: 'database',
+        icon: '🐘',
+        author: 'PostgreSQL Global Dev Group',
+        tags: ['sql', 'relational'],
+        version: '16.1',
+        featured: true,
+        verified: true,
+        compose_yaml: 'services:\n  postgres:\n    image: postgres:16\n',
+        config_schema: {
+          properties: {
+            db_password: { type: 'string', title: 'Password', secret: true },
+          },
+        },
+        min_resources: { cpu_mb: 128, memory_mb: 256, disk_mb: 1024 },
+      },
+    ],
+    categories: ['cms', 'monitoring', 'database'],
+  };
+
+  // Intercept marketplace list requests (but not deploy).
+  await page.route(/\/api\/v1\/marketplace/, async (route) => {
+    const req = route.request();
+    const url = req.url();
+    // Don't mock the deploy endpoint.
     if (url.includes('/marketplace/deploy')) {
-      // Let deploy requests fall through to the next handler.
       await route.continue();
       return;
     }
-
-    if (route.request().method() === 'GET') {
-      await route.fulfill({
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: [
-            {
-              slug: 'ghost',
-              name: 'Ghost',
-              description: 'A modern publishing platform for professional bloggers.',
-              category: 'cms',
-              icon: '👻',
-              author: 'Ghost Foundation',
-              tags: ['blog', 'node', 'cms'],
-              version: '5.0.0',
-              featured: true,
-              verified: true,
-              compose_yaml: 'services:\n  ghost:\n    image: ghost:5\n',
-              config_schema: {
-                properties: {
-                  database_password: { type: 'string', title: 'Database Password', secret: true },
-                  admin_password: { type: 'string', title: 'Admin Password', secret: true },
-                },
-              },
-              min_resources: { cpu_mb: 256, memory_mb: 512, disk_mb: 1024 },
-            },
-            {
-              slug: 'grafana',
-              name: 'Grafana',
-              description: 'Analytics and interactive visualization web application.',
-              category: 'monitoring',
-              icon: '📊',
-              author: 'Grafana Labs',
-              tags: ['metrics', 'dashboard', 'prometheus'],
-              version: '10.2.0',
-              featured: false,
-              verified: true,
-              compose_yaml: 'services:\n  grafana:\n    image: grafana/grafana\n',
-              config_schema: {
-                properties: {
-                  admin_password: { type: 'string', title: 'Admin Password', secret: true },
-                },
-              },
-              min_resources: { cpu_mb: 128, memory_mb: 256, disk_mb: 512 },
-            },
-            {
-              slug: 'postgres',
-              name: 'PostgreSQL',
-              description: 'Powerful, open source object-relational database system.',
-              category: 'database',
-              icon: '🐘',
-              author: 'PostgreSQL Global Dev Group',
-              tags: ['sql', 'relational'],
-              version: '16.1',
-              featured: true,
-              verified: true,
-              compose_yaml: 'services:\n  postgres:\n    image: postgres:16\n',
-              config_schema: {
-                properties: {
-                  db_password: { type: 'string', title: 'Password', secret: true },
-                },
-              },
-              min_resources: { cpu_mb: 128, memory_mb: 256, disk_mb: 1024 },
-            },
-          ],
-          categories: ['cms', 'monitoring', 'database'],
-        }),
-      });
-      return;
-    }
-    await route.continue();
+    await route.fulfill({
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(MOCK_BODY),
+    });
   });
 
-  await page.route('**/api/v1/marketplace/deploy**', async (route) => {
-    if (route.request().method() === 'POST') {
+  // Separate handler for deploy POST.
+  await page.route(/\/api\/v1\/marketplace\/deploy/, async (route) => {
+    const req = route.request();
+    if (req.method() === 'POST') {
       await route.fulfill({
         status: 201,
-        contentType: 'application/json',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ app_id: 'e2e-marketplace-app' }),
       });
       return;

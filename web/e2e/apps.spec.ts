@@ -10,10 +10,9 @@ test.describe('Applications Page', () => {
   test('loads applications page', async ({ page }) => {
     await page.goto('/apps');
 
-    // Page header should be visible
-    await expect(page.getByRole('heading', { name: /application/i }).or(
-      page.getByText(/application/i).first()
-    )).toBeVisible({ timeout: 10_000 });
+    // Page header should be visible — use exact match to avoid strict mode violation
+    // (sidebar also has "Applications" text)
+    await expect(page.getByRole('heading', { name: 'Applications', exact: true })).toBeVisible({ timeout: 10_000 });
   });
 
   test('shows "Deploy New App" button', async ({ page }) => {

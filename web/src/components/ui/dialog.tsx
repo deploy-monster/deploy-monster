@@ -69,6 +69,8 @@ function DialogContent({
           className
         )}
         ref={ref}
+        role="dialog"
+        aria-modal="true"
         {...props}
       >
         {children}
