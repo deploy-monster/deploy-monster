@@ -29,6 +29,12 @@ async function mockMarketplace(page: Page) {
               featured: true,
               verified: true,
               min_resources: { memory_mb: 512 },
+              config_schema: {
+                properties: {
+                  database_password: { type: 'string', title: 'Database Password', secret: true },
+                  admin_password: { type: 'string', title: 'Admin Password', secret: true },
+                },
+              },
             },
             {
               slug: 'grafana',

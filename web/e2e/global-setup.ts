@@ -63,16 +63,10 @@ setup('authenticate', async ({ page }) => {
   }
 
   // Visit the SPA so the browser context matches what tests will see.
-  // Use networkidle instead of a URL regex: the prior negative-lookahead
-  // check silently passed when Suspense hung on `/`, masking real
-  // auth failures. networkidle fires when all chunks have loaded.
+  // networkidle fires when all chunks have loaded, then we wait for the
+  // greeting text to confirm auth initialization completed.
   await page.goto('/');
   await page.waitForLoadState('networkidle', { timeout: 15_000 });
-
-  // Wait for auth initialization to complete (FullPageLoader disappears)
-  await expect(page.locator('[data-testid="full-page-loader"]')).not.toBeVisible({
-    timeout: 10_000,
-  });
 
   // Confirm the dashboard shell rendered with greeting visible
   await expect(page.getByText(/good (morning|afternoon|evening)/i)).toBeVisible({

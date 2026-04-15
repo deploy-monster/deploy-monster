@@ -44,12 +44,6 @@ export async function registerViaUI(
 /** Navigate to a sidebar page and wait for it to load. */
 export async function navigateTo(page: Page, path: string) {
   await page.goto(path);
-  // Wait for the page to settle (no full-page loader visible)
-  await expect(page.locator('[data-testid="full-page-loader"]')).not.toBeVisible({
-    timeout: 10_000,
-  }).catch(() => {
-    // Loader may not exist on all pages
-  });
 }
 
 /** Assert that the page shows an error alert with the given text. */
