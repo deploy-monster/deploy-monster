@@ -1,23 +1,29 @@
 # DeployMonster — Project Status Report
 
-> **Date**: 2026-04-11
-> **Version**: v0.0.1 (initial public release, post-Phase 1–7 Tier 105)
+> **Date**: 2026-04-15
+> **Version**: v0.1.6
 > **Repository**: github.com/deploy-monster/deploy-monster
 
 ---
 
 ## Executive Summary
 
-DeployMonster v0.0.1 is the first public release after the Phase 1–6 audit and the 105-tier hardening sweep. Phases 1 through 5 (critical fixes, core completion, hardening, testing, performance + Postgres) are complete; Phase 6 (documentation and developer experience) is 100% complete; Phase 7 (release preparation) is in flight. The 20 Dependabot alerts that were flagged as a v1.0 blocker are down to 3 (all upstream-blocked, documented as accepted risk). Every number in this file is measured against HEAD, not the pre-audit aspirational numbers from the v1.4.0 era.
+DeployMonster v0.1.6 is the latest release after the comprehensive UX overhaul. Three major phases are complete:
+
+1. **Phase 1: Marketplace Overhaul** — Templates now have icons, config schemas, and dynamic forms. New TemplateDetail page at `/marketplace/:slug`.
+2. **Phase 2: Modal/Dialog → Sheet + AlertDialog** — All `window.confirm()` eliminated. Complex forms use slide-over Sheet panels.
+3. **Phase 3: Topology Fixes** — Zustand single-source-of-truth, ConfigPanel widened, empty state for 0-node topology.
+
+E2E test fixes: marketplace deploy dialog selectors corrected, broken loader waits removed from global-setup.ts and helpers.ts.
 
 ## Key Metrics
 
 | Metric | Value |
 |--------|-------|
-| Total LOC (source + tests + web) | ~188K |
+| Total LOC (source + tests + web) | ~190K |
 | Go Source | ~50K LOC |
 | Go Tests | ~117K LOC |
-| React / TS / CSS | ~22K LOC |
+| React / TS / CSS | ~23K LOC |
 | API Endpoints | 240 |
 | API Handler functions | 222 |
 | Modules | 20 |
@@ -25,39 +31,47 @@ DeployMonster v0.0.1 is the first public release after the Phase 1–6 audit and
 | Test Coverage | 85%+ (CI-enforced gate) |
 | Fuzz Targets | 15 |
 | Benchmarks | 46 |
-| Binary Size | ~24MB stripped, single static binary with embedded UI |
+| Binary Size | ~23MB stripped, single static binary with embedded UI |
 | Repository | github.com/deploy-monster/deploy-monster |
 
-## Test Results (Tier 91, 2026-04-11)
+## Test Results (2026-04-15)
 
-- Go: `go test -short ./...` green across every package
-- React: 341 vitest tests pass (38 files)
+- Go: `go test ./...` — 5184 tests pass, 42 packages
+- React: Vitest tests pass (38 files)
 - Integration: SQLite + Postgres contract suites both green
-- Fuzz: 15 targets (see `make bench`)
+- Fuzz: 15 targets
 - Benchmarks: 46 targets
-- Coverage gate: 85% in CI (`.github/workflows/ci.yml`), hard fail on regression
-- Soak harness: 24h soak runner + 5m CI smoke both green
-- Loadtest regression gate: 10% p95 threshold against committed baseline
 
-## What v0.0.1 ships
+## v0.1.6 Changelog
 
-- 105 tiers of lifecycle, context-cancellation, replay, and DoS hardening (see `docs/security-audit.md`)
-- `internal/db/migrations/0002_add_indexes.sql` — 30+ indexes on hot query paths
-- Argon2id + AES-256-GCM vault with per-install random salt and legacy-salt migration path
-- Prometheus runtime-metric block on `/metrics/api`
-- Loadtest baseline regression gate + 24-hour soak harness
-- OpenAPI drift checker gated in CI (`make openapi-check`)
-- Two new ADRs: 0008 (encryption-key strategy) and 0009 (store-interface composition)
-- Upgrade guide with per-version compatibility matrix (v0.1.0 → HEAD)
-- 17 Dependabot alerts closed (otel 1.42 → 1.43, vite 8.0.3 → 8.0.8, lodash pin, vite@7 transitive pin)
+### Marketplace
+- Added icons and config_schema to 12 templates (Ghost, Grafana, WordPress, n8n, Portainer, Immich, Jellyfin, Open WebUI, Ollama, Uptime Kuma, Plausible, Umami)
+- Dynamic config form generation from `config_schema` properties
+- New TemplateDetail page at `/marketplace/:slug` with services list, resource requirements, compose preview
+- Featured templates horizontal scroll section
+- Deploy dialog → Sheet component for wider form area
 
-## Outstanding (blocking v0.0.1 final)
+### Dialog/Modal System
+- New `Sheet` component — slide-over panel from right (`max-w-xl`)
+- New `AlertDialog` component — confirmation dialogs with `default` | `destructive` variants
+- Eliminated all 6 `window.confirm()` calls:
+  - Apps (delete), AppDetail (delete), Domains (delete)
+  - GitSources (disconnect), Secrets (delete), Team (remove member)
+- Converted complex create forms from Dialog to Sheet:
+  - Servers (4 providers, regions, sizes)
+  - Databases (5 engines, versions)
+  - GitSources (token auth)
 
-- Phase 7.2 — `goreleaser release --snapshot --clean` full-pipeline validation
-- Phase 7.3 — smoke-test on fresh Ubuntu 24.04 VM
-- Phase 7.4 — CHANGELOG.md from Phase 1–7 delta
-- Phase 7.5 — Installer dry-run on fresh VPS
-- Phase 7.6 — GHCR image push + scan
-- Phase 7.7 — announcement coordination (non-code)
+### Topology
+- Fixed ReactFlow/Zustand state sync: removed `useNodesState`/`useEdgesState` dual-state pattern
+- Zustand store is now single source of truth for nodes and edges
+- Added `updateNodePosition` action for proper drag-sync
+- ConfigPanel widened from `w-72` (288px) to `w-96` (384px)
+- Empty state for 0-node topology with "Start with a template" button
 
-See `.project/ROADMAP.md` Phase 7 for item-level tracking.
+### E2E Tests
+- Fixed marketplace deploy dialog password field selectors (added config_schema to mock Ghost)
+- Removed dead `[data-testid="full-page-loader"]` wait from helpers.ts and global-setup.ts
+
+### Auth
+- Cookie path changed from `/api` to `/` with SameSite=None for cross-site compatibility

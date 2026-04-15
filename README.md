@@ -17,7 +17,13 @@ Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 
 </div>
 
-> **Status:** v0.1.3 released — Production ready! 88.4% test coverage, 240 REST API endpoints, React 19 frontend, comprehensive security audit complete.
+> **Status:** v0.1.6 released — Comprehensive UX overhaul. Dynamic marketplace templates, Sheet-based forms, AlertDialog confirmations, fixed topology state sync.
+
+[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Coverage](https://img.shields.io/badge/Coverage-88.4%25-brightgreen)](.)
+[![Version](https://img.shields.io/badge/v0.1.6-Release-brightgreen)](./)
 
 ---
 
@@ -25,7 +31,7 @@ Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 
 ```bash
 # One-line install
-curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.3/scripts/install.sh | bash -s -- --version=v0.1.3
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.6/scripts/install.sh | bash -s -- --version=v0.1.6
 
 # Interactive setup (domain, SSL, admin credentials)
 deploymonster setup
