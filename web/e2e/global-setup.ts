@@ -44,12 +44,23 @@ setup('authenticate', async ({ page }) => {
   await expect(page).toHaveURL(/^(?!.*\/login)(?!.*\/register).+/);
 
   // Sanity check: cookies must actually authenticate against /me.
-  const meRes = await page.request.get('/api/v1/auth/me');
-  if (!meRes.ok()) {
+  // Use retry loop to handle rate limiting (100 req/min per tenant).
+  let meRes: Awaited<ReturnType<typeof page.request.get>> | null = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    meRes = await page.request.get('/api/v1/auth/me');
+    if (meRes.ok()) break;
+    if (meRes.status() === 429) {
+      // Rate limited — wait 2 seconds and retry
+      await page.waitForTimeout(2_000);
+      continue;
+    }
+    break;
+  }
+  if (!meRes?.ok()) {
     const cookies = await page.context().cookies();
-    const body = await meRes.text().catch(() => '<unreadable>');
+    const body = await meRes?.text().catch(() => '<unreadable>');
     throw new Error(
-      `e2e setup: /api/v1/auth/me returned ${meRes.status()} after login; ` +
+      `e2e setup: /api/v1/auth/me returned ${meRes?.status()} after login; ` +
         `cookies=${JSON.stringify(cookies)}; body=${body}`,
     );
   }

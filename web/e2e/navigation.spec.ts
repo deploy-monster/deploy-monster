@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Navigation & page loading E2E tests.
@@ -6,6 +6,22 @@ import { test, expect } from '@playwright/test';
  * Verifies all protected routes load without errors for an authenticated user.
  * Tests the sidebar navigation, page transitions, and basic rendering.
  */
+
+/**
+ * Fail fast when the login page is shown — auth session expired or rate-limited.
+ * Avoids 10-second timeout waiting for dashboard-shell.
+ */
+async function expectAuthenticated(page: Page, url: string) {
+  // Check for login page elements (rendered alongside marketing content when unauthenticated)
+  const loginText = page.getByText(/welcome back|sign in to your account/i);
+  const isLoginVisible = await loginText.isVisible({ timeout: 500 }).catch(() => false);
+  if (isLoginVisible) {
+    throw new Error(
+      `Auth failed for ${url}: login page is shown — session may be expired or rate-limited`,
+    );
+  }
+  await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
+}
 
 const ROUTES = [
   { path: '/', name: 'Dashboard' },
@@ -30,10 +46,8 @@ test.describe('Page Navigation', () => {
     test(`${route.name} page loads without error (${route.path})`, async ({ page }) => {
       await page.goto(route.path);
 
-      // Wait for the dashboard shell to render (confirms auth succeeded).
-      // Using a negative URL check races against the SPA's auth initialization —
-      // the page might briefly be at /login before the auth check completes.
-      await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
+      // Auth check — fails fast if session expired (shows login page instead of dashboard).
+      await expectAuthenticated(page, route.path);
 
       // Should not show 404
       await expect(page.getByText(/page not found/i)).not.toBeVisible().catch(() => {
@@ -73,12 +87,12 @@ test.describe('404 Page', () => {
 test.describe('Settings Page', () => {
   test('loads with profile tab', async ({ page }) => {
     await page.goto('/settings');
-    await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
+    await expectAuthenticated(page, '/settings');
   });
 
   test('has theme toggle', async ({ page }) => {
     await page.goto('/settings');
-    await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
+    await expectAuthenticated(page, '/settings');
 
     // Look for appearance/theme section
     const themeSection = page.getByText(/theme|appearance|dark mode/i);
@@ -89,7 +103,7 @@ test.describe('Settings Page', () => {
 test.describe('Team Page', () => {
   test('loads team management page', async ({ page }) => {
     await page.goto('/team');
-    await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
+    await expectAuthenticated(page, '/team');
 
     // Team page should show members or invite section
     const teamContent = page.getByText(/team|member|invite/i);
@@ -100,7 +114,7 @@ test.describe('Team Page', () => {
 test.describe('Secrets Page', () => {
   test('loads secrets page', async ({ page }) => {
     await page.goto('/secrets');
-    await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
+    await expectAuthenticated(page, '/secrets');
 
     // Secrets page should render
     const secretsContent = page.getByText(/secret|vault|variable/i);

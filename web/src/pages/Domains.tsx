@@ -87,7 +87,9 @@ export function Domains() {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery);
   const [deleteDomainId, setDeleteDomainId] = useState<string | null>(null);
-  const pendingDeleteDomain = (domains || []).find((d) => d.id === deleteDomainId);
+  // Defensive: ensure domains is always an array (handles API response edge cases)
+  const domainList: Domain[] = Array.isArray(domains) ? domains : [];
+  const pendingDeleteDomain = domainList.find((d) => d.id === deleteDomainId);
 
   const handleAdd = async () => {
     if (!newFQDN) return;
@@ -131,7 +133,7 @@ export function Domains() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const list = domains || [];
+  const list = domainList;
   const filtered = useMemo(() => debouncedSearch
     ? list.filter((d) => d.fqdn.toLowerCase().includes(debouncedSearch.toLowerCase()))
     : list, [list, debouncedSearch]);
