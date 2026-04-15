@@ -12,11 +12,20 @@ import { test, expect, type Page } from '@playwright/test';
  */
 
 async function mockMarketplace(page: Page) {
-  await page.route('**/api/v1/marketplace**', async (route, request) => {
-    if (request.method() === 'GET') {
+  // Intercept the marketplace list API - matches any URL containing /api/v1/marketplace
+  // but NOT the deploy endpoint (which is handled separately).
+  await page.route('**/api/v1/marketplace**', async (route) => {
+    const url = route.request().url();
+    if (url.includes('/marketplace/deploy')) {
+      // Let deploy requests fall through to the next handler.
+      await route.continue();
+      return;
+    }
+
+    if (route.request().method() === 'GET') {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: [
             {
@@ -24,39 +33,58 @@ async function mockMarketplace(page: Page) {
               name: 'Ghost',
               description: 'A modern publishing platform for professional bloggers.',
               category: 'cms',
+              icon: '👻',
+              author: 'Ghost Foundation',
               tags: ['blog', 'node', 'cms'],
               version: '5.0.0',
               featured: true,
               verified: true,
-              min_resources: { memory_mb: 512 },
+              compose_yaml: 'services:\n  ghost:\n    image: ghost:5\n',
               config_schema: {
                 properties: {
                   database_password: { type: 'string', title: 'Database Password', secret: true },
                   admin_password: { type: 'string', title: 'Admin Password', secret: true },
                 },
               },
+              min_resources: { cpu_mb: 256, memory_mb: 512, disk_mb: 1024 },
             },
             {
               slug: 'grafana',
               name: 'Grafana',
               description: 'Analytics and interactive visualization web application.',
               category: 'monitoring',
+              icon: '📊',
+              author: 'Grafana Labs',
               tags: ['metrics', 'dashboard', 'prometheus'],
               version: '10.2.0',
               featured: false,
               verified: true,
-              min_resources: { memory_mb: 256 },
+              compose_yaml: 'services:\n  grafana:\n    image: grafana/grafana\n',
+              config_schema: {
+                properties: {
+                  admin_password: { type: 'string', title: 'Admin Password', secret: true },
+                },
+              },
+              min_resources: { cpu_mb: 128, memory_mb: 256, disk_mb: 512 },
             },
             {
               slug: 'postgres',
               name: 'PostgreSQL',
               description: 'Powerful, open source object-relational database system.',
               category: 'database',
+              icon: '🐘',
+              author: 'PostgreSQL Global Dev Group',
               tags: ['sql', 'relational'],
               version: '16.1',
               featured: true,
               verified: true,
-              min_resources: { memory_mb: 256 },
+              compose_yaml: 'services:\n  postgres:\n    image: postgres:16\n',
+              config_schema: {
+                properties: {
+                  db_password: { type: 'string', title: 'Password', secret: true },
+                },
+              },
+              min_resources: { cpu_mb: 128, memory_mb: 256, disk_mb: 1024 },
             },
           ],
           categories: ['cms', 'monitoring', 'database'],
@@ -67,8 +95,8 @@ async function mockMarketplace(page: Page) {
     await route.continue();
   });
 
-  await page.route('**/api/v1/marketplace/deploy', async (route, request) => {
-    if (request.method() === 'POST') {
+  await page.route('**/api/v1/marketplace/deploy**', async (route) => {
+    if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
@@ -99,9 +127,9 @@ test.describe('Marketplace', () => {
     await expect(page.getByText('Grafana').first()).toBeVisible();
     await expect(page.getByText('PostgreSQL').first()).toBeVisible();
 
-    // Each card has a "Deploy" button — there should be at least 3.
+    // Each card has a "Deploy" button — 3 in the grid + 2 in featured = 5 total.
     const deployButtons = page.getByRole('button', { name: /^deploy$/i });
-    await expect(deployButtons).toHaveCount(3);
+    await expect(deployButtons).toHaveCount(5);
   });
 
   test('search filters the template grid by name', async ({ page }) => {
@@ -142,6 +170,7 @@ test.describe('Marketplace', () => {
     // Click the first template's Deploy button.
     await page.getByRole('button', { name: /^deploy$/i }).first().click();
 
+    // Deploy form uses a Sheet (slide-over panel), not a Dialog.
     await expect(
       page.getByRole('heading', { name: /deploy ghost/i })
     ).toBeVisible({ timeout: 5_000 });
@@ -157,14 +186,16 @@ test.describe('Marketplace', () => {
     await expect(page.getByText('Ghost').first()).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: /^deploy$/i }).first().click();
 
-    const dialog = page.getByRole('dialog');
-    await dialog.getByLabel(/stack name/i).fill('e2e-ghost-stack');
+    // Sheet renders as a fixed panel on the right side.
+    // The SheetContent div has max-w-xl class.
+    const sheet = page.locator('[class*="max-w-xl"]').filter({ hasText: /deploy ghost/i }).first();
+    await sheet.getByLabel(/stack name/i).fill('e2e-ghost-stack');
 
     const req = page.waitForRequest(
       (r) => r.url().endsWith('/api/v1/marketplace/deploy') && r.method() === 'POST',
       { timeout: 10_000 }
     );
-    await dialog.getByRole('button', { name: /^deploy$/i }).click();
+    await sheet.getByRole('button', { name: /^deploy$/i }).click();
     const request = await req;
 
     const body = request.postDataJSON() as Record<string, unknown>;

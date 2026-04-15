@@ -30,8 +30,10 @@ test.describe('Page Navigation', () => {
     test(`${route.name} page loads without error (${route.path})`, async ({ page }) => {
       await page.goto(route.path);
 
-      // Should not redirect to login (authenticated)
-      await expect(page).not.toHaveURL(/\/login/, { timeout: 10_000 });
+      // Wait for the dashboard shell to render (confirms auth succeeded).
+      // Using a negative URL check races against the SPA's auth initialization —
+      // the page might briefly be at /login before the auth check completes.
+      await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
 
       // Should not show 404
       await expect(page.getByText(/page not found/i)).not.toBeVisible().catch(() => {
@@ -71,13 +73,12 @@ test.describe('404 Page', () => {
 test.describe('Settings Page', () => {
   test('loads with profile tab', async ({ page }) => {
     await page.goto('/settings');
-
-    // Settings page should show tabs or sections
-    await expect(page).not.toHaveURL(/\/login/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
   });
 
   test('has theme toggle', async ({ page }) => {
     await page.goto('/settings');
+    await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
 
     // Look for appearance/theme section
     const themeSection = page.getByText(/theme|appearance|dark mode/i);
@@ -88,8 +89,7 @@ test.describe('Settings Page', () => {
 test.describe('Team Page', () => {
   test('loads team management page', async ({ page }) => {
     await page.goto('/team');
-
-    await expect(page).not.toHaveURL(/\/login/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
 
     // Team page should show members or invite section
     const teamContent = page.getByText(/team|member|invite/i);
@@ -100,8 +100,7 @@ test.describe('Team Page', () => {
 test.describe('Secrets Page', () => {
   test('loads secrets page', async ({ page }) => {
     await page.goto('/secrets');
-
-    await expect(page).not.toHaveURL(/\/login/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
 
     // Secrets page should render
     const secretsContent = page.getByText(/secret|vault|variable/i);

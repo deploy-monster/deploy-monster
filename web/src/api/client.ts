@@ -273,9 +273,18 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const json = await response.json();
 
-  // Unwrap {data: ...} responses for array types
+  // Unwrap {data: ...} responses — but only when it's a simple list wrapper.
+  // Common pattern: {"data": [...], "total": N} → unwrap to the array.
+  // Marketplace pattern: {"data": [...], "categories": [...], "total": N} →
+  //   keep as-is (caller needs all keys).  We detect this by checking if the
+  //   response has more than 2 keys — the common wrapper has only "data" and
+  //   optionally "total".
   if (json && typeof json === 'object' && 'data' in json && !('error' in json)) {
-    return json.data as T;
+    const keys = Object.keys(json);
+    const isSimpleWrapper = keys.length <= 2; // {"data": ...} or {"data": ..., "total": N}
+    if (isSimpleWrapper) {
+      return json.data as T;
+    }
   }
 
   return json as T;

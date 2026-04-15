@@ -45,6 +45,13 @@ export function __resetInitStateForTests(): void {
   initPromise = null;
 }
 
+interface MeResponse {
+  user: { id: string; email: string; name: string; role?: string };
+  membership: { role_id: string; tenant_id: string };
+  role_id: string;
+  tenant_id: string;
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
@@ -77,9 +84,16 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     initPromise = (async () => {
       try {
-        // Try to fetch current user — if cookies are valid, this succeeds
-        const user = await api.get<User>('/auth/me');
-        if (user && user.id) {
+        // Backend /me returns { user, membership, role_id, tenant_id }
+        const resp = await api.get<MeResponse>('/auth/me');
+        if (resp?.user?.id) {
+          const user: User = {
+            id: resp.user.id,
+            email: resp.user.email,
+            name: resp.user.name,
+            role: resp.role_id || resp.membership?.role_id || '',
+            tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
+          };
           set({ user, isAuthenticated: true, isLoading: false });
           return;
         }

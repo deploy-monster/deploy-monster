@@ -248,7 +248,7 @@ export function Dashboard() {
   };
 
   return (
-    <div data-testid="dashboard-shell" className="space-y-8">
+    <div className="space-y-8">
       {/* Announcement Banner */}
       {announcements.length > 0 && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">

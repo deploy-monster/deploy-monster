@@ -20,11 +20,11 @@ test.describe('Dashboard', () => {
     await page.goto('/');
 
     // Wait for stat cards to load (should have 5 cards)
-    await expect(page.getByText('Applications')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('Running')).toBeVisible();
-    await expect(page.getByText('Containers')).toBeVisible();
-    await expect(page.getByText('Domains')).toBeVisible();
-    await expect(page.getByText('Projects')).toBeVisible();
+    await expect(page.getByText('Applications').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Running').first()).toBeVisible();
+    await expect(page.getByText('Containers').first()).toBeVisible();
+    await expect(page.getByText('Domains').first()).toBeVisible();
+    await expect(page.getByText('Projects').first()).toBeVisible();
   });
 
   test('displays quick action cards', async ({ page }) => {
@@ -72,7 +72,7 @@ test.describe('Dashboard', () => {
   test('shows activity feed section', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.getByText('Activity')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Activity').first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('has working search input', async ({ page }) => {

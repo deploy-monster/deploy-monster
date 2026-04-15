@@ -35,6 +35,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
 
+  // Always show loading while auth is initializing — this prevents
+  // React 19 StrictMode's double-mount from rendering <Navigate>
+  // before the async initialize() from the first mount resolves.
+  // Without this guard, StrictMode resets state to initial values
+  // on the second mount, causing a premature redirect to /login.
   if (isLoading) {
     return <FullPageLoader />;
   }
