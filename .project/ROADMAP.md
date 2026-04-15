@@ -1,9 +1,9 @@
 # DeployMonster — Production Roadmap
 
-> **Audit Date**: 2026-04-14  
-> **HEAD Commit**: `a894b78` (security documentation update)  
-> **Current Version**: v0.0.2  
-> **Target**: v0.1.0 Production Release  
+> **Audit Date**: 2026-04-15
+> **HEAD Commit**: `bba5185` (docs: update STATUS.md and README for v0.1.6)
+> **Current Version**: v0.1.6
+> **Target**: v1.0.0 Production Release  
 > **Companion Documents**: `.project/ANALYSIS.md`, `.project/PRODUCTIONREADY.md`  
 
 ---
@@ -70,12 +70,18 @@ DeployMonster v0.0.2 is a **feature-complete, security-hardened PaaS platform** 
     - Updated `helpers.ts` to use reliable test IDs
   - **Verification**: `make test-e2e` passes locally ✅
 
-- [ ] **2.2 Remove continue-on-error** (0.25 days)
+- [x] **2.2 Fix E2E Test Selectors** (2026-04-15) ✅
+  - **Issue**: Marketplace deploy dialog expected password fields but mock template had no `config_schema`
+  - **Fix**: Added `config_schema` to mock Ghost template with database_password and admin_password
+  - **Removed**: Dead `[data-testid="full-page-loader"]` waits from `global-setup.ts` and `helpers.ts`
+  - **Verification**: E2E TypeScript compiles, selectors match current UI
+
+- [ ] **2.3 Remove continue-on-error** (0.25 days)
   - **Location**: `.github/workflows/ci.yml`
-  - **Action**: Remove `continue-on-error: true` from E2E job
+  - **Action**: Remove `continue-on-error: true` from E2E job after CI validation
   - **Verification**: E2E failures block merge
 
-- [ ] **2.3 Add Critical Path E2E Tests** (1 day)
+- [ ] **2.4 Add Critical Path E2E Tests** (1 day)
   - **Coverage**: Login → Create App → Deploy → Verify
   - **Framework**: Playwright
   - **Verification**: Tests run in CI
@@ -193,44 +199,80 @@ DeployMonster v0.0.2 is a **feature-complete, security-hardened PaaS platform** 
 
 ---
 
-## Phase 7: Post-Release (Week 4+)
+## Phase 8: UX Overhaul (v0.1.6) — ✅ COMPLETE
+
+**Goal**: Fix marketplace emptiness, modal confusion, and topology state sync issues
+
+### Phase 8.1: Marketplace — Icons, Config Schemas, Dynamic Forms
+
+- [x] Added `icon`, `config_schema`, `compose_yaml` to 12 featured templates
+- [x] Dynamic config form generation from `config_schema.properties`
+- [x] Fallback: parse `${VAR:-default}` patterns from compose YAML
+- [x] New TemplateDetail page at `/marketplace/:slug`
+  - Services list, resource requirements, compose preview, deploy form
+- [x] Featured templates horizontal scroll section on marketplace page
+- [x] Deploy form converted from `sm:max-w-md` Dialog → Sheet
+
+### Phase 8.2: Sheet + AlertDialog Components
+
+- [x] Created `Sheet` component (slide-over panel from right)
+- [x] Created `AlertDialog` component with `default` | `destructive` variants
+- [x] Eliminated all 6 `window.confirm()` calls (Apps, AppDetail, Domains, GitSources, Secrets, Team)
+- [x] Converted complex create forms to Sheet: Servers, Databases, GitSources
+
+### Phase 8.3: Topology State Sync Fix
+
+- [x] Removed `useNodesState`/`useEdgesState` dual-state pattern
+- [x] Zustand store is now single source of truth
+- [x] Added `updateNodePosition` action for drag-sync
+- [x] ConfigPanel widened from `w-72` (288px) to `w-96` (384px)
+- [x] Empty state for 0-node topology
+
+### Phase 8.4: E2E Test Fixes
+
+- [x] Marketplace deploy dialog selectors fixed (config_schema in mock)
+- [x] Broken loader waits removed from global-setup.ts and helpers.ts
+
+---
+
+## Phase 9: Production Readiness (Future)
 
 ### P2 — Observability
 
-- [ ] **7.1 Production Monitoring** (Ongoing)
+- [ ] **9.1 Production Monitoring** (Ongoing)
   - **Track**: Error rates, latency, resource usage
   - **Alert**: PagerDuty/Opsgenie integration
 
-- [ ] **7.2 User Feedback Collection** (Ongoing)
+- [ ] **9.2 User Feedback Collection** (Ongoing)
   - **Channel**: GitHub issues, Discord
   - **Track**: Feature requests, bug reports
 
 ### P3 — Future Enhancements
 
-- [ ] **7.3 Horizontal Pod Autoscaler** (Future)
+- [ ] **9.3 Horizontal Pod Autoscaler** (Future)
   - **Feature**: Auto-scale based on CPU/memory
 
-- [ ] **7.4 GitOps Integration** (Future)
+- [ ] **9.4 GitOps Integration** (Future)
   - **Feature**: ArgoCD/Flux compatibility
 
-- [ ] **7.5 Multi-Region Support** (Future)
+- [ ] **9.5 Multi-Region Support** (Future)
   - **Feature**: Geographic distribution
 
 ---
 
 ## Effort Summary
 
-| Phase | Estimated Days | Priority | Dependencies |
-|-------|----------------|----------|--------------|
-| Phase 1: Critical Fixes | 2 | P0 | None |
-| Phase 2: E2E Tests | 3.25 | P1 | Phase 1 |
-| Phase 3: Performance | 2 | P1 | Phase 1 |
-| Phase 4: Documentation | 4 | P2 | None |
-| Phase 5: Hardening | 3 | P1 | Phase 1 |
-| Phase 6: Release | 1.5 | P0 | Phase 1-5 |
-| Phase 7: Post-Release | Ongoing | P2 | Phase 6 |
-| **Total Critical Path** | **~12 days** | | |
-| **Total with P2** | **~16 days** | | |
+| Phase | Estimated Days | Priority | Status |
+|-------|----------------|----------|--------|
+| Phase 1: Critical Fixes | 2 | P0 | ✅ Complete |
+| Phase 2: E2E Tests | 3.25 | P1 | ✅ Selector fixes done |
+| Phase 3: Performance | 2 | P1 | Pending CI runner baseline |
+| Phase 4: Documentation | 4 | P2 | In progress |
+| Phase 5: Hardening | 3 | P1 | Pending |
+| Phase 6: Release | 1.5 | P0 | Pending |
+| Phase 7: Post-Release | Ongoing | P2 | Pending |
+| Phase 8: UX Overhaul | ~2 | P0 | ✅ Complete (v0.1.6) |
+| Phase 9: Production | Ongoing | P2 | Future |
 
 ---
 
@@ -246,7 +288,7 @@ DeployMonster v0.0.2 is a **feature-complete, security-hardened PaaS platform** 
 
 ---
 
-## Success Criteria for v0.1.0
+## Success Criteria for v1.0.0
 
 - [ ] All tests passing (unit, integration, E2E)
 - [ ] 85%+ test coverage maintained
@@ -255,6 +297,7 @@ DeployMonster v0.0.2 is a **feature-complete, security-hardened PaaS platform** 
 - [ ] Documentation complete
 - [ ] Release artifacts published
 - [ ] No P0 or P1 bugs open
+- [x] UX overhaul complete (v0.1.6)
 
 ---
 
@@ -263,5 +306,8 @@ DeployMonster v0.0.2 is a **feature-complete, security-hardened PaaS platform** 
 | Blocker | Status | Resolution |
 |---------|--------|------------|
 | WebSocket test failure | ✅ **RESOLVED** | Phase 1.1 complete |
-| E2E test drift | ✅ **RESOLVED** | Phase 2.1 complete |
+| E2E test drift | ✅ **RESOLVED** | Phase 2.1 + 2.2 complete |
 | Docker CVEs (upstream) | 🟡 **MONITORING** | Monitor upstream v29+ |
+| Marketplace empty templates | ✅ **RESOLVED** | Phase 8.1 complete (v0.1.6) |
+| Modal confusion | ✅ **RESOLVED** | Phase 8.2 complete (v0.1.6) |
+| Topology state sync | ✅ **RESOLVED** | Phase 8.3 complete (v0.1.6) |
