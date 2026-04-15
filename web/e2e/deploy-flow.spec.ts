@@ -34,9 +34,10 @@ test.describe('Deploy Wizard', () => {
     ).toBeVisible({ timeout: 10_000 });
 
     // Three step pills: Source / Configure / Review.
-    await expect(page.getByText('Source')).toBeVisible();
-    await expect(page.getByText('Configure')).toBeVisible();
-    await expect(page.getByText('Review')).toBeVisible();
+    // Use .first() to avoid strict mode violation — "Source" also appears in sidebar "Git Sources" link.
+    await expect(page.getByText('Source').first()).toBeVisible();
+    await expect(page.getByText('Configure').first()).toBeVisible();
+    await expect(page.getByText('Review').first()).toBeVisible();
 
     // The New Deployment badge is part of the header.
     await expect(page.getByText(/new deployment/i)).toBeVisible();
