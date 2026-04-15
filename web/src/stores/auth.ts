@@ -38,7 +38,12 @@ function userFromTokenResponse(pair: TokenPair): User | null {
   }
 }
 
-let initGuard = false;
+let initPromise: Promise<void> | null = null;
+
+/** Test-only reset for the initialization singleton state. */
+export function __resetInitStateForTests(): void {
+  initPromise = null;
+}
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
@@ -65,22 +70,25 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   initialize: async () => {
-    // Prevent double initialization in React 19 StrictMode (dev-only double-invoke)
-    if (initGuard) {
-      set({ isLoading: false });
-      return;
+    // Prevent double initialization in React 19 StrictMode - reuse same promise
+    if (initPromise) {
+      return initPromise;
     }
-    initGuard = true;
-    try {
-      // Try to fetch current user — if cookies are valid, this succeeds
-      const user = await api.get<User>('/auth/me');
-      if (user && user.id) {
-        set({ user, isAuthenticated: true, isLoading: false });
-        return;
+
+    initPromise = (async () => {
+      try {
+        // Try to fetch current user — if cookies are valid, this succeeds
+        const user = await api.get<User>('/auth/me');
+        if (user && user.id) {
+          set({ user, isAuthenticated: true, isLoading: false });
+          return;
+        }
+      } catch {
+        // Not authenticated or cookies expired
       }
-    } catch {
-      // Not authenticated or cookies expired
-    }
-    set({ isLoading: false });
+      set({ user: null, isAuthenticated: false, isLoading: false });
+    })();
+
+    return initPromise;
   },
 }));

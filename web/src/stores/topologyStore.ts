@@ -85,6 +85,14 @@ export const useTopologyStore = create<TopologyStore>((set, get) => ({
       isDirty: true,
     })),
 
+  updateNodePosition: (id, position) =>
+    set((state) => ({
+      nodes: state.nodes.map((node) =>
+        node.id === id ? { ...node, position } : node
+      ) as TopologyNode[],
+      isDirty: true,
+    })),
+
   removeNode: (id) =>
     set((state) => {
       // Simply remove the node - volumes remain independent

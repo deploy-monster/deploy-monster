@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
+import { AlertDialog } from '@/components/ui/alert-dialog';
 
 // ---------------------------------------------------------------------------
 // Scope configuration with colors
@@ -132,14 +133,7 @@ export function Secrets() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this secret? This action cannot be undone.')) return;
-    try {
-      await secretsAPI.delete(id);
-      toast.success('Secret deleted');
-      refetch();
-    } catch {
-      toast.error('Failed to delete secret');
-    }
+    setDeleteSecretId(id);
   };
 
   const handleCopyRef = (secretName: string, id: string) => {
@@ -161,6 +155,9 @@ export function Secrets() {
     acc[s.scope] = (acc[s.scope] || 0) + 1;
     return acc;
   }, {});
+
+  const [deleteSecretId, setDeleteSecretId] = useState<string | null>(null);
+  const pendingDeleteSecret = list.find((s) => s.id === deleteSecretId);
 
   return (
     <div className="space-y-8">
@@ -448,6 +445,29 @@ export function Secrets() {
           </p>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deleteSecretId !== null}
+        onOpenChange={(open) => !open && setDeleteSecretId(null)}
+        title="Delete Secret"
+        description={`Delete "${pendingDeleteSecret?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={async () => {
+          if (!deleteSecretId) return;
+          try {
+            await secretsAPI.delete(deleteSecretId);
+            toast.success('Secret deleted');
+            refetch();
+          } catch {
+            toast.error('Failed to delete secret');
+          } finally {
+            setDeleteSecretId(null);
+          }
+        }}
+      />
     </div>
   );
 }

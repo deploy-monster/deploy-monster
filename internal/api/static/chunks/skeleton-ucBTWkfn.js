@@ -1,1 +1,0 @@
-import"./rolldown-runtime-CWGsULFf.js";import{C as e,u as t}from"./vendor-react-DyMT-1cu.js";import{r as n}from"./button-Cmi7b7sn.js";e();var r=t();function i({className:e,ref:t,...i}){return(0,r.jsx)(`div`,{className:n(`bg-muted animate-pulse rounded-md`,e),ref:t,...i})}export{i as t};

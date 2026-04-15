@@ -19,12 +19,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from '@/components/ui/dialog';
+  Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription, SheetBody,
+} from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
+import { AlertDialog } from '@/components/ui/alert-dialog';
 
 // ---------------------------------------------------------------------------
 // Provider configuration with colors
@@ -139,14 +140,7 @@ export function GitSources() {
   };
 
   const handleDisconnect = async (id: string) => {
-    if (!confirm('Disconnect this Git provider?')) return;
-    try {
-      await gitSourcesAPI.disconnect(id);
-      toast.success('Provider disconnected');
-      refetch();
-    } catch {
-      toast.error('Failed to disconnect provider');
-    }
+    setDisconnectId(id);
   };
 
   const closeDialog = () => {
@@ -161,6 +155,8 @@ export function GitSources() {
 
   const list = providers || [];
   const connectedCount = list.filter((p) => p.connected).length;
+  const [disconnectId, setDisconnectId] = useState<string | null>(null);
+  const pendingDisconnect = list.find((p) => p.id === disconnectId);
 
   return (
     <div className="space-y-8">
@@ -192,11 +188,11 @@ export function GitSources() {
         <div className="pointer-events-none absolute -left-8 -bottom-8 size-48 rounded-full bg-primary/3 blur-2xl" />
       </div>
 
-      {/* Connect Dialog */}
-      <Dialog open={connectDialog} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent onClose={closeDialog} className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
+      {/* Connect Sheet */}
+      <Sheet open={connectDialog} onOpenChange={(open) => !open && closeDialog()}>
+        <SheetContent onClose={closeDialog}>
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-3">
               {selectedType ? (
                 <div className={cn(
                   'flex items-center justify-center rounded-xl size-9',
@@ -215,108 +211,110 @@ export function GitSources() {
                 ? `Connect ${getMeta(selectedType).label}`
                 : 'Connect Git Provider'
               }
-            </DialogTitle>
-            <DialogDescription>
+            </SheetTitle>
+            <SheetDescription>
               {selectedType
                 ? `Enter your ${getMeta(selectedType).label} access token to connect.`
                 : 'Select a provider to connect for automatic deployments.'
               }
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
 
-          <div className="space-y-4 py-2">
-            {/* Provider Selection Grid */}
-            {!selectedType && (
-              <div className="grid grid-cols-2 gap-3">
-                {Object.entries(providerMeta).map(([key, meta]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setSelectedType(key)}
-                    className="flex flex-col items-center gap-2.5 rounded-lg border p-5 transition-all duration-200 hover:bg-accent hover:text-accent-foreground hover:translate-y-[-1px] hover:shadow-md cursor-pointer"
-                  >
-                    <div className={cn(
-                      'flex items-center justify-center rounded-xl size-12',
-                      meta.bgColor
-                    )}>
-                      <span className={cn('text-base font-bold', meta.textColor)}>
-                        {meta.letter}
-                      </span>
-                    </div>
-                    <span className="text-sm font-medium">{meta.label}</span>
-                    <span className="text-xs text-muted-foreground text-center leading-relaxed">
-                      {meta.desc}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Token form for selected provider */}
-            {selectedType && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { setSelectedType(null); setToken(''); setConnectError(''); }}
-                  className="gap-1 -ml-2"
-                >
-                  <ArrowLeft className="size-3.5" />
-                  Back to providers
-                </Button>
-
-                {(selectedType === 'gitea' || selectedType === 'gitlab') && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="git-url">Instance URL</Label>
-                    <div className="relative">
-                      <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                      <Input
-                        id="git-url"
-                        value={instanceUrl}
-                        onChange={(e) => setInstanceUrl(e.target.value)}
-                        placeholder="https://git.example.com"
-                        className="pl-9"
-                      />
-                    </div>
-                  </div>
-                )}
-                <div className="space-y-1.5">
-                  <Label htmlFor="git-token">Access Token</Label>
-                  <div className="relative">
-                    <Input
-                      id="git-token"
-                      type={tokenVisible ? 'text' : 'password'}
-                      value={token}
-                      onChange={(e) => setToken(e.target.value)}
-                      placeholder="ghp_xxxxxxxxxxxx"
-                      className="pr-10 font-mono"
-                    />
+          <SheetBody>
+            <div className="space-y-4">
+              {/* Provider Selection Grid */}
+              {!selectedType && (
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(providerMeta).map(([key, meta]) => (
                     <button
+                      key={key}
                       type="button"
-                      onClick={() => setTokenVisible(!tokenVisible)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                      tabIndex={-1}
+                      onClick={() => setSelectedType(key)}
+                      className="flex flex-col items-center gap-2.5 rounded-lg border p-5 transition-all duration-200 hover:bg-accent hover:text-accent-foreground hover:translate-y-[-1px] hover:shadow-md cursor-pointer"
                     >
-                      {tokenVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      <div className={cn(
+                        'flex items-center justify-center rounded-xl size-12',
+                        meta.bgColor
+                      )}>
+                        <span className={cn('text-base font-bold', meta.textColor)}>
+                          {meta.letter}
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium">{meta.label}</span>
+                      <span className="text-xs text-muted-foreground text-center leading-relaxed">
+                        {meta.desc}
+                      </span>
                     </button>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Token needs read access to repositories and webhooks.
-                  </p>
+                  ))}
                 </div>
+              )}
 
-                {connectError && (
-                  <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-                    <AlertCircle className="size-4 shrink-0" />
-                    {connectError}
+              {/* Token form for selected provider */}
+              {selectedType && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setSelectedType(null); setToken(''); setConnectError(''); }}
+                    className="gap-1 -ml-2"
+                  >
+                    <ArrowLeft className="size-3.5" />
+                    Back to providers
+                  </Button>
+
+                  {(selectedType === 'gitea' || selectedType === 'gitlab') && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="git-url">Instance URL</Label>
+                      <div className="relative">
+                        <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                        <Input
+                          id="git-url"
+                          value={instanceUrl}
+                          onChange={(e) => setInstanceUrl(e.target.value)}
+                          placeholder="https://git.example.com"
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="git-token">Access Token</Label>
+                    <div className="relative">
+                      <Input
+                        id="git-token"
+                        type={tokenVisible ? 'text' : 'password'}
+                        value={token}
+                        onChange={(e) => setToken(e.target.value)}
+                        placeholder="ghp_xxxxxxxxxxxx"
+                        className="pr-10 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setTokenVisible(!tokenVisible)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        tabIndex={-1}
+                      >
+                        {tokenVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Token needs read access to repositories and webhooks.
+                    </p>
                   </div>
-                )}
-              </>
-            )}
-          </div>
+
+                  {connectError && (
+                    <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+                      <AlertCircle className="size-4 shrink-0" />
+                      {connectError}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </SheetBody>
 
           {selectedType && (
-            <DialogFooter>
+            <SheetFooter>
               <Button variant="outline" onClick={closeDialog} disabled={connecting}>
                 Cancel
               </Button>
@@ -333,10 +331,10 @@ export function GitSources() {
                   </>
                 )}
               </Button>
-            </DialogFooter>
+            </SheetFooter>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Loading */}
       {loading && (
@@ -442,6 +440,29 @@ export function GitSources() {
           })}
         </div>
       )}
+
+      {/* Disconnect Confirmation Dialog */}
+      <AlertDialog
+        open={disconnectId !== null}
+        onOpenChange={(open) => !open && setDisconnectId(null)}
+        title="Disconnect Provider"
+        description={`Disconnect "${pendingDisconnect?.name || pendingDisconnect?.type}"? Connected repositories will no longer trigger automatic deployments.`}
+        confirmLabel="Disconnect"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={async () => {
+          if (!disconnectId) return;
+          try {
+            await gitSourcesAPI.disconnect(disconnectId);
+            toast.success('Provider disconnected');
+            refetch();
+          } catch {
+            toast.error('Failed to disconnect provider');
+          } finally {
+            setDisconnectId(null);
+          }
+        }}
+      />
     </div>
   );
 }

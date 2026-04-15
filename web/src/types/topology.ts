@@ -98,6 +98,7 @@ export interface TopologyActions {
   setEdges: (edges: TopologyEdge[]) => void;
   addNode: (node: TopologyNode) => void;
   updateNode: (id: string, data: Partial<TopologyNodeData>) => void;
+  updateNodePosition: (id: string, position: { x: number; y: number }) => void;
   removeNode: (id: string) => void;
   addEdge: (edge: TopologyEdge) => void;
   removeEdge: (id: string) => void;

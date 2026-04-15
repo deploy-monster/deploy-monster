@@ -5,11 +5,30 @@ export interface Template {
   name: string;
   description: string;
   category: string;
-  tags: string[];
+  icon: string;
+  author: string;
   version: string;
   featured: boolean;
   verified: boolean;
-  min_resources: { memory_mb: number };
+  tags: string[];
+  compose_yaml: string;
+  config_schema: {
+    type?: string;
+    properties?: Record<string, {
+      type: string;
+      title: string;
+      description?: string;
+      format?: string;
+      minLength?: number;
+      default?: string;
+    }>;
+    required?: string[];
+  };
+  min_resources: {
+    cpu_mb: number;
+    memory_mb: number;
+    disk_mb: number;
+  };
 }
 
 export interface MarketplaceResponse {

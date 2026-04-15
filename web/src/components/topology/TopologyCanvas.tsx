@@ -1,18 +1,19 @@
-import { useCallback, useRef, useMemo } from 'react';
+import { useCallback, useRef } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
-  useNodesState,
-  useEdgesState,
-  addEdge,
+  type OnNodesChange,
+  type OnEdgesChange,
   type Connection,
   type OnConnect,
   Panel,
   BackgroundVariant,
   type Node,
   type Edge,
+  type NodeChange,
+  type EdgeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -29,21 +30,42 @@ export function TopologyCanvas() {
     edges: storeEdges,
     addNode,
     addEdge: addStoreEdge,
+    removeEdge: removeStoreEdge,
+    updateNodePosition,
     selectNode,
     autoLayout,
   } = useTopologyStore();
 
-  // Convert store nodes/edges to React Flow format
-  const nodes = useMemo(() => storeNodes.map(n => ({ ...n, data: { ...n.data } } as Node)), [storeNodes]);
-  const edges = useMemo(() => storeEdges.map(e => ({ ...e, data: { ...e.data } } as Edge)), [storeEdges]);
+  // Convert store nodes/edges to React Flow format on each render
+  const reactFlowNodes: Node[] = storeNodes.map(n => ({ ...n, data: { ...n.data } }));
+  const reactFlowEdges: Edge[] = storeEdges.map(e => ({ ...e, data: { ...e.data } }));
 
-  const [localNodes, setLocalNodes, onNodesChange] = useNodesState(nodes);
-  const [localEdges, setLocalEdges, onEdgesChange] = useEdgesState(edges);
+  // Handle node changes (position drag, selection, removal) and sync back to store
+  const handleNodesChange: OnNodesChange = useCallback((changes: NodeChange[]) => {
+    for (const change of changes) {
+      if (change.type === 'position' && change.dragging && change.position) {
+        updateNodePosition(change.id, change.position);
+      } else if (change.type === 'select') {
+        selectNode(change.selected ? change.id : null);
+      } else if (change.type === 'remove') {
+        const store = useTopologyStore.getState();
+        store.removeNode(change.id);
+      }
+    }
+  }, [updateNodePosition, selectNode]);
+
+  // Handle edge changes and sync back to store
+  const handleEdgesChange: OnEdgesChange = useCallback((changes: EdgeChange[]) => {
+    for (const change of changes) {
+      if (change.type === 'remove') {
+        removeStoreEdge(change.id);
+      }
+    }
+  }, [removeStoreEdge]);
 
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (connection.source && connection.target) {
-        // Determine edge type based on source and target node types
         const sourceNode = storeNodes.find(n => n.id === connection.source);
         const targetNode = storeNodes.find(n => n.id === connection.target);
 
@@ -61,10 +83,9 @@ export function TopologyCanvas() {
 
         const newEdge = createEdge(connection.source, connection.target, edgeType);
         addStoreEdge(newEdge as TopologyEdge);
-        setLocalEdges((eds) => addEdge({ ...connection, data: { type: edgeType } }, eds));
       }
     },
-    [addStoreEdge, setLocalEdges, storeNodes]
+    [addStoreEdge, storeNodes]
   );
 
   const onNodeClick = useCallback(
@@ -98,24 +119,21 @@ export function TopologyCanvas() {
 
       const newNode = createNode(type, position);
       addNode(newNode as TopologyNode);
-      setLocalNodes((nds) => [...nds, { ...newNode, data: { ...newNode.data } } as Node]);
     },
-    [addNode, setLocalNodes]
+    [addNode]
   );
 
   const handleAutoLayout = useCallback(() => {
     autoLayout();
-    const updatedNodes = useTopologyStore.getState().nodes;
-    setLocalNodes(updatedNodes.map(n => ({ ...n, data: { ...n.data } } as Node)));
-  }, [autoLayout, setLocalNodes]);
+  }, [autoLayout]);
 
   return (
     <div ref={reactFlowWrapper} className="h-full w-full">
       <ReactFlow
-        nodes={localNodes}
-        edges={localEdges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        nodes={reactFlowNodes}
+        edges={reactFlowEdges}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
@@ -161,11 +179,11 @@ export function TopologyCanvas() {
         </Panel>
         <Panel position="bottom-center" className="flex items-center gap-2 rounded-lg bg-card/80 px-3 py-2 backdrop-blur">
           <span className="text-xs text-muted-foreground">
-            {localNodes.length} components
+            {storeNodes.length} components
           </span>
           <span className="text-muted-foreground">|</span>
           <span className="text-xs text-muted-foreground">
-            {localEdges.length} connections
+            {storeEdges.length} connections
           </span>
         </Panel>
       </ReactFlow>

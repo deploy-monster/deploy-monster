@@ -103,6 +103,21 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+// redirectToLogin navigates to the login page without a hard reload
+// when the user is already on /login or /register. This prevents the
+// infinite refresh loop: /login → initialize() → 401 on /auth/me →
+// window.location.href='/login' → React re-mounts → initialize() again.
+function redirectToLogin(): void {
+  const path = window.location.pathname;
+  if (path === '/login' || path === '/register') {
+    // Already on an auth page — no point reloading. The auth store
+    // will have already set isAuthenticated=false, so ProtectedRoute
+    // won't interfere, and the login/register forms remain visible.
+    return;
+  }
+  window.location.href = '/login';
+}
+
 function backoffDelay(attempt: number): number {
   // attempt is 0-indexed: first retry uses attempt=0, second uses 1.
   // exponential + full jitter: cap*(2^attempt) ± random(0..base).
@@ -229,14 +244,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     if (options._noRefresh) {
       // We already refreshed once in this chain and STILL got 401 —
       // the session is genuinely dead. Hand off to login.
-      window.location.href = '/login';
+      redirectToLogin();
       throw new APIError(401, 'Session expired');
     }
     const refreshed = await tryRefresh();
     if (refreshed) {
       return request<T>(path, { ...options, _noRefresh: true });
     }
-    window.location.href = '/login';
+    redirectToLogin();
     throw new APIError(401, 'Session expired');
   }
 

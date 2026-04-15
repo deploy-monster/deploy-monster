@@ -1,1 +1,0 @@
-import{t as e}from"./client-CeM7NDY8.js";var t={list:(t=1,n=20)=>e.get(`/apps?page=${t}&per_page=${n}`),get:t=>e.get(`/apps/${t}`),create:t=>e.post(`/apps`,t),delete:t=>e.delete(`/apps/${t}`),restart:t=>e.post(`/apps/${t}/restart`),stop:t=>e.post(`/apps/${t}/stop`),start:t=>e.post(`/apps/${t}/start`)};export{t};

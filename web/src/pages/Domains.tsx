@@ -30,6 +30,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
+import { AlertDialog } from '@/components/ui/alert-dialog';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -85,6 +86,8 @@ export function Domains() {
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery);
+  const [deleteDomainId, setDeleteDomainId] = useState<string | null>(null);
+  const pendingDeleteDomain = (domains || []).find((d) => d.id === deleteDomainId);
 
   const handleAdd = async () => {
     if (!newFQDN) return;
@@ -118,14 +121,7 @@ export function Domains() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Remove this domain?')) return;
-    try {
-      await api.delete(`/domains/${id}`);
-      toast.success('Domain removed');
-      refetch();
-    } catch {
-      toast.error('Failed to remove domain');
-    }
+    setDeleteDomainId(id);
   };
 
   const handleCopyFQDN = (id: string, fqdn: string) => {
@@ -458,6 +454,29 @@ export function Domains() {
           </p>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deleteDomainId !== null}
+        onOpenChange={(open) => !open && setDeleteDomainId(null)}
+        title="Remove Domain"
+        description={`Remove "${pendingDeleteDomain?.fqdn}"? This action cannot be undone.`}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={async () => {
+          if (!deleteDomainId) return;
+          try {
+            await api.delete(`/domains/${deleteDomainId}`);
+            toast.success('Domain removed');
+            refetch();
+          } catch {
+            toast.error('Failed to remove domain');
+          } finally {
+            setDeleteDomainId(null);
+          }
+        }}
+      />
     </div>
   );
 }

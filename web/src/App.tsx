@@ -17,6 +17,7 @@ const Apps = lazy(() => import('./pages/Apps').then(m => ({ default: m.Apps })))
 const AppDetail = lazy(() => import('./pages/AppDetail').then(m => ({ default: m.AppDetail })));
 const DeployWizard = lazy(() => import('./pages/DeployWizard').then(m => ({ default: m.DeployWizard })));
 const Marketplace = lazy(() => import('./pages/Marketplace').then(m => ({ default: m.Marketplace })));
+const TemplateDetail = lazy(() => import('./pages/TemplateDetail').then(m => ({ default: m.TemplateDetail })));
 const Domains = lazy(() => import('./pages/Domains').then(m => ({ default: m.Domains })));
 const Databases = lazy(() => import('./pages/Databases').then(m => ({ default: m.Databases })));
 const Servers = lazy(() => import('./pages/Servers').then(m => ({ default: m.Servers })));
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="databases" element={<Databases />} />
             <Route path="servers" element={<Servers />} />
             <Route path="marketplace" element={<Marketplace />} />
+            <Route path="marketplace/:slug" element={<TemplateDetail />} />
             <Route path="team" element={<Team />} />
             <Route path="billing" element={<Billing />} />
             <Route path="git" element={<GitSources />} />

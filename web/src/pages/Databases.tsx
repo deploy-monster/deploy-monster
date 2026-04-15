@@ -22,8 +22,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from '@/components/ui/dialog';
+  Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription, SheetBody,
+} from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
 
@@ -236,11 +236,11 @@ export function Databases() {
         </div>
       )}
 
-      {/* Create Database Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent onClose={() => setDialogOpen(false)} className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
+      {/* Create Database Sheet */}
+      <Sheet open={dialogOpen} onOpenChange={(open) => !open && setDialogOpen(false)}>
+        <SheetContent onClose={() => setDialogOpen(false)}>
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-3">
               <div className={cn(
                 'flex items-center justify-center rounded-xl size-9',
                 selectedEngine.bgColor
@@ -248,77 +248,81 @@ export function Databases() {
                 <Database className={cn('size-4', selectedEngine.iconColor)} />
               </div>
               Create Database
-            </DialogTitle>
-            <DialogDescription>
+            </SheetTitle>
+            <SheetDescription>
               Provision a new managed database instance with automatic backups.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* Engine Selection Cards */}
-            <div className="space-y-1.5">
-              <Label>Engine</Label>
-              <div className="grid grid-cols-5 gap-2">
-                {engines.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => { setEngine(e.id); setVersion(''); }}
-                    className={cn(
-                      'flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all duration-200 cursor-pointer',
-                      engine === e.id
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                        : 'hover:bg-accent hover:text-accent-foreground'
-                    )}
-                  >
-                    <div className={cn('flex items-center justify-center rounded-lg size-8', e.bgColor)}>
-                      <span className={cn('text-xs font-bold', e.iconColor)}>{e.letter}</span>
-                    </div>
-                    <span className="text-[10px] font-medium truncate w-full text-center">{e.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            </SheetDescription>
+          </SheetHeader>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="db-name">Database Name</Label>
-              <div className="relative">
-                <Database className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  id="db-name"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="my-database"
-                  className="pl-9"
-                />
+          <SheetBody>
+            <div className="space-y-4">
+              {/* Engine Selection Cards */}
+              <div className="space-y-1.5">
+                <Label>Engine</Label>
+                <div className="grid grid-cols-5 gap-2">
+                  {engines.map((e) => (
+                    <button
+                      key={e.id}
+                      type="button"
+                      onClick={() => { setEngine(e.id); setVersion(''); }}
+                      className={cn(
+                        'flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all duration-200 cursor-pointer',
+                        engine === e.id
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                          : 'hover:bg-accent hover:text-accent-foreground'
+                      )}
+                    >
+                      <div className={cn('flex items-center justify-center rounded-lg size-8', e.bgColor)}>
+                        <span className={cn('text-xs font-bold', e.iconColor)}>{e.letter}</span>
+                      </div>
+                      <span className="text-[10px] font-medium truncate w-full text-center">{e.name}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Lowercase letters, numbers, and hyphens only.
-              </p>
-            </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="db-version">Version</Label>
-              <Select
-                id="db-version"
-                value={version || selectedEngine.versions[0]}
-                onChange={(e) => setVersion(e.target.value)}
-              >
-                {selectedEngine.versions.map((v) => (
-                  <option key={v} value={v}>
-                    {selectedEngine.name} v{v}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            {createError && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-                <AlertCircle className="size-4 shrink-0" />
-                {createError}
+              <div className="space-y-1.5">
+                <Label htmlFor="db-name">Database Name</Label>
+                <div className="relative">
+                  <Database className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="db-name"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="my-database"
+                    className="pl-9"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Lowercase letters, numbers, and hyphens only.
+                </p>
               </div>
-            )}
-          </div>
-          <DialogFooter>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="db-version">Version</Label>
+                <Select
+                  id="db-version"
+                  value={version || selectedEngine.versions[0]}
+                  onChange={(e) => setVersion(e.target.value)}
+                >
+                  {selectedEngine.versions.map((v) => (
+                    <option key={v} value={v}>
+                      {selectedEngine.name} v{v}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              {createError && (
+                <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+                  <AlertCircle className="size-4 shrink-0" />
+                  {createError}
+                </div>
+              )}
+            </div>
+          </SheetBody>
+
+          <SheetFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={creating}>
               Cancel
             </Button>
@@ -335,9 +339,9 @@ export function Databases() {
                 </>
               )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Loading */}
       {loading && (

@@ -22,8 +22,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from '@/components/ui/dialog';
+  Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription, SheetBody,
+} from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
 
@@ -235,11 +235,11 @@ export function Servers() {
         <div className="pointer-events-none absolute -left-8 -bottom-8 size-48 rounded-full bg-primary/3 blur-2xl" />
       </div>
 
-      {/* Add Server Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent onClose={() => setDialogOpen(false)} className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
+      {/* Add Server Sheet */}
+      <Sheet open={dialogOpen} onOpenChange={(open) => !open && setDialogOpen(false)}>
+        <SheetContent onClose={() => setDialogOpen(false)}>
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-3">
               <div className={cn(
                 'flex items-center justify-center rounded-xl size-9',
                 getProviderConfig(provider).bgColor
@@ -247,103 +247,107 @@ export function Servers() {
                 <Server className={cn('size-4', getProviderConfig(provider).textColor)} />
               </div>
               Add Server
-            </DialogTitle>
-            <DialogDescription>
+            </SheetTitle>
+            <SheetDescription>
               Provision a new cloud server or connect an existing one via SSH.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* Provider Selection Cards */}
-            <div className="space-y-1.5">
-              <Label>Provider</Label>
-              <div className="grid grid-cols-4 gap-2">
-                {providers.map((p) => {
-                  const Icon = p.icon;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => { setProvider(p.id); setRegion(''); }}
-                      className={cn(
-                        'flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all duration-200 cursor-pointer',
-                        provider === p.id
-                          ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                          : 'hover:bg-accent hover:text-accent-foreground'
-                      )}
-                    >
-                      <div className={cn('flex items-center justify-center rounded-lg size-8', p.bgColor)}>
-                        <Icon className={cn('size-4', p.textColor)} />
-                      </div>
-                      <span className="text-[10px] font-medium truncate w-full text-center">{p.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            </SheetDescription>
+          </SheetHeader>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="srv-hostname">Hostname</Label>
-              <div className="relative">
-                <Server className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  id="srv-hostname"
-                  value={hostname}
-                  onChange={(e) => setHostname(e.target.value)}
-                  placeholder="web-01"
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            {isCustom ? (
+          <SheetBody>
+            <div className="space-y-4">
+              {/* Provider Selection Cards */}
               <div className="space-y-1.5">
-                <Label htmlFor="srv-ip">IP Address</Label>
-                <Input
-                  id="srv-ip"
-                  value={ipAddress}
-                  onChange={(e) => setIpAddress(e.target.value)}
-                  placeholder="203.0.113.10"
-                  className="font-mono"
-                />
+                <Label>Provider</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {providers.map((p) => {
+                    const Icon = p.icon;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => { setProvider(p.id); setRegion(''); }}
+                        className={cn(
+                          'flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all duration-200 cursor-pointer',
+                          provider === p.id
+                            ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                            : 'hover:bg-accent hover:text-accent-foreground'
+                        )}
+                      >
+                        <div className={cn('flex items-center justify-center rounded-lg size-8', p.bgColor)}>
+                          <Icon className={cn('size-4', p.textColor)} />
+                        </div>
+                        <span className="text-[10px] font-medium truncate w-full text-center">{p.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            ) : (
-              <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="srv-region">Region</Label>
-                  <Select
-                    id="srv-region"
-                    value={region}
-                    onChange={(e) => setRegion(e.target.value)}
-                  >
-                    <option value="">Select region...</option>
-                    {providerRegions.map((r) => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="srv-size">Size</Label>
-                  <Select
-                    id="srv-size"
-                    value={size}
-                    onChange={(e) => setSize(e.target.value)}
-                  >
-                    {sizes.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name} -- {s.desc}</option>
-                    ))}
-                  </Select>
-                </div>
-              </>
-            )}
 
-            {addError && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-                <AlertCircle className="size-4 shrink-0" />
-                {addError}
+              <div className="space-y-1.5">
+                <Label htmlFor="srv-hostname">Hostname</Label>
+                <div className="relative">
+                  <Server className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="srv-hostname"
+                    value={hostname}
+                    onChange={(e) => setHostname(e.target.value)}
+                    placeholder="web-01"
+                    className="pl-9"
+                  />
+                </div>
               </div>
-            )}
-          </div>
-          <DialogFooter>
+
+              {isCustom ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="srv-ip">IP Address</Label>
+                  <Input
+                    id="srv-ip"
+                    value={ipAddress}
+                    onChange={(e) => setIpAddress(e.target.value)}
+                    placeholder="203.0.113.10"
+                    className="font-mono"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="srv-region">Region</Label>
+                    <Select
+                      id="srv-region"
+                      value={region}
+                      onChange={(e) => setRegion(e.target.value)}
+                    >
+                      <option value="">Select region...</option>
+                      {providerRegions.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="srv-size">Size</Label>
+                    <Select
+                      id="srv-size"
+                      value={size}
+                      onChange={(e) => setSize(e.target.value)}
+                    >
+                      {sizes.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name} -- {s.desc}</option>
+                      ))}
+                    </Select>
+                  </div>
+                </>
+              )}
+
+              {addError && (
+                <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+                  <AlertCircle className="size-4 shrink-0" />
+                  {addError}
+                </div>
+              )}
+            </div>
+          </SheetBody>
+
+          <SheetFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={adding}>
               Cancel
             </Button>
@@ -360,9 +364,9 @@ export function Servers() {
                 </>
               )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Loading */}
       {loading && (

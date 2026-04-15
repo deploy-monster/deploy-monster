@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
+import { AlertDialog } from '@/components/ui/alert-dialog';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -165,18 +166,13 @@ export function Team() {
   };
 
   const handleRemove = async (id: string) => {
-    if (!confirm('Remove this team member?')) return;
-    try {
-      await teamAPI.removeMember(id);
-      toast.success('Member removed');
-      refetchMembers();
-    } catch {
-      toast.error('Failed to remove member');
-    }
+    setRemoveMemberId(id);
   };
 
   const memberList = members || [];
   const auditList = auditLog || [];
+  const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
+  const pendingRemoveMember = memberList.find((m) => m.id === removeMemberId);
 
   return (
     <div className="space-y-8">
@@ -469,6 +465,29 @@ export function Team() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Remove Member Confirmation Dialog */}
+      <AlertDialog
+        open={removeMemberId !== null}
+        onOpenChange={(open) => !open && setRemoveMemberId(null)}
+        title="Remove Team Member"
+        description={`Remove "${pendingRemoveMember?.name || pendingRemoveMember?.email}" from the team?`}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={async () => {
+          if (!removeMemberId) return;
+          try {
+            await teamAPI.removeMember(removeMemberId);
+            toast.success('Member removed');
+            refetchMembers();
+          } catch {
+            toast.error('Failed to remove member');
+          } finally {
+            setRemoveMemberId(null);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -49,6 +49,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tooltip } from '@/components/ui/tooltip';
+import { AlertDialog } from '@/components/ui/alert-dialog';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
@@ -98,6 +99,7 @@ export function AppDetail() {
   const deployments = deploymentsData || [];
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Environment variables local state (demo -- would be fetched from API)
   const [envVars, setEnvVars] = useState<EnvVar[]>([
@@ -131,12 +133,6 @@ export function AppDetail() {
 
   const handleDelete = useCallback(async () => {
     if (!id) return;
-    if (
-      !confirm(
-        'Are you sure you want to delete this application? All deployments, domains, and data will be permanently removed.'
-      )
-    )
-      return;
     setActionLoading('delete');
     try {
       await appsAPI.delete(id);
@@ -146,6 +142,10 @@ export function AppDetail() {
       setActionLoading(null);
     }
   }, [id]);
+
+  const handleDeleteRequested = useCallback(() => {
+    setShowDeleteConfirm(true);
+  }, []);
 
   const handleDeploy = useCallback(async () => {
     if (!id) return;
@@ -272,7 +272,7 @@ export function AppDetail() {
             variant="destructive"
             size="sm"
             className="cursor-pointer"
-            onClick={handleDelete}
+            onClick={handleDeleteRequested}
             disabled={actionLoading !== null}
           >
             <Trash2 className="size-4" />
@@ -810,7 +810,7 @@ export function AppDetail() {
                   variant="destructive"
                   size="sm"
                   className="cursor-pointer shrink-0 ml-4"
-                  onClick={handleDelete}
+                  onClick={handleDeleteRequested}
                   disabled={actionLoading === 'delete'}
                 >
                   <Trash2 className="size-4" />
@@ -821,6 +821,18 @@ export function AppDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={showDeleteConfirm}
+        onOpenChange={(open) => !open && setShowDeleteConfirm(false)}
+        title="Delete Application"
+        description="All deployments, domains, and data will be permanently removed."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

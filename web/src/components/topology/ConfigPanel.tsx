@@ -74,7 +74,7 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
 
   if (!selectedNode) {
     return (
-      <div className="flex h-full w-72 flex-col border-l bg-card">
+      <div className="flex h-full w-96 flex-col border-l bg-card">
         <div className="flex items-center justify-center p-8">
           <Box className="h-8 w-8 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Select a component to configure</p>
@@ -669,7 +669,7 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
   };
 
   return (
-    <div className="flex h-full w-72 flex-col border-l bg-card">
+    <div className="flex h-full w-96 flex-col border-l bg-card">
       {/* Header */}
       <div className="flex items-center justify-between border-b p-4">
         <div className="flex items-center gap-3">

@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
+import { AlertDialog } from '@/components/ui/alert-dialog';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
@@ -153,6 +154,8 @@ export function Apps() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [deleteAppId, setDeleteAppId] = useState<string | null>(null);
+  const pendingDeleteApp = allApps.find((a) => a.id === deleteAppId);
 
   const filteredApps = useMemo(() => allApps.filter((app) => {
     const matchesFilter =
@@ -183,18 +186,11 @@ export function Apps() {
     setActionLoading(appId);
     try {
       if (action === 'delete') {
-        if (
-          !confirm(
-            'Are you sure you want to delete this application? This action cannot be undone.'
-          )
-        ) {
-          setActionLoading(null);
-          return;
-        }
-        await appsAPI.delete(appId);
-      } else {
-        await appsAPI[action](appId);
+        setDeleteAppId(appId);
+        setActionLoading(null);
+        return;
       }
+      await appsAPI[action](appId);
       refetch();
     } catch {
       toast.error('Action failed');
@@ -424,6 +420,30 @@ export function Apps() {
             })}
           </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deleteAppId !== null}
+        onOpenChange={(open) => !open && setDeleteAppId(null)}
+        title="Delete Application"
+        description={`Are you sure you want to delete "${pendingDeleteApp?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={async () => {
+          if (!deleteAppId) return;
+          setActionLoading(deleteAppId);
+          try {
+            await appsAPI.delete(deleteAppId);
+            refetch();
+          } catch {
+            toast.error('Action failed');
+          } finally {
+            setActionLoading(null);
+            setDeleteAppId(null);
+          }
+        }}
+      />
     </div>
   );
 }

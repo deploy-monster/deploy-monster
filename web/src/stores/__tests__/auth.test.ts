@@ -15,7 +15,7 @@ vi.mock('../../api/client', () => ({
   },
 }));
 
-import { useAuthStore } from '../auth';
+import { useAuthStore, __resetInitStateForTests } from '../auth';
 import { authAPI } from '../../api/auth';
 import { api } from '../../api/client';
 
@@ -33,6 +33,7 @@ function fakeTokenPair(payload: Record<string, string>) {
 
 describe('authStore', () => {
   beforeEach(() => {
+    __resetInitStateForTests();
     useAuthStore.setState({
       user: null,
       isAuthenticated: false,

@@ -49,47 +49,56 @@ func isSecureRequest(r *http.Request) bool {
 // setTokenCookies sets httpOnly cookies for both access and refresh tokens.
 func setTokenCookies(w http.ResponseWriter, r *http.Request, tokens *internalAuth.TokenPair) {
 	secure := isSecureRequest(r)
+	// Phase 7.7 FIX: Path=/ ile tüm site için geçerli, SameSite=None cross-site için
+	sameSite := http.SameSiteNoneMode
+	if !secure {
+		// SameSite=None Secure gerektirir, HTTP'de Lax kullan
+		sameSite = http.SameSiteLaxMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieAccess,
 		Value:    tokens.AccessToken,
-		Path:     "/api",
+		Path:     "/",
 		MaxAge:   tokens.ExpiresIn,
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: sameSite,
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieRefresh,
 		Value:    tokens.RefreshToken,
-		Path:     "/api/v1/auth",
+		Path:     "/",
 		MaxAge:   internalAuth.RefreshTokenTTLSeconds,
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: sameSite,
 	})
 }
 
-// clearTokenCookies removes both token cookies.
+// clearTokenCookies removes both token cookies (all known paths for migration).
 func clearTokenCookies(w http.ResponseWriter, r *http.Request) {
 	secure := isSecureRequest(r)
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieAccess,
-		Value:    "",
-		Path:     "/api",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieRefresh,
-		Value:    "",
-		Path:     "/api/v1/auth",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
+	paths := []string{"/", "/api", "/api/v1/auth"}
+	for _, p := range paths {
+		http.SetCookie(w, &http.Cookie{
+			Name:     cookieAccess,
+			Value:    "",
+			Path:     p,
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteLaxMode,
+		})
+		http.SetCookie(w, &http.Cookie{
+			Name:     cookieRefresh,
+			Value:    "",
+			Path:     p,
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
 }
 
 // NewAuthHandler creates a new auth handler.

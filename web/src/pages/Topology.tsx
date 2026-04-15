@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Save, Rocket, Loader2, FileCode } from 'lucide-react';
+import { Save, Rocket, Loader2, FileCode, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { ComponentPalette } from '@/components/topology/ComponentPalette';
@@ -247,11 +247,31 @@ export default function TopologyPage() {
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        <ComponentPalette onDragStart={handleDragStart} />
-        <div className="flex-1 bg-muted/30">
-          <TopologyCanvas />
-        </div>
-        <ConfigPanel selectedNode={selectedNode} onClose={handleCloseConfig} />
+        {nodes.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <div className="rounded-full bg-muted p-6 mb-5">
+              <Layers className="size-10 text-muted-foreground" />
+            </div>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground mb-2">
+              No components in topology
+            </h2>
+            <p className="text-muted-foreground max-w-sm text-sm mb-6">
+              Drag components from the palette on the left to build your topology, or start with a template to quickly set up your infrastructure.
+            </p>
+            <Button variant="outline" onClick={() => selectNode(null)}>
+              <Layers className="size-4 mr-2" />
+              Start with a template
+            </Button>
+          </div>
+        ) : (
+          <>
+            <ComponentPalette onDragStart={handleDragStart} />
+            <div className="flex-1 bg-muted/30">
+              <TopologyCanvas />
+            </div>
+            <ConfigPanel selectedNode={selectedNode} onClose={handleCloseConfig} />
+          </>
+        )}
       </div>
 
       <CompileModal

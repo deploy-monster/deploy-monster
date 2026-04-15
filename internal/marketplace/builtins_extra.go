@@ -7,11 +7,20 @@ func init() {
 
 var extraTemplates = []*Template{
 	{
-		Slug: "strapi", Name: "Strapi", Category: "cms",
+		Slug: "strapi", Name: "Strapi", Category: "cms", Icon: "📦",
 		Description: "Open-source headless CMS built with Node.js",
 		Tags:        []string{"cms", "headless", "api"}, Author: "Strapi", Version: "5",
 		Verified:     true,
-		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 1024},
+		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 1024, CPUMB: 1000},
+		ConfigSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"DB_PASSWORD": map[string]any{
+					"type": "string", "title": "Database Password", "description": "Password for the Strapi PostgreSQL user", "format": "password", "minLength": 8,
+				},
+			},
+			"required": []string{"DB_PASSWORD"},
+		},
 		ComposeYAML: `services:
   strapi:
     image: strapi/strapi:latest
@@ -36,11 +45,20 @@ volumes:
   db_data:`,
 	},
 	{
-		Slug: "umami", Name: "Umami", Category: "analytics",
+		Slug: "umami", Name: "Umami", Category: "analytics", Icon: "📊",
 		Description: "Simple, fast, privacy-focused web analytics",
 		Tags:        []string{"analytics", "privacy"}, Author: "Umami", Version: "latest",
 		Verified: true, Featured: true,
-		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
+		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512, CPUMB: 500},
+		ConfigSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"DB_PASSWORD": map[string]any{
+					"type": "string", "title": "Database Password", "description": "Password for the Umami PostgreSQL user", "format": "password", "minLength": 8,
+				},
+			},
+			"required": []string{"DB_PASSWORD"},
+		},
 		ComposeYAML: `services:
   umami:
     image: ghcr.io/umami-software/umami:postgresql-latest
@@ -60,11 +78,11 @@ volumes:
   db_data:`,
 	},
 	{
-		Slug: "open-webui", Name: "Open WebUI", Category: "ai",
+		Slug: "open-webui", Name: "Open WebUI", Category: "ai", Icon: "💬",
 		Description: "Self-hosted ChatGPT-like interface for Ollama and OpenAI",
 		Tags:        []string{"ai", "chat", "llm"}, Author: "Open WebUI", Version: "latest",
 		Verified: true, Featured: true,
-		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048},
+		MinResources: ResourceReq{MemoryMB: 1024, DiskMB: 2048, CPUMB: 500},
 		ComposeYAML: `services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
@@ -76,11 +94,20 @@ volumes:
   webui_data:`,
 	},
 	{
-		Slug: "meilisearch", Name: "Meilisearch", Category: "search",
+		Slug: "meilisearch", Name: "Meilisearch", Category: "search", Icon: "🔍",
 		Description: "Lightning-fast search engine — open-source alternative to Algolia",
 		Tags:        []string{"search", "api"}, Author: "Meilisearch", Version: "latest",
 		Verified:     true,
-		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
+		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512, CPUMB: 500},
+		ConfigSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"MASTER_KEY": map[string]any{
+					"type": "string", "title": "Master Key", "description": "API master key for Meilisearch", "format": "password", "minLength": 16,
+				},
+			},
+			"required": []string{"MASTER_KEY"},
+		},
 		ComposeYAML: `services:
   meilisearch:
     image: getmeili/meilisearch:latest
@@ -92,11 +119,11 @@ volumes:
   meili_data:`,
 	},
 	{
-		Slug: "nocodb", Name: "NocoDB", Category: "database",
+		Slug: "nocodb", Name: "NocoDB", Category: "database", Icon: "🗂️",
 		Description: "Open-source Airtable alternative — turn any database into a spreadsheet",
 		Tags:        []string{"database", "spreadsheet", "no-code"}, Author: "NocoDB", Version: "latest",
 		Verified:     true,
-		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
+		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512, CPUMB: 250},
 		ComposeYAML: `services:
   nocodb:
     image: nocodb/nocodb:latest
@@ -106,11 +133,11 @@ volumes:
   nocodb_data:`,
 	},
 	{
-		Slug: "portainer", Name: "Portainer CE", Category: "devtools",
+		Slug: "portainer", Name: "Portainer CE", Category: "devtools", Icon: "🐳",
 		Description: "Container management UI for Docker and Kubernetes",
 		Tags:        []string{"docker", "containers", "management"}, Author: "Portainer", Version: "latest",
-		Verified:     true,
-		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 256},
+		Verified: true, Featured: true,
+		MinResources: ResourceReq{MemoryMB: 256, DiskMB: 256, CPUMB: 250},
 		ComposeYAML: `services:
   portainer:
     image: portainer/portainer-ce:latest
@@ -122,11 +149,20 @@ volumes:
   portainer_data:`,
 	},
 	{
-		Slug: "grafana", Name: "Grafana", Category: "monitoring",
+		Slug: "grafana", Name: "Grafana", Category: "monitoring", Icon: "📊",
 		Description: "Open-source observability and monitoring dashboards",
 		Tags:        []string{"monitoring", "dashboards", "visualization"}, Author: "Grafana Labs", Version: "latest",
-		Verified:     true,
-		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512},
+		Verified: true, Featured: true,
+		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 512, CPUMB: 500},
+		ConfigSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"ADMIN_PASSWORD": map[string]any{
+					"type": "string", "title": "Admin Password", "description": "Password for the Grafana admin user", "format": "password", "minLength": 8,
+				},
+			},
+			"required": []string{"ADMIN_PASSWORD"},
+		},
 		ComposeYAML: `services:
   grafana:
     image: grafana/grafana-oss:latest
@@ -138,11 +174,29 @@ volumes:
   grafana_data:`,
 	},
 	{
-		Slug: "directus", Name: "Directus", Category: "cms",
+		Slug: "directus", Name: "Directus", Category: "cms", Icon: "🔷",
 		Description: "Open-source headless CMS with real-time API and beautiful admin",
 		Tags:        []string{"cms", "headless", "api", "admin"}, Author: "Directus", Version: "latest",
 		Verified:     true,
-		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 1024},
+		MinResources: ResourceReq{MemoryMB: 512, DiskMB: 1024, CPUMB: 500},
+		ConfigSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"DB_PASSWORD": map[string]any{
+					"type": "string", "title": "Database Password", "description": "Password for the Directus PostgreSQL user", "format": "password", "minLength": 8,
+				},
+				"SECRET": map[string]any{
+					"type": "string", "title": "Secret Key", "description": "Encryption key for Directus", "format": "password", "minLength": 16,
+				},
+				"ADMIN_EMAIL": map[string]any{
+					"type": "string", "title": "Admin Email", "description": "Email for the Directus admin account",
+				},
+				"ADMIN_PASSWORD": map[string]any{
+					"type": "string", "title": "Admin Password", "description": "Password for the Directus admin account", "format": "password", "minLength": 8,
+				},
+			},
+			"required": []string{"DB_PASSWORD", "SECRET", "ADMIN_PASSWORD"},
+		},
 		ComposeYAML: `services:
   directus:
     image: directus/directus:latest
