@@ -113,7 +113,7 @@
 
 **Goal:** test depth and reliability, not just coverage percentage.
 
-- [ ] **Implement fuzz tests** for input-parsing boundaries. `PRODUCTION-READY.md` claimed 15 fuzz targets; grep finds zero. Good candidates: webhook payload parsing, `${SECRET:…}` resolver, YAML config, compose-file validator, HMAC verifier, JWT parser. Target **8–10 fuzz targets**. *12–16 h.*
+- [x] **Implement fuzz tests** for input-parsing boundaries — *closed Sprint 3 (2026-04-16).* Stale-audit claim: roadmap said "grep finds zero"; `grep -rn '^func Fuzz' internal/` finds **16 existing targets** across 7 files (auth x4, webhooks x4, secrets x2, core x2, marketplace x2, compose x1, api x1), all compile and are discoverable via `go test -list '^Fuzz'`. The one candidate from the roadmap's suggested list genuinely missing was the `${SECRET:…}` resolver — added `FuzzResolveAll` in `internal/secrets/resolver_fuzz_test.go` with seed corpus covering unclosed markers, empty names, nested markers, NUL/multi-byte UTF-8 in names, and dense marker arrays. 5M executions (16 s smoke, 32 workers) pass with zero panics; invariant pinned: successful resolve never increases marker count, which guards against a future refactor accidentally enabling recursive expansion DoS. Total: **17 fuzz targets** in tree, exceeding the 8–10 target.
 - [x] **Lift `internal/marketplace/` coverage to 85%** — *done in Phase 2.3, final measurement 96.0%.* Duplicate tracker in this phase is closed by reference; see the Phase 2.3 entry for the test inventory.
 - [ ] **Lift `internal/auth/` coverage to 85%** (currently 78.7%). Focus on refresh-token rotation edge cases. *4–6 h.*
 - [ ] **Lift `internal/db/` coverage to 85%** (currently 78.9%). Transaction-rollback paths are under-tested. *4–6 h.*
