@@ -9,6 +9,38 @@
 
 ---
 
+## Document status (read this first)
+
+This file is the **product-design specification** — the
+"what we are building and why" document. It captures design intent
+at the level of modules, data contracts, and user flows. Items
+labelled **"planned"**, **"Beyond 1.0"**, or without explicit binary
+citations are intent, not shipped behaviour.
+
+The **source of truth for what the binary actually does today** is
+stratified across three documents. If any of them disagrees with
+this spec, those documents win:
+
+- [`README.md`](../README.md) — shipped feature list + Known
+  Limitations section (the 8 things we explicitly don't pretend
+  to support yet).
+- [`.project/ROADMAP.md`](ROADMAP.md) — phased work plan with open /
+  closed items tracked per sprint.
+- [`docs/adr/`](../docs/adr/) — 10 architecture decision records for
+  the load-bearing "why is it like this?" questions.
+
+Specifically: Route53 DNS and AWS EC2 provisioning are annotated
+"Planned / Beyond 1.0" throughout this file and are **not** in the
+shipping binary. Only Cloudflare DNS ships today; five VPS
+providers ship (DigitalOcean, Hetzner, Vultr, Linode, Custom-SSH).
+The marketplace ships **91** curated templates, not "150+", per
+the Sprint 2 audit.
+
+When the spec and the tree disagree, the tree wins and this file
+gets a follow-up edit — do not edit code to match stale spec text.
+
+---
+
 ## 1. VISION & PHILOSOPHY
 
 DeployMonster is a **self-hosted PaaS (Platform as a Service)** that transforms any VPS or bare-metal server into a full deployment platform. Single binary, zero configuration, production-ready in under 60 seconds.
