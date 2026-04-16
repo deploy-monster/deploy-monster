@@ -1,0 +1,74 @@
+# Hardened compose: DeployMonster behind a Tecnativa docker-socket-proxy.
+#
+# This is the reference implementation referenced by
+# docs/docker-socket-hardening.md — use this when a compromised
+# DeployMonster container must not equal host compromise.
+#
+# Not for dev use. The default docker-compose.yml at the repo root is
+# the simpler, socket-mounted version.
+
+services:
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: dm-docker-proxy
+    restart: unless-stopped
+    environment:
+      # Allow only the Docker API sections DeployMonster actually uses
+      # as of v0.1.x. See docs/docker-socket-hardening.md for the
+      # full endpoint-to-feature mapping.
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      VOLUMES: 1
+      INFO: 1
+      VERSION: 1
+      PING: 1
+      # Write verbs must be opted-in explicitly; the proxy denies them
+      # by default.
+      POST: 1
+      DELETE: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - dm-internal
+    read_only: true
+    tmpfs:
+      - /run
+    security_opt:
+      - no-new-privileges:true
+
+  deploymonster:
+    image: ghcr.io/deploy-monster/deploymonster:latest
+    container_name: deploymonster
+    restart: unless-stopped
+    depends_on:
+      - docker-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8443:8443"
+    volumes:
+      - dm-data:/var/lib/deploymonster
+    environment:
+      - MONSTER_DOMAIN=${MONSTER_DOMAIN:-localhost}
+      - MONSTER_ACME_EMAIL=${MONSTER_ACME_EMAIL:-}
+      - MONSTER_SECRET=${MONSTER_SECRET:-}
+      - MONSTER_DOCKER_HOST=tcp://docker-proxy:2375
+    networks:
+      - dm-internal
+      - default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-k", "https://localhost:8443/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  dm-data:
+    driver: local
+
+networks:
+  dm-internal:
+    driver: bridge
+    internal: true  # no outbound route — proxy + app only
