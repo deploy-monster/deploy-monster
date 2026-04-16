@@ -84,6 +84,19 @@ jobs:
         working-directory: web
         run: pnpm test
 
+      # Build + bundle-size gate. Catches regressions where something
+      # heavy gets eagerly imported into the main entry chunk (budget
+      # 300 KB gzipped; current baseline ~8 KB). Runs here rather than
+      # in the main build job because we already have the full pnpm
+      # install warmed up.
+      - name: Build
+        working-directory: web
+        run: pnpm run build
+
+      - name: Bundle-size budget
+        working-directory: web
+        run: pnpm run check:bundle
+
   test-e2e:
     name: E2E Tests
     needs: [test, test-react]
