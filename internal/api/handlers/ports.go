@@ -56,14 +56,31 @@ func (h *PortHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate
-	for _, p := range ports {
+	// Cap the array — 100 mappings per app is more than any real workload
+	// needs, and without this an attacker could post a multi-MB array that
+	// slips under the 10MB BodyLimit middleware.
+	if len(ports) > 100 {
+		writeError(w, http.StatusBadRequest, "too many port mappings (max 100)")
+		return
+	}
+
+	for i := range ports {
+		p := &ports[i]
 		if p.ContainerPort <= 0 || p.ContainerPort > 65535 {
 			writeError(w, http.StatusBadRequest, "invalid container port")
 			return
 		}
+		// 0 = auto-assign; otherwise must be in the valid TCP/UDP range.
+		if p.HostPort < 0 || p.HostPort > 65535 {
+			writeError(w, http.StatusBadRequest, "invalid host port")
+			return
+		}
 		if p.Protocol == "" {
 			p.Protocol = "tcp"
+		}
+		if p.Protocol != "tcp" && p.Protocol != "udp" {
+			writeError(w, http.StatusBadRequest, "protocol must be tcp or udp")
+			return
 		}
 	}
 
