@@ -1,9 +1,19 @@
 # DeployMonster — TASKS.md
 
-> **Companion to**: SPECIFICATION.md + IMPLEMENTATION.md
-> **Purpose**: Granular, ordered task checklist for Claude Code execution
-> **Rule**: Complete each phase fully before moving to the next. Every task must pass before proceeding.
-> **Convention**: Tasks prefixed with phase number. Subtasks indented. Each task is a single commit.
+> **Status: RETIRED — historical record.** Every one of the 251 tasks
+> below (15 phases) is complete. This file is preserved as an immutable
+> log of the initial build. Current work is tracked in
+> [`ROADMAP.md`](ROADMAP.md), not here.
+>
+> Do not add new tasks to this file. Do not edit completed items.
+> If you need to record a new engineering task, put it in ROADMAP.md
+> under the appropriate phase (or create a new phase). Retired
+> 2026-04-17 per the Sprint 3 doc-reality pass.
+
+> **Companion to** (historical): SPECIFICATION.md + IMPLEMENTATION.md
+> **Original purpose**: Granular, ordered task checklist for initial build
+> **Original rule**: Complete each phase fully before moving to the next
+> **Original convention**: Tasks prefixed with phase number; subtasks indented; each task a single commit
 
 ---
 
