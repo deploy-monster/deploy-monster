@@ -3,12 +3,28 @@ package ingress
 import (
 	"crypto/tls"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+// closedLoopbackAddr binds an ephemeral loopback port and closes it
+// immediately, returning an address that is reliably refused on all
+// platforms. Hardcoded low ports like ":1" are not portable — on some
+// Windows hosts a local service or AV driver accepts connections.
+func closedLoopbackAddr(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	addr := l.Addr().String()
+	l.Close()
+	return addr
+}
 
 func TestNewReverseProxy(t *testing.T) {
 	rt := NewRouteTable()
@@ -233,7 +249,7 @@ func TestReverseProxy_CircuitBreaker_RecordsSuccess(t *testing.T) {
 }
 
 func TestReverseProxy_CircuitBreaker_RecordsFailure(t *testing.T) {
-	failingAddr := "127.0.0.1:1" // Will fail to connect
+	failingAddr := closedLoopbackAddr(t) // reliably refused
 
 	rt := NewRouteTable()
 	rt.Upsert(&RouteEntry{

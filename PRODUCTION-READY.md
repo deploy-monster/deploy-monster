@@ -1,286 +1,83 @@
-# DeployMonster — Production Ready Report
+# DeployMonster — Production Readiness
 
-**Report Date:** 2026-04-14
-**Version:** 1.0.0
-**Author:** Ersin / ECOSTACK TECHNOLOGY OÜ
+**Status:** CONDITIONAL GO
+**Version:** v0.1.7
+**Report date:** 2026-04-16
+**Owner:** Ersin / ECOSTACK TECHNOLOGY OÜ
 
----
+This file is an executive pointer. The **authoritative** readiness review
+lives at `.project/PRODUCTIONREADY.md` — it is rewritten against HEAD at
+each sprint close. The `.project/` triad is the source of truth:
 
-## 1. Executive Summary
-
-DeployMonster is a self-hosted PaaS that transforms any VPS or bare-metal server into a full deployment platform. Single binary, modular monolith, event-driven architecture with embedded React UI.
-
-**Status: PRODUCTION READY**
-
-All core systems implemented, security audit complete (13 findings, all remediated), test suite passing, build verified.
-
----
-
-## 2. Codebase Metrics
-
-| Metric | Value |
-|--------|-------|
-| Total LOC | ~101,000 (Go + TypeScript/TSX) |
-| Go Packages | 38 testable packages |
-| Go Modules | 21 auto-registering modules |
-| Test Results | 38/38 PASS |
-| Build | Compiles clean |
-| Git Commits | 28 |
-
-### Code Coverage by Module
-
-| Module | Coverage |
-|--------|----------|
-| internal/build | 91.1% |
-| internal/compose | 93.9% |
-| internal/core | 87.2% |
-| internal/database/engines | 100.0% |
-| internal/db | 82.0% |
-| internal/deploy | 89.3% |
-| internal/deploy/graceful | 98.1% |
-| internal/discovery | 96.7% |
-| internal/dns | 90.0% |
-| internal/enterprise | 96.6% |
-| internal/enterprise/integrations | 100.0% |
-| internal/ingress | 88.2% |
-| internal/ingress/lb | 95.5% |
-| internal/mcp | 88.4% |
-| internal/notifications | 86.3% |
-| internal/secrets | 82.8% |
-| internal/swarm | 96.4% |
-| internal/vps | 95.0% |
-| internal/webhooks | 77.1% |
-| Average | 88.4% |
+- `.project/ANALYSIS.md` — brutally honest feature / security /
+  code-quality snapshot
+- `.project/ROADMAP.md` — three-path decision framework and sprint plan
+- `.project/PRODUCTIONREADY.md` — go / no-go verdict with blocker list
 
 ---
 
-## 3. Architecture
+## Verdict (2026-04-16)
 
-### Backend: Go 1.26+ Modular Monolith
-- 21 modules auto-registered via init() + core.RegisterModule()
-- Dependency order via topological sort
-- Graceful shutdown in reverse dependency order (30s timeout)
-- Same binary runs as master or agent (--agent flag)
+**Ship to self-hosted single-tenant production: GO.**
+**Ship to multi-tenant SaaS: conditional on the Sprint 1–3 residual items
+being closed.**
 
-### Modules
-api, auth, backup, billing, build, core, database, db, deploy, discovery, dns, enterprise, gitsources, ingress, marketplace, mcp, notifications, resource, secrets, swarm, vps
+Sprint 1 (this release, v0.1.7) shipped:
 
-### Frontend: React 19 + Vite 8 + TypeScript
-- Embedded via embed.FS
-- State: Zustand 5 stores
-- Routing: React Router v7
-- API client: useApi/useMutation hooks
+- Four previously-red tests turned green via portable ephemeral-port
+  fixtures (discovery, ingress ×2, swarm).
+- `CORS-001` regression from v0.1.4 reverted. Two-mode contract restored:
+  public wildcard (no credentials) vs strict allowlist (with credentials).
+- `AUTH-001` JWT alg-pinning hardened with the canonical
+  `jwt.WithValidMethods` option alongside the existing post-parse guard.
+- Version / CHANGELOG drift closed: `VERSION` file, git tags, and
+  CHANGELOG now agree at `v0.1.7`; v0.1.3 through v0.1.6 backfilled.
+- Three "open" items from the security audit were discovered to be
+  already-fixed in commit `7d69c5e` (`AUTHZ-001`, `CORS-002`, partial
+  `SESS-001`). Report was stale, not the code.
 
-### Database
-- SQLite (modernc.org/sqlite v1.48.0, pure Go)
-- BBolt KV (go.etcd.io/bbolt v1.4.3) — 30+ buckets
-- PostgreSQL driver ready (jackc/pgx/v5)
+Remaining blockers for multi-tenant SaaS (tracked in
+`.project/ROADMAP.md`):
 
-### Key Libraries
-golang-jwt/jwt v5.3.1, gorilla/websocket v1.5.3, docker/docker v28.5.2, golang.org/x/crypto v0.49.0
-
----
-
-## 4. Implemented Features
-
-### Authentication & Authorization
-- JWT HS256 (15min access / 7day refresh, JTI revocation)
-- API Key auth (SHA-256, 32-byte entropy)
-- bcrypt password hashing (cost 13)
-- RBAC: SuperAdmin / Admin / Customer
-- Multi-tenant isolation
-- CSRF protection (SameSite=Strict)
-- Refresh token rotation
-
-### API Layer
-- Go 1.22+ http.ServeMux, 70+ handlers
-- Middleware: RequestID, RateLimit, SecurityHeaders, BodyLimit, Timeout, Recovery, CORS, CSRF, AuditLog
-- Auth levels: AuthNone, AuthAPIKey, AuthJWT, AuthAdmin, AuthSuperAdmin
-
-### Deploy Pipeline
-- Git clone (GitHub, GitLab, Gitea, Bitbucket, custom)
-- 14 language detectors
-- 12 auto-generated Dockerfiles
-- Strategies: recreate, rolling, blue-green, canary
-- Automatic rollback on failure
-
-### Container & Orchestration
-- Docker SDK native
-- Docker Swarm mode
-- Docker Compose native
-- Container lifecycle management
-
-### Load Balancing
-- 4 strategies: RoundRobin, LeastConn, IPHash, Random
-- XFF sanitization via net.ParseIP
-
-### Ingress & SSL
-- Custom reverse proxy
-- Lets Encrypt ACME (HTTP-01, DNS-01)
-- Automatic certificate renewal
-- Cloudflare + Route53 DNS integration
-
-### Secrets Management
-- AES-256-GCM encryption
-- Key versioning
-- Scoped secret resolution
-- Secret rotation API
-
-### Event System
-- In-process pub/sub via EventBus
-- Outbound webhooks (HMAC-SHA256, per-tenant)
-- Real-time EventStreamer SSE
-
-### Notifications
-- Email, Slack, Discord, Telegram, Webhook
-
-### Billing
-- Stripe integration
-- 30 req/min rate limit on webhook
-
-### VPS Provisioning
-- Hetzner, DigitalOcean, Vultr APIs
-
-### Visual Topology
-- Drag & drop canvas (@xyflow/react)
-
-### MCP Server
-- AI-driven infrastructure management
-
-### Marketplace
-- 150+ templates
-- One-click deploy
-
-### Master + Agent
-- Same binary, two modes
-- WebSocket communication
+- Feature-prune decision on MongoDB / Route53 / Linode / AWS adapters
+  (implement or move to "Beyond 1.0").
+- Marketplace claim: truth-up to "56 built-in, growing" or commit to
+  100.
+- PostgreSQL store contract enforcement in CI (compile-time assertion
+  exists; integration suite gated behind `pgintegration` build tag).
 
 ---
 
-## 5. Security Audit
+## Test + build state at tag
 
-**Audit Date:** 2026-04-13
-**Total Findings:** 13 (all remediated)
-**CVSS:** No finding exceeds Medium
-
-| ID | Finding | Severity | Status |
-|----|---------|----------|--------|
-| H-1 | XFF injection in IPHash load balancer | High | FIXED |
-| H-2 | Webhook secret plaintext storage | High | FIXED |
-| H-3 | SSRF DNS rebinding window | High | FIXED |
-| M-1 | Bulk ops without rollback | Medium | FIXED |
-| M-2 | JWT key rotation no expiration | Medium | FIXED |
-| M-3 | CSRF SameSite=LaxMode | Medium | FIXED |
-| M-4 | Rate limiter XFF spoof | Medium | FIXED |
-| M-5 | Global webhook limit | Medium | FIXED |
-| M-6 | Stripe webhook no rate limit | Medium | FIXED |
-| L-1 | API key entropy (32 bytes) | Low | FIXED |
-| L-2 | bcrypt cost 13 | Low | FIXED |
-| L-3 | Credentials file write fatal | Low | FIXED |
-| L-4 | Webhook list pagination | Low | FIXED |
-
-### Security Controls
-
-| Control | Status |
-|---------|--------|
-| SQL injection | Parameterized only |
-| Command injection | URL validation, arg arrays |
-| XSS | No innerHTML |
-| Secrets | SHA-256 hash, AES-256-GCM |
-| Rate limiting | All layers |
-| CSRF | SameSite=Strict |
-| JWT rotation | 1-hour grace period |
-| Auth middleware | All protected endpoints |
-| Error handling | No stack traces |
+- `go test -short -count=1 ./...` → **40/40 packages PASS**
+- `go vet ./...` → clean
+- `gofmt -l .` → empty
+- `make build` → single binary, embedded SPA, ldflags populated
 
 ---
 
-## 6. Git History
+## Why this file exists
 
-| Commit | Description |
-|--------|-------------|
-| 00a8105 | fix: security hardening follow-up — 13 findings |
-| d0bdd21 | fix: comprehensive security hardening |
-| f697bb4 | refactor: dead-code elimination sweep |
-| 38899a8 | fix(lint): errcheck in metrics.go |
-| 5ce5796 | refactor: systematic dead-code elimination |
+Earlier revisions asserted **Production Readiness Score: 100/100** after
+closing a 13-finding security audit. That claim was accurate for the
+scope of that audit but **did not survive contact** with the follow-up
+audit recorded in `.project/ANALYSIS.md`: four tests were red, a CORS
+regression had silently disabled the allowlist, JWT alg-pinning was only
+post-parse, and the security report's file line numbers no longer
+matched HEAD (fixes had already landed in `7d69c5e` but the report was
+never re-generated).
 
-28 commits, all pushed, working tree clean.
-
----
-
-## 7. CI/CD Pipeline
-
-- GoReleaser multi-platform builds to GHCR
-- golangci-lint, gosec, go vet, tests
-- Trivy container vulnerability scanning
-- Syft SBOM generation
-- Gitleaks secret scanning
-
-### Artefacts
-- deploymonster-linux-amd64
-- deploymonster-linux-arm64
-- deploymonster-darwin-amd64/arm64
-- deploymonster-windows-amd64.exe
-- Docker image: ghcr.io/deploy-monster/deploy-monster
+The 100/100 framing is retired. This file now tracks the conditional-go
+state honestly, and defers the long-form numbers to `.project/`.
 
 ---
 
-## 8. Deployment
+## References
 
-Single binary deploy:
-./deploymonster --port 8443 --tls-cert /path/to/cert --tls-key /path/to/key
-
-Docker:
-docker run -d -p 8443:8443 -v /var/run/docker.sock:/docker.sock ghcr.io/deploy-monster/deploy-monster
-
----
-
-## 9. Known Limitations
-
-| Limitation | Workaround | ETA |
-|------------|------------|-----|
-| PostgreSQL not wired | SQLite default | Planned |
-| mTLS agent comms | WebSocket over TLS | Long-term |
-| HSM support | Software vault | Long-term |
-
----
-
-## 10. Final Checklist
-
-| Category | Item | Status |
-|----------|------|--------|
-| Build | Go build compiles | PASS |
-| Build | Binary size < 50MB | PASS (22MB) |
-| Tests | 38/38 packages pass | PASS |
-| Tests | Coverage > 80% | PASS (88.4%) |
-| Security | No critical/high | PASS |
-| Security | 13 findings fixed | PASS |
-| Git | Working tree clean | PASS |
-| Git | All commits pushed | PASS |
-| Docs | SPECIFICATION.md | PASS |
-| CI/CD | Release workflow | PASS |
-| CI/CD | Trivy in pipeline | PASS |
-| Docker | Multi-stage Dockerfile | PASS |
-| Docker | No root (prod) | PASS |
-
----
-
-## 11. Conclusion
-
-DeployMonster is PRODUCTION READY.
-
-- All core features implemented and tested
-- Security audit complete (13/13 remediated)
-- 38/38 test packages passing
-- 88.4% average code coverage
-- Clean git history
-- CI/CD with security scanning
-- Single binary deployment
-- No critical or high-severity vulnerabilities
-
-Ready for self-hosted deployment on any VPS or bare-metal server.
-
----
-
-Report generated: 2026-04-14
+- **Current sprint log:** `CHANGELOG.md` (the v0.1.7 entry)
+- **Honest feature/security audit:** `.project/ANALYSIS.md`
+- **Go/no-go with blocker list:** `.project/PRODUCTIONREADY.md`
+- **Roadmap + sprint plan:** `.project/ROADMAP.md`
+- **Upgrade guide:** `docs/upgrade-guide.md`
+- **Security audit (historical):** `docs/security-audit.md`

@@ -7,6 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Grouped into **Breaking**, **Security**, **Features**, **Fixes**, and **Performance**
 at the request of the Phase 7 roadmap.
 
+## [0.1.7] — 2026-04-16 — Sprint 1: Test portability, CORS restoration, JWT alg pin
+
+Sprint 1 of the post-audit roadmap. Four failing tests turned green, one
+security regression from v0.1.4 reverted, one canonical defense added.
+All 40 Go test packages now green on `go test -short -count=1 ./...`.
+
+### Security
+
+- **CORS-001 regression from v0.1.4 reverted.** Commit `a72550d` collapsed
+  the CORS middleware to "always wildcard, never credentials," which
+  **defeated the entire `server.cors_origins` allowlist** — any configured
+  list was silently ignored. The new two-mode contract honors both shapes
+  safely: public mode (`*` or empty) emits `Access-Control-Allow-Origin: *`
+  and never `Allow-Credentials` (browsers reject wildcard+creds per the
+  fetch spec); allowlist mode echoes the request `Origin` only if it
+  matches an entry and emits `Allow-Credentials: true`. New regression
+  test `TestCORS_NeverWildcardWithCredentials` walks four failure shapes
+  to lock the invariant. `internal/api/middleware/middleware.go`,
+  `internal/api/middleware/cors_test.go`.
+- **JWT alg-pinning hardened (AUTH-001 follow-up).** Added the canonical
+  `jwt.WithValidMethods([]string{"HS256"})` option to both
+  `ValidateAccessToken` and `ValidateRefreshToken` in
+  `internal/auth/jwt.go`. The pre-existing post-parse `token.Method !=
+  HS256` check is kept as belt-and-suspenders. This closes the last
+  theoretical `alg=none`/alg-confusion window between `ParseWithClaims`
+  and the post-parse guard.
+
+### Fixes
+
+- **Portable ephemeral-port test fixtures.** Four tests hardcoded
+  `127.0.0.1:1` as an "always refuses connection" address, which was
+  false on the dev workstation (the port answers with HTTP 404 — likely
+  an endpoint-protection agent) and on any box with a listener on that
+  port. Replaced with the portable `listen on :0 → close → reuse addr`
+  pattern: reserve an ephemeral port from the kernel, close it, and use
+  the now-free address. Affected: `internal/discovery/health_test.go`
+  (`TestHealthChecker_CheckAll_TCPUnhealthy`),
+  `internal/ingress/proxy_test.go`
+  (`TestReverseProxy_CircuitBreaker_RecordsFailure`),
+  `internal/ingress/coverage_boost_test.go`
+  (`TestReverseProxy_ServeHTTP_BackendConnectionError`),
+  `internal/swarm/swarm_coverage_test.go`
+  (`TestAgentClient_Dial_DefaultPort` — the latter additionally used
+  `SetDefaultPort` to inject the closed port rather than asserting on
+  the occupied-by-DeployMonster default `:8443`).
+
+### Documentation
+
+- **Audit triad published under `.project/`.** `ANALYSIS.md` (honest
+  feature/security/code-quality snapshot), `ROADMAP.md` (three-path
+  decision framework + sprint plan), `PRODUCTIONREADY.md` (CONDITIONAL
+  GO verdict with blocker list). Supersedes the aspirational 100/100
+  claim in the repo-root `PRODUCTION-READY.md`.
+
+## [0.1.6] — 2026-04-15 — Comprehensive UX overhaul
+
+Three-phase UX sweep across marketplace, modal/dialog patterns, and the
+topology editor. 96 files changed; no schema or API breaks.
+
+### Features
+
+- **Marketplace.** 12 templates gained icons + config schemas; new
+  dynamic config-form generator renders variables from the schema;
+  featured-templates section on the marketplace index; new
+  `/marketplace/:slug` template detail page with services list, resource
+  requirements, and compose preview.
+- **Modal → Sheet + AlertDialog migration.** New `Sheet` (slide-over
+  panel) and `AlertDialog` primitives. `window.confirm()` replaced on
+  six pages. Create flows for Servers, Databases, and Git Sources moved
+  from `Dialog` to `Sheet` for the wider inputs these forms need.
+- **Topology editor fixes.** Removed the dual-state pattern between
+  ReactFlow's internal state and the Zustand store — single source of
+  truth eliminates the lost-edits class of bugs. Config panel widened
+  from `w-72` to `w-96`. Empty-state card shown when the canvas has
+  zero nodes instead of an empty grid.
+
+## [0.1.5] — 2026-04-15 — Duplicate tag
+
+Tag points to the same commit as `v0.1.4` (`a72550d`). Left in place
+to preserve installer URL stability; no binary difference.
+
+## [0.1.4] — 2026-04-15 — CORS rewrite (later reverted in v0.1.7)
+
+### Changed
+
+- CORS middleware rewritten to always emit wildcard, no origin
+  validation, HTTP-only install default. **This change defeated the
+  `server.cors_origins` allowlist and was reverted in v0.1.7.**
+  Operators on v0.1.4–v0.1.6 should upgrade to v0.1.7 if they rely on
+  a configured origin list. `internal/api/middleware/middleware.go`,
+  `scripts/install.sh`.
+
+## [0.1.3] — 2026-04-15 — Installer + static-asset CORS bypass
+
+### Fixes
+
+- **install.sh** — auto-generate `secret_key` in generated config so
+  fresh installs start cleanly without a manual secret edit.
+- **CORS on static assets** — the middleware no longer intercepts
+  responses for the embedded SPA asset routes (`/assets/*`,
+  `/chunks/*`). Eliminates the class of bugs where aggressive CORS
+  preflight rewriting broke cached SPA bundles on certain browsers.
+
+### Documentation
+
+- **README** — quickstart install command and status badge bumped to
+  the new tag.
+
 ## [0.1.2] — 2026-04-14 — Hotfix: Install script variable scope
 
 Fixes install script regression where variables were not accessible

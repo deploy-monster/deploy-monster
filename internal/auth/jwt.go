@@ -151,9 +151,12 @@ func (j *JWTService) GenerateTokenPair(userID, tenantID, roleID, email string) (
 // SECURITY: Caller should check if token JTI is in revocation list via IsAccessTokenRevoked.
 func (j *JWTService) ValidateAccessToken(tokenStr string) (*Claims, error) {
 	for _, key := range j.allKeys() {
+		// WithValidMethods rejects the token before the keyfunc runs if
+		// the alg header is not HS256 — the canonical defense against
+		// alg=none and alg-confusion attacks.
 		token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
 			return key, nil
-		})
+		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}))
 		if err != nil {
 			continue
 		}
@@ -161,7 +164,8 @@ func (j *JWTService) ValidateAccessToken(tokenStr string) (*Claims, error) {
 		if !ok || !token.Valid {
 			continue
 		}
-		// SECURITY: Explicitly verify the signing method
+		// Belt-and-suspenders: the parse option above already enforces
+		// this, but we double-check in case the library behavior changes.
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, jwt.ErrTokenSignatureInvalid
 		}
@@ -223,9 +227,11 @@ const RefreshTokenTTLSeconds = 7 * 24 * 60 * 60 // 7 days
 // Tries the active key first, then falls back to previous keys for graceful rotation.
 func (j *JWTService) ValidateRefreshToken(tokenStr string) (*RefreshTokenClaims, error) {
 	for _, key := range j.allKeys() {
+		// WithValidMethods rejects the token before the keyfunc runs if
+		// the alg header is not HS256 — mirrors ValidateAccessToken.
 		token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
 			return key, nil
-		})
+		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}))
 		if err != nil {
 			continue
 		}
@@ -233,7 +239,6 @@ func (j *JWTService) ValidateRefreshToken(tokenStr string) (*RefreshTokenClaims,
 		if !ok || !token.Valid {
 			continue
 		}
-		// SECURITY: Explicitly verify the signing method (matches ValidateAccessToken)
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, jwt.ErrTokenSignatureInvalid
 		}

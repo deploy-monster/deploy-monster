@@ -312,7 +312,7 @@ func TestReverseProxy_ServeHTTP_BackendConnectionError(t *testing.T) {
 	rt.Upsert(&RouteEntry{
 		Host:       "app.example.com",
 		PathPrefix: "/",
-		Backends:   []string{"127.0.0.1:1"}, // unreachable port
+		Backends:   []string{closedLoopbackAddr(t)}, // reliably refused
 	})
 
 	rp := NewReverseProxy(rt, slog.Default())

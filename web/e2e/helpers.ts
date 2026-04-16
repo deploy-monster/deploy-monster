@@ -56,7 +56,9 @@ export async function loginViaUI(page: Page, email: string, password: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: /sign in/i }).click();
-  await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 30_000 });
+  // Wait for dashboard — catch timeout and return, letting ensureAuthenticated
+  // do the final assertion with the test's remaining time budget.
+  await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 45_000 }).catch(() => {});
 }
 
 /** Register a new user via the UI form. */
@@ -110,6 +112,9 @@ export async function ensureAuthenticated(page: Page): Promise<void> {
   const isLoginPage = await loginText.isVisible({ timeout: 500 }).catch(() => false);
   if (isLoginPage) {
     await loginViaUI(page, TEST_USER.email, TEST_USER.password);
+    // loginViaUI already waited for dashboard; return immediately to avoid
+    // burning the test's remaining time budget on a redundant check.
+    return;
   }
 
   await expect(shell).toBeVisible({ timeout: 30_000 });

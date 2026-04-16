@@ -1306,18 +1306,29 @@ func TestAgentClient_Dial_ConnectionRefused(t *testing.T) {
 }
 
 func TestAgentClient_Dial_DefaultPort(t *testing.T) {
-	// Test that dial adds :8443 when no port is specified
-	rt := &mockRuntime{}
-	// This will fail to connect, but we verify the port is appended
-	client := NewAgentClient("http://127.0.0.1", "agent-1", "token", "1.0.0", rt, discardLogger())
+	// Verify that dial appends the default port when the master URL carries
+	// none. We override the default to a reliably-closed ephemeral port
+	// because the canonical default (8443) is occupied on any host where
+	// DeployMonster itself is running — which includes most dev boxes and
+	// contaminates the assertion with "HTTP 200" success paths.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	closedPort := l.Addr().(*net.TCPAddr).Port
+	l.Close()
 
-	err := client.dial(context.Background())
+	rt := &mockRuntime{}
+	client := NewAgentClient("http://127.0.0.1", "agent-1", "token", "1.0.0", rt, discardLogger())
+	client.SetDefaultPort(closedPort)
+
+	err = client.dial(context.Background())
 	if err == nil {
 		t.Fatal("expected error (no server)")
 	}
-	// The error should reference 127.0.0.1:8443
-	if !strings.Contains(err.Error(), "8443") {
-		t.Errorf("error = %q, expected port 8443", err)
+	wantPort := fmt.Sprintf("%d", closedPort)
+	if !strings.Contains(err.Error(), wantPort) {
+		t.Errorf("error = %q, expected port %s in message", err, wantPort)
 	}
 }
 

@@ -106,20 +106,49 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 }
 
 // CORS returns middleware that sets CORS headers.
-// SIMPLIFIED: Always allow all origins for HTTP-only deployments.
-// This eliminates CORS headaches in self-hosted environments.
+//
+// Two modes, chosen by allowedOrigins:
+//
+//  1. Public mode (allowedOrigins == "" or "*"): emit
+//     Access-Control-Allow-Origin: * and omit Allow-Credentials. This
+//     matches the fetch-spec ban on wildcard+credentials — credentialed
+//     cross-origin fetches are rejected by browsers in this mode.
+//
+//  2. Allowlist mode (comma-separated origin list): echo the request
+//     Origin only if it is in the list, and emit Allow-Credentials:
+//     true. Origins not in the list receive no Allow-Origin header,
+//     which the browser interprets as CORS denial.
+//
+// Vary: Origin is always set so caches can key on Origin. The previous
+// "always wildcard" behavior (introduced in commit a72550d) was unsafe
+// for any deployment that configured cors_origins — this restores the
+// intended allowlist semantics while keeping the wildcard fallback for
+// self-hosted defaults.
 func CORS(allowedOrigins string, enforceHTTPS bool) func(http.Handler) http.Handler {
+	// Parse the allowlist once per middleware instance.
+	origins := parseCORSOrigins(allowedOrigins)
+	publicMode := len(origins) == 0 || (len(origins) == 1 && origins[0] == "*")
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// SIMPLIFIED: Always allow all origins - no more CORS errors
-			// This is safe for self-hosted DeployMonster instances
-			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Vary", "Origin")
-
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Request-ID")
 			w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, X-DeployMonster-Version, X-API-Version")
 			w.Header().Set("Access-Control-Max-Age", "86400")
+
+			origin := r.Header.Get("Origin")
+			if publicMode {
+				// Wildcard. Never combined with Allow-Credentials — browsers
+				// reject credentialed fetches against a wildcard origin.
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if origin != "" && originAllowed(origin, origins) {
+				// Strict allowlist. Safe to set Allow-Credentials because
+				// we echo a specific origin, not "*".
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+			// else: no Allow-Origin header → browser denies the response.
 
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
@@ -129,6 +158,31 @@ func CORS(allowedOrigins string, enforceHTTPS bool) func(http.Handler) http.Hand
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// parseCORSOrigins splits the config value into trimmed, non-empty origins.
+func parseCORSOrigins(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// originAllowed reports whether origin appears in the allowlist.
+func originAllowed(origin string, allowlist []string) bool {
+	for _, a := range allowlist {
+		if a == origin {
+			return true
+		}
+	}
+	return false
 }
 
 // RequireAuth returns middleware that validates JWT from the Authorization header,

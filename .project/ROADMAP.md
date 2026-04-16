@@ -1,314 +1,245 @@
-# DeployMonster — Production Roadmap
+# Project Roadmap
 
-> **Audit Date**: 2026-04-15
-> **HEAD Commit**: `bba5185` (docs: update STATUS.md and README for v0.1.6)
-> **Current Version**: v0.1.6
-> **Target**: v1.0.0 Production Release  
-> **Companion Documents**: `.project/ANALYSIS.md`, `.project/PRODUCTIONREADY.md`  
+> Based on comprehensive codebase analysis performed on **2026-04-16**
+> This roadmap prioritizes work needed to bring the project from its current ≈ 0.1.x state to a genuine 1.0 production release.
+> Companion docs: `.project/ANALYSIS.md` (audit findings), `.project/PRODUCTIONREADY.md` (go/no-go verdict).
 
 ---
 
 ## Current State Assessment
 
-DeployMonster v0.0.2 is a **feature-complete, security-hardened PaaS platform** with:
+**Where the project stands (honest read).** DeployMonster is feature-rich and architecturally sound, but the gap between *claimed* and *delivered* is material:
 
-- ✅ 21 modules fully implemented
-- ✅ 88.4% test coverage (CI-enforced 85%)
-- ✅ Comprehensive security audit (13 findings, all remediated)
-- ✅ 240 REST API endpoints
-- ✅ React 19 frontend with embedded deployment
-- ✅ Master/Agent clustering architecture
-- ✅ PostgreSQL + SQLite backends
+- **Test suite is red today.** 4 failing Go tests across `internal/discovery`, `internal/ingress` (×2), `internal/swarm`.
+- **1 critical + 12 high-severity security findings** tracked in `security-report/SECURITY-REPORT.md` and not yet remediated (AUTHZ-001 domain hijacking, CORS wildcard with credentials, race conditions in deploy path, JWT refresh alg not pinned, access tokens non-revocable).
+- **Version/doc drift.** `VERSION` file says `v0.1.2`; README and `.project/STATUS.md` headline `v0.1.6`. No intermediate tags were cut.
+- **Feature-claim drift.** 56 marketplace templates (not 150+). 205 API routes (not 240). DNS providers 1/3. VPS providers ≈ 4/6. MongoDB "supported" but not implemented.
+- **E2E suite brittle.** `continue-on-error: true` in CI; last 9 commits are all E2E stabilization work.
 
-**Current Blockers for Production:**
-1. ✅ ~~One failing WebSocket test (`TestDeployHub_OriginValidation_NoOriginHeader`)~~ — FIXED
-2. ✅ ~~E2E tests marked continue-on-error due to UI drift~~ — FIXED
+**What's working well.**
+- Clean 20-module architecture with topologically-ordered lifecycle.
+- Strong typing discipline: strict TS with zero `any`/`@ts-ignore`; `go vet` clean; `gofmt` clean.
+- Mature CI/CD: 85% coverage gate, OpenAPI drift detection, gitleaks + Trivy (SHA-pinned), multi-platform GoReleaser, scratch Docker image.
+- Security fundamentals solid: parameterized SQL, slice-args `exec`, AES-256-GCM secret vault, bcrypt cost 13.
+- Graceful shutdown, bounded async event pool, `SafeGo` wrapper with panic recovery.
 
----
+**Key blockers for a production release** (must all be resolved):
+1. Red test suite.
+2. Open critical/high security findings.
+3. Version/CHANGELOG reconciliation.
+4. Either deliver or retract over-claimed features (marketplace, providers, endpoint counts).
 
-## Phase 1: Critical Fixes (Week 1) — ✅ COMPLETE
-
-### P0 — Blockers for Any Deployment
-
-- [x] **1.1 Fix WebSocket Origin Test** (0.5 days) ✅
-  - **Issue**: `TestDeployHub_OriginValidation_NoOriginHeader` failing
-  - **Location**: `internal/api/ws/deploy_test.go:320`
-  - **Evidence**: Test expects same-origin allowed but gets `websocket: bad handshake`
-  - **Fix**: Updated test assertion to expect rejection (security-compliant)
-  - **Verification**: `go test ./internal/api/ws/...` passes ✅
-
-- [x] **1.2 Verify Short Test Suite** (0.25 days) ✅
-  - **Command**: `go test -short ./...`
-  - **Expected**: All packages pass ✅
-
-### P1 — Pre-Production Verification
-
-- [ ] **1.3 Run Full Test Suite** (1 day)
-  - **Command**: `go test -race -coverprofile=coverage.out ./...`
-  - **Gate**: Maintain 85%+ coverage
-  - **Evidence**: Coverage report in CI
-
-- [ ] **1.4 Security Scan** (0.5 days)
-  - **Command**: `govulncheck ./...`
-  - **Note**: 2 Docker CVEs expected (documented, not exploitable)
-  - **Action**: Verify no new critical vulnerabilities
+**Baseline timeline estimate to 1.0:** 10–14 weeks of focused effort by 1–2 engineers, following the phased plan below.
 
 ---
 
-## Phase 2: E2E Test Stabilization (Week 1-2) — ✅ COMPLETE
+## Phase 1: Critical Fixes (Week 1–2)
 
-### P1 — E2E Test Suite
+**Goal:** red tests → green; critical security findings closed; honest docs.
 
-- [x] **2.1 Fix E2E Test Timing Issues** (0.5 days) ✅
-  - **Issue**: Playwright tests failing due to auth initialization race condition
-  - **Location**: `web/e2e/` directory
-  - **Evidence**: `.github/workflows/ci.yml:99` — `continue-on-error: true`
-  - **Fix Applied**:
-    - Added `data-testid="full-page-loader"` to `FullPageLoader` component
-    - Added `data-testid="dashboard-shell"` to Dashboard component
-    - Updated `global-setup.ts` to wait for auth initialization
-    - Updated `helpers.ts` to use reliable test IDs
-  - **Verification**: `make test-e2e` passes locally ✅
+- [ ] **Fix `TestHealthChecker_CheckAll_TCPUnhealthy`** in `internal/discovery/`. Bug: TCP check on a closed port returns healthy. Review `internal/discovery/health.go` TCP probe — likely missing connect-error classification. *2–4 h.*
+- [ ] **Fix `TestReverseProxy_ServeHTTP_BackendConnectionError`** and **`TestReverseProxy_CircuitBreaker_RecordsFailure`**. Both expect 502 but receive 404, and the circuit-breaker stat never increments. `internal/ingress/proxy.go` — error path doesn't distinguish "no backend found" (→ 404) from "backend unreachable" (→ 502). *3–5 h.*
+- [ ] **Fix `TestAgentClient_Dial_DefaultPort`**. Error-message format `"master rejected connection: HTTP 200"` not `"... port 8443"`. `internal/swarm/agent.go` dial error construction. *1–2 h.*
+- [ ] **AUTHZ-001 — domain hijacking.** Add `requireTenantApp(h.store, claims, req.AppID)` to `internal/api/handlers/domains.go:83–141`. Write a regression test that creates a domain on another tenant's app and asserts 403. *1–2 h.*
+- [ ] **CORS-001 — revert wildcard.** Revert the permissive CORS introduced by commit `a72550d`. Implement a proper allowlist: `CORSOrigins` from config, reject `Origin: ""` when `Allow-Credentials: true`, never emit `*` with credentials. Add unit tests covering the three modes (allowlist, empty, wildcard-without-credentials). *3–4 h.*
+- [ ] **CORS-002 — WebSocket origin check.** `internal/api/ws/deploy.go:107`: reject empty `Origin` and validate against the same allowlist. *1 h.*
+- [ ] **AUTH-001 — pin `alg` on refresh.** `internal/auth/jwt.go:208`: replace `jwt.Parse` with explicit `jwt.ParseWithClaims` + `jwt.WithValidMethods([]string{"HS256"})`. *1 h.*
+- [ ] **Version reconciliation.** Either: (a) advance `VERSION` to `v0.1.6`, write missing CHANGELOG entries for 0.1.3–0.1.6, cut a tag; *or* (b) roll README back to `v0.1.2`. Decide and do. *2 h.*
+- [ ] **Update `PRODUCTION-READY.md`** to match reality. Remove "100/100" and "zero blockers". If you want the doc to stay, make it list the current production verdict truthfully. *1 h.*
 
-- [x] **2.2 Fix E2E Test Selectors** (2026-04-15) ✅
-  - **Issue**: Marketplace deploy dialog expected password fields but mock template had no `config_schema`
-  - **Fix**: Added `config_schema` to mock Ghost template with database_password and admin_password
-  - **Removed**: Dead `[data-testid="full-page-loader"]` waits from `global-setup.ts` and `helpers.ts`
-  - **Verification**: E2E TypeScript compiles, selectors match current UI
-
-- [ ] **2.3 Remove continue-on-error** (0.25 days)
-  - **Location**: `.github/workflows/ci.yml`
-  - **Action**: Remove `continue-on-error: true` from E2E job after CI validation
-  - **Status**: 59-62/86 tests passing (68-72%). Core suites fully green: auth, navigation (21/21), dashboard (11/11), marketplace (7/7), topology. Remaining 2-4 flaky tests are timing issues in apps/page and auth session tests — not blocking.
-  - **Verification**: E2E failures block merge
-
-- [ ] **2.4 Add Critical Path E2E Tests** (1 day)
-  - **Coverage**: Login → Create App → Deploy → Verify
-  - **Framework**: Playwright
-  - **Verification**: Tests run in CI
+**Phase 1 total:** ≈ 20–28 h of engineering. Exit criteria: `go test ./...` green; `go vet` clean; 3 critical security fixes merged; docs version-consistent.
 
 ---
 
-## Phase 3: Performance Validation (Week 2)
+## Phase 2: Core Completion (Week 3–6)
 
-### P1 — Performance Gates
+**Goal:** close feature gaps or prune claims to match. Finish high-severity security remediation. Stabilize E2E.
 
-- [ ] **3.1 Run Load Test Suite** (0.5 days)
-  - **Command**: `make loadtest-check`
-  - **Gate**: <10% regression from baseline
-  - **Evidence**: `tests/loadtest/` baseline file
+### 2.1 Security — complete high-severity backlog
 
-- [ ] **3.2 Writers-Under-Load Gate** (0.5 days)
-  - **Command**: `make db-gate`
-  - **Gate**: p95 within 10% of committed baseline
-  - **Note**: Baseline captured on Ryzen 9 16-core
+- [ ] **RACE-001** deployment trigger race. Replace SELECT-then-INSERT with `INSERT ... ON CONFLICT DO NOTHING` (SQLite) / named advisory lock (Postgres). `internal/api/handlers/deploy_trigger.go:62`. *3–4 h.*
+- [ ] **RACE-002** — route all callers of `GetNextDeployVersion` to `AtomicNextDeployVersion`. `internal/api/handlers/deployments.go:115` and any grep hits. *2–3 h.*
+- [ ] **SESS-001 access-token revocation.** Denylist in BBolt keyed on JTI with TTL = access-token lifetime. Middleware check before JWT validation. *6–8 h + tests.*
+- [ ] **AUTHZ-002 / AUTHZ-003** tenant-scope checks on `internal/api/handlers/ports.go:44` and `healthcheck.go:47`. Same `requireTenantApp` helper as AUTHZ-001. *2–3 h.*
+- [ ] Remaining high-severity items (rate-limiter TOCTOU, BBolt metrics race, connection-tracking race, JWT refresh rotation edge case). *6–10 h.*
+- [ ] Enable race detector in a nightly CI job (`go test -race ./...`) to catch regressions. *1 h config.*
 
-- [ ] **3.3 Memory Profiling** (1 day)
-  - **Command**: `go test -bench=BenchmarkMemory -benchmem ./...`
-  - **Focus**: Identify allocation hot spots
-  - **Deliverable**: Memory profile report
+### 2.2 Feature gaps — implement or prune
 
----
+**Decide per-feature: implement or retract.** Pruning is legitimate and often better than partial implementation.
 
-## Phase 4: Documentation & DX (Week 2-3)
+- [ ] **MongoDB managed-DB engine.** Implement `internal/database/engines/mongo.go` (container image pull, init user, connection string format, backup hook). Or remove MongoDB from README/SPEC. *≈ 12–16 h to implement.*
+- [ ] **Route53 DNS provider.** `internal/dns/providers/route53.go` with IAM-role + static-key auth modes. Or remove from SPEC. *≈ 10–12 h.*
+- [ ] **Linode VPS provider.** Finish the stub (`internal/vps/providers/linode.go`) — actual API calls, SSH-key attach, post-provision validation. Or remove from SPEC. *≈ 10–14 h.*
+- [ ] **AWS VPS provider** (EC2). *≈ 16–20 h.* Consider deferring to "Beyond 1.0" unless a customer needs it.
+- [ ] **Weighted load-balancer strategy.** Complete `internal/ingress/lb/weighted.go` with per-backend weight, canary split, and tests. *6–8 h.*
+- [ ] **Finish or gate 26 `StatusNotImplemented` handlers.** Audit each; implement the genuinely-missing ones (billing-plan branches, some enterprise endpoints); feature-flag the rest behind `MONSTER_ENABLE_EXPERIMENTAL=true`. *8–12 h total.*
 
-### P2 — Developer Experience
+### 2.3 Marketplace truth-up
 
-- [ ] **4.1 API Documentation** (2 days)
-  - **Location**: `docs/openapi.yaml`
-  - **Action**: Verify all 240 endpoints documented
-  - **Gate**: `make openapi-check` passes
+- [ ] **Deduplicate `internal/marketplace/builtins_*.go`.** Consolidate into a single sorted table; remove duplicate Slug entries; report the real count. *3–4 h.*
+- [ ] **Decide target count.** Either (a) stop claiming 150+, update README/SPEC to read "56 built-in, community-contributed growing"; or (b) commit to growing to ≥ 100 via a vetted contribution process. *docs only.*
+- [ ] Raise `internal/marketplace/` test coverage from 69% → 85% (it's the coverage laggard). *4–6 h.*
 
-- [ ] **4.2 Update README** (0.5 days)
-  - **Verify**: Installation instructions accurate
-  - **Verify**: Quick start works on clean machine
-  - **Add**: Troubleshooting section
+### 2.4 E2E stabilization
 
-- [ ] **4.3 Deployment Guide** (1 day)
-  - **Location**: `docs/deployment-guide.md`
-  - **Cover**: Docker, systemd, Kubernetes
-  - **Include**: Environment-specific configs
+- [ ] **Audit all 11 Playwright specs** against current UI. The last 9 commits tell the story — selectors are drifting with each UI iteration. *1–2 days.*
+- [ ] **Harden auth setup** — the `login` project already uses per-test contexts to dodge rate limits, but the user-creation step in `global-setup.ts` is race-prone. *4–6 h.*
+- [ ] **Flip `continue-on-error: false`** on `test-e2e` job once suite is green for 5 consecutive runs. Then the CI gate actually means something.
+- [ ] **Add `axe-playwright`** for basic accessibility checks. *2–3 h.*
 
-### P2 — Operations
-
-- [ ] **4.4 Runbook Creation** (1 day)
-  - **Location**: `docs/runbook.md`
-  - **Cover**: Common failures, recovery procedures
-  - **Include**: Alert response procedures
-
-- [ ] **4.5 Monitoring Setup Guide** (0.5 days)
-  - **Cover**: Prometheus scraping
-  - **Cover**: AlertManager rules
-  - **Cover**: Grafana dashboards
+**Phase 2 total:** ≈ 100–150 h (≈ 3–4 weeks with one engineer). Exit criteria: no open critical/high security items; every feature in README is implemented or retracted; E2E gate is blocking and green.
 
 ---
 
-## Phase 5: Production Hardening (Week 3)
+## Phase 3: Hardening (Week 7–8)
 
-### P1 — Production Readiness
+**Goal:** finish medium-severity items; tighten operational defaults; strengthen CI signal.
 
-- [ ] **5.1 TLS Configuration Review** (0.5 days)
-  - **Verify**: Let's Encrypt production (not staging)
-  - **Verify**: Certificate renewal working
-  - **Verify**: Strong cipher suites
+- [ ] **Close 21 medium-severity security findings.** Most are Docker hardening, session management, cryptographic improvements. Review `security-report/SECURITY-REPORT.md` item by item. *16–24 h.*
+- [ ] **Upgrade API-key hashing** from SHA-256 → bcrypt (cost 12) to match password storage. Migration: rehash on first use; hand-off to bcrypt over 30 days. *6–8 h.*
+- [ ] **`db-gate` baseline on GH Actions runners.** Re-capture the writers-under-load baseline on the 2-vCPU GH runner (not the 16-core dev box). Commit, remove `continue-on-error`. *2 h.*
+- [ ] **`loadtest-check` in CI.** Currently runs locally via Makefile; wire into nightly workflow so regressions surface automatically. *3 h.*
+- [ ] **Input validation audit.** Spot-check every `POST`/`PUT` handler for missing JSON schema / length / range validation. Add a light validator helper if patterns repeat. *1–2 days.*
+- [ ] **Secret rotation tool.** Document and test the JWT-secret rotation path (20-min grace is implemented; document the runbook). *3 h.*
+- [ ] **Docker socket hardening.** Offer a socket-proxy option (e.g. Tecnativa docker-socket-proxy) for deployments where direct socket access is too privileged. *docs + example compose.*
 
-- [ ] **5.2 Secrets Audit** (0.5 days)
-  - **Command**: `make check-secrets` or `gitleaks detect`
-  - **Verify**: No secrets in git history
-  - **Verify**: `.env.example` has placeholder values
-
-- [ ] **5.3 Backup Verification** (1 day)
-  - **Test**: Automated backup to S3/MinIO
-  - **Test**: Restore from backup
-  - **Verify**: Backup encryption
-
-### P2 — Resilience
-
-- [ ] **5.4 Graceful Shutdown Testing** (0.5 days)
-  - **Test**: SIGTERM during active deploy
-  - **Verify**: In-flight requests complete
-  - **Verify**: No data corruption
-
-- [ ] **5.5 Database Failover Test** (1 day)
-  - **Test**: PostgreSQL failover (if using)
-  - **Test**: SQLite corruption recovery
-  - **Document**: Recovery procedures
+**Phase 3 total:** ≈ 50–70 h. Exit criteria: security-report shows only low-severity items remaining; performance regression gates are active and blocking.
 
 ---
 
-## Phase 6: Release Preparation (Week 3-4)
+## Phase 4: Testing (Week 9–10)
 
-### P0 — Release
+**Goal:** test depth and reliability, not just coverage percentage.
 
-- [ ] **6.1 Version Bump** (0.25 days)
-  - **File**: `VERSION`
-  - **Tag**: `git tag v0.1.0`
-  - **Push**: `git push origin v0.1.0`
+- [ ] **Implement fuzz tests** for input-parsing boundaries. `PRODUCTION-READY.md` claimed 15 fuzz targets; grep finds zero. Good candidates: webhook payload parsing, `${SECRET:…}` resolver, YAML config, compose-file validator, HMAC verifier, JWT parser. Target **8–10 fuzz targets**. *12–16 h.*
+- [ ] **Lift `internal/marketplace/` coverage to 85%** (currently 69%). *4–6 h.*
+- [ ] **Lift `internal/auth/` coverage to 85%** (currently 78.7%). Focus on refresh-token rotation edge cases. *4–6 h.*
+- [ ] **Lift `internal/db/` coverage to 85%** (currently 78.9%). Transaction-rollback paths are under-tested. *4–6 h.*
+- [ ] **Add integration test: multi-tenant authorization matrix.** A single table-driven test that enumerates (tenant A token, tenant B resource, endpoint) and asserts 403. Prevents authorization regressions systemically. *6–8 h.*
+- [ ] **Add integration test: webhook-to-deploy end-to-end.** Simulated GitHub webhook → build → deploy → container running. Uses dockertest or testcontainers. *8–12 h.*
+- [ ] **Frontend: one test per lazy-loaded page** — smoke render + happy-path click. Cheap insurance. *1 day.*
+- [ ] **Chaos test.** Kill the DB mid-deploy; verify recovery. *4–6 h.*
 
-- [ ] **6.2 Changelog Update** (0.5 days)
-  - **File**: `CHANGELOG.md`
-  - **Cover**: All changes since v0.0.2
-
-- [ ] **6.3 Release Build** (0.5 days)
-  - **Command**: `make release`
-  - **Verify**: All platform binaries built
-  - **Verify**: Docker image pushed
-
-- [ ] **6.4 GitHub Release** (0.25 days)
-  - **Content**: Release notes, binaries, Docker tags
-  - **Verify**: Release published
+**Phase 4 total:** ≈ 50–70 h. Exit criteria: every package > 80% coverage; fuzz targets running in CI; authorization matrix test in place.
 
 ---
 
-## Phase 8: UX Overhaul (v0.1.6) — ✅ COMPLETE
+## Phase 5: Performance & Optimization (Week 11–12)
 
-**Goal**: Fix marketplace emptiness, modal confusion, and topology state sync issues
+**Goal:** the system should hold its published SLAs under realistic load.
 
-### Phase 8.1: Marketplace — Icons, Config Schemas, Dynamic Forms
+- [ ] **Publish SLAs.** Write down the target numbers first (e.g. 300 req/s per master, p95 < 200 ms, 50 concurrent builds). Can't optimize without a target.
+- [ ] **Re-capture `loadtest-baseline` on a production-representative VM.** Document the topology. *4 h.*
+- [ ] **Run the 24-h soak test (`make soak-test`)** and review `soak-results.json`. Address any leak, latency creep, or cold-cache anomaly found. *24 h clock time + 8 h analysis.*
+- [ ] **Profile with pprof** against a synthetic workload. Typical wins: Docker SDK client reuse (already done), JSON encoding hot path, bcrypt cost re-examined. *1–2 days.*
+- [ ] **DB indexes audit.** SQLite + Postgres migrations both need an EXPLAIN-QUERY-PLAN sweep over the top 20 query patterns. *6–8 h.*
+- [ ] **Bundle-size budget.** Add a Vite CI check that fails if the main chunk grows > 300 KB gzip. *2 h.*
+- [ ] **Lazy-load topology editor vendor bundle.** `@xyflow/react` + `dagre` are heavy; ensure they're not in the main chunk. *2 h.*
+- [ ] **BBolt batching.** Hot paths that call `Set` in a loop should use `BatchSet` where available. Audit for N>1 set loops. *4 h.*
 
-- [x] Added `icon`, `config_schema`, `compose_yaml` to 12 featured templates
-- [x] Dynamic config form generation from `config_schema.properties`
-- [x] Fallback: parse `${VAR:-default}` patterns from compose YAML
-- [x] New TemplateDetail page at `/marketplace/:slug`
-  - Services list, resource requirements, compose preview, deploy form
-- [x] Featured templates horizontal scroll section on marketplace page
-- [x] Deploy form converted from `sm:max-w-md` Dialog → Sheet
-
-### Phase 8.2: Sheet + AlertDialog Components
-
-- [x] Created `Sheet` component (slide-over panel from right)
-- [x] Created `AlertDialog` component with `default` | `destructive` variants
-- [x] Eliminated all 6 `window.confirm()` calls (Apps, AppDetail, Domains, GitSources, Secrets, Team)
-- [x] Converted complex create forms to Sheet: Servers, Databases, GitSources
-
-### Phase 8.3: Topology State Sync Fix
-
-- [x] Removed `useNodesState`/`useEdgesState` dual-state pattern
-- [x] Zustand store is now single source of truth
-- [x] Added `updateNodePosition` action for drag-sync
-- [x] ConfigPanel widened from `w-72` (288px) to `w-96` (384px)
-- [x] Empty state for 0-node topology
-
-### Phase 8.4: E2E Test Fixes
-
-- [x] Marketplace deploy dialog selectors fixed (config_schema in mock)
-- [x] Broken loader waits removed from global-setup.ts and helpers.ts
+**Phase 5 total:** ≈ 60–80 h + soak clock time. Exit criteria: published SLAs met under soak; no identified hot-path regressions.
 
 ---
 
-## Phase 9: Production Readiness (Future)
+## Phase 6: Documentation & DX (Week 13–14)
 
-### P2 — Observability
+**Goal:** every claim in the repo should be true; every getting-started path should work for a first-time contributor.
 
-- [ ] **9.1 Production Monitoring** (Ongoing)
-  - **Track**: Error rates, latency, resource usage
-  - **Alert**: PagerDuty/Opsgenie integration
+- [ ] **Rewrite README.** Remove aspirational counts. Add a "Known Limitations" section. *4 h.*
+- [ ] **Regenerate `.project/SPECIFICATION.md`** as an honest v1.0 scope doc: what's in, what's explicitly out. Link from README. *1–2 days.*
+- [ ] **Rewrite `.project/TASKS.md`** or retire it. It's no longer a useful artifact. *2 h.*
+- [ ] **Write 4–6 ADRs** under `docs/adr/` for the big decisions: SQLite-default, custom-API-client vs Query, embedded UI, modular-monolith, master/agent over full distributed. *1 day.*
+- [ ] **Run the quickstart cold.** Fresh VM → `curl | bash` install → first app deployed. Fix everything that broke. *1 day.*
+- [ ] **API docs.** Either (a) reduce the router surface to what's in OpenAPI; (b) generate OpenAPI from router.go annotations (the `make openapi-check` tool already does the comparison — invert it into a generator). *1–2 days.*
+- [ ] **Contributor guide.** Reality-check `CONTRIBUTING.md` — is `make test-integration` actually runnable? Is the local-DB setup documented? *4 h.*
+- [ ] **Deploy runbook.** Upgrade procedure, backup/restore, DB migration rollback, JWT-secret rotation, disaster recovery. *1 day.*
 
-- [ ] **9.2 User Feedback Collection** (Ongoing)
-  - **Channel**: GitHub issues, Discord
-  - **Track**: Feature requests, bug reports
+**Phase 6 total:** ≈ 50–70 h. Exit criteria: README is honest; cold install works; ADRs capture why the system looks the way it does; runbook exists.
 
-### P3 — Future Enhancements
+---
 
-- [ ] **9.3 Horizontal Pod Autoscaler** (Future)
-  - **Feature**: Auto-scale based on CPU/memory
+## Phase 7: Release Preparation (Week 15–16)
 
-- [ ] **9.4 GitOps Integration** (Future)
-  - **Feature**: ArgoCD/Flux compatibility
+**Goal:** cut 1.0 with confidence.
 
-- [ ] **9.5 Multi-Region Support** (Future)
-  - **Feature**: Geographic distribution
+- [ ] **Verify `make release-snapshot`** produces exactly the artifacts you want (tar.gz + SBOM + SHA256 + GHCR image).
+- [ ] **Cut `v0.9.0-rc1`** and do a closed-beta install on 3 representative VPS topologies (2-vCPU Hetzner, 4-vCPU DO, 8-vCPU dedicated).
+- [ ] **SBOM audit** — SPDX JSON generated by GoReleaser; Trivy-scan attached to the GitHub Release. Subscribe to CVE feeds for direct deps.
+- [ ] **Release notes.** CHANGELOG entries for everything since v0.1.2 (the last tagged version). Focus on user-facing changes — security fixes called out explicitly.
+- [ ] **Binary signing.** Evaluate cosign keyless signing of GHCR images and release archives. *4–6 h.*
+- [ ] **Cut `v1.0.0`** once beta feedback is clean for ≥ 7 days.
+- [ ] **Zero-downtime upgrade verified.** Fresh master + pre-existing DB → new version → all existing apps still reachable.
+- [ ] **Rollback drill.** Install v1.0, then downgrade to v0.9-rc1 cleanly. Document it.
+
+**Phase 7 total:** ≈ 40–60 h + beta clock time. Exit criteria: v1.0.0 tag cut; upgrade + rollback paths validated.
+
+---
+
+## Beyond v1.0: Future Enhancements
+
+- [ ] Additional marketplace templates toward 100+ verified.
+- [ ] **Postgres-backed HA** story (Litestream or logical-replica failover). Documented, tested, runbook.
+- [ ] **Distributed tracing.** The OpenTelemetry auto-SDK is already pulled in transitively — wire an OTLP exporter and emit spans from the middleware chain + module lifecycle.
+- [ ] **AWS VPS provider.**
+- [ ] **RFC2136 DNS provider** (generic/BIND).
+- [ ] **Redis-backed rate limiter** for multi-master deployments.
+- [ ] **Multi-region agent orchestration.**
+- [ ] **Admin audit-log export** to S3 / SIEM.
+- [ ] **`react-hook-form` + `zod`** migration as forms grow past the current handful.
+- [ ] **Server-side rendering** for status pages (SEO / faster first-paint for the marketing surface). Only if a user need materialises.
+- [ ] **Plugin system** for third-party builders / notifiers. Currently everything is a first-party module.
+- [ ] **Kubernetes agent mode.** Long-tail ask from users who "already have k8s."
 
 ---
 
 ## Effort Summary
 
-| Phase | Estimated Days | Priority | Status |
-|-------|----------------|----------|--------|
-| Phase 1: Critical Fixes | 2 | P0 | ✅ Complete |
-| Phase 2: E2E Tests | 3.25 | P1 | ✅ Selector fixes done |
-| Phase 3: Performance | 2 | P1 | Pending CI runner baseline |
-| Phase 4: Documentation | 4 | P2 | In progress |
-| Phase 5: Hardening | 3 | P1 | Pending |
-| Phase 6: Release | 1.5 | P0 | Pending |
-| Phase 7: Post-Release | Ongoing | P2 | Pending |
-| Phase 8: UX Overhaul | ~2 | P0 | ✅ Complete (v0.1.6) |
-| Phase 9: Production | Ongoing | P2 | Future |
+| Phase | Description | Estimated Hours | Priority | Dependencies |
+|---|---|---:|---|---|
+| 1 | Critical fixes (red tests, critical security, version reconcile) | 20–28 | **CRITICAL** | — |
+| 2 | Core completion (feature/claim alignment, high-sev security, E2E) | 100–150 | **HIGH** | Phase 1 |
+| 3 | Hardening (medium-sev, perf gates, validation) | 50–70 | HIGH | Phase 2 |
+| 4 | Testing (fuzz, authz matrix, coverage laggards, chaos) | 50–70 | HIGH | Phase 2 |
+| 5 | Performance & optimization (SLA, soak, profiling) | 60–80 + soak | MEDIUM | Phase 3 |
+| 6 | Documentation & DX (README truth-up, ADRs, runbook) | 50–70 | MEDIUM | Phase 2 |
+| 7 | Release prep (RC, beta, v1.0 cut) | 40–60 + beta | MEDIUM | Phases 3–6 |
+| — | **Total to v1.0** | **≈ 370–530 h** | | |
+
+At 1 engineer × 30 productive hours/week → **12–18 weeks**.
+At 2 engineers × 30 h/week in parallel where possible → **7–10 weeks**.
 
 ---
 
 ## Risk Assessment
 
 | Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Docker CVEs not fixed upstream | Medium | Medium | Documented as non-exploitable; monitor upstream |
-| E2E test fixes take longer | Medium | Low | Can release with E2E as non-blocking |
-| Performance regression | Low | High | Load test gate catches before release |
-| Production data corruption | Low | Critical | Backup + restore tested; SQLite WAL mode |
-| SSL certificate issues | Low | High | Test with staging first; monitoring |
+|---|---|---|---|
+| Feature-claim debt erodes user trust | **High** | High | Phase 1 doc reconciliation; Phase 6 README rewrite. Ship less, mean more. |
+| Security finding exploited in the wild before remediation | Medium | **Critical** | Phase 1 closes critical; Phase 2 closes high. Publish `SECURITY.md` with disclosure policy. |
+| E2E suite never stabilizes → no real CI signal for UI | Medium | High | Dedicate a single engineer to E2E for 1 sprint; flip `continue-on-error: false` as soon as green. |
+| SQLite scale ceiling hit earlier than expected | Medium | High | Postgres is already wired. Document "switch to Postgres when X" heuristic in the runbook. Finish the Postgres integration test matrix. |
+| Docker SDK CVEs require disruptive upgrades | Medium | Medium | Already SHA-pinning Trivy/gitleaks; subscribe to `docker/docker` GHSA feed; pin to a minor line with backports. |
+| Drift between master and agent protocols after 1.0 | Low | High | Version-negotiate the WebSocket handshake now; add protocol-version handshake test to `make test-integration`. |
+| Baseline-gated tests flake in CI and get bypassed | Medium | Medium | Capture baselines on the same hardware CI actually runs on; make re-baselining a deliberate, reviewed commit. |
+| Contributor onboarding too painful | Medium | Medium | Phase 6 cold-start drill; minimal Docker-compose dev environment. |
+| Scope creep during Phase 2 (feature-gap work keeps expanding) | **High** | Medium | Decide per-feature in the first week of Phase 2 and *write it down*: implement vs prune. Don't revisit. |
+| Release automation breaks on tag day | Low | High | `make release-snapshot` dry-run must pass a week before the real cut. |
 
 ---
 
-## Success Criteria for v1.0.0
+## Exit Criteria for 1.0.0
 
-- [ ] All tests passing (unit, integration, E2E)
-- [ ] 85%+ test coverage maintained
-- [ ] Security scan clean (except documented Docker CVEs)
-- [ ] Load test baseline within 10%
-- [ ] Documentation complete
-- [ ] Release artifacts published
-- [ ] No P0 or P1 bugs open
-- [x] UX overhaul complete (v0.1.6)
+A single concrete checklist — everything here must be true on the day the 1.0 tag is cut:
 
----
-
-## Current Blockers Status
-
-| Blocker | Status | Resolution |
-|---------|--------|------------|
-| WebSocket test failure | ✅ **RESOLVED** | Phase 1.1 complete |
-| E2E test drift | ✅ **RESOLVED** | Phase 2.1 + 2.2 complete |
-| Docker CVEs (upstream) | 🟡 **MONITORING** | Monitor upstream v29+ |
-| Marketplace empty templates | ✅ **RESOLVED** | Phase 8.1 complete (v0.1.6) |
-| Modal confusion | ✅ **RESOLVED** | Phase 8.2 complete (v0.1.6) |
-| Topology state sync | ✅ **RESOLVED** | Phase 8.3 complete (v0.1.6) |
+- [ ] `go test -race ./...` green, including all integration tags.
+- [ ] `make openapi-check` clean without allowlist exemptions for any route that is advertised in the README.
+- [ ] `docker/docker`, `pgx`, `jwt` upgraded within 30 days of the release date.
+- [ ] Zero critical, zero high-severity findings in `security-report/SECURITY-REPORT.md`.
+- [ ] E2E suite blocking (`continue-on-error: false`), green for 5 consecutive runs.
+- [ ] `make db-gate` and `make loadtest-check` blocking in CI, baselines captured on representative hardware.
+- [ ] README feature claims verified; no aspirational counts.
+- [ ] `CHANGELOG.md` entries for every release from v0.1.2 forward.
+- [ ] Upgrade and rollback paths tested on 3 VPS topologies.
+- [ ] Every advertised DNS / VPS / DB provider either works or is removed from advertising.
+- [ ] A cold-start install from scratch has been timed and succeeds in < 5 minutes.

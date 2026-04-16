@@ -3,6 +3,7 @@ package discovery
 import (
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -293,18 +294,28 @@ func TestHealthChecker_CheckAll_TCPHealthy(t *testing.T) {
 }
 
 func TestHealthChecker_CheckAll_TCPUnhealthy(t *testing.T) {
+	// Obtain a reliably-closed port: bind 127.0.0.1:0, read the assigned
+	// ephemeral port, close immediately. Using a hardcoded low port like :1
+	// is unreliable on Windows, where local services or AV drivers can
+	// accept loopback connections on reserved ports.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	closedAddr := l.Addr().String()
+	l.Close()
+
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	hc := NewHealthChecker(logger)
 
-	// Port 1 should refuse connections.
-	hc.Register("127.0.0.1:1", "tcp", "")
+	hc.Register(closedAddr, "tcp", "")
 
 	for i := 0; i < 3; i++ {
 		hc.checkAll()
 	}
 
-	if hc.IsHealthy("127.0.0.1:1") {
-		t.Error("TCP check to closed port should be unhealthy")
+	if hc.IsHealthy(closedAddr) {
+		t.Errorf("TCP check to closed port %s should be unhealthy", closedAddr)
 	}
 }
 
