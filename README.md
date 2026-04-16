@@ -2,131 +2,144 @@
 
 <div align="center">
 
-**Self-Hosted PaaS — Single Binary, Zero Dependencies**
+**Self-hosted PaaS — single Go binary, embedded React UI**
 
-Transform any VPS into a production-ready deployment platform in 60 seconds.
-
-Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
+Turn any VPS with Docker into a multi-tenant deployment platform.
 
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Coverage](https://img.shields.io/badge/Coverage-88.4%25-brightgreen)](.)
+[![Version](https://img.shields.io/badge/v0.1.7-release-brightgreen)](./)
 
-[📚 Docs](docs/)
+[📚 Docs](docs/) · [🏗 ADRs](docs/adr/) · [🛣 Roadmap](.project/ROADMAP.md)
 
 </div>
 
-> **Status:** v0.1.7 released — Sprint 1 hardening. CORS two-mode contract restored, JWT alg pinning tightened, portable ephemeral-port test fixtures, version/CHANGELOG reconciled.
-
-[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Coverage](https://img.shields.io/badge/Coverage-88.4%25-brightgreen)](.)
-[![Version](https://img.shields.io/badge/v0.1.7-Release-brightgreen)](./)
+> **Status: v0.1.7 (conditional-go).** Self-hosted single-tenant: ready.
+> Multi-tenant SaaS: closing residual Sprint 1–3 items. See
+> [`PRODUCTION-READY.md`](PRODUCTION-READY.md) for the current verdict.
 
 ---
 
-## Quick Start
+## Quick start
 
 ```bash
-# One-line install
-curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.7/scripts/install.sh | bash -s -- --version=v0.1.7
+# One-line install (systemd)
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.7/scripts/install.sh \
+  | bash -s -- --version=v0.1.7
 
-# Interactive setup (domain, SSL, admin credentials)
-deploymonster setup
+deploymonster setup             # interactive: domain, SSL, admin account
 sudo systemctl restart deploymonster
 
-# Or with Docker
-docker run -d -p 8443:8443 -p 80:80 -p 443:443 \
+# Or Docker (bind mounts the socket and a persistent volume)
+docker run -d --name deploymonster \
+  -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  ghcr.io/deploy-monster/deploymonster:latest
+  ghcr.io/deploy-monster/deploymonster:v0.1.7
 ```
 
-Open `http://localhost:8443` (or `https://your-domain.com` after setup) — **System Admin** credentials are printed on first run or injected during `deploymonster setup`.
+Open `http://<host>:8443`. First-run admin credentials are printed to
+the console or injected by `deploymonster setup`.
 
 ---
 
-## Two Admin Levels
-
-DeployMonster distinguishes between platform and tenant administration:
+## Two admin levels
 
 | Role | Scope | Capabilities |
 |------|-------|--------------|
 | **System Admin** | Platform-wide | Create tenants, manage servers, configure providers, view all resources |
 | **Client Admin** | Tenant-level | Manage own projects, apps, databases, domains, team members |
 
-This separation enables **true multi-tenancy** — each client gets isolated access to their resources while the system admin maintains platform control.
+Tenant isolation is enforced by `requireTenantApp()` at every
+resource-scoped handler and pinned by two regression tests:
+`FuzzRouter_CrossTenant` (38 GETs × foreign-tenant IDs) and
+`TestRouter_CrossTenantMutationMatrix` (38 mutations × foreign-tenant
+IDs). See ADR 0009 for the Store-interface design that keeps
+tenant checks at one layer.
 
 ---
 
-## Features
+## What ships today
 
-### 🚀 Deploy Anything
-- **Git-to-Deploy** — GitHub, GitLab, Gitea, Bitbucket webhooks
-- **14 Languages** — Auto-detected build packs (Node.js, Go, Python, Rust, PHP, Java, .NET, Ruby...)
-- **Docker Images** — Deploy from GHCR, Docker Hub, or private registries
-- **Docker Compose** — Multi-service stacks from YAML
-- **Marketplace** — 91 one-click apps across 16 categories (WordPress, Ghost, n8n, Grafana, Ollama...)
+### Deploy pipelines
+- **Git-to-deploy** — GitHub, GitLab, Gitea, Gogs, Bitbucket webhooks
+  with HMAC signature verification.
+- **14 language detectors** — Node, Go, Python, Rust, PHP, Java,
+  .NET, Ruby, Elixir, Deno, Bun, static, Docker, custom.
+- **Docker Compose** multi-service stacks from YAML.
+- **Marketplace** — 91 curated one-click templates across 16
+  categories (WordPress, Ghost, n8n, Grafana, Ollama, …).
 
-### 🏗️ Platform
-- **240 REST API Endpoints** — OpenAPI 3.0 specification
-- **Custom Reverse Proxy** — No Traefik/Nginx dependency, automatic Let's Encrypt via autocert
-- **5 Load Balancer Strategies** — Round-robin, least-conn, IP-hash, random, weighted
-- **Secret Vault** — AES-256-GCM encryption with `${SECRET:name}` syntax
-- **Managed Databases** — PostgreSQL, MySQL, MariaDB, Redis, MongoDB
-- **Backup Engine** — Local + S3/MinIO/R2, cron schedules, retention policies
-- **Monitoring** — CPU/RAM/disk metrics, alerts, Prometheus `/metrics` endpoint
+### Platform
+- **205 REST API routes** (90 currently in `docs/openapi.yaml`; the
+  remaining 115 are tracked in `docs/openapi-drift-allowlist.txt` and
+  being added incrementally).
+- **Custom reverse proxy** — no Traefik/Nginx dependency, automatic
+  Let's Encrypt via `autocert`. Five LB strategies (round-robin,
+  least-conn, IP-hash, random, weighted + canary).
+- **Secret vault** — AES-256-GCM with Argon2id KDF, scoped hierarchy
+  (global → tenant → project → app), `${SECRET:name}` template syntax
+  for env vars and compose files. Per-deployment salt stored in BBolt;
+  legacy installs migrate on first boot. See ADR 0008.
+- **Managed databases** — PostgreSQL, MySQL, MariaDB, Redis, MongoDB.
+- **Backups** — local + S3/MinIO/R2, cron schedules, retention.
+- **Prometheus metrics** at `/metrics`, health at `/health`.
 
-### 🌍 Infrastructure
-- **VPS Provisioning** — Hetzner, DigitalOcean, Vultr, Linode, or any SSH server
-- **Master/Agent Architecture** — Same binary, two modes (control plane / worker node)
-- **SSH Key Management** — Ed25519 keys, per-server access control
-- **Server Bootstrap** — Cloud-init, Docker install, agent deployment
+### Infrastructure
+- **VPS provisioning** — DigitalOcean, Hetzner, Vultr, Linode, or
+  any SSH-reachable server (Custom-SSH). All four cloud providers
+  wire `SSHKeyID` through to their respective create-instance API.
+  AWS EC2 is intentionally deferred to post-1.0.
+- **Master/agent** — the same binary in two modes (control plane /
+  worker node) speaking a versioned WebSocket protocol. See ADR 0007.
 
-### 👥 Multi-Tenancy & Business
-- **RBAC** — 6 built-in roles + custom role creation
-- **2FA & SSO** — TOTP, Google OAuth, GitHub OAuth
-- **Billing** — Plans (Free/Pro/Business/Enterprise), Stripe integration
-- **White-Label** — Custom branding, reseller support
-- **GDPR Compliance** — Data export, right to erasure
-- **Audit Log** — Every action logged with IP, timestamp, actor
+### Multi-tenancy & business
+- RBAC with 6 built-in roles + custom role creation.
+- 2FA (TOTP) + Google / GitHub OAuth SSO.
+- Billing scaffolding (Stripe) — Free / Pro / Business / Enterprise.
+- White-label branding + reseller support.
+- GDPR data export + right-to-erasure endpoints.
+- Audit log with IP / timestamp / actor on every mutation.
 
-### 🤖 AI-Native
-- **MCP Server** — 9 AI-callable tools for LLM-driven infrastructure management
-- **HTTP Transport** — `GET /mcp/v1/tools` + `POST /mcp/v1/tools/{name}`
+### AI-native
+- **MCP server** — 9 AI-callable tools at `GET /mcp/v1/tools`
+  and `POST /mcp/v1/tools/{name}`.
 
 ---
 
-## Architecture
+## Architecture at a glance
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    DeployMonster Binary (~24MB)                  │
+│                DeployMonster single binary (~24 MB)             │
 ├─────────┬─────────┬─────────┬──────────┬─────────┬──────────────┤
-│ Web UI  │   API   │   SSE   │ Webhooks │ Ingress │  MCP Server  │
-│ shadcn  │ 240 eps │ Stream  │  In+Out  │ :80/443 │  9 AI Tools  │
+│ Web UI  │  REST   │  SSE    │ Webhooks │ Ingress │  MCP server  │
+│ shadcn  │ 205 rt  │ Stream  │  In+Out  │ :80/443 │  9 AI tools  │
 ├─────────┴─────────┴─────────┴──────────┴─────────┴──────────────┤
-│                   20 Auto-Registered Modules                     │
-│  auth │ deploy │ build │ ingress │ dns │ secrets │ billing │    │
-│  db │ backup │ vps │ swarm │ marketplace │ notifications │ ...   │
+│                20 auto-registered modules                       │
+│  auth │ deploy │ build │ ingress │ dns │ secrets │ billing │   │
+│  db   │ backup │ vps   │ swarm   │ marketplace │ notifications │
 ├─────────────────────────────────────────────────────────────────┤
-│    SQLite + BBolt   │   Docker SDK   │   EventBus   │   Store   │
+│   SQLite + BBolt   │   Docker SDK   │   EventBus   │   Store   │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+See [`docs/adr/`](docs/adr/) for the 10 ADRs explaining why it looks
+like this.
 
 ---
 
 ## CLI
 
 ```bash
-deploymonster                  # Start server (default)
-deploymonster serve --agent    # Start as agent/worker node
-deploymonster setup            # Interactive setup (domain, SSL, admin)
-deploymonster init             # Generate monster.yaml config
-deploymonster version          # Show version info
-deploymonster config           # Validate configuration
+deploymonster                  # start as master (default)
+deploymonster serve --agent    # start as agent / worker node
+deploymonster setup            # interactive setup (domain, SSL, admin)
+deploymonster init             # generate monster.yaml
+deploymonster version          # build info
+deploymonster config           # validate configuration
+deploymonster health           # health-check probe (works in distroless)
 ```
 
 ---
@@ -134,117 +147,148 @@ deploymonster config           # Validate configuration
 ## Configuration
 
 ```bash
-# Environment variables
+# Environment-variable overrides (all prefixed MONSTER_)
 export MONSTER_PORT=8443
 export MONSTER_DOMAIN=deploy.example.com
 export MONSTER_ADMIN_EMAIL=admin@example.com
-export MONSTER_ADMIN_PASSWORD=secure-password
+export MONSTER_ADMIN_PASSWORD=<initial-password>
 export MONSTER_ACME_EMAIL=ssl@example.com
 
-# Or use config file
-deploymonster init  # Creates monster.yaml
+# Or a YAML file
+deploymonster init             # writes monster.yaml
+$EDITOR monster.yaml
 ```
+
+Full reference: [`docs/configuration.md`](docs/configuration.md).
 
 ---
 
-## Tech Stack
+## Tech stack
 
 | Component | Technology |
-|-----------|------------|
-| Backend | Go 1.26+ (~50K LOC source, ~117K LOC tests) |
-| Frontend | React 19 + Vite 8 + Tailwind CSS 4 + shadcn/ui |
-| Database | SQLite + BBolt KV (PostgreSQL ready) |
-| Container | Docker SDK (moby/moby) |
-| Auth | JWT + bcrypt + TOTP 2FA + OAuth SSO |
-| Encryption | AES-256-GCM + Argon2id |
-| Proxy | Custom net/http reverse proxy |
-| Testing | 85%+ coverage (CI-enforced), 15 fuzz targets, 46 benchmarks |
+|-----------|-----------|
+| Backend | Go 1.26+ |
+| Frontend | React 19 + Vite 8 + Tailwind 4 + shadcn/ui, Zustand for client state, custom `useApi` hook for data (ADR 0010) |
+| Database | SQLite (default, pure-Go driver per ADR 0004) + BBolt KV, PostgreSQL optional (same Store interface, ADR 0009) |
+| Container | Docker Engine SDK |
+| Auth | JWT (HS256, 32-char min secret) + bcrypt cost 13 + TOTP 2FA + OAuth SSO |
+| Encryption | AES-256-GCM + Argon2id (ADR 0008) |
+| Proxy | Custom `net/http` reverse proxy with Let's Encrypt `autocert` |
 
 ---
 
 ## Development
 
 ```bash
-# Prerequisites: Go 1.26+, Node.js 22+, Docker
+# Prerequisites: Go 1.26+, Node.js 22+, pnpm 10+, Docker
 
 # Backend
 go run ./cmd/deploymonster
 
-# Frontend
-cd web && npm install && npm run dev
+# Frontend — uses pnpm, NOT npm
+cd web && pnpm install && pnpm run dev
 
 # Tests
-go test ./...              # Go tests (CI gate: 85%)
-cd web && npm test         # React tests
-
-# Build
-bash scripts/build.sh      # React → embed → Go binary
+make test              # race detector + full suite
+make test-short        # skip integration-tagged tests
+make lint              # golangci-lint
 ```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full guide
+(integration tests, Postgres setup, perf gates, fuzz targets,
+bundle-size budget).
 
 ---
 
-## Project Stats
+## Project stats
 
-```
-~188K total LOC
-├── ~50K Go source
-├── ~117K Go tests
-└── ~22K React / TS / CSS
+- **~188 K** total LOC (~50 K Go source, ~117 K Go tests, ~22 K React/TS/CSS)
+- **205** registered HTTP routes
+- **20** auto-registered modules
+- **91** marketplace templates
+- **17** fuzz targets (input parsing, webhook HMAC, JWT validate, secret resolver, cross-tenant router)
+- **44** benchmarks
+- **~24 MB** single binary with embedded UI
+- **Coverage:** package-weighted **84.2 %** on the default test run.
+  Hot packages are above target: `auth` 93.1 %, `db` 88.7 %,
+  `marketplace` 96.0 %. The CI threshold (85 %) is intentionally
+  tight; the gap is driven by the `tests/loadtest` and `tests/soak`
+  harnesses counting as coverage denominators even though they are
+  load-test tooling rather than unit-tested libraries. Tracked in
+  `.project/ROADMAP.md`.
 
-240 API endpoints · 222 handler functions
-20 modules · 91 marketplace templates
-85%+ test coverage (CI gate) · 15 fuzz targets · 46 benchmarks
-~24MB single binary with embedded UI
-```
+---
+
+## Known limitations
+
+Things we are explicitly *not* pretending to be ready:
+
+- **Multi-master HA** is not supported. The master is a
+  single-process control plane with a SQLite-default store; running
+  two masters against the same DB will corrupt state. A Postgres-backed
+  HA story is on the post-1.0 roadmap.
+- **Kubernetes is not a deploy target.** DeployMonster provisions
+  Docker containers directly (ADR 0003). Running it *alongside* k8s
+  works; orchestrating k8s pods *from* DeployMonster does not.
+- **AWS EC2 provisioning** is not implemented. The other five cloud
+  providers (DO, Hetzner, Vultr, Linode, Custom-SSH) cover ~95 % of
+  the typical user base. AWS adds 16–20 h of vendor-SDK maintenance
+  cost; deferred until a paying customer asks for it.
+- **Route53 DNS** is deferred for the same reason. Cloudflare is
+  the only DNS provider that ships today.
+- **OpenAPI coverage is partial** — 90 of 205 routes are in the
+  spec. CI fails if the gap grows, but the backlog is 115 routes
+  and being worked down incrementally. Handlers are authoritative;
+  the spec is catching up.
+- **E2E Playwright suite runs in `continue-on-error: true`** mode
+  because selectors have drifted with recent UI iterations. It is
+  gated by a tier that blocks the main build pipeline; green-for-5
+  flips the flag.
+- **Distributed tracing** is stubbed (OpenTelemetry SDK pulled in
+  transitively) but not wired. Add OTLP exporter + span emission
+  from middleware + module lifecycle when needed.
+- **Plugin system** does not exist — every builder, DNS provider,
+  VPS provider, and notifier is first-party code.
+
+This list is updated every sprint. New limitations discovered in
+production land here, not in the roadmap, so operators can see the
+trade-offs before committing.
 
 ---
 
 ## Documentation
 
-- [Getting Started](docs/getting-started.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [API Reference](docs/api-reference.md)
-- [OpenAPI Spec](docs/openapi.yaml)
+| Doc | Purpose |
+|---|---|
+| [`docs/getting-started.md`](docs/getting-started.md) | First-deploy walkthrough |
+| [`docs/deployment-guide.md`](docs/deployment-guide.md) | Production install, domains, backups, notifications |
+| [`docs/upgrade-guide.md`](docs/upgrade-guide.md) | Version-to-version upgrade procedure, rollback |
+| [`docs/runbook.md`](docs/runbook.md) | Operator runbook: scenario index for P0/P1 events |
+| [`docs/secret-rotation.md`](docs/secret-rotation.md) | JWT secret rotation (routine + emergency) |
+| [`docs/docker-socket-hardening.md`](docs/docker-socket-hardening.md) | Tecnativa-proxy pattern |
+| [`docs/configuration.md`](docs/configuration.md) | Full YAML + env-var reference |
+| [`docs/api-reference.md`](docs/api-reference.md) | API overview; `docs/openapi.yaml` for the machine-readable spec |
+| [`docs/adr/`](docs/adr/) | 10 architecture decision records |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, test/perf gates, code style |
 
 ---
 
 ## License
 
-**AGPL-3.0** — See [LICENSE](LICENSE) for details.
-
-Commercial licensing available for enterprise use.
+**AGPL-3.0** — see [`LICENSE`](LICENSE). Commercial licensing
+available for users who need to ship modifications privately;
+contact the address in `SECURITY.md`.
 
 ---
 
 <div align="center">
 
-## Built by
+### Built by
 
-<table>
-<tr>
-<td align="center">
+**ECOSTACK TECHNOLOGY OÜ** — 🇪🇪 Tallinn, Estonia — [ecostack.ee](https://ecostack.ee)
 
-**ECOSTACK TECHNOLOGY OÜ**
+**Created by** 🇹🇷 🇪🇪 Ersin KOÇ — [𝕏 @ersinkoc](https://x.com/ersinkoc) · [GitHub](https://github.com/ersinkoc)
 
-🇪🇪 Tallinn, Estonia
-
-[ecostack.ee](https://ecostack.ee)
-
-</td>
-<td align="center">
-
-**Created by**
-
-🇹🇷 🇪🇪 Ersin KOÇ
-
-[𝕏 @ersinkoc](https://x.com/ersinkoc) · [GitHub](https://github.com/ersinkoc)
-
-</td>
-</tr>
-</table>
-
----
-
-[GitHub](https://github.com/deploy-monster/deploy-monster) · [Discord](https://discord.gg/deploymonster)
+[GitHub](https://github.com/deploy-monster/deploy-monster)
 
 </div>
