@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { ensureAuthenticated } from './helpers';
 
 /**
  * Marketplace E2E flow.
@@ -111,6 +112,7 @@ test.describe('Marketplace', () => {
   test('renders the Marketplace header with template count badge', async ({ page }) => {
     await mockMarketplace(page);
     await page.goto('/marketplace');
+    await ensureAuthenticated(page);
 
     await expect(
       page.getByRole('heading', { name: /^marketplace$/i })
@@ -121,6 +123,7 @@ test.describe('Marketplace', () => {
   test('renders a card per template with name, version, and Deploy button', async ({ page }) => {
     await mockMarketplace(page);
     await page.goto('/marketplace');
+    await ensureAuthenticated(page);
 
     await expect(page.getByText('Ghost').first()).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('Grafana').first()).toBeVisible();
@@ -134,6 +137,7 @@ test.describe('Marketplace', () => {
   test('search filters the template grid by name', async ({ page }) => {
     await mockMarketplace(page);
     await page.goto('/marketplace');
+    await ensureAuthenticated(page);
 
     await expect(page.getByText('Grafana').first()).toBeVisible({ timeout: 10_000 });
 
@@ -147,6 +151,7 @@ test.describe('Marketplace', () => {
   test('category filter is present with All Categories option', async ({ page }) => {
     await mockMarketplace(page);
     await page.goto('/marketplace');
+    await ensureAuthenticated(page);
 
     await expect(page.getByText('Ghost').first()).toBeVisible({ timeout: 10_000 });
 
@@ -163,6 +168,7 @@ test.describe('Marketplace', () => {
   test('clicking Deploy opens the deploy dialog with stack name input', async ({ page }) => {
     await mockMarketplace(page);
     await page.goto('/marketplace');
+    await ensureAuthenticated(page);
 
     await expect(page.getByText('Ghost').first()).toBeVisible({ timeout: 10_000 });
 
@@ -181,6 +187,7 @@ test.describe('Marketplace', () => {
   test('submitting the deploy dialog POSTs to /marketplace/deploy', async ({ page }) => {
     await mockMarketplace(page);
     await page.goto('/marketplace');
+    await ensureAuthenticated(page);
 
     await expect(page.getByText('Ghost').first()).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: /^deploy$/i }).first().click();

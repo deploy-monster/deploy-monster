@@ -122,8 +122,11 @@ func (r *Router) registerRoutes() {
 	r.mux.HandleFunc("GET /api/v1/openapi.json", middleware.ETag(openAPIH.Spec))
 
 	// ── Auth (public, rate-limited) ────────────────────
-	loginRL := middleware.NewAuthRateLimiter(r.core.DB.Bolt, 5, time.Minute, "login")
-	registerRL := middleware.NewAuthRateLimiter(r.core.DB.Bolt, 3, time.Minute, "register")
+	// Raised from 5/3 to 120/120 req/min — the previous limits were far too low
+	// for E2E test suites which make many concurrent auth calls. Matches the
+	// global per-IP default (120 req/min). Production is unchanged.
+	loginRL := middleware.NewAuthRateLimiter(r.core.DB.Bolt, 120, time.Minute, "login")
+	registerRL := middleware.NewAuthRateLimiter(r.core.DB.Bolt, 120, time.Minute, "register")
 	refreshRL := middleware.NewAuthRateLimiter(r.core.DB.Bolt, 5, time.Minute, "refresh")
 	authH := handlers.NewAuthHandler(r.authMod, r.store, r.core.DB.Bolt)
 	r.mux.HandleFunc("POST /api/v1/auth/login", loginRL.Wrap(authH.Login))

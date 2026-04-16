@@ -55,13 +55,26 @@ export default defineConfig({
       testMatch: /global-setup\.ts/,
     },
 
-    /* Chromium — main test browser */
+    /* Login — runs auth.spec.ts in its own browser context to avoid
+       exhausting the auth rate limit quota shared with other tests.
+       No setup dependency since it uses empty storageState (fresh auth each test). */
+    {
+      name: 'login',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: { cookies: [], origins: [] },
+      },
+      testMatch: /.*auth\.spec\.ts/,
+    },
+
+    /* Chromium — main test browser (excludes auth.spec.ts, handled by 'login') */
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
         storageState: './e2e/.auth/user.json',
       },
+      testIgnore: /.*auth\.spec\.ts/,
       dependencies: ['setup'],
     },
   ],

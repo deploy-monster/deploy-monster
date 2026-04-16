@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { ensureAuthenticated } from './helpers';
 
 /**
  * Domain setup E2E flow.
@@ -50,6 +51,7 @@ test.describe('Domain Setup', () => {
   test('renders the Domains header and Add Domain CTA', async ({ page }) => {
     await mockDomains(page, []);
     await page.goto('/domains');
+    await ensureAuthenticated(page);
 
     await expect(
       page.getByRole('heading', { name: /^domains$/i })
@@ -62,6 +64,7 @@ test.describe('Domain Setup', () => {
   test('shows empty state when the domain list is empty', async ({ page }) => {
     await mockDomains(page, []);
     await page.goto('/domains');
+    await ensureAuthenticated(page);
 
     await expect(
       page.getByRole('heading', { name: /no domains configured/i })
@@ -74,6 +77,7 @@ test.describe('Domain Setup', () => {
   test('opens the Add Domain dialog with FQDN input and DNS hint', async ({ page }) => {
     await mockDomains(page, []);
     await page.goto('/domains');
+    await ensureAuthenticated(page);
 
     await page.getByRole('button', { name: /add your first domain/i }).click();
 
@@ -89,6 +93,7 @@ test.describe('Domain Setup', () => {
   test('live DNS hint reflects the FQDN as the user types', async ({ page }) => {
     await mockDomains(page, []);
     await page.goto('/domains');
+    await ensureAuthenticated(page);
 
     await page.getByRole('button', { name: /add your first domain/i }).click();
     await page.getByLabel(/domain \(fqdn\)/i).fill('e2e.deploymonster.test');
@@ -101,11 +106,11 @@ test.describe('Domain Setup', () => {
   test('Add Domain button is disabled until FQDN is filled', async ({ page }) => {
     await mockDomains(page, []);
     await page.goto('/domains');
+    await ensureAuthenticated(page);
 
     await page.getByRole('button', { name: /add your first domain/i }).click();
 
-    // Dialog has two buttons with "Add Domain" text (header CTA + dialog footer).
-    // Grab the one inside the dialog by scoping to the dialog role.
+    // Dialog uses sm:max-w-md
     const dialog = page.getByRole('dialog');
     const addBtn = dialog.getByRole('button', { name: /add domain/i });
     await expect(addBtn).toBeDisabled();
@@ -117,6 +122,7 @@ test.describe('Domain Setup', () => {
   test('submitting the dialog POSTs to /api/v1/domains with the FQDN', async ({ page }) => {
     await mockDomains(page, []);
     await page.goto('/domains');
+    await ensureAuthenticated(page);
 
     await page.getByRole('button', { name: /add your first domain/i }).click();
 
@@ -156,6 +162,7 @@ test.describe('Domain Setup', () => {
       },
     ]);
     await page.goto('/domains');
+    await ensureAuthenticated(page);
 
     await expect(page.getByText('one.example.com').first()).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('two.example.com').first()).toBeVisible();
@@ -186,6 +193,7 @@ test.describe('Domain Setup', () => {
       },
     ]);
     await page.goto('/domains');
+    await ensureAuthenticated(page);
 
     await expect(page.getByText('alpha.example.com').first()).toBeVisible({ timeout: 10_000 });
 

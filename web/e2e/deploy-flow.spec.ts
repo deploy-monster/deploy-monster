@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { ensureAuthenticated } from './helpers';
 
 /**
  * Deploy Wizard E2E flow.
@@ -28,6 +29,7 @@ async function mockDeploySuccess(page: Page, appId = 'e2e-test-app') {
 test.describe('Deploy Wizard', () => {
   test('renders the three-step progress and header', async ({ page }) => {
     await page.goto('/apps/new');
+    await ensureAuthenticated(page);
 
     await expect(
       page.getByRole('heading', { name: /deploy new application/i })
@@ -45,6 +47,7 @@ test.describe('Deploy Wizard', () => {
 
   test('Next button on the source step is disabled until a source is picked', async ({ page }) => {
     await page.goto('/apps/new');
+    await ensureAuthenticated(page);
 
     const next = page.getByRole('button', { name: /^next$/i });
     await expect(next).toBeDisabled();
@@ -55,6 +58,7 @@ test.describe('Deploy Wizard', () => {
 
   test('advances from Source to Configure and back with Back', async ({ page }) => {
     await page.goto('/apps/new');
+    await ensureAuthenticated(page);
 
     // Source -> Configure
     await page.getByText(/git repository/i).click();
@@ -74,6 +78,7 @@ test.describe('Deploy Wizard', () => {
 
   test('Git source shows repository URL + branch fields on Configure', async ({ page }) => {
     await page.goto('/apps/new');
+    await ensureAuthenticated(page);
     await page.getByText(/git repository/i).click();
     await page.getByRole('button', { name: /^next$/i }).click();
 
@@ -85,6 +90,7 @@ test.describe('Deploy Wizard', () => {
 
   test('Docker Image source shows image field instead of branch', async ({ page }) => {
     await page.goto('/apps/new');
+    await ensureAuthenticated(page);
     await page.getByText(/docker image/i).click();
     await page.getByRole('button', { name: /^next$/i }).click();
 
@@ -96,6 +102,7 @@ test.describe('Deploy Wizard', () => {
 
   test('Next on Configure is disabled until a name is provided', async ({ page }) => {
     await page.goto('/apps/new');
+    await ensureAuthenticated(page);
     await page.getByText(/docker image/i).click();
     await page.getByRole('button', { name: /^next$/i }).click();
 
@@ -108,6 +115,7 @@ test.describe('Deploy Wizard', () => {
 
   test('review screen lists configuration rows before deploy', async ({ page }) => {
     await page.goto('/apps/new');
+    await ensureAuthenticated(page);
     await page.getByText(/git repository/i).click();
     await page.getByRole('button', { name: /^next$/i }).click();
 
@@ -128,6 +136,7 @@ test.describe('Deploy Wizard', () => {
     await mockDeploySuccess(page, 'e2e-deployed-123');
 
     await page.goto('/apps/new');
+    await ensureAuthenticated(page);
     await page.getByText(/docker image/i).click();
     await page.getByRole('button', { name: /^next$/i }).click();
 

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { ensureAuthenticated } from './helpers';
 
 /**
  * Topology editor E2E flow.
@@ -71,6 +72,7 @@ test.describe('Topology Editor', () => {
   test('renders the Topology Editor header with environment select', async ({ page }) => {
     await mockTopology(page);
     await page.goto('/topology');
+    await ensureAuthenticated(page);
 
     await expect(
       page.getByRole('heading', { name: /topology editor/i })
@@ -85,6 +87,7 @@ test.describe('Topology Editor', () => {
   test('renders Save, Compile, and Deploy action buttons', async ({ page }) => {
     await mockTopology(page);
     await page.goto('/topology');
+    await ensureAuthenticated(page);
 
     await expect(page.getByRole('button', { name: /^save$/i })).toBeVisible({
       timeout: 10_000,
@@ -96,6 +99,7 @@ test.describe('Topology Editor', () => {
   test('Save is disabled when the graph is clean', async ({ page }) => {
     await mockTopology(page);
     await page.goto('/topology');
+    await ensureAuthenticated(page);
 
     await expect(page.getByRole('button', { name: /^save$/i })).toBeDisabled({
       timeout: 10_000,
@@ -105,6 +109,7 @@ test.describe('Topology Editor', () => {
   test('Compile + Deploy are disabled when the graph is empty', async ({ page }) => {
     await mockTopology(page, { nodes: [], edges: [] });
     await page.goto('/topology');
+    await ensureAuthenticated(page);
 
     await expect(page.getByRole('button', { name: /^compile$/i })).toBeDisabled({
       timeout: 10_000,
@@ -115,6 +120,7 @@ test.describe('Topology Editor', () => {
   test('environment select can switch between environments', async ({ page }) => {
     await mockTopology(page);
     await page.goto('/topology');
+    await ensureAuthenticated(page);
 
     const envSelect = page.getByRole('combobox').first();
     await expect(envSelect).toHaveValue('production', { timeout: 10_000 });
@@ -129,6 +135,7 @@ test.describe('Topology Editor', () => {
   test('renders the component palette sidebar', async ({ page }) => {
     await mockTopology(page);
     await page.goto('/topology');
+    await ensureAuthenticated(page);
 
     // The ComponentPalette is a sidebar with a heading/text like
     // "Components" or drag-and-drop instructions. We assert the

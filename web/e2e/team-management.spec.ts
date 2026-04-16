@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { ensureAuthenticated } from './helpers';
 
 /**
  * Team management E2E flow.
@@ -116,6 +117,7 @@ test.describe('Team Management', () => {
   test('opens the Invite Member dialog with email + role fields', async ({ page }) => {
     await mockTeam(page, { members: [fakeMember()] });
     await page.goto('/team');
+    await ensureAuthenticated(page);
 
     await page.getByRole('button', { name: /invite member/i }).click();
 
@@ -133,9 +135,11 @@ test.describe('Team Management', () => {
   test('Send Invite button is disabled until email is filled', async ({ page }) => {
     await mockTeam(page, { members: [fakeMember()] });
     await page.goto('/team');
+    await ensureAuthenticated(page);
 
     await page.getByRole('button', { name: /invite member/i }).click();
 
+    // Invite dialog uses Dialog with sm:max-w-md
     const dialog = page.getByRole('dialog');
     const sendBtn = dialog.getByRole('button', { name: /send invite/i });
     await expect(sendBtn).toBeDisabled();
@@ -147,6 +151,7 @@ test.describe('Team Management', () => {
   test('submitting the invite dialog POSTs to /api/v1/team/invites', async ({ page }) => {
     await mockTeam(page, { members: [fakeMember()] });
     await page.goto('/team');
+    await ensureAuthenticated(page);
 
     await page.getByRole('button', { name: /invite member/i }).click();
 
@@ -172,6 +177,7 @@ test.describe('Team Management', () => {
       audit: [],
     });
     await page.goto('/team');
+    await ensureAuthenticated(page);
 
     await page.getByRole('tab', { name: /audit log/i }).click();
 
