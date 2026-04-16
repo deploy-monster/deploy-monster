@@ -87,7 +87,7 @@
 - [ ] **Audit all 11 Playwright specs** against current UI. The last 9 commits tell the story — selectors are drifting with each UI iteration. *1–2 days.*
 - [ ] **Harden auth setup** — the `login` project already uses per-test contexts to dodge rate limits, but the user-creation step in `global-setup.ts` is race-prone. *4–6 h.*
 - [ ] **Flip `continue-on-error: false`** on `test-e2e` job once suite is green for 5 consecutive runs. Then the CI gate actually means something.
-- [ ] **Add `axe-playwright`** for basic accessibility checks. *2–3 h.*
+- [x] **Add `axe-playwright`** for basic accessibility checks. *Sprint 2: `@axe-core/playwright@4.11.1` added as a devDep, with `web/e2e/a11y.ts` wrapping `AxeBuilder` behind a `scanA11y(page, opts?)` helper that disables `color-contrast` (tailwind zinc-on-zinc is just-under 4.5:1, design-token question) and `region` (single-form pages don't need a landmark) by default, and fails tests only on `serious`/`critical` violations. Lower-severity counts are JSON-logged so trend data shows up in CI without merge-blocking on trivia. `web/e2e/a11y.spec.ts` smoke-scans seven authenticated routes: `/`, `/apps`, `/marketplace`, `/domains`, `/projects`, `/settings`, plus the deploy-wizard entry at `/apps/new`. Runs under the existing `chromium` project against the authed storageState — no extra setup. Public-page scans (`/login`, `/register`) intentionally deferred until we wire a project that starts from empty auth state. Run with `pnpm test:e2e --grep a11y` once `make dev` is up on `:8443`.
 
 **Phase 2 total:** ≈ 100–150 h (≈ 3–4 weeks with one engineer). Exit criteria: no open critical/high security items; every feature in README is implemented or retracted; E2E gate is blocking and green.
 
