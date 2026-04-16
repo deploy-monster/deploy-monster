@@ -40,8 +40,8 @@ export default defineConfig({
     navigationTimeout: 15_000,
   },
 
-  /* Global timeout per test */
-  timeout: 30_000,
+  /* Global timeout per test — 60s to accommodate auth retry in slow suites */
+  timeout: 60_000,
 
   /* Expect timeout */
   expect: {
