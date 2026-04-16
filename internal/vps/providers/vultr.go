@@ -136,6 +136,12 @@ func (v *Vultr) Create(ctx context.Context, opts core.VPSCreateOpts) (*core.VPSI
 		"os_id":     opts.Image,
 		"user_data": opts.UserData,
 	}
+	// Vultr takes sshkey_id as an array of SSH-key UUIDs registered at
+	// /account/ssh-keys. Omitted when SSHKeyID is empty; single-element
+	// array when set.
+	if opts.SSHKeyID != "" {
+		payload["sshkey_id"] = []string{opts.SSHKeyID}
+	}
 	body, err := v.post(ctx, "/instances", payload)
 	if err != nil {
 		return nil, err

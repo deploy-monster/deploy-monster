@@ -133,6 +133,12 @@ func (h *Hetzner) Create(ctx context.Context, opts core.VPSCreateOpts) (*core.VP
 		"image":       opts.Image,
 		"user_data":   opts.UserData,
 	}
+	// Hetzner accepts ssh_keys as an array of key references — ID, name, or
+	// fingerprint all work. Omitted when SSHKeyID is empty so the existing
+	// no-key flow (user_data-based bootstrap) is unchanged.
+	if opts.SSHKeyID != "" {
+		payload["ssh_keys"] = []string{opts.SSHKeyID}
+	}
 
 	body, err := h.post(ctx, "/servers", payload)
 	if err != nil {

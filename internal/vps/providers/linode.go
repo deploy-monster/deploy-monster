@@ -125,6 +125,15 @@ func (l *Linode) Create(ctx context.Context, opts core.VPSCreateOpts) (*core.VPS
 		"root_pass": core.GeneratePassword(24),
 		"metadata":  map[string]string{"user_data": opts.UserData},
 	}
+	// Linode's authorized_keys field takes literal public-key strings rather
+	// than an opaque key-ID reference — SSHKeyID here is treated as the
+	// OpenSSH-formatted public key. Omitted when empty so the fallback stays
+	// the generated root_pass above. Callers that need to reference a Linode
+	// SSH key by ID should resolve it to the public-key material before
+	// calling Create (the /profile/sshkeys list endpoint returns both).
+	if opts.SSHKeyID != "" {
+		payload["authorized_keys"] = []string{opts.SSHKeyID}
+	}
 	body, err := l.post(ctx, "/linode/instances", payload)
 	if err != nil {
 		return nil, err

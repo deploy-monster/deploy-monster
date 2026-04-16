@@ -150,6 +150,13 @@ func (d *DigitalOcean) Create(ctx context.Context, opts core.VPSCreateOpts) (*co
 		"image":     opts.Image,
 		"user_data": opts.UserData,
 	}
+	// DigitalOcean accepts an ssh_keys array of IDs or fingerprints. When
+	// SSHKeyID is empty we omit the field so the droplet boots with the
+	// account-default root-password flow; when set we pass it as a
+	// single-element array so the provisioned box is login-ready.
+	if opts.SSHKeyID != "" {
+		payload["ssh_keys"] = []string{opts.SSHKeyID}
+	}
 	body, err := d.post(ctx, "/droplets", payload)
 	if err != nil {
 		return nil, err
