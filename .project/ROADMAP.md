@@ -98,7 +98,7 @@
 **Goal:** finish medium-severity items; tighten operational defaults; strengthen CI signal.
 
 - [ ] **Close 21 medium-severity security findings.** Most are Docker hardening, session management, cryptographic improvements. Review `security-report/SECURITY-REPORT.md` item by item. *16–24 h.*
-- [ ] **Upgrade API-key hashing** from SHA-256 → bcrypt (cost 12) to match password storage. Migration: rehash on first use; hand-off to bcrypt over 30 days. *6–8 h.*
+- [x] **Upgrade API-key hashing to match password storage.** *Sprint 2: partially stale, finished.* The "SHA-256 → bcrypt" switch was already shipped as CRYPTO-001 before this roadmap was written (see commit history) — `internal/auth/apikey.go` has been using `bcrypt.GenerateFromPassword` for a while. What *was* true is that it ran at `bcrypt.DefaultCost` (10) while passwords ran at cost 13 (`internal/auth/password.go`), which meant an attacker dumping the DB would find API keys ~8× cheaper to crack than user passwords. Sprint 2 closes the asymmetry by pinning a new `apiKeyBcryptCost = 13` constant and adding two regression tests: one that fails if the cost drifts away from `bcryptCost` again, one that asserts legacy cost-10 hashes still verify (so no migration is needed — bcrypt encodes the cost into the hash, `CompareHashAndPassword` reads it back, existing keys keep working until next rotation).
 - [ ] **`db-gate` baseline on GH Actions runners.** Re-capture the writers-under-load baseline on the 2-vCPU GH runner (not the 16-core dev box). Commit, remove `continue-on-error`. *2 h.*
 - [ ] **`loadtest-check` in CI.** Currently runs locally via Makefile; wire into nightly workflow so regressions surface automatically. *3 h.*
 - [ ] **Input validation audit.** Spot-check every `POST`/`PUT` handler for missing JSON schema / length / range validation. Add a light validator helper if patterns repeat. *1–2 days.*
@@ -114,7 +114,7 @@
 **Goal:** test depth and reliability, not just coverage percentage.
 
 - [ ] **Implement fuzz tests** for input-parsing boundaries. `PRODUCTION-READY.md` claimed 15 fuzz targets; grep finds zero. Good candidates: webhook payload parsing, `${SECRET:…}` resolver, YAML config, compose-file validator, HMAC verifier, JWT parser. Target **8–10 fuzz targets**. *12–16 h.*
-- [ ] **Lift `internal/marketplace/` coverage to 85%** (currently 69%). *4–6 h.*
+- [x] **Lift `internal/marketplace/` coverage to 85%** — *done in Phase 2.3, final measurement 96.0%.* Duplicate tracker in this phase is closed by reference; see the Phase 2.3 entry for the test inventory.
 - [ ] **Lift `internal/auth/` coverage to 85%** (currently 78.7%). Focus on refresh-token rotation edge cases. *4–6 h.*
 - [ ] **Lift `internal/db/` coverage to 85%** (currently 78.9%). Transaction-rollback paths are under-tested. *4–6 h.*
 - [ ] **Add integration test: multi-tenant authorization matrix.** A single table-driven test that enumerates (tenant A token, tenant B resource, endpoint) and asserts 403. Prevents authorization regressions systemically. *6–8 h.*

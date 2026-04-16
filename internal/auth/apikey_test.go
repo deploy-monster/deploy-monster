@@ -3,6 +3,8 @@ package auth
 import (
 	"strings"
 	"testing"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestGenerateAPIKey(t *testing.T) {
@@ -86,5 +88,50 @@ func TestVerifyAPIKey_InvalidKey(t *testing.T) {
 	// Empty key should not verify
 	if VerifyAPIKey("", hash) {
 		t.Error("VerifyAPIKey should reject empty key")
+	}
+}
+
+// TestHashAPIKey_CostIsPinnedToPasswordCost asserts the bcrypt cost embedded
+// in new API-key hashes matches the password cost. If this fails, someone
+// silently weakened (or diverged) API-key hashing from password hashing —
+// which is an asymmetry we explicitly don't want: an attacker who dumps the
+// DB should not find API keys cheaper to crack than user passwords.
+func TestHashAPIKey_CostIsPinnedToPasswordCost(t *testing.T) {
+	hash, err := HashAPIKey("dm_costpintest")
+	if err != nil {
+		t.Fatalf("HashAPIKey: %v", err)
+	}
+
+	cost, err := bcrypt.Cost([]byte(hash))
+	if err != nil {
+		t.Fatalf("bcrypt.Cost: %v", err)
+	}
+	if cost != bcryptCost {
+		t.Errorf("API-key bcrypt cost = %d, want %d (== password bcryptCost). "+
+			"API keys must not be cheaper to crack than passwords.", cost, bcryptCost)
+	}
+	if cost != apiKeyBcryptCost {
+		t.Errorf("API-key bcrypt cost = %d, want %d (apiKeyBcryptCost constant)", cost, apiKeyBcryptCost)
+	}
+}
+
+// TestVerifyAPIKey_AcceptsLegacyLowerCostHashes guards the no-migration
+// promise: hashes written with bcrypt.DefaultCost (10) — the value this
+// code used before Sprint 2 raised the cost to 13 — must still verify.
+// bcrypt reads the cost from the hash prefix so this should just work, but
+// the test pins the behaviour so a future refactor can't quietly break
+// every API key in existing deployments.
+func TestVerifyAPIKey_AcceptsLegacyLowerCostHashes(t *testing.T) {
+	key := "dm_legacycost10"
+	legacyHash, err := bcrypt.GenerateFromPassword([]byte(key), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("bcrypt.GenerateFromPassword (legacy): %v", err)
+	}
+	if cost, _ := bcrypt.Cost(legacyHash); cost != bcrypt.DefaultCost {
+		t.Fatalf("legacy hash cost = %d, want %d — setup error", cost, bcrypt.DefaultCost)
+	}
+	if !VerifyAPIKey(key, string(legacyHash)) {
+		t.Error("VerifyAPIKey must accept legacy cost-10 hashes — failing this " +
+			"test means we'd brick every API key issued before the cost bump.")
 	}
 }

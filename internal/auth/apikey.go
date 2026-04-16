@@ -10,6 +10,14 @@ import (
 
 const apiKeyPrefix = "dm_"
 
+// apiKeyBcryptCost mirrors the password-hashing cost (13) so API keys and
+// passwords have the same offline-attack economics — an attacker who dumps
+// the DB should not find API keys cheaper to crack than user passwords.
+// Older hashes generated at bcrypt.DefaultCost (10) continue to verify
+// correctly because bcrypt encodes the cost into the hash string itself;
+// no migration is required. New keys generated from now on use cost 13.
+const apiKeyBcryptCost = 13
+
 // APIKeyPair contains a generated API key and its hash.
 type APIKeyPair struct {
 	Key    string // Full key (only shown once): dm_xxxx...
@@ -38,11 +46,11 @@ func GenerateAPIKey() (*APIKeyPair, error) {
 	}, nil
 }
 
-// HashAPIKey creates a bcrypt hash of an API key.
-// SECURITY FIX (CRYPTO-001): Changed from SHA-256 to bcrypt to prevent rainbow table attacks.
-// bcrypt's adaptive cost factor makes offline attacks computationally expensive.
+// HashAPIKey creates a bcrypt hash of an API key at apiKeyBcryptCost. Old
+// hashes written at a lower cost still verify via VerifyAPIKey; bcrypt reads
+// the cost from the hash prefix, so no migration is needed.
 func HashAPIKey(key string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(key), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(key), apiKeyBcryptCost)
 	if err != nil {
 		return "", fmt.Errorf("bcrypt hash: %w", err)
 	}
