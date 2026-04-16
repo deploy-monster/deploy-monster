@@ -29,7 +29,7 @@ DeployMonster isn't just another deploy tool — it's a complete infrastructure 
 
 | Tool | What's Wrong With It | What DeployMonster Does Better |
 |------|---------------------|-------------------------------|
-| Coolify | Clunky UI, limited marketplace, poor multi-server | Professional 3-panel UI, 56 built-in templates (community-contributed catalog growing), VPS provider API |
+| Coolify | Clunky UI, limited marketplace, poor multi-server | Professional 3-panel UI, 91 built-in templates (community-contributed catalog growing), VPS provider API |
 | Dokploy | Basic features, no billing, weak team mgmt | Full PaaS with billing, RBAC, team management |
 | CapRover | Outdated UI, Captain-based, limited scaling | Modern React UI, Docker Swarm native, auto-scaling |
 | Portainer | Container management only, no deploy pipeline | Full Git→Build→Deploy pipeline + container management |
@@ -49,7 +49,7 @@ DeployMonster isn't just another deploy tool — it's a complete infrastructure 
 5. **Built-in billing** — Run a hosting business. Dokploy/Coolify have zero billing.
 6. **Universal Git** — Any Git provider, not just GitHub/GitLab. Gitea, Gogs, Azure, custom.
 7. **Docker Compose native** — Upload a compose file, get a running stack. First-class, not afterthought.
-8. **Built-in marketplace** — 56 one-click templates at launch across 16 categories (databases, CMS, observability, dev tools, AI stacks); catalog grows via community contribution.
+8. **Built-in marketplace** — 91 one-click templates at launch across 16 categories (databases, CMS, observability, dev tools, AI stacks); catalog grows via community contribution.
 9. **Secret vault** — Scoped, versioned, rotatable secrets. No one else has this built-in.
 10. **MCP server** — AI-native infrastructure management. Future-proof.
 
@@ -3296,7 +3296,7 @@ DeployMonster Marketplace is a curated, searchable, one-click deployment catalog
 | | MERN | MongoDB + Express + React + Node |
 | | T3 Stack | Next.js + tRPC + Prisma + Tailwind |
 
-**Total at v0.1.7: 56 built-in templates across 16 categories. Additional apps above (ERPNext, Odoo, Crater, OrangeHRM, LAMP/LEMP/MEAN/MERN/T3 stacks, and so on) are a forward-looking catalog plan — they are candidates for community contribution, not currently embedded. Growth roadmap is tracked in `.project/ROADMAP.md`.**
+**Total at v0.1.7: 91 built-in templates across 16 categories. The number is what the registry reports at module startup — 56 curated entries from `builtinTemplates` (builtins.go + builtins_extra.go + builtins_extended.go + builtins_more.go) plus 35 net-new entries from the bulk 100-list (builtins_100.go) after duplicate slugs are filtered. The pre-fix figure of 56 that appeared in prior audit notes counted only `LoadBuiltins()` and missed the second load path. Additional apps above (ERPNext, Odoo, Crater, OrangeHRM, LAMP/LEMP/MEAN/MERN/T3 stacks, and so on) are a forward-looking catalog plan — they are candidates for community contribution, not currently embedded. Growth roadmap is tracked in `.project/ROADMAP.md`.**
 
 ### 21.3 Template Manifest Format
 
@@ -4268,7 +4268,7 @@ build:
 
 ### Phase 11 — Marketplace (v0.11.0)
 - [ ] Marketplace engine + template YAML spec
-- [x] 56 built-in templates embedded (v0.1.7); continued catalog growth tracked as a post-1.0 contribution goal
+- [x] 91 built-in templates embedded (v0.1.7); continued catalog growth tracked as a post-1.0 contribution goal
 - [ ] Category browser, search, filter
 - [ ] Config wizard (JSON Schema → form)
 - [ ] One-click deploy pipeline

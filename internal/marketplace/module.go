@@ -103,9 +103,32 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	m.registry = NewTemplateRegistry()
 	m.registry.LoadBuiltins()
 
-	// Load additional templates for 100+ total
+	// Merge the bulk 100-list (builtins_100.go) without clobbering the
+	// curated builtinTemplates entries. Historically this loop used
+	// registry.Add unconditionally, and because Add is map-based it
+	// silently overwrote the richer canonical entries from builtins*.go
+	// (Icon, ConfigSchema, tighter resource requirements, newer image
+	// tags) with the bulk-imported 100-list versions. 25 slugs overlap
+	// between the two sets, so 25 high-quality templates were being
+	// replaced at startup with a simpler variant. The registry now skips
+	// any slug that LoadBuiltins has already registered — the bulk file
+	// fills gaps, never overrides.
+	skipped := 0
+	added := 0
 	for _, t := range GetMoreTemplates100() {
+		if m.registry.Get(t.Slug) != nil {
+			skipped++
+			continue
+		}
 		m.registry.Add(t)
+		added++
+	}
+	if m.logger != nil {
+		m.logger.Info("marketplace templates loaded",
+			"builtins", len(builtinTemplates),
+			"extra_added", added,
+			"extra_skipped_as_duplicate", skipped,
+			"total", m.registry.Count())
 	}
 
 	return nil

@@ -68,7 +68,7 @@ This separation enables **true multi-tenancy** — each client gets isolated acc
 - **14 Languages** — Auto-detected build packs (Node.js, Go, Python, Rust, PHP, Java, .NET, Ruby...)
 - **Docker Images** — Deploy from GHCR, Docker Hub, or private registries
 - **Docker Compose** — Multi-service stacks from YAML
-- **Marketplace** — 56 one-click apps across 16 categories (WordPress, Ghost, n8n, Grafana, Ollama...)
+- **Marketplace** — 91 one-click apps across 16 categories (WordPress, Ghost, n8n, Grafana, Ollama...)
 
 ### 🏗️ Platform
 - **240 REST API Endpoints** — OpenAPI 3.0 specification
@@ -192,7 +192,7 @@ bash scripts/build.sh      # React → embed → Go binary
 └── ~22K React / TS / CSS
 
 240 API endpoints · 222 handler functions
-20 modules · 56 marketplace templates
+20 modules · 91 marketplace templates
 85%+ test coverage (CI gate) · 15 fuzz targets · 46 benchmarks
 ~24MB single binary with embedded UI
 ```

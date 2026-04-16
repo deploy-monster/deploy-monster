@@ -72,13 +72,13 @@
 - [ ] **Route53 DNS provider.** `internal/dns/providers/route53.go` with IAM-role + static-key auth modes. Or remove from SPEC. *≈ 10–12 h.*
 - [ ] **Linode VPS provider.** Finish the stub (`internal/vps/providers/linode.go`) — actual API calls, SSH-key attach, post-provision validation. Or remove from SPEC. *≈ 10–14 h.*
 - [ ] **AWS VPS provider** (EC2). *≈ 16–20 h.* Consider deferring to "Beyond 1.0" unless a customer needs it.
-- [ ] **Weighted load-balancer strategy.** Complete `internal/ingress/lb/weighted.go` with per-backend weight, canary split, and tests. *6–8 h.*
+- [x] **Weighted load-balancer strategy.** `internal/ingress/lb/weighted.go` landed in Sprint 2 with Nginx-style smooth weighted round-robin, zero-weight drain, negative-weight clamping, atomic SetWeights, and a `Canary` wrapper that implements stable/canary % splits on top of Weighted. Wired through the string factory (`lb.New("weighted")`) and covered by 15 behavioral tests (default-1 weights, exact distribution over a cycle, smoothness proof, drain, factory wire-up, canary ramp 0→50→100, empty-canary fallback, per-pool weights, clamping).
 - [ ] **Finish or gate 26 `StatusNotImplemented` handlers.** Audit each; implement the genuinely-missing ones (billing-plan branches, some enterprise endpoints); feature-flag the rest behind `MONSTER_ENABLE_EXPERIMENTAL=true`. *8–12 h total.*
 
 ### 2.3 Marketplace truth-up
 
 - [ ] **Deduplicate `internal/marketplace/builtins_*.go`.** Consolidate into a single sorted table; remove duplicate Slug entries; report the real count. *3–4 h.*
-- [x] **Decide target count.** Picked (a) in v0.1.7: README.md and `.project/SPECIFICATION.md` now read "56 built-in templates, community-contributed growing" instead of "150+". `.project/BRANDING.md` still carries the aspirational 150+ copy because it is marketing/website material tracked in a separate project per ownership decision — revisit when that copy is reconciled with the published marketplace count.
+- [x] **Decide target count.** Picked (a) in v0.1.7: README.md and `.project/SPECIFICATION.md` now read "91 built-in templates, community-contributed growing" instead of "150+". The 56 figure originally cited in this roadmap (and in `.project/ANALYSIS.md`) counted only `LoadBuiltins()` output and missed the second load path inside `marketplace.Module.Init` that merges the `moreTemplates100` bulk list. Subsequent audit work in Sprint 2 (commit-to-follow) exposed that second load path and the silent-overwrite bug it carried — the true at-startup registry size is 91, not 56. `.project/BRANDING.md` still carries the aspirational 150+ copy because it is marketing/website material tracked in a separate project per ownership decision — revisit when that copy is reconciled with the published marketplace count.
 - [ ] Raise `internal/marketplace/` test coverage from 69% → 85% (it's the coverage laggard). *4–6 h.*
 
 ### 2.4 E2E stabilization
