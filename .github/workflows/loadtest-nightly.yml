@@ -1,0 +1,161 @@
+name: Load Test (Nightly)
+
+# Spins up a real DeployMonster instance on the GH runner and hits five
+# public-read endpoints under concurrent load. Publishes the per-run
+# results as an artifact so throughput and p95 trends are visible over
+# time without having to restart the process manually on a dev box.
+#
+# Why nightly (not on PR)?
+#   - The run takes ~30s of wall-clock at concurrency=20. On the 2-vCPU
+#     ubuntu-latest runner the numbers jitter enough that a per-PR gate
+#     would be noisier than useful.
+#   - Perf regressions are rarely a "this PR broke it" problem; they
+#     creep in across many PRs. A nightly series over 30 days makes the
+#     drift visible; a per-PR check wouldn't.
+#
+# Why continue-on-error: true?
+#   - The committed baseline in tests/loadtest/baselines/http.json was
+#     captured on a Ryzen-class dev box (p95 ≈ 20-30 ms, 1657 req/s).
+#     GH runners land 3-5× slower, so passing `-baseline` here fails
+#     every run until a runner-class baseline is captured via a one-off
+#     workflow_dispatch. Until then we skip the -baseline flag entirely
+#     and publish the run purely for trend data.
+#   - Flip this off (and add -baseline) in the same commit that lands
+#     a GH-runner-class baseline file.
+#
+# workflow_dispatch lets an engineer kick off a run after a known
+# perf-sensitive change (new middleware, hot-path refactor) without
+# waiting until 04:00.
+on:
+  schedule:
+    # Run 30 minutes after race-nightly so we don't compete for the same
+    # runner quota window — race detector takes ~20 min, load test ~5,
+    # leaves clean separation on the cron timeline.
+    - cron: '47 3 * * *'
+  workflow_dispatch:
+    inputs:
+      capture_baseline:
+        description: 'Capture a fresh runner-class baseline (OVERWRITES tests/loadtest/baselines/http.json) — only use when you know why the baseline should move'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+jobs:
+  loadtest:
+    name: Load Test (HTTP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      # Same UI bootstrap as test-e2e: the React app must be in the
+      # embed dir so the server can serve /metrics/api and the rest of
+      # the endpoints under test.
+      - name: Build React UI
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Copy UI to embed dir
+        run: |
+          rm -rf internal/api/static/*
+          cp -r web/dist/* internal/api/static/
+
+      - name: Build server
+        run: go build -o bin/deploymonster ./cmd/deploymonster
+
+      - name: Start server
+        run: |
+          ./bin/deploymonster serve &
+          echo $! > server.pid
+        env:
+          MONSTER_SERVER_ADDRESS: :8443
+          MONSTER_DATABASE_DRIVER: sqlite
+
+      - name: Wait for server ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8443/health > /dev/null 2>&1; then
+              echo "Server ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Server never became ready on :8443"
+          exit 1
+
+      # Warm-up pass: 10s at concurrency=5 to get the Go runtime past
+      # JIT/GC stabilization. Without this the first "real" run's p95
+      # is noticeably worse than steady state — not a bug we want to
+      # chase in trend data.
+      - name: Warm up
+        run: |
+          go run ./tests/loadtest \
+            -url http://localhost:8443 \
+            -duration 10s \
+            -concurrency 5 \
+            -out /dev/null
+
+      # Measured run. No -baseline until a runner-class baseline is
+      # captured — this run only publishes results as an artifact for
+      # trend analysis.
+      - name: Run load test
+        continue-on-error: true
+        run: |
+          go run ./tests/loadtest \
+            -url http://localhost:8443 \
+            -duration 30s \
+            -concurrency 20 \
+            -out loadtest-results.json
+
+      # One-off baseline capture via workflow_dispatch input. Writes to
+      # a distinct runner-class baseline file that does NOT overwrite
+      # the dev-box baseline used by `make loadtest-check`. A follow-up
+      # PR is expected to move the file into
+      # tests/loadtest/baselines/http-ghrunner.json and flip
+      # `continue-on-error` off on the measured-run step above.
+      - name: Capture runner-class baseline (dispatch only)
+        if: ${{ inputs.capture_baseline == 'true' }}
+        run: |
+          go run ./tests/loadtest \
+            -url http://localhost:8443 \
+            -duration 60s \
+            -concurrency 50 \
+            -save-baseline loadtest-results-ghrunner-baseline.json
+          echo "::notice::Baseline captured as artifact — download, review, and commit to tests/loadtest/baselines/http-ghrunner.json in a follow-up PR."
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload load-test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: loadtest-results-${{ github.run_id }}
+          path: |
+            loadtest-results.json
+            loadtest-results-ghrunner-baseline.json
+          if-no-files-found: warn
+          retention-days: 30
