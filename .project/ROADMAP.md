@@ -73,7 +73,7 @@
 - [ ] **Linode VPS provider.** Finish the stub (`internal/vps/providers/linode.go`) — actual API calls, SSH-key attach, post-provision validation. Or remove from SPEC. *≈ 10–14 h.*
 - [ ] **AWS VPS provider** (EC2). *≈ 16–20 h.* Consider deferring to "Beyond 1.0" unless a customer needs it.
 - [x] **Weighted load-balancer strategy.** `internal/ingress/lb/weighted.go` landed in Sprint 2 with Nginx-style smooth weighted round-robin, zero-weight drain, negative-weight clamping, atomic SetWeights, and a `Canary` wrapper that implements stable/canary % splits on top of Weighted. Wired through the string factory (`lb.New("weighted")`) and covered by 15 behavioral tests (default-1 weights, exact distribution over a cycle, smoothness proof, drain, factory wire-up, canary ramp 0→50→100, empty-canary fallback, per-pool weights, clamping).
-- [ ] **Finish or gate 26 `StatusNotImplemented` handlers.** Audit each; implement the genuinely-missing ones (billing-plan branches, some enterprise endpoints); feature-flag the rest behind `MONSTER_ENABLE_EXPERIMENTAL=true`. *8–12 h total.*
+- [x] **Finish or gate 26 `StatusNotImplemented` handlers.** *Sprint 2 audit closed this with zero findings.* `rg StatusNotImplemented`, `rg 'http\.StatusNotImplemented'`, `rg 'writeError.*501'`, `rg 'w\.WriteHeader\(501\)'` against `internal/` all returned zero matches. Only `"not implemented"` hits are intentional test-mock panics (`internal/api/handlers/common_test.go`, `internal/deploy/mock_test.go`) used to fail fast when a test accidentally exercises an uncovered store method — correct testing hygiene, not production stubs. The roadmap's "26 handlers" count was stale (same pattern as Sprint 1's pre-fixed AUTHZ-001/CORS-002 audit findings).
 
 ### 2.3 Marketplace truth-up
 
