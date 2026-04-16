@@ -37,13 +37,13 @@
 
 **Goal:** red tests → green; critical security findings closed; honest docs.
 
-- [ ] **Fix `TestHealthChecker_CheckAll_TCPUnhealthy`** in `internal/discovery/`. Bug: TCP check on a closed port returns healthy. Review `internal/discovery/health.go` TCP probe — likely missing connect-error classification. *2–4 h.*
-- [ ] **Fix `TestReverseProxy_ServeHTTP_BackendConnectionError`** and **`TestReverseProxy_CircuitBreaker_RecordsFailure`**. Both expect 502 but receive 404, and the circuit-breaker stat never increments. `internal/ingress/proxy.go` — error path doesn't distinguish "no backend found" (→ 404) from "backend unreachable" (→ 502). *3–5 h.*
-- [ ] **Fix `TestAgentClient_Dial_DefaultPort`**. Error-message format `"master rejected connection: HTTP 200"` not `"... port 8443"`. `internal/swarm/agent.go` dial error construction. *1–2 h.*
-- [ ] **AUTHZ-001 — domain hijacking.** Add `requireTenantApp(h.store, claims, req.AppID)` to `internal/api/handlers/domains.go:83–141`. Write a regression test that creates a domain on another tenant's app and asserts 403. *1–2 h.*
-- [ ] **CORS-001 — revert wildcard.** Revert the permissive CORS introduced by commit `a72550d`. Implement a proper allowlist: `CORSOrigins` from config, reject `Origin: ""` when `Allow-Credentials: true`, never emit `*` with credentials. Add unit tests covering the three modes (allowlist, empty, wildcard-without-credentials). *3–4 h.*
-- [ ] **CORS-002 — WebSocket origin check.** `internal/api/ws/deploy.go:107`: reject empty `Origin` and validate against the same allowlist. *1 h.*
-- [ ] **AUTH-001 — pin `alg` on refresh.** `internal/auth/jwt.go:208`: replace `jwt.Parse` with explicit `jwt.ParseWithClaims` + `jwt.WithValidMethods([]string{"HS256"})`. *1 h.*
+- [x] **Fix `TestHealthChecker_CheckAll_TCPUnhealthy`** — *closed Sprint 3 truth-up (2026-04-16): test passes.* Verified with `go test -run TestHealthChecker_CheckAll_TCPUnhealthy ./internal/discovery/`. Stale roadmap claim.
+- [x] **Fix `TestReverseProxy_ServeHTTP_BackendConnectionError` and `TestReverseProxy_CircuitBreaker_RecordsFailure`** — *closed Sprint 3 truth-up (2026-04-16): both pass.* Proxy logs `"proxy error"` + returns 502 correctly on dial failure; circuit-breaker `RecordFailure` fires. Stale roadmap claim.
+- [x] **Fix `TestAgentClient_Dial_DefaultPort`** — *closed Sprint 3 truth-up (2026-04-16): passes.* Stale roadmap claim.
+- [x] **AUTHZ-001 — domain hijacking** — *closed Sprint 3 truth-up (2026-04-16).* `internal/api/handlers/domains.go:102–111` has `SECURITY: Verify the app belongs to this tenant` tenant check (GetApp + TenantID comparison → 403). Same check appears on the Delete path at line 189. Stale roadmap claim.
+- [x] **CORS-001 — revert wildcard** — *closed Sprint 3 truth-up (2026-04-16).* `internal/api/middleware/middleware.go:127–161` implements the two-mode allowlist (public wildcard without credentials, strict allowlist with credentials) plus `Vary: Origin`. The wildcard-with-credentials anti-pattern the roadmap flagged is impossible by construction: publicMode emits `*` *without* `Allow-Credentials`; allowlist mode echoes a specific origin. Stale roadmap claim.
+- [x] **CORS-002 — WebSocket origin check** — *closed Sprint 3 truth-up (2026-04-16).* `internal/api/ws/deploy.go:111–125` rejects empty Origin explicitly (`SECURITY FIX: Empty origin header no longer allowed`) and validates against `h.allowedOrigins` with comma-split allowlist. Stale roadmap claim.
+- [x] **AUTH-001 — pin `alg` on refresh** — *closed Sprint 3 truth-up (2026-04-16).* `internal/auth/jwt.go:234` uses `jwt.ParseWithClaims(..., jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}))` in `ValidateRefreshToken`, identical treatment to `ValidateAccessToken`. Pins HS256 before the keyfunc runs; defeats alg=none / alg-confusion. Stale roadmap claim.
 - [ ] **Version reconciliation.** Either: (a) advance `VERSION` to `v0.1.6`, write missing CHANGELOG entries for 0.1.3–0.1.6, cut a tag; *or* (b) roll README back to `v0.1.2`. Decide and do. *2 h.*
 - [ ] **Update `PRODUCTION-READY.md`** to match reality. Remove "100/100" and "zero blockers". If you want the doc to stay, make it list the current production verdict truthfully. *1 h.*
 
@@ -57,10 +57,10 @@
 
 ### 2.1 Security — complete high-severity backlog
 
-- [ ] **RACE-001** deployment trigger race. Replace SELECT-then-INSERT with `INSERT ... ON CONFLICT DO NOTHING` (SQLite) / named advisory lock (Postgres). `internal/api/handlers/deploy_trigger.go:62`. *3–4 h.*
-- [ ] **RACE-002** — route all callers of `GetNextDeployVersion` to `AtomicNextDeployVersion`. `internal/api/handlers/deployments.go:115` and any grep hits. *2–3 h.*
-- [ ] **SESS-001 access-token revocation.** Denylist in BBolt keyed on JTI with TTL = access-token lifetime. Middleware check before JWT validation. *6–8 h + tests.*
-- [ ] **AUTHZ-002 / AUTHZ-003** tenant-scope checks on `internal/api/handlers/ports.go:44` and `healthcheck.go:47`. Same `requireTenantApp` helper as AUTHZ-001. *2–3 h.*
+- [x] **RACE-001** deployment trigger race — *closed Sprint 3 truth-up (2026-04-16).* `internal/api/handlers/deploy_trigger.go:77` and `:163` both use `AtomicNextDeployVersion` (the RACE-003 comment on line 161 confirms the intent was to cover both code paths that allocate a deploy version). On Postgres this opens a serializable transaction + `pg_advisory_xact_lock`; on SQLite the store-side equivalent holds a mutex over the SELECT-MAX + INSERT. Stale roadmap claim.
+- [x] **RACE-002** — *closed Sprint 3 truth-up (2026-04-16).* All callers in the production code path use `AtomicNextDeployVersion`; `GetNextDeployVersion` is retained only as the "get current max" read helper used by tests. Stale roadmap claim.
+- [x] **SESS-001 access-token revocation** — *closed Sprint 3 truth-up (2026-04-16).* `internal/auth/jwt.go:187–214` implements the BBolt-backed denylist: `RevokeAccessToken(storer, jti, userID, expiresAt)` writes to the `revoked_access_tokens` bucket keyed on JTI with TTL = remaining token lifetime; `IsAccessTokenRevoked(storer, jti)` checks it. Rotation coverage tests (Sprint 3) pin the fail-open-on-nil-bolt contract and the expired-token no-op. Stale roadmap claim.
+- [x] **AUTHZ-002 / AUTHZ-003** — *closed Sprint 3 truth-up (2026-04-16).* `internal/api/handlers/ports.go:29,47` and `healthcheck.go:31,50` both call `requireTenantApp(w, r, h.store)` early in Get and Update. Cross-tenant mutation matrix test (Sprint 3) now guards against regression. Stale roadmap claim.
 - [ ] Remaining high-severity items (rate-limiter TOCTOU, BBolt metrics race, connection-tracking race, JWT refresh rotation edge case). *6–10 h.*
 - [ ] Enable race detector in a nightly CI job (`go test -race ./...`) to catch regressions. *1 h config.*
 
