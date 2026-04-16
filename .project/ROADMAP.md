@@ -150,7 +150,7 @@
 - [ ] **Rewrite README.** Remove aspirational counts. Add a "Known Limitations" section. *4 h.*
 - [ ] **Regenerate `.project/SPECIFICATION.md`** as an honest v1.0 scope doc: what's in, what's explicitly out. Link from README. *1–2 days.*
 - [ ] **Rewrite `.project/TASKS.md`** or retire it. It's no longer a useful artifact. *2 h.*
-- [ ] **Write 4–6 ADRs** under `docs/adr/` for the big decisions: SQLite-default, custom-API-client vs Query, embedded UI, modular-monolith, master/agent over full distributed. *1 day.*
+- [x] **Write 4–6 ADRs** — *closed Sprint 3 (2026-04-16).* `docs/adr/` actually contains **10 Nygard-template ADRs** covering every decision the roadmap asked for plus four more: 0001 SQLite-default, 0002 modular-monolith, 0003 no-Kubernetes, 0004 pure-Go SQLite driver, 0005 embedded-React-UI, 0006 in-process event bus, 0007 master-agent same binary, 0008 encryption-key strategy, 0009 Store-interface composition, 0010 custom `useApi` hook over TanStack Query (added this sprint — documents the bundle/mental-model tradeoff, alternatives considered, and revisit triggers). `README.md` index updated. All start in Accepted status; the template mandates new-ADR-supersedes-old for any reversal so the history stays readable.
 - [ ] **Run the quickstart cold.** Fresh VM → `curl | bash` install → first app deployed. Fix everything that broke. *1 day.*
 - [ ] **API docs.** Either (a) reduce the router surface to what's in OpenAPI; (b) generate OpenAPI from router.go annotations (the `make openapi-check` tool already does the comparison — invert it into a generator). *1–2 days.*
 - [ ] **Contributor guide.** Reality-check `CONTRIBUTING.md` — is `make test-integration` actually runnable? Is the local-DB setup documented? *4 h.*

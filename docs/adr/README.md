@@ -22,6 +22,7 @@ editing the old one.
 | [0007](0007-master-agent-same-binary.md) | Master and agent are the same binary | Accepted |
 | [0008](0008-encryption-key-strategy.md) | Encryption key strategy (Argon2id + AES-256-GCM vault) | Accepted |
 | [0009](0009-store-interface-composition.md) | 12-way Store interface composition for backend portability | Accepted |
+| [0010](0010-custom-api-hooks-over-tanstack-query.md) | Custom `useApi` hook over TanStack Query | Accepted |
 
 ## Writing a new ADR
 
