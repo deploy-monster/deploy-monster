@@ -127,7 +127,7 @@ type Module interface {
 | `ingress.acme` | ACME/SSL | Network | 11 | Let's Encrypt certificate management |
 | `ingress.lb` | Load Balancer | Network | 12 | Multi-strategy load balancing |
 | `discovery` | Service Discovery | Network | 13 | Label-based container discovery |
-| `dns.sync` | DNS Synchronizer | Network | 14 | Cloudflare, Route53, Generic DNS |
+| `dns.sync` | DNS Synchronizer | Network | 14 | Cloudflare (shipping), Route53/Generic DNS (planned) |
 | `deploy` | Deploy Engine | Deploy | 20 | Container lifecycle management |
 | `deploy.git` | Git Deployer | Deploy | 21 | Universal Git → build → deploy pipeline |
 | `deploy.image` | Image Deployer | Deploy | 22 | Direct Docker image → deploy |
@@ -147,7 +147,7 @@ type Module interface {
 | `vps.digitalocean` | DigitalOcean Provider | Infrastructure | 66 | DigitalOcean API integration |
 | `vps.vultr` | Vultr Provider | Infrastructure | 66 | Vultr API integration |
 | `vps.linode` | Linode Provider | Infrastructure | 66 | Akamai/Linode API integration |
-| `vps.aws` | AWS Provider | Infrastructure | 66 | AWS EC2 integration |
+| `vps.aws` | AWS Provider | Infrastructure | 66 | AWS EC2 integration *(Beyond 1.0 — deferred)* |
 | `vps.custom` | Custom SSH Server | Infrastructure | 66 | Any server via SSH + IP |
 | `swarm` | Swarm Orchestrator | Cluster | 70 | Multi-node Docker Swarm |
 | `swarm.agent` | Swarm Agent | Cluster | 71 | Worker node agent |
@@ -518,7 +518,7 @@ Host(`a.com`) || Host(`b.com`)
 │  │  HTTP-01 Challenge     │  │ ← Port 80 /.well-known/acme-challenge/
 │  └────────────────────────┘  │
 │  ┌────────────────────────┐  │
-│  │  DNS-01 Challenge      │  │ ← Cloudflare/Route53 API
+│  │  DNS-01 Challenge      │  │ ← Cloudflare API (shipping); Route53 planned
 │  └────────────────────────┘  │
 │  ┌────────────────────────┐  │
 │  │  Auto-Renewal Cron     │  │ ← 30 days before expiry
@@ -868,13 +868,13 @@ sticky:
 
 ### 10.1 Provider Support
 
-| Provider | Method | Features |
-|----------|--------|----------|
-| Cloudflare | REST API v4 | A, AAAA, CNAME, TXT, Proxy toggle |
-| AWS Route 53 | AWS SDK | A, AAAA, CNAME, Alias records |
-| DigitalOcean DNS | REST API | A, AAAA, CNAME, TXT |
-| Generic RFC2136 | DNS UPDATE protocol | Any compliant DNS server |
-| Manual | No sync | User manages DNS externally |
+| Provider | Method | Features | Status |
+|----------|--------|----------|--------|
+| Cloudflare | REST API v4 | A, AAAA, CNAME, TXT, Proxy toggle | Shipping |
+| Manual | No sync | User manages DNS externally | Shipping |
+| AWS Route 53 | AWS SDK | A, AAAA, CNAME, Alias records | Planned (post-1.0) |
+| DigitalOcean DNS | REST API | A, AAAA, CNAME, TXT | Planned (post-1.0) |
+| Generic RFC2136 | DNS UPDATE protocol | Any compliant DNS server | Planned (post-1.0) |
 
 ### 10.2 Sync Flow
 
@@ -1289,8 +1289,10 @@ DeployMonster can provision and manage remote servers from cloud providers, or c
 | DigitalOcean | REST v2 | ✅ | ✅ | ✅ | ✅ |
 | Vultr | REST v2 | ✅ | ✅ | ✅ | ✅ |
 | Linode (Akamai) | REST v4 | ✅ | ✅ | ✅ | ✅ |
-| AWS EC2 | AWS SDK | ✅ | Route53 | EBS | AMI |
+| AWS EC2 | AWS SDK | ⏸ Beyond-1.0 | ⏸ | ⏸ | ⏸ |
 | Custom SSH | SSH | ❌ (existing) | ❌ | ❌ | ❌ |
+
+*AWS EC2 row: deferred to post-1.0. SDK integration and Route53 pairing are not in the shipping binary; the entry is kept as design-intent only.*
 
 ### 15.2 Server Provisioning Flow
 
@@ -1743,7 +1745,7 @@ Super Admin Panel (/admin/*)
 │   ├── Allowed email domains
 │   └── 2FA enforcement policy
 ├── Global Settings
-│   ├── DNS providers (Cloudflare, Route53, etc.)
+│   ├── DNS providers (Cloudflare; Route53 planned)
 │   ├── Docker registries
 │   ├── Backup storage targets (S3, SFTP, local)
 │   ├── Email/SMTP configuration
@@ -3590,7 +3592,7 @@ acme:
   storage: /var/lib/deploymonster/acme/
 
 dns:
-  provider: cloudflare             # cloudflare | route53 | manual
+  provider: cloudflare             # cloudflare | manual (route53/digitalocean/rfc2136 planned post-1.0)
   cloudflare:
     api_token: "${CF_API_TOKEN}"
     zone_id: "${CF_ZONE_ID}"
@@ -3838,9 +3840,7 @@ deploy-monster/
 │   │   ├── sync.go
 │   │   ├── providers/
 │   │   │   ├── cloudflare.go
-│   │   │   ├── route53.go
-│   │   │   ├── digitalocean.go
-│   │   │   └── rfc2136.go
+│   │   │   └── # route53.go / digitalocean.go / rfc2136.go — planned post-1.0
 │   │   └── verify.go
 │   ├── resource/                      # Resource Monitor
 │   │   ├── module.go
@@ -4232,7 +4232,7 @@ build:
 
 ### Phase 8 — VPS Providers & Remote Servers (v0.8.0)
 - [ ] VPS provider interface + Hetzner implementation
-- [ ] DigitalOcean, Vultr, Linode, AWS EC2 providers
+- [x] DigitalOcean, Vultr, Linode providers (AWS EC2 deferred to Beyond-1.0)
 - [ ] Cloud-init auto-bootstrap (Docker + agent install)
 - [ ] Custom SSH server connection
 - [ ] SSH connection pool + tunneling
