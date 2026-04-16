@@ -179,9 +179,15 @@ func TestMigrations_UpDownPairsExist(t *testing.T) {
 }
 
 // TestMigrations_RollbackPartial verifies that Rollback(n) for n < total
-// peels off exactly n migrations — not all of them, not none. We apply two
-// migrations then rollback(1) and assert that migration #1's schema is
-// still present but migration #2's additions are gone.
+// peels off exactly n migrations — not all of them, not none. We apply
+// every migration, rollback top-of-stack one at a time, and assert the
+// expected slice of schema artefacts disappears at each step while the
+// underlying 0001 tables survive throughout.
+//
+// The "top" migration changes as new ones are added, so the test walks
+// the expected-index set symbolically rather than pinning to a version
+// number. Each migration's down.sql is the contract; this test pins
+// that the Rollback loop honours it in order.
 func TestMigrations_RollbackPartial(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "partial.db")
@@ -192,48 +198,83 @@ func TestMigrations_RollbackPartial(t *testing.T) {
 	}
 	defer db.Close()
 
-	// 0002 adds indexes. After Rollback(1), those indexes should be gone
-	// but the tables from 0001 must still exist.
 	indexesBefore := listIndexes(t, db)
 	if len(indexesBefore) == 0 {
-		t.Fatal("expected indexes from 0002 after up migration, got none")
+		t.Fatal("expected indexes from index-adding migrations, got none")
+	}
+	// Snapshot the initial _migrations row count so we can assert the
+	// N-peeled invariant without hard-coding a total.
+	totalMigrations := migrationCount(t, db)
+	if totalMigrations < 2 {
+		t.Fatalf("expected at least 2 applied migrations, got %d", totalMigrations)
 	}
 
+	// Peel the top migration off. The specific indexes 0003 introduced
+	// must vanish; 0002's must still be present; 0001's tables must not
+	// be touched.
 	if err := db.Rollback(1); err != nil {
 		t.Fatalf("Rollback(1): %v", err)
 	}
-
-	// Tables from 0001 must still be present.
-	tables := listTables(t, db)
-	found := false
-	for _, name := range tables {
-		if name == "applications" {
-			found = true
-			break
+	assertTableExists(t, db, "applications")
+	idx := listIndexes(t, db)
+	for _, name := range idx {
+		switch name {
+		case "idx_secrets_scope_name", "idx_deployments_status", "idx_applications_tenant_name":
+			t.Errorf("0003 index %q survived Rollback(1)", name)
 		}
 	}
-	if !found {
-		t.Error("Rollback(1) dropped tables from 0001 — should only drop 0002 artifacts")
+	// 0002's indexes must still be here.
+	if !containsPrefix(idx, "idx_domains_") {
+		t.Error("Rollback(1) dropped 0002 indexes — expected only 0003 to be peeled")
+	}
+	if got := migrationCount(t, db); got != totalMigrations-1 {
+		t.Errorf("_migrations count after Rollback(1): got %d, want %d", got, totalMigrations-1)
 	}
 
-	// The specific indexes introduced by 0002 must be gone.
-	indexesAfter := listIndexes(t, db)
-	for _, idx := range indexesAfter {
-		if strings.HasPrefix(idx, "idx_applications_") ||
-			strings.HasPrefix(idx, "idx_deployments_") ||
-			strings.HasPrefix(idx, "idx_domains_") {
-			t.Errorf("index %q survived Rollback(1) — expected 0002.down to drop it", idx)
+	// Peel the next one. 0002's indexes must now also be gone.
+	if err := db.Rollback(1); err != nil {
+		t.Fatalf("Rollback(1) second call: %v", err)
+	}
+	assertTableExists(t, db, "applications")
+	idx = listIndexes(t, db)
+	for _, name := range idx {
+		if strings.HasPrefix(name, "idx_applications_") ||
+			strings.HasPrefix(name, "idx_deployments_") ||
+			strings.HasPrefix(name, "idx_domains_") {
+			t.Errorf("0002 index %q survived second Rollback(1)", name)
 		}
 	}
+	if got := migrationCount(t, db); got != totalMigrations-2 {
+		t.Errorf("_migrations count after second Rollback(1): got %d, want %d", got, totalMigrations-2)
+	}
+}
 
-	// Bookkeeping: only migration 0001 should remain in _migrations.
+func migrationCount(t *testing.T, db *SQLiteDB) int {
+	t.Helper()
 	var count int
 	if err := db.DB().QueryRow("SELECT COUNT(*) FROM _migrations").Scan(&count); err != nil {
 		t.Fatalf("count _migrations: %v", err)
 	}
-	if count != 1 {
-		t.Errorf("_migrations count after Rollback(1): got %d, want 1", count)
+	return count
+}
+
+func assertTableExists(t *testing.T, db *SQLiteDB, name string) {
+	t.Helper()
+	for _, got := range listTables(t, db) {
+		if got == name {
+			return
+		}
 	}
+	t.Errorf("table %q missing — rollback removed a 0001 artefact", name)
+}
+
+func containsPrefix(names []string, prefix string) bool {
+	for _, n := range names {
+		if strings.HasPrefix(n, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // listTables returns every user-created SQL table name in the database, in

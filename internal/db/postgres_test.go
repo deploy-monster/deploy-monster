@@ -102,6 +102,9 @@ func TestPostgresDB_Migrate_AllAlreadyApplied(t *testing.T) {
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM _migrations WHERE version = \$1`).
 		WithArgs(2).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM _migrations WHERE version = \$1`).
+		WithArgs(3).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	if err := pg.migrate(); err != nil {
 		t.Fatalf("migrate() error = %v", err)
