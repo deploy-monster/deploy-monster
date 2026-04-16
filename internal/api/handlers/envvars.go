@@ -64,6 +64,11 @@ func (h *EnvVarHandler) Update(w http.ResponseWriter, r *http.Request) {
 	const maxKeyLen = 256
 	const maxValueLen = 64 * 1024  // 64 KB per value
 	const maxTotalLen = 512 * 1024 // 512 KB total payload
+	const maxVars = 500
+	if len(req.Vars) > maxVars {
+		writeError(w, http.StatusBadRequest, "too many env vars (max 500)")
+		return
+	}
 	var totalSize int
 	for _, v := range req.Vars {
 		if v.Key == "" {

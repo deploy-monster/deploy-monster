@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -197,5 +198,194 @@ func TestStickySessionHandler_Update_MaxAgeTooLarge(t *testing.T) {
 	h.Update(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for oversized max_age, got %d", rr.Code)
+	}
+}
+
+// ─── Sprint 3 follow-up batch: the 7 items cataloged in
+// security-report/input-validation-audit.md § Follow-up. Each test
+// pins a rule that closes a validation gap flagged by the audit.
+
+func TestRedirectHandler_Create_UnknownStatusCode(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+	h := NewRedirectHandler(store, newMockBoltStore())
+
+	body := `{"source":"/old","destination":"/new","type":"redirect","status_code":418}`
+	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/redirects", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	req.SetPathValue("id", "app-1")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-redirect status_code, got %d", rr.Code)
+	}
+}
+
+func TestRedirectHandler_Create_ValidStatusCodes(t *testing.T) {
+	for _, code := range []int{301, 302, 307, 308} {
+		t.Run(fmt.Sprintf("code_%d", code), func(t *testing.T) {
+			store := newMockStore()
+			store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+			h := NewRedirectHandler(store, newMockBoltStore())
+			body := fmt.Sprintf(`{"source":"/old","destination":"/new","type":"redirect","status_code":%d}`, code)
+			req := httptest.NewRequest("POST", "/api/v1/apps/app-1/redirects", strings.NewReader(body))
+			req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+			req.SetPathValue("id", "app-1")
+			rr := httptest.NewRecorder()
+			h.Create(rr, req)
+			if rr.Code != http.StatusCreated {
+				t.Errorf("expected 201 for status_code=%d, got %d: %s", code, rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+// ResponseHeaders: the header-splitting class — if header names can
+// contain CRLF or non-token characters, the reverse proxy will emit a
+// new header line downstream. Same defect class as sticky_sessions.
+func TestResponseHeadersHandler_Update_HeaderNameInjection(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+	h := NewResponseHeadersHandler(store, newMockBoltStore())
+
+	body := `{"custom":{"X-Evil\r\nSet-Cookie":"sid=attacker"}}`
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/response-headers", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	req.SetPathValue("id", "app-1")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for CRLF in header name, got %d", rr.Code)
+	}
+}
+
+func TestResponseHeadersHandler_Update_HeaderValueCRLF(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+	h := NewResponseHeadersHandler(store, newMockBoltStore())
+
+	body := `{"custom":{"X-Evil":"value\r\nSet-Cookie: sid=a"}}`
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/response-headers", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	req.SetPathValue("id", "app-1")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for CRLF in header value, got %d", rr.Code)
+	}
+}
+
+func TestLabelsHandler_Update_KeyTooLong(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+	h := NewLabelsHandler(store)
+
+	body := `{"` + strings.Repeat("k", 64) + `":"v"}`
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/labels", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	req.SetPathValue("id", "app-1")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for >63-char label key, got %d", rr.Code)
+	}
+}
+
+func TestLabelsHandler_Update_ValueTooLong(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+	h := NewLabelsHandler(store)
+
+	body := `{"k":"` + strings.Repeat("v", 254) + `"}`
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/labels", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	req.SetPathValue("id", "app-1")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for >253-char label value, got %d", rr.Code)
+	}
+}
+
+func TestDNSRecordHandler_Create_ValueTooLong(t *testing.T) {
+	services := core.NewServices()
+	services.RegisterDNSProvider("cloudflare", &mockDNS{})
+	h := NewDNSRecordHandler(services)
+
+	body := `{"name":"test.example.com","value":"` + strings.Repeat("x", 2049) + `","type":"TXT"}`
+	req := httptest.NewRequest("POST", "/api/v1/dns/records?provider=cloudflare", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for >2048-char DNS value, got %d", rr.Code)
+	}
+}
+
+func TestLogRetentionHandler_Update_MaxSizeTooLarge(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+	h := NewLogRetentionHandler(store, newMockBoltStore())
+
+	body := `{"max_size_mb":10241,"max_files":5,"driver":"json-file"}`
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	req.SetPathValue("id", "app-1")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for max_size_mb > 10 GB, got %d", rr.Code)
+	}
+}
+
+func TestLogRetentionHandler_Update_UnknownDriver(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+	h := NewLogRetentionHandler(store, newMockBoltStore())
+
+	body := `{"max_size_mb":50,"max_files":5,"driver":"splunk"}`
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	req.SetPathValue("id", "app-1")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for unknown log driver, got %d", rr.Code)
+	}
+}
+
+func TestErrorPageHandler_Update_PageTooLarge(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+	h := NewErrorPageHandler(store, newMockBoltStore())
+
+	// 1 MB + 1 byte.
+	body := `{"page_502":"` + strings.Repeat("a", (1<<20)+1) + `"}`
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/error-pages", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	req.SetPathValue("id", "app-1")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for error page > 1 MB, got %d", rr.Code)
+	}
+}
+
+func TestEnvVarHandler_Update_TooManyVars(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+	h := NewEnvVarHandler(store)
+
+	parts := make([]string, 501)
+	for i := range parts {
+		parts[i] = fmt.Sprintf(`{"key":"K%d","value":"v"}`, i)
+	}
+	body := `{"vars":[` + strings.Join(parts, ",") + `]}`
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/env", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	req.SetPathValue("id", "app-1")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for >500 env vars, got %d", rr.Code)
 	}
 }

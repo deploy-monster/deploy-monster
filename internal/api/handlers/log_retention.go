@@ -73,6 +73,22 @@ func (h *LogRetentionHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if cfg.Driver == "" {
 		cfg.Driver = "json-file"
 	}
+	const maxLogSizeMB = 10240
+	const maxLogFiles = 100
+	if cfg.MaxSizeMB > maxLogSizeMB {
+		writeError(w, http.StatusBadRequest, "max_size_mb exceeds 10240 (10 GB)")
+		return
+	}
+	if cfg.MaxFiles > maxLogFiles {
+		writeError(w, http.StatusBadRequest, "max_files exceeds 100")
+		return
+	}
+	switch cfg.Driver {
+	case "json-file", "local", "syslog":
+	default:
+		writeError(w, http.StatusBadRequest, "driver must be one of: json-file, local, syslog")
+		return
+	}
 
 	if err := h.bolt.Set("log_retention", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save log retention config")

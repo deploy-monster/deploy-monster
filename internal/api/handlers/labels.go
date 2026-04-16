@@ -47,6 +47,28 @@ func (h *LabelsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	const maxLabels = 64
+	const maxKeyLen = 63
+	const maxValueLen = 253
+	if len(labels) > maxLabels {
+		writeError(w, http.StatusBadRequest, "too many labels (max 64)")
+		return
+	}
+	for k, v := range labels {
+		if k == "" {
+			writeError(w, http.StatusBadRequest, "label key must not be empty")
+			return
+		}
+		if len(k) > maxKeyLen {
+			writeError(w, http.StatusBadRequest, "label key exceeds 63 characters")
+			return
+		}
+		if len(v) > maxValueLen {
+			writeError(w, http.StatusBadRequest, "label value exceeds 253 characters")
+			return
+		}
+	}
+
 	data, _ := json.Marshal(labels)
 	app.LabelsJSON = string(data)
 

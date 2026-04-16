@@ -45,37 +45,30 @@ Each fix is pinned by at least one test that fails if the validation
 regresses. The `sticky_sessions` header-splitting test is the
 highest-value one — it pins a real exploit, not a hygiene rule.
 
-## Follow-up items (not closed this sprint)
+## Follow-up items (closed in Sprint 3 polish batch, 2026-04-17)
 
-These were triaged but deferred. None are urgent:
+All 7 items from the original deferred list are now closed. Each fix
+is pinned by a regression test in `validation_test.go`. Stale-claim
+note: `envvars.go` already had per-key / per-value / total-payload
+caps; the gap was the missing *array length* cap, addressed by
+`maxVars = 500`.
 
-- `envvars.go:Update` — env var keys/values uncapped in length;
-  allowing multi-MB strings inside the 10 MB envelope. Low risk
-  because the worker writes env vars into Docker `--env` where
-  Docker itself has a limit.
-- `redirects.go:Create` — `StatusCode` not validated against the
-  HTTP redirect range (301/302/307/308). A user could set 418; the
-  proxy would emit a nonsense status but nothing breaks.
-- `response_headers.go:Update` — header names not checked for
-  CRLF or non-token characters. Similar header-splitting class to
-  `sticky_sessions`. Not exploited because the reverse proxy
-  normalizes header names before emitting, but belts-and-braces
-  says we should validate at ingress too. ~30 min fix.
-- `labels.go:Update` — label keys/values uncapped. Kubernetes-style
-  label limits (63 chars per key, 253 chars per value) would be a
-  sensible cap.
-- `dns_records.go:Create` — record `Content` (value) not length-
-  capped by handler; relies on the DNS provider to reject oversized
-  payloads. Providers do, but validating at ingress gives cleaner
-  error responses.
-- `log_retention.go:Update` — retention days not upper-bounded. A
-  user could set 10^9 days; the garbage collector would never fire.
-  Cap at 3650 (10 years) is sensible.
-- `error_pages.go:Update` — HTML body uncapped below the 10 MB
-  envelope. 1 MB per error page is generous.
+| Handler | Fix | Regression test |
+|---|---|---|
+| `envvars.go:Update` | `maxVars = 500` array-length cap on top of the existing 256-char key / 64 KB value / 512 KB total caps | `TestEnvVarHandler_Update_TooManyVars` |
+| `redirects.go:Create` | `StatusCode` enum-checked against `{301, 302, 307, 308}` | `TestRedirectHandler_Create_UnknownStatusCode`, `TestRedirectHandler_Create_ValidStatusCodes` |
+| `response_headers.go:Update` | Custom-header names validated against RFC 7230 token grammar; values checked for CR/LF and 4 KB length cap; 50-header count cap | `TestResponseHeadersHandler_Update_HeaderNameInjection`, `TestResponseHeadersHandler_Update_HeaderValueCRLF` |
+| `labels.go:Update` | Kubernetes-style caps: 63-char key, 253-char value, 64-label count cap | `TestLabelsHandler_Update_KeyTooLong`, `TestLabelsHandler_Update_ValueTooLong` |
+| `dns_records.go:Create` | `Name` capped at 253 chars (FQDN max), `Value` capped at 2048 chars | `TestDNSRecordHandler_Create_ValueTooLong` |
+| `log_retention.go:Update` | `MaxSizeMB ≤ 10240` (10 GB), `MaxFiles ≤ 100`, `Driver` enum checked against `{json-file, local, syslog}`. (Audit item mentioned "retention days" but the actual field is `MaxSizeMB` / `MaxFiles` — upper-bounding those is the equivalent guard.) | `TestLogRetentionHandler_Update_MaxSizeTooLarge`, `TestLogRetentionHandler_Update_UnknownDriver` |
+| `error_pages.go:Update` | 1 MB cap per page (502 / 503 / 504 / maintenance) inside the 10 MB body envelope | `TestErrorPageHandler_Update_PageTooLarge` |
 
-Each item above is ~15–30 min of work and zero risk. Batch them into
-one PR when someone picks up the polish pass.
+Closure criteria met:
+- Each fix is behind a handler check that returns 400 before the
+  payload reaches storage or downstream systems.
+- Each fix is pinned by at least one regression test that fails if
+  the validation is removed.
+- All 11 new tests pass; no existing tests regressed.
 
 ## Pattern observations (for future handlers)
 

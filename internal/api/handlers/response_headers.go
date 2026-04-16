@@ -3,9 +3,16 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+// httpTokenPattern is the RFC 7230 "token" grammar used for HTTP field-names.
+// Rejects CRLF, whitespace, and the separator characters that would allow a
+// caller to inject a new header line by embedding "\r\nSet-Cookie: ..." in
+// the name (same class of bug as the sticky-sessions cookie-name fix).
+var httpTokenPattern = regexp.MustCompile(`^[!#$%&'*+\-.^_` + "`" + `|~0-9A-Za-z]+$`)
 
 // ResponseHeadersHandler manages per-app security and custom response headers.
 type ResponseHeadersHandler struct {
@@ -65,6 +72,29 @@ func (h *ResponseHeadersHandler) Update(w http.ResponseWriter, r *http.Request) 
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
+	}
+
+	const maxCustomHeaders = 50
+	const maxHeaderValueLen = 4096
+	if len(cfg.Custom) > maxCustomHeaders {
+		writeError(w, http.StatusBadRequest, "too many custom headers (max 50)")
+		return
+	}
+	for name, value := range cfg.Custom {
+		if !httpTokenPattern.MatchString(name) {
+			writeError(w, http.StatusBadRequest, "invalid header name: must match RFC 7230 token grammar")
+			return
+		}
+		if len(value) > maxHeaderValueLen {
+			writeError(w, http.StatusBadRequest, "header value exceeds 4096 characters")
+			return
+		}
+		for i := 0; i < len(value); i++ {
+			if value[i] == '\r' || value[i] == '\n' {
+				writeError(w, http.StatusBadRequest, "header value must not contain CR or LF")
+				return
+			}
+		}
 	}
 
 	if err := h.bolt.Set("response_headers", appID, cfg, 0); err != nil {

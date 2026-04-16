@@ -67,6 +67,16 @@ func (h *DNSRecordHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name, type, and value required")
 		return
 	}
+	const maxNameLen = 253
+	const maxValueLen = 2048
+	if len(record.Name) > maxNameLen {
+		writeError(w, http.StatusBadRequest, "name exceeds 253 characters")
+		return
+	}
+	if len(record.Value) > maxValueLen {
+		writeError(w, http.StatusBadRequest, "value exceeds 2048 characters")
+		return
+	}
 
 	provider := r.URL.Query().Get("provider")
 	if provider == "" {

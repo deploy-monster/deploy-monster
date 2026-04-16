@@ -56,6 +56,20 @@ func (h *ErrorPageHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	const maxPageBytes = 1 << 20 // 1 MB per page
+	pages := map[string]string{
+		"page_502":         cfg.Page502,
+		"page_503":         cfg.Page503,
+		"page_504":         cfg.Page504,
+		"page_maintenance": cfg.PageMaintenance,
+	}
+	for name, body := range pages {
+		if len(body) > maxPageBytes {
+			writeError(w, http.StatusBadRequest, name+" exceeds 1 MB limit")
+			return
+		}
+	}
+
 	if err := h.bolt.Set("error_pages", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save error pages")
 		return

@@ -83,6 +83,12 @@ func (h *RedirectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if rule.StatusCode == 0 {
 		rule.StatusCode = 301
 	}
+	switch rule.StatusCode {
+	case 301, 302, 307, 308:
+	default:
+		writeError(w, http.StatusBadRequest, "status_code must be 301, 302, 307, or 308")
+		return
+	}
 	rule.ID = core.GenerateID()
 	rule.Enabled = true
 
