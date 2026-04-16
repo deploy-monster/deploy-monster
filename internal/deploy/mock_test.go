@@ -97,6 +97,8 @@ type mockStore struct {
 	listDeploymentsErr error
 	nextVersion        int
 	nextVersionErr     error
+	atomicCalls        int // RACE-002: tracks AtomicNextDeployVersion call count for regression tests
+	nonAtomicCalls     int // RACE-002: tracks legacy GetNextDeployVersion call count
 	latestDeployment   *core.Deployment
 	createDeployErr    error
 	// Tier 100: persisted deployment rows, keyed by ID. The pre-100
@@ -215,6 +217,7 @@ func (s *mockStore) ListDeploymentsByStatus(_ context.Context, status string) ([
 }
 
 func (s *mockStore) GetNextDeployVersion(_ context.Context, _ string) (int, error) {
+	s.nonAtomicCalls++
 	if s.nextVersionErr != nil {
 		return 0, s.nextVersionErr
 	}
@@ -225,9 +228,18 @@ func (s *mockStore) GetNextDeployVersion(_ context.Context, _ string) (int, erro
 }
 
 // AtomicNextDeployVersion atomically allocates the next deployment version.
-// SECURITY FIX (RACE-002): Mock implementation delegates to GetNextDeployVersion.
-func (s *mockStore) AtomicNextDeployVersion(ctx context.Context, appID string) (int, error) {
-	return s.GetNextDeployVersion(ctx, appID)
+// Production callers must route through this method (see RACE-002). The mock
+// tracks calls on a separate counter so regression tests can assert the
+// rollback engine uses the atomic path rather than the legacy one.
+func (s *mockStore) AtomicNextDeployVersion(_ context.Context, _ string) (int, error) {
+	s.atomicCalls++
+	if s.nextVersionErr != nil {
+		return 0, s.nextVersionErr
+	}
+	if s.nextVersion == 0 {
+		return 1, nil
+	}
+	return s.nextVersion, nil
 }
 
 // AppStore methods

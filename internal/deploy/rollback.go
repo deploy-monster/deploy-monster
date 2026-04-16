@@ -58,8 +58,13 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 		oldContainerID = currentDeploy.ContainerID
 	}
 
-	// Create new deployment version pointing to old image
-	newVersion, _ := r.store.GetNextDeployVersion(ctx, appID)
+	// Create new deployment version pointing to old image.
+	// RACE-002: atomic allocation — concurrent rollbacks would otherwise
+	// collide on the same version number.
+	newVersion, err := r.store.AtomicNextDeployVersion(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("allocate rollback version: %w", err)
+	}
 	now := time.Now()
 	deployment := &core.Deployment{
 		AppID:         appID,

@@ -333,6 +333,11 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// SESS-001: revoke the old access token paired with this refresh.
+	// Without this, a stolen access token stays usable for up to 15 min
+	// after the legitimate client rotated — defeating the rotation.
+	h.revokeAccessTokenFromRequest(r)
+
 	// Generate new token pair
 	tokens, err := h.authMod.JWT().GenerateTokenPair(user.ID, membership.TenantID, membership.RoleID, user.Email)
 	if err != nil {
@@ -365,7 +370,15 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// If we still have no token, just clear cookies and return OK
+	// SESS-001: Revoke the access token on logout too. The endpoint is
+	// unauthenticated (any pair of tokens presented ends the session),
+	// so we read the access token from the Authorization header or the
+	// dm_access cookie. An expired access token is a no-op inside
+	// RevokeAccessToken (its TTL check short-circuits).
+	h.revokeAccessTokenFromRequest(r)
+
+	// If we still have no refresh token, clear cookies and return OK —
+	// the access token has already been revoked above.
 	if req.RefreshToken == "" {
 		clearTokenCookies(w, r)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -381,7 +394,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revoke the token
+	// Revoke the refresh token
 	if h.bolt != nil && rtClaims.JTI != "" {
 		if err := h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
 			slog.Error("failed to revoke refresh token on logout", "jti", rtClaims.JTI, "error", err)
@@ -390,6 +403,32 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	clearTokenCookies(w, r)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// revokeAccessTokenFromRequest parses the access token from Authorization
+// header or dm_access cookie (in that priority order) and adds its JTI to
+// the access-token denylist. No-op on any parse failure — a missing or
+// malformed access token is not a reason to fail logout.
+func (h *AuthHandler) revokeAccessTokenFromRequest(r *http.Request) {
+	if h.bolt == nil {
+		return
+	}
+	tokenStr := ""
+	if hdr := r.Header.Get("Authorization"); strings.HasPrefix(hdr, "Bearer ") {
+		tokenStr = strings.TrimPrefix(hdr, "Bearer ")
+	} else if c, err := r.Cookie(cookieAccess); err == nil {
+		tokenStr = c.Value
+	}
+	if tokenStr == "" {
+		return
+	}
+	claims, err := h.authMod.JWT().ValidateAccessToken(tokenStr)
+	if err != nil || claims == nil || claims.ID == "" || claims.ExpiresAt == nil {
+		return
+	}
+	if err := h.authMod.JWT().RevokeAccessToken(h.bolt, claims.ID, claims.UserID, claims.ExpiresAt.Time); err != nil {
+		slog.Warn("failed to revoke access token on logout", "jti", claims.ID, "error", err)
+	}
 }
 
 // trackSession extracts the JTI from a refresh token and stores session info.

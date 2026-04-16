@@ -17,13 +17,13 @@ Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 
 </div>
 
-> **Status:** v0.1.6 released — Comprehensive UX overhaul. Dynamic marketplace templates, Sheet-based forms, AlertDialog confirmations, fixed topology state sync.
+> **Status:** v0.1.7 released — Sprint 1 hardening. CORS two-mode contract restored, JWT alg pinning tightened, portable ephemeral-port test fixtures, version/CHANGELOG reconciled.
 
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Coverage](https://img.shields.io/badge/Coverage-88.4%25-brightgreen)](.)
-[![Version](https://img.shields.io/badge/v0.1.6-Release-brightgreen)](./)
+[![Version](https://img.shields.io/badge/v0.1.7-Release-brightgreen)](./)
 
 ---
 
@@ -31,7 +31,7 @@ Single binary · Zero dependencies · 85%+ test coverage (CI-enforced)
 
 ```bash
 # One-line install
-curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.6/scripts/install.sh | bash -s -- --version=v0.1.6
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.7/scripts/install.sh | bash -s -- --version=v0.1.7
 
 # Interactive setup (domain, SSL, admin credentials)
 deploymonster setup

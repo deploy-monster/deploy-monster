@@ -358,3 +358,48 @@ func TestVersionInfo_Fields(t *testing.T) {
 		t.Errorf("CreatedAt mismatch")
 	}
 }
+
+// RACE-002 regression: Rollback must allocate the new version through
+// AtomicNextDeployVersion, not the legacy non-atomic GetNextDeployVersion.
+// Concurrent rollbacks on the same app would otherwise collide on version
+// numbers and produce duplicate deployment rows.
+func TestRollbackEngine_Rollback_UsesAtomicNextDeployVersion(t *testing.T) {
+	store := newMockStore()
+	store.deployments = []core.Deployment{
+		{Version: 2, Image: "nginx:1.25", Status: "running"},
+		{Version: 1, Image: "nginx:1.24", Status: "stopped"},
+	}
+	store.apps["app-123"] = &core.Application{ID: "app-123", Name: "a", TenantID: "t"}
+	store.nextVersion = 3
+
+	re := NewRollbackEngine(store, nil, core.NewEventBus(nil))
+	if _, err := re.Rollback(context.Background(), "app-123", 1); err != nil {
+		t.Fatalf("Rollback: %v", err)
+	}
+
+	if store.atomicCalls != 1 {
+		t.Errorf("expected 1 atomic call, got %d", store.atomicCalls)
+	}
+	if store.nonAtomicCalls != 0 {
+		t.Errorf("expected 0 non-atomic calls, got %d — caller is still on the legacy path", store.nonAtomicCalls)
+	}
+}
+
+// RACE-002 regression: When AtomicNextDeployVersion returns an error, the
+// rollback must surface it rather than silently using a zero version (the
+// pre-fix bug discarded the error and would create a v0 deployment row).
+func TestRollbackEngine_Rollback_PropagatesVersionAllocError(t *testing.T) {
+	store := newMockStore()
+	store.deployments = []core.Deployment{
+		{Version: 2, Image: "nginx:1.25", Status: "running"},
+		{Version: 1, Image: "nginx:1.24", Status: "stopped"},
+	}
+	store.apps["app-123"] = &core.Application{ID: "app-123", Name: "a", TenantID: "t"}
+	store.nextVersionErr = fmt.Errorf("db offline")
+
+	re := NewRollbackEngine(store, nil, core.NewEventBus(nil))
+	_, err := re.Rollback(context.Background(), "app-123", 1)
+	if err == nil {
+		t.Fatal("expected error when version allocation fails")
+	}
+}

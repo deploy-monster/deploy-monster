@@ -78,7 +78,7 @@
 ### 2.3 Marketplace truth-up
 
 - [ ] **Deduplicate `internal/marketplace/builtins_*.go`.** Consolidate into a single sorted table; remove duplicate Slug entries; report the real count. *3–4 h.*
-- [ ] **Decide target count.** Either (a) stop claiming 150+, update README/SPEC to read "56 built-in, community-contributed growing"; or (b) commit to growing to ≥ 100 via a vetted contribution process. *docs only.*
+- [x] **Decide target count.** Picked (a) in v0.1.7: README.md and `.project/SPECIFICATION.md` now read "56 built-in templates, community-contributed growing" instead of "150+". `.project/BRANDING.md` still carries the aspirational 150+ copy because it is marketing/website material tracked in a separate project per ownership decision — revisit when that copy is reconciled with the published marketplace count.
 - [ ] Raise `internal/marketplace/` test coverage from 69% → 85% (it's the coverage laggard). *4–6 h.*
 
 ### 2.4 E2E stabilization

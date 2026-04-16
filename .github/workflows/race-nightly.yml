@@ -1,0 +1,49 @@
+name: Race Detector (Nightly)
+
+# The main CI `test` job already runs `go test -race` on every push and
+# PR, so HEAD is never green without race-clean code. This workflow adds
+# two things that don't belong on the hot path:
+#
+#   1. `-count=3` to surface flaky races that only fire some fraction of
+#      the time — re-running the full suite three times against race
+#      instrumentation is the cheapest way to catch goroutine ordering
+#      bugs that a single pass would miss.
+#   2. Integration-tagged tests under race. The PR gate runs them, but
+#      only the Postgres + master/agent subset. This job runs every
+#      `integration`-tagged test in the repo under race so a rarely-
+#      exercised path (ACME staging, SSL flow, full-app boot) has a
+#      place to fail loudly without gating merges.
+#
+# workflow_dispatch is enabled so an engineer investigating a suspected
+# race can kick off a run on demand without waiting for the cron.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  race:
+    name: Race Detector (x3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      # Three passes of the full race suite. Any pass that finds a race
+      # fails the job; count=3 specifically targets the class of races
+      # that don't fire every run.
+      - name: Run race detector (unit, count=3)
+        run: go test -race -count=3 -timeout=20m ./...
+
+      # Integration-tagged suite under race. Same binary shape as the
+      # PR gate, but sweeps the full set instead of the curated subset.
+      - name: Run race detector (integration)
+        run: go test -tags integration -race -timeout=20m ./...
