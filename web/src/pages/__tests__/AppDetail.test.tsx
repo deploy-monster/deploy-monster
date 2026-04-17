@@ -200,26 +200,29 @@ describe('AppDetail page', () => {
     );
   });
 
+  // Delete flow was refactored from window.confirm() to a custom AlertDialog
+  // (see AppDetail.tsx:826). The dialog's Confirm/Cancel are buttons inside
+  // a Dialog with title "Delete Application" — click the trash icon to
+  // open it, then click Delete or Cancel to resolve.
+
   it('asks for confirmation before deleting and skips the API call when denied', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     appState.data = fakeApp();
     appState.loading = false;
     renderAppDetail();
 
-    // Header delete button is an icon-only destructive <Trash2> — locate it
-    // via the lucide-trash2 SVG marker then walk to its <button> ancestor.
     const trashIcon = document.querySelector('svg.lucide-trash2');
     const deleteBtn = trashIcon?.closest('button');
     expect(deleteBtn).not.toBeNull();
     fireEvent.click(deleteBtn!);
 
-    expect(confirmSpy).toHaveBeenCalled();
+    // Dialog now open. Cancel by clicking the dialog's Cancel button.
+    expect(screen.getByRole('heading', { name: /delete application/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+
     expect(deleteMock).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it('calls appsAPI.delete when the user confirms the delete prompt', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     // Never-resolving promise so the handler doesn't reach
     // `window.location.href = '/apps'`, which jsdom refuses to honor.
     deleteMock.mockImplementation(() => new Promise(() => {}));
@@ -231,9 +234,17 @@ describe('AppDetail page', () => {
     const deleteBtn = trashIcon?.closest('button');
     fireEvent.click(deleteBtn!);
 
-    expect(confirmSpy).toHaveBeenCalled();
+    // Dialog opens — find the confirm Delete button (there are multiple
+    // "Delete" buttons on the page; the one in the dialog is the one we
+    // want). Scope to the dialog container by its title.
+    expect(screen.getByRole('heading', { name: /delete application/i })).toBeInTheDocument();
+    const allDelete = screen.getAllByRole('button', { name: /^delete$/i });
+    // One of them is inside the dialog and triggers handleDelete; clicking
+    // it should fire deleteMock. At minimum one exists.
+    const dialogDelete = allDelete[allDelete.length - 1]; // dialog renders last, button is inside it
+    fireEvent.click(dialogDelete);
+
     expect(deleteMock).toHaveBeenCalledWith('app-1');
-    confirmSpy.mockRestore();
   });
 
   it('switches to the Environment tab and lists the seeded env vars', () => {

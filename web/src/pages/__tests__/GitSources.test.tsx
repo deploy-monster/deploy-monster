@@ -210,30 +210,37 @@ describe('GitSources page', () => {
     expect(await screen.findByText('bad token')).toBeInTheDocument();
   });
 
+  // Disconnect now uses an AlertDialog (title "Disconnect Provider",
+  // confirmLabel "Disconnect"). See GitSources.tsx:445. Click Disconnect
+  // → dialog opens → click dialog Disconnect (or Cancel).
+
   it('calls gitSourcesAPI.disconnect when the Disconnect button is confirmed', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     useApiState.data = [fakeProvider({ id: 'p1', name: 'My GH', connected: true })];
     useApiState.loading = false;
     renderGitSources();
 
     fireEvent.click(screen.getByRole('button', { name: /^disconnect$/i }));
 
+    expect(screen.getByRole('heading', { name: /disconnect provider/i })).toBeInTheDocument();
+    const allDisconnect = screen.getAllByRole('button', { name: /^disconnect$/i });
+    fireEvent.click(allDisconnect[allDisconnect.length - 1]);
+
     await waitFor(() => expect(disconnectMock).toHaveBeenCalledWith('p1'));
     await waitFor(() =>
       expect(toastSuccessMock).toHaveBeenCalledWith('Provider disconnected')
     );
-    confirmSpy.mockRestore();
   });
 
   it('skips the disconnect call when the confirm prompt is declined', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     useApiState.data = [fakeProvider({ id: 'p1', connected: true })];
     useApiState.loading = false;
     renderGitSources();
 
     fireEvent.click(screen.getByRole('button', { name: /^disconnect$/i }));
 
+    expect(screen.getByRole('heading', { name: /disconnect provider/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+
     expect(disconnectMock).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 });

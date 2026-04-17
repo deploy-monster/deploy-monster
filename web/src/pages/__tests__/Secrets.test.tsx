@@ -207,8 +207,10 @@ describe('Secrets page', () => {
     expect(await screen.findByText('name already exists')).toBeInTheDocument();
   });
 
+  // Delete uses AlertDialog (title "Delete Secret", confirmLabel "Delete")
+  // — see Secrets.tsx:450.
+
   it('calls secretsAPI.delete when the delete confirm prompt is accepted', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     useApiState.data = [fakeSecret({ id: 's1', name: 'DB_URL' })];
     useApiState.loading = false;
     renderSecrets();
@@ -217,13 +219,15 @@ describe('Secrets page', () => {
     const btn = trashIcon?.closest('button');
     fireEvent.click(btn!);
 
+    expect(screen.getByRole('heading', { name: /delete secret/i })).toBeInTheDocument();
+    const allDelete = screen.getAllByRole('button', { name: /^delete$/i });
+    fireEvent.click(allDelete[allDelete.length - 1]);
+
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('s1'));
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Secret deleted'));
-    confirmSpy.mockRestore();
   });
 
   it('skips the delete call if the confirm prompt is declined', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     useApiState.data = [fakeSecret({ id: 's1' })];
     useApiState.loading = false;
     renderSecrets();
@@ -232,7 +236,9 @@ describe('Secrets page', () => {
     const btn = trashIcon?.closest('button');
     fireEvent.click(btn!);
 
+    expect(screen.getByRole('heading', { name: /delete secret/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+
     expect(deleteMock).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 });

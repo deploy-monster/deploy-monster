@@ -228,8 +228,10 @@ describe('Domains page', () => {
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Domain verified'));
   });
 
+  // Delete flow uses an AlertDialog (title "Remove Domain", confirmLabel
+  // "Remove") instead of window.confirm. See Domains.tsx:461.
+
   it('calls DELETE /domains/:id when the delete confirm prompt is accepted', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     useApiState.data = [fakeDomain({ id: 'dd', fqdn: 'x.example.com', verified: true })];
     useApiState.loading = false;
     renderDomains();
@@ -238,13 +240,15 @@ describe('Domains page', () => {
     const deleteBtn = trashIcon?.closest('button');
     fireEvent.click(deleteBtn!);
 
+    expect(screen.getByRole('heading', { name: /remove domain/i })).toBeInTheDocument();
+    const allRemove = screen.getAllByRole('button', { name: /^remove$/i });
+    fireEvent.click(allRemove[allRemove.length - 1]);
+
     await waitFor(() => expect(apiDeleteMock).toHaveBeenCalledWith('/domains/dd'));
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Domain removed'));
-    confirmSpy.mockRestore();
   });
 
   it('skips the delete API call when the confirm prompt is declined', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     useApiState.data = [fakeDomain({ id: 'dd', verified: true })];
     useApiState.loading = false;
     renderDomains();
@@ -253,7 +257,9 @@ describe('Domains page', () => {
     const deleteBtn = trashIcon?.closest('button');
     fireEvent.click(deleteBtn!);
 
+    expect(screen.getByRole('heading', { name: /remove domain/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+
     expect(apiDeleteMock).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 });

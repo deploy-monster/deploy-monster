@@ -78,7 +78,10 @@ describe('API client', () => {
     });
 
     it('includes CSRF token from cookie', async () => {
-      document.cookie = 'dm_csrf=test-csrf-token';
+      // client.ts reads __Host-dm_csrf (see CSRF-001 rename). Using the old
+      // dm_csrf name is a regression signal — keep the test in sync with the
+      // cookie the backend actually sets.
+      document.cookie = '__Host-dm_csrf=test-csrf-token';
       mockFetch(200, {});
 
       await api.post('/apps', { name: 'App' });

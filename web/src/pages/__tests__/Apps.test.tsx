@@ -273,22 +273,25 @@ describe('Apps page', () => {
     });
   });
 
+  // Delete was moved from window.confirm() to an AlertDialog
+  // (see Apps.tsx:425 — title "Delete Application", confirmLabel "Delete").
+  // Click trash → dialog opens → click the dialog's Delete or Cancel.
+
   it('confirms before deleting and skips the API call when declined', () => {
     useApiState.data = {
       data: [fakeApp({ id: 'a1', name: 'alpha', status: 'running' })],
       total: 1,
     };
     useApiState.loading = false;
-
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderApps();
 
     const card = screen.getByText('alpha').closest('a') as HTMLElement;
     fireEvent.click(findActionButton(card, 'lucide-trash2'));
 
-    expect(confirmSpy).toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: /delete application/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+
     expect(deleteMock).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it('deletes when the confirm dialog is accepted', async () => {
@@ -297,18 +300,19 @@ describe('Apps page', () => {
       total: 1,
     };
     useApiState.loading = false;
-
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderApps();
 
     const card = screen.getByText('alpha').closest('a') as HTMLElement;
     fireEvent.click(findActionButton(card, 'lucide-trash2'));
 
+    expect(screen.getByRole('heading', { name: /delete application/i })).toBeInTheDocument();
+    const allDelete = screen.getAllByRole('button', { name: /^delete$/i });
+    fireEvent.click(allDelete[allDelete.length - 1]);
+
     await waitFor(() => {
       expect(deleteMock).toHaveBeenCalledWith('a1');
     });
     expect(refetchMock).toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it('surfaces a toast error when an action fails', async () => {
