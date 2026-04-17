@@ -266,6 +266,7 @@ trade-offs before committing.
 | [`docs/runbook.md`](docs/runbook.md) | Operator runbook: scenario index for P0/P1 events |
 | [`docs/secret-rotation.md`](docs/secret-rotation.md) | JWT secret rotation (routine + emergency) |
 | [`docs/docker-socket-hardening.md`](docs/docker-socket-hardening.md) | Tecnativa-proxy pattern |
+| [`docs/sla.md`](docs/sla.md) | Published performance + availability targets for 1.0 |
 | [`docs/configuration.md`](docs/configuration.md) | Full YAML + env-var reference |
 | [`docs/api-reference.md`](docs/api-reference.md) | API overview; `docs/openapi.yaml` for the machine-readable spec |
 | [`docs/adr/`](docs/adr/) | 10 architecture decision records |
