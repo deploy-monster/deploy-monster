@@ -530,6 +530,360 @@ paths:
                   data:
                     $ref: "#/components/schemas/Deployment"
 
+  # ── App configuration (per-app ingress and container settings) ──
+  /api/v1/apps/{id}/ports:
+    get:
+      operationId: getAppPorts
+      tags: [Apps]
+      summary: List declared port mappings
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Port mappings
+    put:
+      operationId: updateAppPorts
+      tags: [Apps]
+      summary: Replace the app's port mappings
+      description: |
+        Cap: 100 mappings per app. `host_port` must be 0..65535;
+        `protocol` must be `tcp` or `udp`. Validated at ingress
+        (see security-report/input-validation-audit.md).
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  container_port:
+                    type: integer
+                  host_port:
+                    type: integer
+                  protocol:
+                    type: string
+                    enum: [tcp, udp]
+      responses:
+        "200":
+          description: Port mappings updated
+        "400":
+          description: Validation error (out-of-range port, unknown protocol, >100 mappings)
+
+  /api/v1/apps/{id}/healthcheck:
+    get:
+      operationId: getAppHealthcheck
+      tags: [Apps]
+      summary: Get the app's healthcheck configuration
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Healthcheck config
+    put:
+      operationId: updateAppHealthcheck
+      tags: [Apps]
+      summary: Update the app's healthcheck configuration
+      description: |
+        Caps: interval <= 3600 s, timeout <= 300 s, retries <= 100,
+        path <= 2048 chars, port 0..65535.
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [http, tcp, cmd]
+                path:
+                  type: string
+                port:
+                  type: integer
+                interval:
+                  type: integer
+                timeout:
+                  type: integer
+                retries:
+                  type: integer
+      responses:
+        "200":
+          description: Healthcheck config updated
+        "400":
+          description: Validation error
+
+  /api/v1/apps/{id}/labels:
+    get:
+      operationId: getAppLabels
+      tags: [Apps]
+      summary: Get app labels/tags
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Labels map
+    put:
+      operationId: updateAppLabels
+      tags: [Apps]
+      summary: Replace the app's labels (Kubernetes-style)
+      description: |
+        Caps: <= 64 labels, key <= 63 chars, value <= 253 chars.
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: string
+      responses:
+        "200":
+          description: Labels updated
+        "400":
+          description: Validation error (oversize key / value / count)
+
+  /api/v1/apps/{id}/log-retention:
+    get:
+      operationId: getAppLogRetention
+      tags: [Apps]
+      summary: Get log-retention configuration
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Log retention config
+    put:
+      operationId: updateAppLogRetention
+      tags: [Apps]
+      summary: Update log-retention configuration
+      description: |
+        Caps: max_size_mb <= 10240 (10 GB), max_files <= 100,
+        driver in {json-file, local, syslog}.
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                max_size_mb:
+                  type: integer
+                max_files:
+                  type: integer
+                driver:
+                  type: string
+                  enum: [json-file, local, syslog]
+      responses:
+        "200":
+          description: Log retention config updated
+        "400":
+          description: Validation error
+
+  /api/v1/apps/{id}/response-headers:
+    get:
+      operationId: getAppResponseHeaders
+      tags: [Apps]
+      summary: Get custom response headers
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Response headers config
+    put:
+      operationId: updateAppResponseHeaders
+      tags: [Apps]
+      summary: Update custom response headers
+      description: |
+        Custom header names must match RFC 7230 token grammar
+        (letters, digits, and `!#$%&'*+-.^_` `|~`). Values reject
+        CR/LF (header-splitting defense). Caps: 50 custom headers,
+        4096 chars per value.
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hsts:
+                  type: string
+                csp:
+                  type: string
+                x_frame_options:
+                  type: string
+                x_content_type:
+                  type: string
+                referrer_policy:
+                  type: string
+                permissions_policy:
+                  type: string
+                custom:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "200":
+          description: Response headers updated
+        "400":
+          description: Validation error (invalid header name or CRLF in value)
+
+  /api/v1/apps/{id}/sticky-sessions:
+    get:
+      operationId: getAppStickySessions
+      tags: [Apps]
+      summary: Get sticky-session (load-balancer affinity) config
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Sticky-session config
+    put:
+      operationId: updateAppStickySessions
+      tags: [Apps]
+      summary: Update sticky-session config
+      description: |
+        Cookie name must match the RFC 6265 token grammar
+        (header-splitting defense — see the sticky_sessions
+        regression test). `same_site` in {lax, strict, none}.
+        `max_age` capped at one year.
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                cookie:
+                  type: string
+                max_age:
+                  type: integer
+                same_site:
+                  type: string
+                  enum: [lax, strict, none]
+      responses:
+        "200":
+          description: Sticky-session config updated
+        "400":
+          description: Validation error
+
+  /api/v1/apps/{id}/error-pages:
+    get:
+      operationId: getAppErrorPages
+      tags: [Apps]
+      summary: Get custom error pages (502/503/504/maintenance)
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Error pages config
+    put:
+      operationId: updateAppErrorPages
+      tags: [Apps]
+      summary: Update custom error pages
+      description: |
+        Each page body is capped at 1 MB inside the global 10 MB
+        request envelope.
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                page_502:
+                  type: string
+                page_503:
+                  type: string
+                page_504:
+                  type: string
+                page_maintenance:
+                  type: string
+      responses:
+        "200":
+          description: Error pages updated
+        "400":
+          description: Validation error (>1 MB per page)
+
+  /api/v1/apps/{id}/redirects:
+    get:
+      operationId: listAppRedirects
+      tags: [Apps]
+      summary: List redirect / rewrite rules for the app
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Redirect rule list
+    post:
+      operationId: createAppRedirect
+      tags: [Apps]
+      summary: Add a redirect / rewrite rule
+      description: |
+        `status_code` must be one of {301, 302, 307, 308}. Source
+        and destination each capped at 2048 chars. Limit: 200 rules
+        per app.
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, destination]
+              properties:
+                source:
+                  type: string
+                destination:
+                  type: string
+                type:
+                  type: string
+                  enum: [redirect, rewrite]
+                status_code:
+                  type: integer
+                  enum: [301, 302, 307, 308]
+      responses:
+        "201":
+          description: Redirect rule created
+        "400":
+          description: Validation error (invalid status_code, oversize source/destination)
+        "409":
+          description: Redirect rule limit reached (200 per app)
+
+  /api/v1/apps/{id}/redirects/{ruleId}:
+    delete:
+      operationId: deleteAppRedirect
+      tags: [Apps]
+      summary: Delete a redirect rule
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - name: ruleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Redirect rule deleted
+
   # ── Domains ───────────────────────────────────────────
   /api/v1/domains:
     get:
