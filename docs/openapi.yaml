@@ -876,6 +876,70 @@ paths:
         "200":
           description: Logged out successfully
 
+  /api/v1/auth/sessions:
+    get:
+      operationId: listSessions
+      tags: [Auth]
+      summary: List all active sessions for the current user
+      description: |
+        Returns every session (refresh token) currently associated with
+        the authenticated user, marking the one that originated the
+        current request with `current: true`. Used by the "Active
+        sessions" UI in account settings (SESS-005).
+      responses:
+        "200":
+          description: Session list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        ip:
+                          type: string
+                        user_agent:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+                        last_seen_at:
+                          type: string
+                          format: date-time
+                        current:
+                          type: boolean
+        "401":
+          description: Not authenticated
+
+  /api/v1/auth/logout-all:
+    post:
+      operationId: logoutAll
+      tags: [Auth]
+      summary: Revoke every session for the current user
+      description: |
+        Invalidates all refresh tokens for the authenticated user plus
+        the current access token (SESS-005). The intended use is the
+        account-settings "Sign out of all devices" button and the
+        post-password-change forced re-auth.
+      responses:
+        "200":
+          description: All sessions logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: all sessions logged out
+        "401":
+          description: Not authenticated
+
   /api/v1/auth/change-password:
     post:
       operationId: changePassword
@@ -944,37 +1008,6 @@ paths:
       responses:
         "201":
           description: Database created
-
-  /api/v1/databases/{id}/pool:
-    get:
-      operationId: getDatabasePool
-      tags: [Databases]
-      summary: Get connection pool settings
-      parameters:
-        - $ref: "#/components/parameters/ResourceID"
-      responses:
-        "200":
-          description: Pool settings
-    put:
-      operationId: updateDatabasePool
-      tags: [Databases]
-      summary: Update connection pool settings
-      parameters:
-        - $ref: "#/components/parameters/ResourceID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                max_connections:
-                  type: integer
-                idle_timeout:
-                  type: integer
-      responses:
-        "200":
-          description: Pool updated
 
   # ── Backups ──────────────────────────────────────────
   /api/v1/backups:
@@ -1125,17 +1158,6 @@ paths:
       responses:
         "200":
           description: SSH test result
-
-  /api/v1/servers/{id}/decommission:
-    post:
-      operationId: decommissionServer
-      tags: [Servers]
-      summary: Decommission and destroy a server
-      parameters:
-        - $ref: "#/components/parameters/ResourceID"
-      responses:
-        "200":
-          description: Server decommissioned
 
   /api/v1/servers/{id}/metrics:
     get:

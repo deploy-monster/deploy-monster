@@ -23,7 +23,6 @@ POST /api/v1/admin/api-keys
 POST /api/v1/admin/license
 
 DELETE /api/v1/apps/{id}/cron/{jobId}
-DELETE /api/v1/apps/{id}/links/{targetId}
 DELETE /api/v1/apps/{id}/pin
 DELETE /api/v1/apps/{id}/redirects/{ruleId}
 DELETE /api/v1/build/cache
@@ -51,7 +50,6 @@ GET /api/v1/apps/{id}/files
 GET /api/v1/apps/{id}/gpu
 GET /api/v1/apps/{id}/healthcheck
 GET /api/v1/apps/{id}/labels
-GET /api/v1/apps/{id}/links
 GET /api/v1/apps/{id}/log-retention
 GET /api/v1/apps/{id}/logs/download
 GET /api/v1/apps/{id}/logs/stream
@@ -102,7 +100,6 @@ POST /api/v1/apps/{id}/cron
 POST /api/v1/apps/{id}/deploy/preview
 POST /api/v1/apps/{id}/env/import
 POST /api/v1/apps/{id}/exec
-POST /api/v1/apps/{id}/links
 POST /api/v1/apps/{id}/pin
 POST /api/v1/apps/{id}/redirects
 POST /api/v1/apps/{id}/rename
