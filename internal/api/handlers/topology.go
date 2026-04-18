@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -282,7 +283,11 @@ func (h *TopologyHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Guard against path traversal in user-supplied path components
-	if strings.ContainsAny(req.ProjectID, "../\\") || strings.ContainsAny(req.Environment, "../\\") {
+	// SECURITY: Decode URL-encoded sequences before checking, as attackers may use
+	// URL encoding to bypass naive path traversal checks (e.g., %2e%2e%2f for ../)
+	projectIDDecoded, _ := url.QueryUnescape(req.ProjectID)
+	envDecoded, _ := url.QueryUnescape(req.Environment)
+	if strings.ContainsAny(projectIDDecoded, "../\\") || strings.ContainsAny(envDecoded, "../\\") {
 		writeError(w, http.StatusBadRequest, "invalid project ID or environment")
 		return
 	}

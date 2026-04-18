@@ -187,7 +187,7 @@ func originAllowed(origin string, allowlist []string) bool {
 
 // RequireAuth returns middleware that validates JWT from the Authorization header,
 // dm_access cookie, or X-API-Key header (in that priority order).
-func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handler) http.Handler {
+func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer, store core.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Try JWT from Authorization header
@@ -271,10 +271,15 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer) func(http.Handle
 				}
 
 				// Create claims from the API key's associated user
-				// Note: RoleID and Email would need to be looked up from user if needed
+				// SECURITY FIX: Look up RoleID from user membership so RBAC works with API keys
 				claims := &auth.Claims{
 					UserID:   storedKey.UserID,
 					TenantID: storedKey.TenantID,
+				}
+				if store != nil {
+					if membership, err := store.GetUserMembership(r.Context(), storedKey.UserID); err == nil && membership != nil {
+						claims.RoleID = membership.RoleID
+					}
 				}
 
 				ctx := auth.ContextWithClaims(r.Context(), claims)

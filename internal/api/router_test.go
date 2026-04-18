@@ -1473,9 +1473,7 @@ func TestRouter_HandleHealth_AllOK(t *testing.T) {
 	if body["status"] != "ok" {
 		t.Errorf("status = %v, want ok", body["status"])
 	}
-	if body["version"] != "0.1.0-test" {
-		t.Errorf("version = %v, want 0.1.0-test", body["version"])
-	}
+	// version/modules fields removed from health endpoint to avoid information disclosure
 }
 
 func TestRouter_HandleHealth_ContentType(t *testing.T) {
@@ -1655,7 +1653,7 @@ func TestAdminRoutes_SuperAdminPassesAuthorization(t *testing.T) {
 	}
 }
 
-func TestRouter_HandleHealth_HasModulesField(t *testing.T) {
+func TestRouter_HandleHealth_NoInternalInfoLeak(t *testing.T) {
 	registry := core.NewRegistry()
 	c := &core.Core{
 		Registry: registry,
@@ -1671,16 +1669,17 @@ func TestRouter_HandleHealth_HasModulesField(t *testing.T) {
 	var body map[string]any
 	json.Unmarshal(rr.Body.Bytes(), &body)
 
-	modules, ok := body["modules"]
-	if !ok {
-		t.Fatal("response should contain 'modules' field")
+	// Health endpoint should only expose status, not internal info
+	if _, ok := body["modules"]; ok {
+		t.Error("health response should not contain 'modules' field (info leak)")
 	}
-	// With empty registry, modules should be an empty map
-	modulesMap, ok := modules.(map[string]any)
-	if !ok {
-		t.Fatal("modules should be a map")
+	if _, ok := body["version"]; ok {
+		t.Error("health response should not contain 'version' field (info leak)")
 	}
-	if len(modulesMap) != 0 {
-		t.Errorf("expected 0 modules, got %d", len(modulesMap))
+	if _, ok := body["uptime"]; ok {
+		t.Error("health response should not contain 'uptime' field (info leak)")
+	}
+	if body["status"] != "ok" {
+		t.Errorf("status = %v, want ok", body["status"])
 	}
 }

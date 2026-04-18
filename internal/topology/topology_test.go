@@ -941,8 +941,8 @@ func TestCompile_RedisWithPassword(t *testing.T) {
 		t.Fatalf("Compile: %v", err)
 	}
 	svc := compose.Services["cache"]
-	if !strings.Contains(svc.Command, "requirepass") {
-		t.Errorf("expected redis requirepass command, got %q", svc.Command)
+	if svc.Environment["REDIS_PASSWORD"] != "secret" {
+		t.Errorf("expected REDIS_PASSWORD=secret, got %q", svc.Environment["REDIS_PASSWORD"])
 	}
 }
 
@@ -980,9 +980,9 @@ func TestCompile_RedisNoPassword(t *testing.T) {
 		t.Fatalf("Compile: %v", err)
 	}
 	svc := compose.Services["cache"]
-	// Even with empty password, generatePassword fills one in, so requirepass should be set
-	if svc.Command == "" {
-		t.Error("expected redis command with auto-generated password")
+	// Even with empty password, generatePassword fills one in, so REDIS_PASSWORD should be set
+	if svc.Environment["REDIS_PASSWORD"] == "" {
+		t.Error("expected REDIS_PASSWORD to be auto-generated")
 	}
 }
 

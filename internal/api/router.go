@@ -94,7 +94,7 @@ func (r *Router) Handler() http.Handler {
 }
 
 func (r *Router) registerRoutes() {
-	authMiddleware := middleware.RequireAuth(r.authMod.JWT(), r.core.DB.Bolt)
+	authMiddleware := middleware.RequireAuth(r.authMod.JWT(), r.core.DB.Bolt, r.store)
 	tenantRL := middleware.NewTenantRateLimiter(r.core.DB.Bolt, 100, time.Minute)
 	// protected applies auth then per-tenant rate limiting
 	protected := func(next http.Handler) http.Handler {
@@ -691,9 +691,7 @@ func (r *Router) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	status := "ok"
 	httpStatus := http.StatusOK
 
-	modules := make(map[string]string, len(health))
-	for id, h := range health {
-		modules[id] = h.String()
+	for _, h := range health {
 		if h == core.HealthDown {
 			status = "degraded"
 			httpStatus = http.StatusServiceUnavailable
@@ -701,10 +699,7 @@ func (r *Router) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	writeJSON(w, httpStatus, map[string]any{
-		"status":  status,
-		"version": r.core.Build.Version,
-		"uptime":  time.Since(r.startedAt).Truncate(time.Second).String(),
-		"modules": modules,
+		"status": status,
 	})
 }
 

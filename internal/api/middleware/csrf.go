@@ -72,6 +72,8 @@ func SetCSRFCookie(w http.ResponseWriter, r *http.Request) {
 
 func generateCSRFToken() string {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand unavailable: " + err.Error())
+	}
 	return hex.EncodeToString(b)
 }

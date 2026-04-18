@@ -33,7 +33,10 @@ func (h *EnvVarHandler) Get(w http.ResponseWriter, r *http.Request) {
 	// Parse stored env vars (encrypted JSON)
 	var envVars []envVarEntry
 	if app.EnvVarsEnc != "" {
-		json.Unmarshal([]byte(app.EnvVarsEnc), &envVars)
+		if err := json.Unmarshal([]byte(app.EnvVarsEnc), &envVars); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to parse env vars")
+			return
+		}
 	}
 
 	// Mask secret values
@@ -91,7 +94,11 @@ func (h *EnvVarHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Serialize and store
-	data, _ := json.Marshal(req.Vars)
+	data, err := json.Marshal(req.Vars)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to serialize env vars")
+		return
+	}
 	app.EnvVarsEnc = string(data)
 
 	if err := h.store.UpdateApp(r.Context(), app); err != nil {

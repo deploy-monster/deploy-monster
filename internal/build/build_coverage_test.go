@@ -305,7 +305,7 @@ func TestValidateGitURL(t *testing.T) {
 		{"git scheme", "git://github.com/org/repo.git", false},
 		{"ssh shorthand", "git@github.com:org/repo.git", false},
 		{"https no .git", "https://github.com/org/repo", false},
-		{"file scheme", "file:///home/user/repo", false},
+		{"file scheme", "file:///home/user/repo", true}, // file:// is now rejected due to SSRF risk
 		{"local abs unix", "/home/user/repo", false},
 		{"local abs windows", "C:/Users/dev/repo", false},
 		{"docker image ref", "nginx:latest", false}, // Docker image refs skip git validation

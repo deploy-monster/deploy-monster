@@ -20,7 +20,7 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestSMTPProvider_Name(t *testing.T) {
-	p := NewSMTPProvider(core.SMTPConfig{})
+	p := NewSMTPProvider(core.SMTPConfig{}, discardLogger())
 	if p.Name() != "email" {
 		t.Errorf("Name = %q, want email", p.Name())
 	}
@@ -71,7 +71,7 @@ func TestSMTPProvider_Validate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := NewSMTPProvider(tt.cfg).Validate()
+			err := NewSMTPProvider(tt.cfg, discardLogger()).Validate()
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Errorf("Validate = %v, want nil", err)
@@ -97,7 +97,7 @@ func TestSMTPProvider_DefaultPort(t *testing.T) {
 		{true, 2525, 2525},
 	}
 	for _, c := range cases {
-		p := NewSMTPProvider(core.SMTPConfig{UseTLS: c.useTLS, Port: c.port})
+		p := NewSMTPProvider(core.SMTPConfig{UseTLS: c.useTLS, Port: c.port}, discardLogger())
 		if got := p.defaultPort(); got != c.want {
 			t.Errorf("useTLS=%v port=%d → %d, want %d", c.useTLS, c.port, got, c.want)
 		}
@@ -108,7 +108,7 @@ func TestSMTPProvider_BuildMessage_HeadersAndBody(t *testing.T) {
 	p := NewSMTPProvider(core.SMTPConfig{
 		From:     "noreply@example.com",
 		FromName: "Deploy Monster",
-	})
+	}, discardLogger())
 	msg := string(p.buildMessage("admin@example.com", "Alert!", "server down", "text"))
 
 	for _, must := range []string{
@@ -134,7 +134,7 @@ func TestSMTPProvider_BuildMessage_HeadersAndBody(t *testing.T) {
 func TestSMTPProvider_Send_RejectsInvalidRecipient(t *testing.T) {
 	p := NewSMTPProvider(core.SMTPConfig{
 		Host: "mail.example.com", From: "noreply@example.com",
-	})
+	}, discardLogger())
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	err := p.Send(ctx, "not-an-email", "s", "b", "text")
@@ -146,7 +146,7 @@ func TestSMTPProvider_Send_RejectsInvalidRecipient(t *testing.T) {
 func TestSMTPProvider_Send_RejectsEmptyRecipient(t *testing.T) {
 	p := NewSMTPProvider(core.SMTPConfig{
 		Host: "mail.example.com", From: "noreply@example.com",
-	})
+	}, discardLogger())
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	if err := p.Send(ctx, "", "s", "b", "text"); err == nil {
@@ -266,7 +266,7 @@ func TestSMTPProvider_Deliver_FullHandshake(t *testing.T) {
 		// No TLS, no auth — the fake server doesn't advertise STARTTLS
 		// so the provider should skip the TLS upgrade and proceed
 		// plain because Username is also empty.
-	})
+	}, discardLogger())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -341,7 +341,7 @@ func TestSMTPProvider_Deliver_RefusesPlaintextAuth(t *testing.T) {
 		From:     "from@fake.local",
 		Username: "bob",
 		Password: "secret",
-	})
+	}, discardLogger())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -357,7 +357,7 @@ func TestSMTPProvider_Deliver_RefusesPlaintextAuth(t *testing.T) {
 func TestSMTPProvider_CustomDialer(t *testing.T) {
 	p := NewSMTPProvider(core.SMTPConfig{
 		Host: "mail.example.com", From: "noreply@example.com",
-	})
+	}, discardLogger())
 	called := false
 	p.dialer = func(ctx context.Context, addr string) (net.Conn, error) {
 		called = true

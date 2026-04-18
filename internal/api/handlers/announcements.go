@@ -67,6 +67,14 @@ func (h *AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "body must be 10000 characters or less")
 		return
 	}
+	// Validate announcement type
+	switch a.Type {
+	case "info", "warning", "critical", "maintenance":
+		// valid
+	default:
+		writeError(w, http.StatusBadRequest, "type must be one of: info, warning, critical, maintenance")
+		return
+	}
 
 	a.ID = core.GenerateID()
 	a.Active = true
