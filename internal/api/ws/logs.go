@@ -113,6 +113,11 @@ func (es *EventStreamer) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	// Channel to receive events
 	ch := make(chan core.Event, 100)
 
+	// Single timer reused for keepalive pings — avoids allocating a new timer
+	// on every iteration (anti-pattern with time.After in loops).
+	timer := time.NewTimer(30 * time.Second)
+	defer timer.Stop()
+
 	// Subscribe to events and get subscription ID for cleanup
 	subID := es.events.SubscribeAsync(typeFilter, func(_ context.Context, event core.Event) error {
 		select {
@@ -122,6 +127,14 @@ func (es *EventStreamer) StreamEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
+
+	// Reset helper to restart the keepalive timer after each ping or event.
+	resetTimer := func() {
+		if !timer.Stop() {
+			<-timer.C // Drain expired channel if stopped
+		}
+		timer.Reset(30 * time.Second)
+	}
 
 	// Stream events until client disconnects
 	ctx := r.Context()
@@ -135,10 +148,12 @@ func (es *EventStreamer) StreamEvents(w http.ResponseWriter, r *http.Request) {
 			data := event.DebugString()
 			_, _ = w.Write([]byte("event: " + event.Type + "\ndata: " + data + "\n\n"))
 			flusher.Flush()
-		case <-time.After(30 * time.Second):
-			// Keepalive ping
+			resetTimer()
+		case <-timer.C:
+			// Keepalive ping — reset and continue
 			_, _ = w.Write([]byte(": keepalive\n\n"))
 			flusher.Flush()
+			resetTimer()
 		}
 	}
 }
