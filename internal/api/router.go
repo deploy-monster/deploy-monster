@@ -108,6 +108,11 @@ func (r *Router) registerRoutes() {
 	adminOnly := func(next http.Handler) http.Handler {
 		return protected(middleware.RequireSuperAdmin(next))
 	}
+	// protectedPerm wraps a handler with auth, rate limiting, and an RBAC
+	// permission check. Use on all destructive or state-mutating endpoints.
+	protectedPerm := func(perm string, next http.HandlerFunc) http.Handler {
+		return protected(middleware.RequirePermission(r.store, perm)(next))
+	}
 
 	// ── Health ──────────────────────────────────────────
 	r.mux.HandleFunc("GET /health", r.handleHealth)
@@ -160,24 +165,24 @@ func (r *Router) registerRoutes() {
 	// ── Apps ────────────────────────────────────────────
 	appH := handlers.NewAppHandler(r.store, r.core)
 	r.mux.Handle("GET /api/v1/apps", protected(http.HandlerFunc(appH.List)))
-	r.mux.Handle("POST /api/v1/apps", protected(http.HandlerFunc(appH.Create)))
+	r.mux.Handle("POST /api/v1/apps", protectedPerm(auth.PermAppCreate, appH.Create))
 	ixH := handlers.NewImportExportHandler(r.store)
-	r.mux.Handle("POST /api/v1/apps/import", protected(http.HandlerFunc(ixH.Import)))
+	r.mux.Handle("POST /api/v1/apps/import", protectedPerm(auth.PermAppCreate, ixH.Import))
 	r.mux.Handle("GET /api/v1/apps/{id}/export", protected(http.HandlerFunc(ixH.Export)))
 	r.mux.Handle("GET /api/v1/apps/{id}", protected(http.HandlerFunc(appH.Get)))
-	r.mux.Handle("PATCH /api/v1/apps/{id}", protected(http.HandlerFunc(appH.Update)))
-	r.mux.Handle("DELETE /api/v1/apps/{id}", protected(http.HandlerFunc(appH.Delete)))
-	r.mux.Handle("POST /api/v1/apps/{id}/restart", protected(http.HandlerFunc(appH.Restart)))
-	r.mux.Handle("POST /api/v1/apps/{id}/stop", protected(http.HandlerFunc(appH.Stop)))
-	r.mux.Handle("POST /api/v1/apps/{id}/start", protected(http.HandlerFunc(appH.Start)))
+	r.mux.Handle("PATCH /api/v1/apps/{id}", protectedPerm(auth.PermAppCreate, appH.Update))
+	r.mux.Handle("DELETE /api/v1/apps/{id}", protectedPerm(auth.PermAppDelete, appH.Delete))
+	r.mux.Handle("POST /api/v1/apps/{id}/restart", protectedPerm(auth.PermAppRestart, appH.Restart))
+	r.mux.Handle("POST /api/v1/apps/{id}/stop", protectedPerm(auth.PermAppStop, appH.Stop))
+	r.mux.Handle("POST /api/v1/apps/{id}/start", protectedPerm(auth.PermAppRestart, appH.Start))
 	deployTriggerH := handlers.NewDeployTriggerHandler(r.store, r.core.Services.Container, r.core.Events)
 	deployTriggerH.SetServerContext(r.serverCtx)
-	r.mux.Handle("POST /api/v1/apps/{id}/deploy", protected(http.HandlerFunc(deployTriggerH.TriggerDeploy)))
+	r.mux.Handle("POST /api/v1/apps/{id}/deploy", protectedPerm(auth.PermAppDeploy, deployTriggerH.TriggerDeploy))
 
 	// ── App Suspend/Resume & Transfer ────────────────
 	suspH := handlers.NewSuspendHandler(r.store, r.core.Services.Container, r.core.Events)
-	r.mux.Handle("POST /api/v1/apps/{id}/suspend", protected(http.HandlerFunc(suspH.Suspend)))
-	r.mux.Handle("POST /api/v1/apps/{id}/resume", protected(http.HandlerFunc(suspH.Resume)))
+	r.mux.Handle("POST /api/v1/apps/{id}/suspend", protectedPerm(auth.PermAppStop, suspH.Suspend))
+	r.mux.Handle("POST /api/v1/apps/{id}/resume", protectedPerm(auth.PermAppRestart, suspH.Resume))
 	txfrH := handlers.NewTransferHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/transfer", adminOnly(http.HandlerFunc(txfrH.TransferApp)))
 
@@ -187,50 +192,50 @@ func (r *Router) registerRoutes() {
 
 	// ── App Rename ────────────────────────────────────
 	renameH := handlers.NewRenameHandler(r.store, r.core.Events)
-	r.mux.Handle("POST /api/v1/apps/{id}/rename", protected(http.HandlerFunc(renameH.Rename)))
+	r.mux.Handle("POST /api/v1/apps/{id}/rename", protectedPerm(auth.PermAppCreate, renameH.Rename))
 
 	// ── GPU Config ────────────────────────────────────
 	gpuH := handlers.NewGPUHandler(r.store, r.core.Services.Container, r.core.DB.Bolt)
 	gpuH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/gpu", protected(http.HandlerFunc(gpuH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/gpu", protectedPerm(auth.PermAppCreate, gpuH.Update))
 
 	// ── App Pin ───────────────────────────────────────
 	pinH := handlers.NewPinHandler(r.store, r.core.DB.Bolt)
-	r.mux.Handle("POST /api/v1/apps/{id}/pin", protected(http.HandlerFunc(pinH.Pin)))
-	r.mux.Handle("DELETE /api/v1/apps/{id}/pin", protected(http.HandlerFunc(pinH.Unpin)))
+	r.mux.Handle("POST /api/v1/apps/{id}/pin", protectedPerm(auth.PermAppCreate, pinH.Pin))
+	r.mux.Handle("DELETE /api/v1/apps/{id}/pin", protectedPerm(auth.PermAppCreate, pinH.Unpin))
 
 	// ── Save as Template ──────────────────────────────
 	saveTmplH := handlers.NewSaveTemplateHandler(r.store)
-	r.mux.Handle("POST /api/v1/apps/{id}/save-template", protected(http.HandlerFunc(saveTmplH.Save)))
+	r.mux.Handle("POST /api/v1/apps/{id}/save-template", protectedPerm(auth.PermAppCreate, saveTmplH.Save))
 
 	// ── Commit Rollback ───────────────────────────────
 	crH := handlers.NewCommitRollbackHandler(r.store, r.core.Services.Container, r.core.Events)
-	r.mux.Handle("POST /api/v1/apps/{id}/rollback-to-commit", protected(http.HandlerFunc(crH.RollbackToCommit)))
+	r.mux.Handle("POST /api/v1/apps/{id}/rollback-to-commit", protectedPerm(auth.PermAppDeploy, crH.RollbackToCommit))
 
 	// ── Snapshots ─────────────────────────────────────
 	snapH := handlers.NewSnapshotHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/snapshots", protected(http.HandlerFunc(snapH.List)))
-	r.mux.Handle("POST /api/v1/apps/{id}/snapshots", protected(http.HandlerFunc(snapH.Create)))
+	r.mux.Handle("POST /api/v1/apps/{id}/snapshots", protectedPerm(auth.PermAppCreate, snapH.Create))
 
 	// ── Webhook Replay ────────────────────────────────
 	whReplayH := handlers.NewWebhookReplayHandler(r.store, r.core.Events)
-	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/{logId}/replay", protected(http.HandlerFunc(whReplayH.Replay)))
+	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/{logId}/replay", protectedPerm(auth.PermAppCreate, whReplayH.Replay))
 
 	// ── App Clone & Bulk Ops ──────────────────────────
 	cloneH := handlers.NewCloneHandler(r.store, r.core.Events)
-	r.mux.Handle("POST /api/v1/apps/{id}/clone", protected(http.HandlerFunc(cloneH.Clone)))
+	r.mux.Handle("POST /api/v1/apps/{id}/clone", protectedPerm(auth.PermAppCreate, cloneH.Clone))
 	bulkH := handlers.NewBulkHandler(r.store, r.core.Services.Container, r.core.Events)
-	r.mux.Handle("POST /api/v1/apps/bulk", protected(http.HandlerFunc(bulkH.Execute)))
+	r.mux.Handle("POST /api/v1/apps/bulk", protectedPerm(auth.PermAppCreate, bulkH.Execute))
 
 	// ── App Restart Policy ────────────────────────────
 	rpH := handlers.NewRestartPolicyHandler(r.store, r.core.Services.Container)
-	r.mux.Handle("PUT /api/v1/apps/{id}/restart-policy", protected(http.HandlerFunc(rpH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/restart-policy", protectedPerm(auth.PermAppCreate, rpH.Update))
 
 	// ── App Labels ────────────────────────────────────
 	labelsH := handlers.NewLabelsHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/labels", protected(http.HandlerFunc(labelsH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/labels", protected(http.HandlerFunc(labelsH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/labels", protectedPerm(auth.PermAppCreate, labelsH.Update))
 
 	// ── Disk Usage ────────────────────────────────────
 	diskH := handlers.NewDiskUsageHandler(r.store, r.core.Services.Container)
@@ -238,32 +243,32 @@ func (r *Router) registerRoutes() {
 
 	// ── Webhook Test ──────────────────────────────────
 	whTestH := handlers.NewWebhookTestDeliveryHandler(r.store, r.core.Events, r.core.DB.Bolt)
-	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/test", protected(http.HandlerFunc(whTestH.TestDeliver)))
+	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/test", protectedPerm(auth.PermAppCreate, whTestH.TestDeliver))
 
 	// ── App Ports ─────────────────────────────────────
 	portH := handlers.NewPortHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/ports", protected(http.HandlerFunc(portH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/ports", protected(http.HandlerFunc(portH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/ports", protectedPerm(auth.PermAppCreate, portH.Update))
 
 	// ── Health Check Config ───────────────────────────
 	hcH := handlers.NewHealthCheckHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/healthcheck", protected(http.HandlerFunc(hcH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/healthcheck", protected(http.HandlerFunc(hcH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/healthcheck", protectedPerm(auth.PermAppCreate, hcH.Update))
 
 	// ── Custom Commands ──────────────────────────────
 	cmdH := handlers.NewCommandHandler(r.core.Services.Container, r.store, r.core.Events)
-	r.mux.Handle("POST /api/v1/apps/{id}/commands", protected(http.HandlerFunc(cmdH.Run)))
+	r.mux.Handle("POST /api/v1/apps/{id}/commands", protectedPerm(auth.PermAppRestart, cmdH.Run))
 	r.mux.Handle("GET /api/v1/apps/{id}/commands", protected(http.HandlerFunc(cmdH.History)))
 
 	// ── Log Retention ─────────────────────────────────
 	lrH := handlers.NewLogRetentionHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/log-retention", protected(http.HandlerFunc(lrH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/log-retention", protected(http.HandlerFunc(lrH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/log-retention", protectedPerm(auth.PermAppCreate, lrH.Update))
 
 	// ── App Middleware Config ─────────────────────────
 	amwH := handlers.NewAppMiddlewareHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/middleware", protected(http.HandlerFunc(amwH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/middleware", protected(http.HandlerFunc(amwH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/middleware", protectedPerm(auth.PermAppCreate, amwH.Update))
 
 	// ── Restart History ───────────────────────────────
 	rstHistH := handlers.NewRestartHistoryHandler(r.store, r.core.Services.Container)
@@ -271,11 +276,11 @@ func (r *Router) registerRoutes() {
 
 	// ── Webhook Secret Rotation ───────────────────────
 	whRotH := handlers.NewWebhookRotateHandler(r.store, r.core.Events)
-	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/rotate", protected(http.HandlerFunc(whRotH.Rotate)))
+	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/rotate", protectedPerm(auth.PermAppCreate, whRotH.Rotate))
 
 	// ── Deploy Preview, Diff & Schedule ───────────────
 	dpH := handlers.NewDeployPreviewHandler(r.store)
-	r.mux.Handle("POST /api/v1/apps/{id}/deploy/preview", protected(http.HandlerFunc(dpH.Preview)))
+	r.mux.Handle("POST /api/v1/apps/{id}/deploy/preview", protectedPerm(auth.PermAppDeploy, dpH.Preview))
 	diffH := handlers.NewDeployDiffHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/deployments/diff", protected(http.HandlerFunc(diffH.Diff)))
 
@@ -287,35 +292,35 @@ func (r *Router) registerRoutes() {
 	// ── Maintenance Mode ──────────────────────────────
 	maintH := handlers.NewMaintenanceHandler(r.store, r.core.Events, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/maintenance", protected(http.HandlerFunc(maintH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/maintenance", protected(http.HandlerFunc(maintH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/maintenance", protectedPerm(auth.PermAppCreate, maintH.Update))
 
 	// ── Redirects ─────────────────────────────────────
 	redirH := handlers.NewRedirectHandler(r.store, r.core.DB.Bolt)
 	redirH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.List)))
-	r.mux.Handle("POST /api/v1/apps/{id}/redirects", protected(http.HandlerFunc(redirH.Create)))
-	r.mux.Handle("DELETE /api/v1/apps/{id}/redirects/{ruleId}", protected(http.HandlerFunc(redirH.Delete)))
+	r.mux.Handle("POST /api/v1/apps/{id}/redirects", protectedPerm(auth.PermAppCreate, redirH.Create))
+	r.mux.Handle("DELETE /api/v1/apps/{id}/redirects/{ruleId}", protectedPerm(auth.PermAppCreate, redirH.Delete))
 
 	// ── Error Pages ───────────────────────────────────
 	epH := handlers.NewErrorPageHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/error-pages", protected(http.HandlerFunc(epH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/error-pages", protected(http.HandlerFunc(epH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/error-pages", protectedPerm(auth.PermAppCreate, epH.Update))
 
 	// ── Sticky Sessions ───────────────────────────────
 	stickyH := handlers.NewStickySessionHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/sticky-sessions", protected(http.HandlerFunc(stickyH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/sticky-sessions", protected(http.HandlerFunc(stickyH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/sticky-sessions", protectedPerm(auth.PermAppCreate, stickyH.Update))
 
 	// ── Autoscale ─────────────────────────────────────
 	asH := handlers.NewAutoscaleHandler(r.store, r.core.DB.Bolt)
 	asH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/autoscale", protected(http.HandlerFunc(asH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/autoscale", protectedPerm(auth.PermAppCreate, asH.Update))
 
 	// ── Response Headers ──────────────────────────────
 	rhH := handlers.NewResponseHeadersHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/response-headers", protected(http.HandlerFunc(rhH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/response-headers", protected(http.HandlerFunc(rhH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/response-headers", protectedPerm(auth.PermAppCreate, rhH.Update))
 
 	// ── Container History ─────────────────────────────
 	chH := handlers.NewContainerHistoryHandler(r.store, r.core.Services.Container, r.core.DB.Bolt)
@@ -324,13 +329,13 @@ func (r *Router) registerRoutes() {
 	// ── Deploy Notifications ──────────────────────────
 	dnH := handlers.NewDeployNotifyHandler(r.store, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/apps/{id}/deploy-notifications", protected(http.HandlerFunc(dnH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/deploy-notifications", protected(http.HandlerFunc(dnH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/deploy-notifications", protectedPerm(auth.PermAppCreate, dnH.Update))
 
 	// ── Basic Auth ────────────────────────────────────
 	baH := handlers.NewBasicAuthHandler(r.store, r.core.DB.Bolt)
 	baH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/basic-auth", protected(http.HandlerFunc(baH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/basic-auth", protectedPerm(auth.PermAppCreate, baH.Update))
 
 	// ── Container Processes ───────────────────────────
 	topH := handlers.NewContainerTopHandler(r.store, r.core.Services.Container)
@@ -344,8 +349,8 @@ func (r *Router) registerRoutes() {
 	cronH := handlers.NewCronJobHandler(r.store, r.core.DB.Bolt)
 	cronH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/apps/{id}/cron", protected(http.HandlerFunc(cronH.List)))
-	r.mux.Handle("POST /api/v1/apps/{id}/cron", protected(http.HandlerFunc(cronH.Create)))
-	r.mux.Handle("DELETE /api/v1/apps/{id}/cron/{jobId}", protected(http.HandlerFunc(cronH.Delete)))
+	r.mux.Handle("POST /api/v1/apps/{id}/cron", protectedPerm(auth.PermAppCreate, cronH.Create))
+	r.mux.Handle("DELETE /api/v1/apps/{id}/cron/{jobId}", protectedPerm(auth.PermAppCreate, cronH.Delete))
 
 	// ── Log Download ──────────────────────────────────
 	logDlH := handlers.NewLogDownloadHandler(r.core.Services.Container)
@@ -353,7 +358,7 @@ func (r *Router) registerRoutes() {
 
 	// ── Rollback & Versions ───────────────────────────
 	rollbackH := handlers.NewRollbackHandler(r.store, r.core.Services.Container, r.core.Events)
-	r.mux.Handle("POST /api/v1/apps/{id}/rollback", protected(http.HandlerFunc(rollbackH.Rollback)))
+	r.mux.Handle("POST /api/v1/apps/{id}/rollback", protectedPerm(auth.PermAppDeploy, rollbackH.Rollback))
 	r.mux.Handle("GET /api/v1/apps/{id}/versions", protected(http.HandlerFunc(rollbackH.ListVersions)))
 
 	// ── Deployments ────────────────────────────────────
@@ -398,15 +403,15 @@ func (r *Router) registerRoutes() {
 
 	// ── Env Import/Export ─────────────────────────────
 	envImH := handlers.NewEnvImportHandler(r.store)
-	r.mux.Handle("POST /api/v1/apps/{id}/env/import", protected(http.HandlerFunc(envImH.Import)))
+	r.mux.Handle("POST /api/v1/apps/{id}/env/import", protectedPerm(auth.PermAppEnvEdit, envImH.Import))
 	r.mux.Handle("GET /api/v1/apps/{id}/env/export", protected(http.HandlerFunc(envImH.Export)))
 
 	// ── DNS Records ───────────────────────────────────
 	dnsRecH := handlers.NewDNSRecordHandler(r.core.Services)
 	dnsRecH.SetEvents(r.core.Events)
 	r.mux.Handle("GET /api/v1/dns/records", protected(http.HandlerFunc(dnsRecH.List)))
-	r.mux.Handle("POST /api/v1/dns/records", protected(http.HandlerFunc(dnsRecH.Create)))
-	r.mux.Handle("DELETE /api/v1/dns/records/{id}", protected(http.HandlerFunc(dnsRecH.Delete)))
+	r.mux.Handle("POST /api/v1/dns/records", protectedPerm(auth.PermDomainManage, dnsRecH.Create))
+	r.mux.Handle("DELETE /api/v1/dns/records/{id}", protectedPerm(auth.PermDomainManage, dnsRecH.Delete))
 
 	// ── SSL Status ────────────────────────────────────
 	sslStatH := handlers.NewSSLStatusHandler(r.core.DB.Bolt)
@@ -450,14 +455,14 @@ func (r *Router) registerRoutes() {
 	// ── Projects ───────────────────────────────────────
 	projH := handlers.NewProjectHandler(r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/projects", protected(http.HandlerFunc(projH.List)))
-	r.mux.Handle("POST /api/v1/projects", protected(http.HandlerFunc(projH.Create)))
+	r.mux.Handle("POST /api/v1/projects", protectedPerm(auth.PermProjectCreate, projH.Create))
 	r.mux.Handle("GET /api/v1/projects/{id}", protected(http.HandlerFunc(projH.Get)))
-	r.mux.Handle("DELETE /api/v1/projects/{id}", protected(http.HandlerFunc(projH.Delete)))
+	r.mux.Handle("DELETE /api/v1/projects/{id}", protectedPerm(auth.PermProjectDelete, projH.Delete))
 
 	// ── Env Vars ──────────────────────────────────────
 	envH := handlers.NewEnvVarHandler(r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/env", protected(http.HandlerFunc(envH.Get)))
-	r.mux.Handle("PUT /api/v1/apps/{id}/env", protected(http.HandlerFunc(envH.Update)))
+	r.mux.Handle("PUT /api/v1/apps/{id}/env", protectedPerm(auth.PermAppEnvEdit, envH.Update))
 
 	// ── Docker Registries ─────────────────────────────
 	regH := handlers.NewRegistryHandler(r.core.DB.Bolt)
@@ -467,12 +472,12 @@ func (r *Router) registerRoutes() {
 	// ── Domains ────────────────────────────────────────
 	domH := handlers.NewDomainHandler(r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/domains", protected(http.HandlerFunc(domH.List)))
-	r.mux.Handle("POST /api/v1/domains", protected(http.HandlerFunc(domH.Create)))
-	r.mux.Handle("DELETE /api/v1/domains/{id}", protected(http.HandlerFunc(domH.Delete)))
+	r.mux.Handle("POST /api/v1/domains", protectedPerm(auth.PermDomainManage, domH.Create))
+	r.mux.Handle("DELETE /api/v1/domains/{id}", protectedPerm(auth.PermDomainManage, domH.Delete))
 
 	// ── Container Exec ────────────────────────────────
 	execH := handlers.NewExecHandler(r.core.Services.Container, r.store, r.core.Logger, r.core.DB.Bolt)
-	r.mux.Handle("POST /api/v1/apps/{id}/exec", protected(http.HandlerFunc(execH.Exec)))
+	r.mux.Handle("POST /api/v1/apps/{id}/exec", protectedPerm(auth.PermAppRestart, execH.Exec))
 
 	// ── Team ───────────────────────────────────────────
 	teamH := handlers.NewTeamHandler(r.store, r.core.Events)
@@ -485,7 +490,7 @@ func (r *Router) registerRoutes() {
 	// ── Databases ─────────────────────────────────────
 	dbH := handlers.NewDatabaseHandler(r.store, r.core.Services.Container, r.core.Events)
 	r.mux.HandleFunc("GET /api/v1/databases/engines", dbH.ListEngines)
-	r.mux.Handle("POST /api/v1/databases", protected(http.HandlerFunc(dbH.Create)))
+	r.mux.Handle("POST /api/v1/databases", protectedPerm(auth.PermDatabaseManage, dbH.Create))
 
 	// ── Backups ───────────────────────────────────────
 	backupStorage := r.core.Services.BackupStorage("local")
@@ -526,7 +531,7 @@ func (r *Router) registerRoutes() {
 	// ── Compose Stacks ────────────────────────────────
 	composeH := handlers.NewComposeHandler(r.store, r.core.Services.Container, r.core.Events)
 	composeH.SetServerContext(r.serverCtx)
-	r.mux.Handle("POST /api/v1/stacks", protected(http.HandlerFunc(composeH.Deploy)))
+	r.mux.Handle("POST /api/v1/stacks", protectedPerm(auth.PermAppCreate, composeH.Deploy))
 	r.mux.Handle("POST /api/v1/stacks/validate", protected(http.HandlerFunc(composeH.Validate)))
 
 	// ── Secrets ───────────────────────────────────────
@@ -548,7 +553,7 @@ func (r *Router) registerRoutes() {
 	}
 	secretH := handlers.NewSecretHandler(r.store, vault, r.core.Events)
 	r.mux.Handle("GET /api/v1/secrets", protected(http.HandlerFunc(secretH.List)))
-	r.mux.Handle("POST /api/v1/secrets", protected(http.HandlerFunc(secretH.Create)))
+	r.mux.Handle("POST /api/v1/secrets", protectedPerm(auth.PermSecretCreate, secretH.Create))
 
 	// ── Billing ───────────────────────────────────────
 	billingH := handlers.NewBillingHandler(r.store)
@@ -621,7 +626,7 @@ func (r *Router) registerRoutes() {
 	// ── Terminal ──────────────────────────────────────
 	termH := ws.NewTerminal(r.core.Services.Container, r.store, r.core.Logger)
 	r.mux.Handle("GET /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.StreamOutput)))
-	r.mux.Handle("POST /api/v1/apps/{id}/terminal", protected(http.HandlerFunc(termH.SendCommand)))
+	r.mux.Handle("POST /api/v1/apps/{id}/terminal", protectedPerm(auth.PermAppRestart, termH.SendCommand))
 
 	// ── Deploy Approval Workflow ──────────────────────
 	daH := handlers.NewDeployApprovalHandler(r.store, r.core.Events)

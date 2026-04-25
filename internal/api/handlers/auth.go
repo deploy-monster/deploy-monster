@@ -49,12 +49,8 @@ func isSecureRequest(r *http.Request) bool {
 // setTokenCookies sets httpOnly cookies for both access and refresh tokens.
 func setTokenCookies(w http.ResponseWriter, r *http.Request, tokens *internalAuth.TokenPair) {
 	secure := isSecureRequest(r)
-	// Phase 7.7 FIX: Path=/ ile tüm site için geçerli, SameSite=None cross-site için
-	sameSite := http.SameSiteNoneMode
-	if !secure {
-		// SameSite=None Secure gerektirir, HTTP'de Lax kullan
-		sameSite = http.SameSiteLaxMode
-	}
+	// SECURITY FIX: Always use SameSite=Lax to reduce CSRF surface area
+	sameSite := http.SameSiteLaxMode
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieAccess,
 		Value:    tokens.AccessToken,
@@ -221,7 +217,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	} else {
 		if len(req.Password) > 256 {
 			fields = append(fields, FieldError{Field: "password", Message: "must not exceed 256 characters"})
-		} else if err := internalAuth.ValidatePasswordStrength(req.Password, 8); err != nil {
+		} else if err := internalAuth.ValidatePasswordStrength(req.Password, 0); err != nil {
 			fields = append(fields, FieldError{Field: "password", Message: err.Error()})
 		}
 	}

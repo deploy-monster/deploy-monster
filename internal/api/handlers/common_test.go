@@ -823,7 +823,7 @@ func (m *mockStore) Ping(_ context.Context) error { return nil }
 
 // testJWT returns a JWTService configured with the test secret.
 func testJWT() *auth.JWTService {
-	return auth.NewJWTService(testJWTSecret)
+	return auth.MustNewJWTService(testJWTSecret)
 }
 
 // testAuthModule returns an auth.Module wired with the test JWT and mock store.

@@ -260,7 +260,7 @@ func (m *Module) httpHandler() http.Handler {
 // tlsConfig creates the TLS configuration with dynamic certificate loading.
 func (m *Module) tlsConfig() *tls.Config {
 	return &tls.Config{
-		MinVersion:     tls.VersionTLS12,
+		MinVersion:     tls.VersionTLS13,
 		GetCertificate: m.acme.GetCertificate,
 		NextProtos:     []string{"h2", "http/1.1"},
 	}

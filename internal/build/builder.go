@@ -236,8 +236,10 @@ func ValidateGitURL(raw string) error {
 		return fmt.Errorf("git URL is malformed: %w", err)
 	}
 	switch parsed.Scheme {
-	case "https", "ssh", "git":
+	case "https", "ssh":
 		// allowed
+	case "git":
+		return fmt.Errorf("git URL scheme %q is not allowed (unencrypted and can redirect to local protocols)", parsed.Scheme)
 	case "http":
 		return fmt.Errorf("git URL scheme %q is not allowed (use HTTPS)", parsed.Scheme)
 	case "file":
@@ -269,7 +271,7 @@ func validateResolvedHost(repoURL string) error {
 
 	// Only check schemes that involve network access
 	switch parsed.Scheme {
-	case "https", "http", "ssh", "git":
+	case "https", "http", "ssh":
 		// SSH shorthand (git@host:path) — can't resolve without DNS
 		if parsed.Scheme == "ssh" && parsed.Host == "" {
 			return nil

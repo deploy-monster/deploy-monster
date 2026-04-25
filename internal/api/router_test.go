@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -1281,7 +1283,22 @@ func (s *testStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Pr
 	return nil, nil
 }
 func (s *testStore) DeleteProject(_ context.Context, _ string) error         { return nil }
-func (s *testStore) GetRole(_ context.Context, _ string) (*core.Role, error) { return nil, nil }
+func (s *testStore) GetRole(_ context.Context, roleID string) (*core.Role, error) {
+	perms := "[]"
+	switch roleID {
+	case "role_super_admin":
+		perms = `["*"]`
+	case "role_owner":
+		perms = `["tenant.*","app.*","project.*","member.*","billing.*","secret.*","server.*","domain.*","db.*"]`
+	case "role_admin":
+		perms = `["app.*","project.*","member.*","secret.*","server.*","billing.*","domain.*","db.*"]`
+	case "role_developer":
+		perms = `["app.*","project.view","secret.app.*","domain.*","db.*"]`
+	case "role_viewer":
+		perms = `["app.view","app.logs","project.view"]`
+	}
+	return &core.Role{ID: roleID, PermissionsJSON: perms}, nil
+}
 func (s *testStore) GetUserMembership(_ context.Context, _ string) (*core.TeamMember, error) {
 	return nil, nil
 }
@@ -1324,6 +1341,9 @@ func testCoreSetup(t *testing.T) (*core.Core, *auth.Module) {
 		Services: core.NewServices(),
 		DB:       &core.Database{Bolt: &testBoltStore{}},
 	}
+
+	t.Setenv("MONSTER_ADMIN_EMAIL", "admin@example.com")
+	t.Setenv("MONSTER_ADMIN_PASSWORD", "SecureP@ss123!")
 
 	authMod := auth.New()
 	if err := authMod.Init(context.Background(), c); err != nil {
@@ -1683,3 +1703,157 @@ func TestRouter_HandleHealth_NoInternalInfoLeak(t *testing.T) {
 		t.Errorf("status = %v, want ok", body["status"])
 	}
 }
+
+// =====================================================
+// MODULE INIT
+// =====================================================
+
+func TestModule_Init(t *testing.T) {
+	c, authMod := testCoreSetup(t)
+	c.Registry.Register(authMod)
+	c.Registry.Resolve()
+	m := New()
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init error: %v", err)
+	}
+	if m.core != c {
+		t.Error("Init did not set core")
+	}
+	if m.store != c.Store {
+		t.Error("Init did not set store")
+	}
+	if m.authMod == nil {
+		t.Error("Init did not set authMod")
+	}
+	if m.router == nil {
+		t.Error("Init did not create router")
+	}
+}
+
+// =====================================================
+// MODULE START / STOP
+// =====================================================
+
+func TestModule_Start_Stop(t *testing.T) {
+	c, authMod := testCoreSetup(t)
+	c.Registry.Register(authMod)
+	c.Registry.Resolve()
+	m := New()
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init error: %v", err)
+	}
+
+	c.Config.Server.Host = "127.0.0.1"
+	c.Config.Server.Port = 0 // let OS assign port
+
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start error: %v", err)
+	}
+
+	if m.server == nil {
+		t.Fatal("expected server to be set after Start")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := m.Stop(ctx); err != nil {
+		t.Errorf("Stop error: %v", err)
+	}
+}
+
+// =====================================================
+// HANDLE READINESS
+// =====================================================
+
+func TestRouter_HandleReadiness_Draining(t *testing.T) {
+	c := &core.Core{}
+	c.SetDraining()
+	r := &Router{core: c}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	r.handleReadiness(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 when draining, got %d", rr.Code)
+	}
+	var body map[string]any
+	json.Unmarshal(rr.Body.Bytes(), &body)
+	if body["status"] != "draining" {
+		t.Errorf("expected status draining, got %v", body["status"])
+	}
+}
+
+func TestRouter_HandleReadiness_DBUnreachable(t *testing.T) {
+	c := &core.Core{
+		Store:    &testStorePingErr{},
+		Services: core.NewServices(),
+	}
+	r := &Router{core: c}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	r.handleReadiness(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 when DB unreachable, got %d", rr.Code)
+	}
+	var body map[string]any
+	json.Unmarshal(rr.Body.Bytes(), &body)
+	if body["status"] != "not_ready" {
+		t.Errorf("expected status not_ready, got %v", body["status"])
+	}
+}
+
+func TestRouter_HandleReadiness_AllOK(t *testing.T) {
+	c := &core.Core{
+		Store:    &testStore{},
+		Services: core.NewServices(),
+	}
+	c.Services.Container = &testContainerRuntime{}
+	r := &Router{core: c}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	r.handleReadiness(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 when all ready, got %d", rr.Code)
+	}
+	var body map[string]any
+	json.Unmarshal(rr.Body.Bytes(), &body)
+	if body["status"] != "ready" {
+		t.Errorf("expected status ready, got %v", body["status"])
+	}
+}
+
+// testStorePingErr returns an error on Ping for readiness tests.
+type testStorePingErr struct{ testStore }
+
+func (s *testStorePingErr) Ping(_ context.Context) error { return fmt.Errorf("db down") }
+
+// testContainerRuntime implements core.ContainerRuntime for readiness tests.
+type testContainerRuntime struct{}
+
+func (t *testContainerRuntime) Ping() error { return nil }
+func (t *testContainerRuntime) CreateAndStart(_ context.Context, _ core.ContainerOpts) (string, error) {
+	return "", nil
+}
+func (t *testContainerRuntime) Stop(_ context.Context, _ string, _ int) error     { return nil }
+func (t *testContainerRuntime) Remove(_ context.Context, _ string, _ bool) error  { return nil }
+func (t *testContainerRuntime) Restart(_ context.Context, _ string) error         { return nil }
+func (t *testContainerRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
+	return nil, nil
+}
+func (t *testContainerRuntime) ListByLabels(_ context.Context, _ map[string]string) ([]core.ContainerInfo, error) {
+	return nil, nil
+}
+func (t *testContainerRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) { return "", nil }
+func (t *testContainerRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
+	return nil, nil
+}
+func (t *testContainerRuntime) ImagePull(_ context.Context, _ string) error                  { return nil }
+func (t *testContainerRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error)          { return nil, nil }
+func (t *testContainerRuntime) ImageRemove(_ context.Context, _ string) error                  { return nil }
+func (t *testContainerRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error)      { return nil, nil }
+func (t *testContainerRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error)        { return nil, nil }

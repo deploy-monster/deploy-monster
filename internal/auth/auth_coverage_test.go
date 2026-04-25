@@ -97,6 +97,9 @@ func TestModule_Init_FirstRunSetup(t *testing.T) {
 		Config: cfg,
 	}
 
+	t.Setenv("MONSTER_ADMIN_EMAIL", "admin@example.com")
+	t.Setenv("MONSTER_ADMIN_PASSWORD", "SecureP@ss123!")
+
 	m := New()
 	err := m.Init(context.Background(), c)
 	if err != nil {
@@ -166,6 +169,9 @@ func TestModule_Init_FirstRunSetup_CreateTenantError(t *testing.T) {
 		Config: cfg,
 	}
 
+	t.Setenv("MONSTER_ADMIN_EMAIL", "admin@example.com")
+	t.Setenv("MONSTER_ADMIN_PASSWORD", "SecureP@ss123!")
+
 	m := New()
 	err := m.Init(context.Background(), c)
 	if err == nil {
@@ -188,6 +194,9 @@ func TestModule_Init_FirstRunSetup_CreateUserError(t *testing.T) {
 		Store:  store,
 		Config: cfg,
 	}
+
+	t.Setenv("MONSTER_ADMIN_EMAIL", "admin@example.com")
+	t.Setenv("MONSTER_ADMIN_PASSWORD", "SecureP@ss123!")
 
 	m := New()
 	err := m.Init(context.Background(), c)
@@ -235,7 +244,7 @@ func TestNewTestModule_Functional(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestJWT_ValidateRefreshToken_Invalid(t *testing.T) {
-	svc := NewJWTService("test-secret-key-at-least-32-bytes-long!")
+	svc := MustNewJWTService("test-secret-key-at-least-32-bytes-long!")
 
 	_, err := svc.ValidateRefreshToken("invalid-token-string")
 	if err == nil {
@@ -244,8 +253,8 @@ func TestJWT_ValidateRefreshToken_Invalid(t *testing.T) {
 }
 
 func TestJWT_ValidateRefreshToken_WrongSecret(t *testing.T) {
-	svc1 := NewJWTService("secret-one-at-least-32-bytes-long-aaaa!")
-	svc2 := NewJWTService("secret-two-at-least-32-bytes-long-bbbb!")
+	svc1 := MustNewJWTService("secret-one-at-least-32-bytes-long-aaaa!")
+	svc2 := MustNewJWTService("secret-two-at-least-32-bytes-long-bbbb!")
 
 	pair, _ := svc1.GenerateTokenPair("user-1", "t", "r", "e@e.com")
 
@@ -328,14 +337,14 @@ func TestHashPassword_VeryLongPassword(t *testing.T) {
 
 func TestValidatePasswordStrength_CustomMinLength(t *testing.T) {
 	// minLength = 12
-	err := ValidatePasswordStrength("Short1Ab", 12)
+	err := ValidatePasswordStrength("Short1Ab!", 12)
 	if err == nil {
-		t.Error("8-char password should fail when minLength is 12")
+		t.Error("9-char password should fail when minLength is 12")
 	}
 
-	err = ValidatePasswordStrength("LongEnough1Ab", 12)
+	err = ValidatePasswordStrength("LongEnough1Ab!", 12)
 	if err != nil {
-		t.Errorf("13-char password should pass with minLength 12: %v", err)
+		t.Errorf("14-char password should pass with minLength 12: %v", err)
 	}
 }
 

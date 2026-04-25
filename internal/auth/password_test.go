@@ -36,12 +36,13 @@ func TestValidatePasswordStrength(t *testing.T) {
 		password string
 		wantErr  bool
 	}{
-		{"valid", "MyPass123", false},
-		{"too short", "Ab1", true},
-		{"no uppercase", "mypass123", true},
-		{"no lowercase", "MYPASS123", true},
-		{"no digit", "MyPassword", true},
-		{"minimum valid", "Abcdefg1", false},
+		{"valid", "MyPass123!@#", false},
+		{"too short", "Ab1!", true},
+		{"no uppercase", "mypass123!", true},
+		{"no lowercase", "MYPASS123!", true},
+		{"no digit", "MyPassword!", true},
+		{"no special", "MyPassword123", true},
+		{"minimum valid", "Abcdefgh1!@#", false},
 	}
 
 	for _, tt := range tests {
@@ -55,15 +56,15 @@ func TestValidatePasswordStrength(t *testing.T) {
 }
 
 func TestValidatePasswordStrength_DefaultMinLength(t *testing.T) {
-	// When minLength is 0, should default to 8
-	err := ValidatePasswordStrength("Short1A", 0)
+	// When minLength is 0, should default to 12
+	err := ValidatePasswordStrength("Short1A!", 0)
 	if err == nil {
-		t.Error("expected error for 7-char password when minLength defaults to 8")
+		t.Error("expected error for 8-char password when minLength defaults to 12")
 	}
 
-	err = ValidatePasswordStrength("LongEnuf1", 0)
+	err = ValidatePasswordStrength("LongEnuf1!@#", 0)
 	if err != nil {
-		t.Errorf("unexpected error for 9-char password with default minLength: %v", err)
+		t.Errorf("unexpected error for 12-char password with default minLength: %v", err)
 	}
 }
 

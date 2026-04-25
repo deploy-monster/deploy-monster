@@ -168,6 +168,9 @@ func fuzzSetupRouter(tb testing.TB) (*Router, string) {
 		DB:       &core.Database{Bolt: &testBoltStore{}},
 	}
 
+	tb.Setenv("MONSTER_ADMIN_EMAIL", "admin@example.com")
+	tb.Setenv("MONSTER_ADMIN_PASSWORD", "SecureP@ss123!")
+
 	authMod := auth.New()
 	if err := authMod.Init(context.Background(), c); err != nil {
 		tb.Fatalf("auth.Init: %v", err)

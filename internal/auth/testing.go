@@ -10,7 +10,7 @@ import (
 // tests. Only the JWT() method is functional — Init/Start/Stop are no-ops.
 func NewTestModule(jwtSecret string, store core.Store) *Module {
 	return &Module{
-		jwt:    NewJWTService(jwtSecret),
+		jwt:    MustNewJWTService(jwtSecret),
 		store:  store,
 		logger: slog.Default(),
 	}
