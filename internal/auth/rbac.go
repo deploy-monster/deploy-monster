@@ -50,12 +50,12 @@ func ContextWithClaims(ctx context.Context, claims *Claims) context.Context {
 
 // Role levels define the built-in hierarchy. Higher number = more powerful.
 const (
-	LevelViewer      = 1
-	LevelOperator    = 2
-	LevelDeveloper   = 3
-	LevelAdmin       = 4
-	LevelOwner       = 5
-	LevelSuperAdmin  = 6
+	LevelViewer     = 1
+	LevelOperator   = 2
+	LevelDeveloper  = 3
+	LevelAdmin      = 4
+	LevelOwner      = 5
+	LevelSuperAdmin = 6
 )
 
 // RoleLevel returns the numeric level for a built-in role ID.

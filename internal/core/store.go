@@ -272,7 +272,6 @@ func (r *Role) HasPermission(permission string) bool {
 	return false
 }
 
-
 // TeamMember links a user to a tenant with a role.
 type TeamMember struct {
 	ID        string    `json:"id"`

@@ -2,10 +2,6 @@ package marketplace
 
 // Additional templates to reach 100+ total marketplace apps.
 
-func init() {
-	// These will be added via LoadMore100 in module.go
-}
-
 var moreTemplates100 = []*Template{
 	// === CMS & BLOGGING ===
 	{
