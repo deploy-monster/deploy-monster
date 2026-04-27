@@ -10,7 +10,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.9.1
-	github.com/mattn/go-isatty v0.0.21
+	github.com/mattn/go-isatty v0.0.22
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.50.0
 	gopkg.in/yaml.v3 v3.0.1
