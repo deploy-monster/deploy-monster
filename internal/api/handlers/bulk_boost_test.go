@@ -165,13 +165,19 @@ func TestStrContain(t *testing.T) {
 
 type errorAfterCountStore struct {
 	*mockStore
-	count int
-	after int
-	errOn string // "start", "stop", "restart", "delete"
+	count    int
+	after    int
+	errOn    string // "start", "stop", "restart", "delete"
+	failOnce bool   // only fail once, then allow subsequent calls (for rollback)
+	failed   bool
 }
 
 func (s *errorAfterCountStore) UpdateAppStatus(ctx context.Context, id, status string) error {
+	if s.failOnce && s.failed {
+		return s.mockStore.UpdateAppStatus(ctx, id, status)
+	}
 	if s.count >= s.after && (s.errOn == "start" || s.errOn == "stop" || s.errOn == "restart") {
+		s.failed = true
 		return errors.New("simulated failure after count")
 	}
 	s.count++
@@ -192,6 +198,7 @@ func TestBulkExecute_RollbackOnPartialFailure(t *testing.T) {
 		mockStore: newMockStore(),
 		after:     1, // first succeeds, second fails
 		errOn:     "start",
+		failOnce:  true, // allow rollback to succeed
 	}
 
 	// Add apps to the store with initial status "original"
