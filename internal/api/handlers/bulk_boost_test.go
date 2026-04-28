@@ -48,8 +48,8 @@ func TestToLower(t *testing.T) {
 		expected string
 	}{
 		{"hello", "hello"},
-		{"HELLO", "HELLO"},
-		{"HeLLo", "heLLo"},
+		{"HELLO", "hello"},
+		{"HeLLo", "hello"},
 		{"", ""},
 		{"ABC", "abc"},
 		{"abc", "abc"},
@@ -193,6 +193,10 @@ func TestBulkExecute_RollbackOnPartialFailure(t *testing.T) {
 		after:     1, // first succeeds, second fails
 		errOn:     "start",
 	}
+
+	// Add apps to the store with initial status "original"
+	store.apps["app1"] = &core.Application{ID: "app1", TenantID: "tenant1", Status: "original"}
+	store.apps["app2"] = &core.Application{ID: "app2", TenantID: "tenant1", Status: "original"}
 
 	events := core.NewEventBus(nil)
 	handler := NewBulkHandler(store, nil, events)
