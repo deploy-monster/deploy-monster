@@ -251,8 +251,9 @@ export function Settings() {
 
               {/* Email (read-only) */}
               <div className="space-y-1.5">
-                <Label>Email Address</Label>
+                <Label htmlFor="email-readonly">Email Address</Label>
                 <Input
+                  id="email-readonly"
                   value={editEmail}
                   disabled
                   className="max-w-sm bg-muted/50"
