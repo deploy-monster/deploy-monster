@@ -22,7 +22,7 @@ const AUTHED_ROUTES: { path: string; name: string; waitFor: string }[] = [
   { path: '/apps', name: 'apps list', waitFor: '[data-testid="dashboard-shell"]' },
   { path: '/marketplace', name: 'marketplace', waitFor: '[data-testid="dashboard-shell"]' },
   { path: '/domains', name: 'domains', waitFor: '[data-testid="dashboard-shell"]' },
-  { path: '/projects', name: 'projects', waitFor: '[data-testid="dashboard-shell"]' },
+  { path: '/databases', name: 'databases', waitFor: '[data-testid="dashboard-shell"]' },
   { path: '/settings', name: 'settings', waitFor: '[data-testid="dashboard-shell"]' },
 ];
 

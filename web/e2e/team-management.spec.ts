@@ -78,6 +78,7 @@ test.describe('Team Management', () => {
   test('renders the Team page header and Invite Member CTA', async ({ page }) => {
     await mockTeam(page, { members: [fakeMember()] });
     await page.goto('/team');
+    await ensureAuthenticated(page);
 
     await expect(
       page.getByRole('heading', { name: /team management/i })
@@ -90,6 +91,7 @@ test.describe('Team Management', () => {
   test('shows the empty state when there are no members', async ({ page }) => {
     await mockTeam(page, { members: [] });
     await page.goto('/team');
+    await ensureAuthenticated(page);
 
     await expect(
       page.getByRole('heading', { name: /no team members yet/i })
@@ -107,6 +109,7 @@ test.describe('Team Management', () => {
       ],
     });
     await page.goto('/team');
+    await ensureAuthenticated(page);
 
     await expect(page.getByText('Alice Admin')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('alice@test.dev')).toBeVisible();

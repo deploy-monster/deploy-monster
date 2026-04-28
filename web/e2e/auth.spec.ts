@@ -73,8 +73,8 @@ test.describe('Login', () => {
     // Initially masked
     await expect(passwordInput).toHaveAttribute('type', 'password');
 
-    // Click eye icon to reveal
-    await page.locator('button').filter({ has: page.locator('svg') }).last().click();
+    // Click eye icon to reveal (toggle button has tabIndex=-1)
+    await page.locator('button[tabindex="-1"]').click();
     await expect(passwordInput).toHaveAttribute('type', 'text');
   });
 });
