@@ -927,3 +927,15 @@ func indexMap(order []string) map[string]int {
 	}
 	return m
 }
+
+func TestNewStackDeployer_NilLogger(t *testing.T) {
+	rt := &mockRuntime{}
+	events := core.NewEventBus(slog.Default())
+	deployer := NewStackDeployer(rt, nil, events, nil)
+	if deployer == nil {
+		t.Fatal("NewStackDeployer returned nil")
+	}
+	if deployer.logger == nil {
+		t.Fatal("logger should default to slog.Default()")
+	}
+}

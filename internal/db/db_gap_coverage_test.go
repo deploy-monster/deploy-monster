@@ -414,6 +414,33 @@ func TestSQLite_SnapshotBackup(t *testing.T) {
 	}
 }
 
+func TestSQLite_SnapshotBackup_InvalidPath(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	// Parent directory does not exist — VACUUM INTO should fail
+	badPath := filepath.Join(t.TempDir(), "missing_subdir", "snap.db")
+	err := db.SnapshotBackup(ctx, badPath)
+	if err == nil {
+		t.Fatal("expected error for invalid dest path")
+	}
+}
+
+func TestSQLite_SnapshotBackup_ClosedDB(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
+	db, err := NewSQLite(path)
+	if err != nil {
+		t.Fatalf("NewSQLite: %v", err)
+	}
+	db.Close()
+
+	err = db.SnapshotBackup(context.Background(), filepath.Join(t.TempDir(), "snap.db"))
+	if err == nil {
+		t.Fatal("expected error on closed DB")
+	}
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // bolt.go — BatchSet
 // ═══════════════════════════════════════════════════════════════════════════════

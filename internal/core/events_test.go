@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync/atomic"
 	"testing"
@@ -187,4 +188,38 @@ func TestNewTenantEvent(t *testing.T) {
 	if e.UserID != "user-1" {
 		t.Errorf("expected user 'user-1', got %q", e.UserID)
 	}
+}
+
+func TestEventBus_PublishAsync_Boost(t *testing.T) {
+	eb := NewEventBus(slog.Default())
+	var called atomic.Bool
+	eb.Subscribe("test", func(_ context.Context, _ Event) error {
+		called.Store(true)
+		return nil
+	})
+	eb.PublishAsync(context.Background(), Event{Type: "test"})
+	eb.Drain()
+	if !called.Load() {
+		t.Error("handler was not called")
+	}
+}
+
+func TestEventBus_PublishAsync_HandlerError_Boost(t *testing.T) {
+	eb := NewEventBus(slog.Default())
+	eb.Subscribe("test", func(_ context.Context, _ Event) error {
+		return fmt.Errorf("boom")
+	})
+	eb.PublishAsync(context.Background(), Event{Type: "test"})
+	eb.Drain()
+	// Should not panic
+}
+
+func TestEventBus_PublishAsync_NilLogger_Boost(t *testing.T) {
+	eb := &EventBus{asyncSem: make(chan struct{}, DefaultAsyncWorkers)}
+	eb.Subscribe("test", func(_ context.Context, _ Event) error {
+		return fmt.Errorf("boom")
+	})
+	eb.PublishAsync(context.Background(), Event{Type: "test"})
+	eb.Drain()
+	// Should not panic with nil logger
 }

@@ -7,7 +7,10 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -112,4 +115,41 @@ func TestAutocertCache_Delete(t *testing.T) {
 	if cs.Get("del.example.com") != nil {
 		t.Error("expected cert to be deleted")
 	}
+}
+
+func TestACMEManager_HTTPHandler_NilManager(t *testing.T) {
+	cs := NewCertStore()
+	am := NewACMEManager(cs, "", false, slog.Default()) // email empty → mgr is nil
+
+	fallback := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := am.HTTPHandler(fallback)
+	req := httptest.NewRequest("GET", "/", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 from fallback, got %d", rr.Code)
+	}
+}
+
+func TestACMEManager_CheckRenewals_Expiring(t *testing.T) {
+	cs := NewCertStore()
+
+	cert, err := GenerateSelfSigned("expiring.example.com")
+	if err != nil {
+		t.Fatalf("GenerateSelfSigned: %v", err)
+	}
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		t.Fatalf("ParseCertificate: %v", err)
+	}
+	leaf.NotAfter = time.Now().Add(24 * time.Hour)
+	cert.Leaf = leaf
+	cs.Put("expiring.example.com", cert)
+
+	am := NewACMEManager(cs, "test@example.com", true, slog.Default())
+	am.checkRenewals()
 }

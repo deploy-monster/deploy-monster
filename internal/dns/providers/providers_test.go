@@ -239,6 +239,38 @@ func TestCloudflare_DeleteRecord(t *testing.T) {
 	}
 }
 
+func TestCloudflare_DeleteRecord_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.RawQuery, "per_page") {
+			json.NewEncoder(w).Encode(map[string]any{
+				"result": []map[string]any{
+					{"id": "zone-123", "name": "example.com"},
+				},
+			})
+			return
+		}
+		if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/dns_records/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success":true}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	cf := NewCloudflare("test-token")
+	cf.client = srv.Client()
+	cf.client.Transport = &rewriteTransport{base: srv.URL}
+
+	err := cf.DeleteRecord(context.Background(), core.DNSRecord{
+		ID:   "rec-456",
+		Name: "app.example.com",
+	})
+	if err != nil {
+		t.Fatalf("DeleteRecord() error: %v", err)
+	}
+}
+
 func TestCloudflare_Verify(t *testing.T) {
 	cf := NewCloudflare("test-token")
 	ok, err := cf.Verify(context.Background(), "example.com")

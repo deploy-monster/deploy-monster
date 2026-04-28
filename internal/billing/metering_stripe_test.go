@@ -133,3 +133,64 @@ func TestMeter_ReportUsageToStripe_StripeAPIError(t *testing.T) {
 	meter.reportUsageToStripe(context.Background(),
 		map[string]*TenantUsage{"tenant-1": {Containers: 1}}, time.Now())
 }
+
+func TestMeter_ReportUsageToStripe_ContextCancelled(t *testing.T) {
+	tenant := &core.Tenant{ID: "tenant-1"}
+	_ = SetStripeMetadata(tenant, StripeMetadata{SubscriptionItemID: "si_1"})
+	store := newMeterStore(tenant)
+
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client := NewStripeClient("sk_test", "whsec_test")
+	client.baseURL = srv.URL
+
+	meter := NewMeter(store, nil, slog.Default())
+	meter.SetStripe(client, core.NewEventBus(slog.Default()))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Pre-cancel so the very first tenant check aborts
+
+	usage := map[string]*TenantUsage{
+		"tenant-1": {Containers: 5},
+	}
+	meter.reportUsageToStripe(ctx, usage, time.Now())
+
+	// Should have made zero Stripe calls because context was canceled
+	if got := atomic.LoadInt32(&calls); got != 0 {
+		t.Errorf("stripe calls = %d, want 0 (context canceled)", got)
+	}
+}
+
+func TestMeter_ReportUsageToStripe_TenantNotFound(t *testing.T) {
+	// Store has no tenants — GetTenant returns io.EOF for any ID.
+	store := newMeterStore()
+
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client := NewStripeClient("sk_test", "whsec_test")
+	client.baseURL = srv.URL
+
+	meter := NewMeter(store, nil, slog.Default())
+	meter.SetStripe(client, nil)
+
+	// Usage for a tenant the store doesn't know about.
+	usage := map[string]*TenantUsage{
+		"unknown": {Containers: 3},
+	}
+	meter.reportUsageToStripe(context.Background(), usage, time.Now())
+
+	// Should have made zero Stripe calls because tenant load failed
+	if got := atomic.LoadInt32(&calls); got != 0 {
+		t.Errorf("stripe calls = %d, want 0 (tenant not found)", got)
+	}
+}
