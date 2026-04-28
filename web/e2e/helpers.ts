@@ -132,5 +132,15 @@ export async function ensureAuthenticated(page: Page): Promise<void> {
 
   // Reload and re-check — handles stale renders from previous test navigation.
   await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
-  await shell.waitFor({ state: 'visible', timeout: 15_000 });
+
+  // After reload, check if we landed on login page (session expired).
+  const isLoginAfterReload = await page.getByText(/welcome back|sign in to your account/i)
+    .isVisible({ timeout: 2_000 }).catch(() => false);
+  if (isLoginAfterReload) {
+    await loginViaUI(page, TEST_USER.email, TEST_USER.password);
+    return;
+  }
+
+  // Wait for auth initialization (calls /auth/me which may be slow on cold start).
+  await shell.waitFor({ state: 'visible', timeout: 30_000 });
 }
