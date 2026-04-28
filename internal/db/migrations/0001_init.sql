@@ -59,8 +59,8 @@ CREATE TABLE roles (
 -- Built-in roles
 INSERT INTO roles (id, name, description, permissions_json, is_builtin) VALUES
     ('role_super_admin', 'Super Admin', 'Full platform access', '["*"]', 1),
-    ('role_owner', 'Owner', 'Full tenant control', '["tenant.*","app.*","project.*","member.*","billing.*","secret.*","server.*"]', 1),
-    ('role_admin', 'Admin', 'Manage team and resources', '["app.*","project.*","member.*","secret.*","server.view","billing.view"]', 1),
+    ('role_owner', 'Owner', 'Full tenant control', '["tenant.*","app.*","project.*","member.*","billing.*","secret.*","server.*","domain.*","db.*"]', 1),
+    ('role_admin', 'Admin', 'Manage team and resources', '["app.*","project.*","member.*","secret.*","server.*","billing.*","domain.*","db.*"]', 1),
     ('role_developer', 'Developer', 'Deploy and manage apps', '["app.*","project.view","secret.app.*","domain.*","db.*"]', 1),
     ('role_operator', 'Operator', 'Operate running apps', '["app.view","app.restart","app.logs","app.metrics"]', 1),
     ('role_viewer', 'Viewer', 'Read-only access', '["app.view","app.logs","project.view"]', 1);

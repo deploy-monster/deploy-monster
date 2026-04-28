@@ -25,6 +25,7 @@ need right now?" entry point.
 | Docker socket exposure hardening | Scheduled | [Docker socket hardening](docker-socket-hardening.md) |
 | Agent fleet upgrade | Scheduled | [Upgrade guide § Upgrading agents](upgrade-guide.md#upgrading-agents) |
 | Config-validation failure at boot | P2 | Run `deploymonster config --config /etc/deploymonster/monster.yaml` and fix reported errors before starting the service |
+| Latency / throughput alert against published SLA | P2 | [SLA targets](sla.md) — compare current `make loadtest-check` output to `tests/loadtest/baselines/http.json`; a 10 %+ regression is a release blocker |
 
 ## DB migration failure
 

@@ -16,7 +16,7 @@ import (
 const testJWTSecret = "test-secret-key-for-jwt-minimum-32-bytes"
 
 func testJWT() *auth.JWTService {
-	return auth.NewJWTService(testJWTSecret)
+	return auth.MustNewJWTService(testJWTSecret)
 }
 
 func generateTestToken(userID, tenantID, roleID, email string) string {
@@ -84,7 +84,7 @@ func TestRequireAuth_ValidBearerToken(t *testing.T) {
 	jwtSvc := testJWT()
 	token := generateTestToken("user-1", "tenant-1", "role_admin", "admin@test.com")
 
-	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := auth.ClaimsFromContext(r.Context())
 		if claims == nil {
 			t.Fatal("expected claims in context")
@@ -114,7 +114,7 @@ func TestRequireAuth_ValidBearerToken(t *testing.T) {
 func TestRequireAuth_InvalidBearerToken(t *testing.T) {
 	jwtSvc := testJWT()
 
-	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with invalid token")
 	}))
 
@@ -131,7 +131,7 @@ func TestRequireAuth_InvalidBearerToken(t *testing.T) {
 func TestRequireAuth_MissingAuthorization(t *testing.T) {
 	jwtSvc := testJWT()
 
-	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached without authorization")
 	}))
 
@@ -150,7 +150,7 @@ func TestRequireAuth_ValidCookie(t *testing.T) {
 	jwtSvc := testJWT()
 	token := generateTestToken("user-c", "tenant-c", "role_admin", "cookie@test.com")
 
-	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := auth.ClaimsFromContext(r.Context())
 		if claims == nil {
 			t.Fatal("expected claims from cookie")
@@ -178,7 +178,7 @@ func TestRequireAuth_ValidCookie(t *testing.T) {
 func TestRequireAuth_InvalidCookie(t *testing.T) {
 	jwtSvc := testJWT()
 
-	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with invalid cookie")
 	}))
 
@@ -197,7 +197,7 @@ func TestRequireAuth_BearerTakesPrecedenceOverCookie(t *testing.T) {
 	bearerToken := generateTestToken("bearer-user", "t1", "role_admin", "bearer@test.com")
 	cookieToken := generateTestToken("cookie-user", "t2", "role_admin", "cookie@test.com")
 
-	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := auth.ClaimsFromContext(r.Context())
 		if claims == nil {
 			t.Fatal("expected claims")
@@ -223,7 +223,7 @@ func TestRequireAuth_BearerTakesPrecedenceOverCookie(t *testing.T) {
 func TestRequireAuth_EmptyCookieFallsThrough(t *testing.T) {
 	jwtSvc := testJWT()
 
-	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with empty cookie and no other auth")
 	}))
 
@@ -256,7 +256,7 @@ func TestRequireAuth_ValidAPIKey(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := auth.ClaimsFromContext(r.Context())
 		if claims == nil {
 			t.Fatal("expected claims in context for API key auth")
@@ -283,7 +283,7 @@ func TestRequireAuth_ValidAPIKey(t *testing.T) {
 func TestRequireAuth_InvalidAPIKey(t *testing.T) {
 	jwtSvc := testJWT()
 
-	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with invalid API key")
 	}))
 
@@ -299,14 +299,14 @@ func TestRequireAuth_InvalidAPIKey(t *testing.T) {
 
 func TestRequireAuth_ExpiredToken(t *testing.T) {
 	// Use a different secret to create a token that won't validate
-	wrongJWT := auth.NewJWTService("wrong-secret-key-at-least-32-bytes!!")
+	wrongJWT := auth.MustNewJWTService("wrong-secret-key-at-least-32-bytes!!")
 	pair, err := wrongJWT.GenerateTokenPair("user-1", "tenant-1", "role_admin", "admin@test.com")
 	if err != nil {
 		t.Fatalf("generating token: %v", err)
 	}
 
 	jwtSvc := testJWT() // validates with correct secret
-	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with wrong-secret token")
 	}))
 
@@ -337,7 +337,7 @@ func TestRequireAuth_ExpiredAPIKey(t *testing.T) {
 		ExpiresAt: &expiredTime,
 	}
 
-	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with expired API key")
 	}))
 
@@ -354,7 +354,7 @@ func TestRequireAuth_ExpiredAPIKey(t *testing.T) {
 func TestRequireAuth_APIKeyNilBolt(t *testing.T) {
 	jwtSvc := testJWT()
 
-	handler := RequireAuth(jwtSvc, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with nil bolt")
 	}))
 
@@ -372,7 +372,7 @@ func TestRequireAuth_APIKeyNotFoundInStore(t *testing.T) {
 	jwtSvc := testJWT()
 	bolt := newMockBoltStore() // Empty store
 
-	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with unknown key")
 	}))
 
@@ -398,7 +398,7 @@ func TestRequireAuth_APIKeyMismatch(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with wrong key")
 	}))
 
@@ -416,7 +416,7 @@ func TestRequireAuth_APIKeyTooShort(t *testing.T) {
 	jwtSvc := testJWT()
 	bolt := newMockBoltStore()
 
-	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with short key")
 	}))
 
@@ -450,7 +450,7 @@ func TestRequireAuth_APIKeyNotExpired(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	handler := RequireAuth(jwtSvc, bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := auth.ClaimsFromContext(r.Context())
 		if claims == nil {
 			t.Fatal("expected claims in context")

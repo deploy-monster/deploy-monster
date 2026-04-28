@@ -14,7 +14,7 @@ func FuzzJWTRoundtrip(f *testing.F) {
 	f.Add("usr_abc123", "admin@deploy.monster")
 	f.Add("a]b[c{d}e", "weird+chars@test.co")
 
-	svc := NewJWTService("fuzz-test-jwt-secret-at-least-32-bytes!")
+	svc := MustNewJWTService("fuzz-test-jwt-secret-at-least-32-bytes!")
 
 	f.Fuzz(func(t *testing.T, userID, email string) {
 		// JWT claims are JSON-encoded; invalid UTF-8 gets replaced during
@@ -73,7 +73,7 @@ func FuzzPasswordHash(f *testing.F) {
 // an HMAC, so the acceptance path is unreachable — the real invariant is
 // no-panic + clean error semantics on the rejection path.
 func FuzzValidateAccessTokenUntrusted(f *testing.F) {
-	svc := NewJWTService("fuzz-test-jwt-secret-at-least-32-bytes!")
+	svc := MustNewJWTService("fuzz-test-jwt-secret-at-least-32-bytes!")
 
 	f.Add("")
 	f.Add("not.a.jwt")
@@ -106,7 +106,7 @@ func FuzzValidateAccessTokenUntrusted(f *testing.F) {
 // refresh-token path. Same invariant: no panic, and on rejection the claims
 // pointer is nil.
 func FuzzValidateRefreshTokenUntrusted(f *testing.F) {
-	svc := NewJWTService("fuzz-test-jwt-secret-at-least-32-bytes!")
+	svc := MustNewJWTService("fuzz-test-jwt-secret-at-least-32-bytes!")
 
 	f.Add("")
 	f.Add("garbage")

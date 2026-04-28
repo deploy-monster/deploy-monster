@@ -110,7 +110,7 @@ func TestAuthRateLimiter_BlocksOverLimit(t *testing.T) {
 
 func TestAuthRateLimiter_DifferentIPs_Independent(t *testing.T) {
 	store := newRLBoltStore()
-	rl := NewAuthRateLimiter(store, 1, time.Minute, "login")
+	rl := NewAuthRateLimiter(store, 1, time.Minute, "login", WithTrustXFF()) // explicitly enable XFF to test per-IP limiting
 
 	handler := rl.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

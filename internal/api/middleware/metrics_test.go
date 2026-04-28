@@ -1,11 +1,14 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 func TestAPIMetrics_Middleware_CountsRequests(t *testing.T) {
@@ -140,6 +143,60 @@ func TestAPIMetrics_Handler_StatusCounts(t *testing.T) {
 	}
 	if !strings.Contains(body, `status="400"`) {
 		t.Error("metrics should contain status 400 count")
+	}
+}
+
+func TestAPIMetrics_SubscribeEvents(t *testing.T) {
+	m := NewAPIMetrics()
+	eb := core.NewEventBus(nil)
+	m.SubscribeEvents(eb)
+
+	// Emit deploy finished
+	eb.Publish(context.Background(), core.NewEvent(core.EventDeployFinished, "test", nil))
+	time.Sleep(50 * time.Millisecond)
+	if m.deploysTotal.Load() != 1 {
+		t.Errorf("deploysTotal = %d, want 1", m.deploysTotal.Load())
+	}
+
+	// Emit deploy failed
+	eb.Publish(context.Background(), core.NewEvent(core.EventDeployFailed, "test", nil))
+	time.Sleep(50 * time.Millisecond)
+	if m.deploysTotal.Load() != 2 {
+		t.Errorf("deploysTotal = %d, want 2", m.deploysTotal.Load())
+	}
+	if m.deploysFailed.Load() != 1 {
+		t.Errorf("deploysFailed = %d, want 1", m.deploysFailed.Load())
+	}
+
+	// Emit build completed
+	eb.Publish(context.Background(), core.NewEvent(core.EventBuildCompleted, "test", nil))
+	time.Sleep(50 * time.Millisecond)
+	if m.buildsTotal.Load() != 1 {
+		t.Errorf("buildsTotal = %d, want 1", m.buildsTotal.Load())
+	}
+
+	// Emit build failed
+	eb.Publish(context.Background(), core.NewEvent(core.EventBuildFailed, "test", nil))
+	time.Sleep(50 * time.Millisecond)
+	if m.buildsTotal.Load() != 2 {
+		t.Errorf("buildsTotal = %d, want 2", m.buildsTotal.Load())
+	}
+	if m.buildsFailed.Load() != 1 {
+		t.Errorf("buildsFailed = %d, want 1", m.buildsFailed.Load())
+	}
+
+	// Emit app created
+	eb.Publish(context.Background(), core.NewEvent(core.EventAppCreated, "test", nil))
+	time.Sleep(50 * time.Millisecond)
+	if m.appsCreated.Load() != 1 {
+		t.Errorf("appsCreated = %d, want 1", m.appsCreated.Load())
+	}
+
+	// Emit app deleted
+	eb.Publish(context.Background(), core.NewEvent(core.EventAppDeleted, "test", nil))
+	time.Sleep(50 * time.Millisecond)
+	if m.appsDeleted.Load() != 1 {
+		t.Errorf("appsDeleted = %d, want 1", m.appsDeleted.Load())
 	}
 }
 

@@ -3,10 +3,19 @@ package notifications
 import (
 	"bufio"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"io"
 	"log/slog"
+	"math/big"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -20,7 +29,7 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestSMTPProvider_Name(t *testing.T) {
-	p := NewSMTPProvider(core.SMTPConfig{})
+	p := NewSMTPProvider(core.SMTPConfig{}, discardLogger())
 	if p.Name() != "email" {
 		t.Errorf("Name = %q, want email", p.Name())
 	}
@@ -71,7 +80,7 @@ func TestSMTPProvider_Validate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := NewSMTPProvider(tt.cfg).Validate()
+			err := NewSMTPProvider(tt.cfg, discardLogger()).Validate()
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Errorf("Validate = %v, want nil", err)
@@ -97,7 +106,7 @@ func TestSMTPProvider_DefaultPort(t *testing.T) {
 		{true, 2525, 2525},
 	}
 	for _, c := range cases {
-		p := NewSMTPProvider(core.SMTPConfig{UseTLS: c.useTLS, Port: c.port})
+		p := NewSMTPProvider(core.SMTPConfig{UseTLS: c.useTLS, Port: c.port}, discardLogger())
 		if got := p.defaultPort(); got != c.want {
 			t.Errorf("useTLS=%v port=%d → %d, want %d", c.useTLS, c.port, got, c.want)
 		}
@@ -108,7 +117,7 @@ func TestSMTPProvider_BuildMessage_HeadersAndBody(t *testing.T) {
 	p := NewSMTPProvider(core.SMTPConfig{
 		From:     "noreply@example.com",
 		FromName: "Deploy Monster",
-	})
+	}, discardLogger())
 	msg := string(p.buildMessage("admin@example.com", "Alert!", "server down", "text"))
 
 	for _, must := range []string{
@@ -134,7 +143,7 @@ func TestSMTPProvider_BuildMessage_HeadersAndBody(t *testing.T) {
 func TestSMTPProvider_Send_RejectsInvalidRecipient(t *testing.T) {
 	p := NewSMTPProvider(core.SMTPConfig{
 		Host: "mail.example.com", From: "noreply@example.com",
-	})
+	}, discardLogger())
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	err := p.Send(ctx, "not-an-email", "s", "b", "text")
@@ -146,7 +155,7 @@ func TestSMTPProvider_Send_RejectsInvalidRecipient(t *testing.T) {
 func TestSMTPProvider_Send_RejectsEmptyRecipient(t *testing.T) {
 	p := NewSMTPProvider(core.SMTPConfig{
 		Host: "mail.example.com", From: "noreply@example.com",
-	})
+	}, discardLogger())
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	if err := p.Send(ctx, "", "s", "b", "text"); err == nil {
@@ -266,7 +275,7 @@ func TestSMTPProvider_Deliver_FullHandshake(t *testing.T) {
 		// No TLS, no auth — the fake server doesn't advertise STARTTLS
 		// so the provider should skip the TLS upgrade and proceed
 		// plain because Username is also empty.
-	})
+	}, discardLogger())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -341,7 +350,7 @@ func TestSMTPProvider_Deliver_RefusesPlaintextAuth(t *testing.T) {
 		From:     "from@fake.local",
 		Username: "bob",
 		Password: "secret",
-	})
+	}, discardLogger())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -357,7 +366,7 @@ func TestSMTPProvider_Deliver_RefusesPlaintextAuth(t *testing.T) {
 func TestSMTPProvider_CustomDialer(t *testing.T) {
 	p := NewSMTPProvider(core.SMTPConfig{
 		Host: "mail.example.com", From: "noreply@example.com",
-	})
+	}, discardLogger())
 	called := false
 	p.dialer = func(ctx context.Context, addr string) (net.Conn, error) {
 		called = true
@@ -406,6 +415,371 @@ func newTestCore(t *testing.T, cfg *core.Config) *core.Core {
 		Services: core.NewServices(),
 		Events:   core.NewEventBus(discardLogger()),
 	}
+}
+
+func TestSMTPProvider_Dial_UseTLS(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host:   "127.0.0.1",
+		Port:   ln.Addr().(*net.TCPAddr).Port,
+		From:   "test@example.com",
+		UseTLS: true,
+	}, discardLogger())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err = p.dial(ctx, "127.0.0.1:"+strconv.Itoa(ln.Addr().(*net.TCPAddr).Port))
+	if err == nil {
+		t.Error("expected TLS handshake error against plain TCP listener")
+	}
+}
+
+func TestSMTPProvider_Deliver_STARTTLSError(t *testing.T) {
+	// Server advertises STARTTLS but the handshake fails.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	handle := func(conn net.Conn) {
+		defer conn.Close()
+		_, _ = io.WriteString(conn, "220 fake.local ESMTP\r\n")
+		br := bufio.NewReader(conn)
+		for {
+			line, err := br.ReadString('\n')
+			if err != nil {
+				return
+			}
+			cmd := strings.ToUpper(strings.TrimRight(line, "\r\n"))
+			switch {
+			case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
+				// Advertise STARTTLS so the client attempts it
+				_, _ = io.WriteString(conn, "250-fake.local\r\n250 STARTTLS\r\n250 PIPELINING\r\n")
+			case strings.HasPrefix(cmd, "STARTTLS"):
+				// Return error code 454 (TLS not available)
+				_, _ = io.WriteString(conn, "454 TLS not available\r\n")
+			case strings.HasPrefix(cmd, "QUIT"):
+				_, _ = io.WriteString(conn, "221 bye\r\n")
+				return
+			default:
+				_, _ = io.WriteString(conn, "500 unexpected\r\n")
+			}
+		}
+	}
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go handle(conn)
+		}
+	}()
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host: "127.0.0.1",
+		Port: ln.Addr().(*net.TCPAddr).Port,
+		From: "from@fake.local",
+		// No TLS, no auth — but server advertises STARTTLS and it fails
+	}, discardLogger())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = p.deliver(ctx, "127.0.0.1:"+strconv.Itoa(ln.Addr().(*net.TCPAddr).Port), "to@fake.local", []byte("test"))
+	if err == nil || !strings.Contains(err.Error(), "STARTTLS") {
+		t.Errorf("deliver = %v, want STARTTLS error", err)
+	}
+}
+
+func TestSMTPProvider_Deliver_AuthError(t *testing.T) {
+	// Use implicit TLS (UseTLS=true) with a self-signed cert so we can
+	// reach the AUTH stage and reject it.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	cert, err := generateTestCert("127.0.0.1")
+	if err != nil {
+		t.Fatalf("generate cert: %v", err)
+	}
+	tlsLn := tls.NewListener(ln, &tls.Config{Certificates: []tls.Certificate{cert}})
+
+	handle := func(conn net.Conn) {
+		defer conn.Close()
+		_, _ = io.WriteString(conn, "220 fake.local ESMTP\r\n")
+		br := bufio.NewReader(conn)
+		for {
+			line, err := br.ReadString('\n')
+			if err != nil {
+				return
+			}
+			cmd := strings.ToUpper(strings.TrimRight(line, "\r\n"))
+			switch {
+			case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
+				// On an implicit TLS connection, STARTTLS is not needed
+				// but we advertise it anyway; client won't try it since
+				// the connection is already TLS.
+				_, _ = io.WriteString(conn, "250-fake.local\r\n250 AUTH PLAIN\r\n")
+			case strings.HasPrefix(cmd, "AUTH"):
+				_, _ = io.WriteString(conn, "535 Authentication failed\r\n")
+			case strings.HasPrefix(cmd, "QUIT"):
+				_, _ = io.WriteString(conn, "221 bye\r\n")
+				return
+			default:
+				_, _ = io.WriteString(conn, "500 unexpected\r\n")
+			}
+		}
+	}
+	go func() {
+		for {
+			conn, err := tlsLn.Accept()
+			if err != nil {
+				return
+			}
+			go handle(conn)
+		}
+	}()
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host:               "127.0.0.1",
+		Port:               ln.Addr().(*net.TCPAddr).Port,
+		From:               "from@fake.local",
+		Username:           "bob",
+		Password:           "wrong",
+		UseTLS:             true,
+		InsecureSkipVerify: true,
+	}, discardLogger())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = p.deliver(ctx, "127.0.0.1:"+strconv.Itoa(ln.Addr().(*net.TCPAddr).Port), "to@fake.local", []byte("test"))
+	if err == nil || !strings.Contains(err.Error(), "auth") {
+		t.Errorf("deliver = %v, want auth error", err)
+	}
+}
+
+func TestSMTPProvider_Deliver_MailFromError(t *testing.T) {
+	// Do NOT advertise STARTTLS — since there's no username either,
+	// the deliver() skips the STARTTLS block and reaches MAIL FROM.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	handle := func(conn net.Conn) {
+		defer conn.Close()
+		_, _ = io.WriteString(conn, "220 fake.local ESMTP\r\n")
+		br := bufio.NewReader(conn)
+		for {
+			line, err := br.ReadString('\n')
+			if err != nil {
+				return
+			}
+			cmd := strings.ToUpper(strings.TrimRight(line, "\r\n"))
+			switch {
+			case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
+				_, _ = io.WriteString(conn, "250-fake.local\r\n250 PIPELINING\r\n")
+			case strings.HasPrefix(cmd, "MAIL FROM:"):
+				_, _ = io.WriteString(conn, "550 Sender rejected\r\n")
+			case strings.HasPrefix(cmd, "QUIT"):
+				_, _ = io.WriteString(conn, "221 bye\r\n")
+				return
+			default:
+				_, _ = io.WriteString(conn, "500 unexpected\r\n")
+			}
+		}
+	}
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go handle(conn)
+		}
+	}()
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host: "127.0.0.1",
+		Port: ln.Addr().(*net.TCPAddr).Port,
+		From: "from@fake.local",
+	}, discardLogger())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = p.deliver(ctx, "127.0.0.1:"+strconv.Itoa(ln.Addr().(*net.TCPAddr).Port), "to@fake.local", []byte("test"))
+	if err == nil || !strings.Contains(err.Error(), "MAIL FROM") {
+		t.Errorf("deliver = %v, want MAIL FROM error", err)
+	}
+}
+
+func TestSMTPProvider_Deliver_RcptToError(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	handle := func(conn net.Conn) {
+		defer conn.Close()
+		_, _ = io.WriteString(conn, "220 fake.local ESMTP\r\n")
+		br := bufio.NewReader(conn)
+		for {
+			line, err := br.ReadString('\n')
+			if err != nil {
+				return
+			}
+			cmd := strings.ToUpper(strings.TrimRight(line, "\r\n"))
+			switch {
+			case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
+				_, _ = io.WriteString(conn, "250-fake.local\r\n250 PIPELINING\r\n")
+			case strings.HasPrefix(cmd, "MAIL FROM:"):
+				_, _ = io.WriteString(conn, "250 OK\r\n")
+			case strings.HasPrefix(cmd, "RCPT TO:"):
+				_, _ = io.WriteString(conn, "550 Recipient rejected\r\n")
+			case strings.HasPrefix(cmd, "QUIT"):
+				_, _ = io.WriteString(conn, "221 bye\r\n")
+				return
+			default:
+				_, _ = io.WriteString(conn, "500 unexpected\r\n")
+			}
+		}
+	}
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go handle(conn)
+		}
+	}()
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host: "127.0.0.1",
+		Port: ln.Addr().(*net.TCPAddr).Port,
+		From: "from@fake.local",
+	}, discardLogger())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = p.deliver(ctx, "127.0.0.1:"+strconv.Itoa(ln.Addr().(*net.TCPAddr).Port), "to@fake.local", []byte("test"))
+	if err == nil || !strings.Contains(err.Error(), "RCPT TO") {
+		t.Errorf("deliver = %v, want RCPT TO error", err)
+	}
+}
+
+func TestSMTPProvider_Deliver_DataError(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	handle := func(conn net.Conn) {
+		defer conn.Close()
+		_, _ = io.WriteString(conn, "220 fake.local ESMTP\r\n")
+		br := bufio.NewReader(conn)
+		for {
+			line, err := br.ReadString('\n')
+			if err != nil {
+				return
+			}
+			cmd := strings.ToUpper(strings.TrimRight(line, "\r\n"))
+			switch {
+			case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
+				_, _ = io.WriteString(conn, "250-fake.local\r\n250 PIPELINING\r\n")
+			case strings.HasPrefix(cmd, "MAIL FROM:"):
+				_, _ = io.WriteString(conn, "250 OK\r\n")
+			case strings.HasPrefix(cmd, "RCPT TO:"):
+				_, _ = io.WriteString(conn, "250 OK\r\n")
+			case cmd == "DATA":
+				_, _ = io.WriteString(conn, "452 Too many recipients, no DATA\r\n")
+			case strings.HasPrefix(cmd, "QUIT"):
+				_, _ = io.WriteString(conn, "221 bye\r\n")
+				return
+			default:
+				_, _ = io.WriteString(conn, "500 unexpected\r\n")
+			}
+		}
+	}
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go handle(conn)
+		}
+	}()
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host: "127.0.0.1",
+		Port: ln.Addr().(*net.TCPAddr).Port,
+		From: "from@fake.local",
+	}, discardLogger())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = p.deliver(ctx, "127.0.0.1:"+strconv.Itoa(ln.Addr().(*net.TCPAddr).Port), "to@fake.local", []byte("test"))
+	if err == nil || !strings.Contains(err.Error(), "DATA") {
+		t.Errorf("deliver = %v, want DATA error", err)
+	}
+}
+
+// generateTestCert creates a self-signed certificate for the given host.
+func generateTestCert(host string) (tls.Certificate, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	template := x509.Certificate{
+		SerialNumber: serial,
+		Subject:      pkix.Name{CommonName: host},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	template.DNSNames = append(template.DNSNames, host)
+	template.IPAddresses = append(template.IPAddresses, net.ParseIP(host))
+
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	return tls.X509KeyPair(
+		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}),
+		pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}),
+	)
 }
 
 func discardLogger() *slog.Logger {

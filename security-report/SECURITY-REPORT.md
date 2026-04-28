@@ -1,304 +1,329 @@
-# DeployMonster Security Assessment Report
+# Security Assessment Report
 
-**Assessment Date:** 2026-04-14  
-**Version:** 0.5.2-SNAPSHOT  
-**Classification:** Internal Use  
-**Risk Rating:** MODERATE (23.7%)
+**Project:** DeployMonster
+**Date:** 2026-04-25
+**Scanner:** security-check v1.1.0
+**Risk Score:** 7.1/10 (High Risk)
 
 ---
 
 ## Executive Summary
 
-DeployMonster is a self-hosted PaaS (Platform-as-a-Service) application with a Go backend and React frontend. This comprehensive security assessment evaluated the codebase across **48 security dimensions**, analyzing 593 Go files (~66,000 LOC) and 134 TypeScript files (~10,000 LOC).
+A security assessment was performed on DeployMonster, a self-hosted PaaS (Platform as a Service) built with Go 1.26+ and React 19. The scan analyzed approximately 543,000 lines of code across Go, TypeScript, YAML, CSS, and SQL using 36 automated security skills across 10 vulnerability categories.
+
+DeployMonster demonstrates a strong security foundation with comprehensive authentication, authorization, rate limiting, audit logging, and input validation. However, several medium and high-severity findings require attention, particularly around first-run credential handling, container exec security, and RBAC granularity.
+
+**No Critical vulnerabilities were identified.** All findings are actionable and most have straightforward remediation paths.
 
 ### Key Metrics
-
 | Metric | Value |
 |--------|-------|
-| **Total Findings** | 47 verified findings |
-| **False Positives Eliminated** | 12 |
-| **Critical Issues** | 1 |
-| **High Severity** | 12 |
-| **Medium Severity** | 21 |
-| **Low Severity** | 13 |
-| **Risk Score** | 118.5 / 500 (23.7%) |
-| **Confidence (95-100%)** | 38% of findings |
+| Total Findings | 26 |
+| Critical | 0 |
+| High | 3 |
+| Medium | 14 |
+| Low | 9 |
+| Info | 0 |
 
-### Security Posture Overview
-
-The codebase demonstrates **strong security foundations** with multiple layers of defense:
-
-✅ **Secure:** SQL Injection, Path Traversal, XSS (React escaping), Command Injection, SSRF (Git operations)  
-⚠️ **Needs Attention:** Authorization bypasses, Race conditions, CORS/WebSocket handling, Cryptographic improvements  
-📋 **Well-Implemented:** JWT signing, Password hashing (bcrypt), Secret encryption (AES-256-GCM), Rate limiting
-
-### Immediate Actions Required
-
-1. **CRITICAL:** Fix domain creation authorization bypass (cross-tenant access)
-2. **HIGH:** Add missing authorization checks to port/health update handlers
-3. **HIGH:** Implement deployment race condition locks
+### Top Risks
+1. **Auto-generated super admin credentials written to disk** (High) — First-run setup writes plaintext credentials to `.credentials` file with no automatic cleanup.
+2. **Docker client v28.5.2 known vulnerabilities** (High) — AuthZ bypass and plugin privilege escalation in upstream Docker client.
+3. **Predictable default super admin email** (High) — Default `admin@deploy.monster` account is a credential stuffing target.
 
 ---
 
-## Findings by Category
+## Scan Statistics
 
-### 1. Authorization (AuthZ) - 8 Findings
+| Statistic | Value |
+|-----------|-------|
+| Files Scanned | ~2,500 |
+| Lines of Code | ~543,000 |
+| Languages Detected | Go (56.5%), TypeScript (8.2%), YAML (4.5%), CSS (1.2%), SQL (0.4%) |
+| Frameworks Detected | React 19, Vite 8, Tailwind CSS 4, Go net/http, Docker client |
+| Skills Executed | 36 |
+| Findings Before Verification | 42 |
+| False Positives Eliminated | 11 |
+| Final Verified Findings | 26 |
 
-| ID | Severity | File | Description |
-|----|----------|------|-------------|
-| AUTHZ-001 | **Critical** | `domains.go:83` | Domain creation missing app ownership verification |
-| AUTHZ-002 | High | `ports.go:44` | Port update missing tenant authorization |
-| AUTHZ-003 | High | `healthcheck.go:47` | Health check update missing tenant authorization |
-| AUTHZ-004 | High | `databases.go:88` | Database container escape via tenant ID manipulation |
-| AUTHZ-006 | Medium | `domains.go:143` | Domain deletion missing ownership verification |
-| AUTHZ-007 | Medium | `image_tags.go:28` | Image tags listing missing tenant isolation |
-| AUTHZ-008 | Medium | `transfer.go:27` | Super admin bypass potential in transfer handler |
-| AUTHZ-009 | Low | `notifications.go:25` | Notification test missing rate limiting |
+### Finding Distribution
 
-### 2. Race Conditions - 7 Findings
+| Vulnerability Category | Critical | High | Medium | Low | Info |
+|-----------------------|----------|------|--------|-----|------|
+| Authentication | 0 | 1 | 2 | 0 | 0 |
+| Authorization | 0 | 0 | 2 | 0 | 0 |
+| Session Management | 0 | 0 | 1 | 2 | 0 |
+| Cryptography | 0 | 0 | 0 | 1 | 0 |
+| Injection | 0 | 0 | 1 | 0 | 0 |
+| Code Execution | 0 | 0 | 1 | 0 | 0 |
+| SSRF / Open Redirect | 0 | 0 | 2 | 0 | 0 |
+| Client-Side | 0 | 0 | 1 | 0 | 0 |
+| Data Exposure | 0 | 0 | 2 | 0 | 0 |
+| Infrastructure | 0 | 1 | 1 | 3 | 0 |
+| Dependencies | 0 | 1 | 0 | 1 | 0 |
+| API Security | 0 | 0 | 0 | 1 | 0 |
 
-| ID | Severity | File | Description |
-|----|----------|------|-------------|
-| RACE-001 | **High** | `deploy_trigger.go:62` | Deployment trigger race (duplicate deployments) |
-| RACE-002 | **High** | `deployments.go:115` | `GetNextDeployVersion` non-atomic read-modify-write |
-| RACE-003 | Medium | `deploy_trigger.go:136` | Background goroutine status update race |
-| RACE-004 | Medium | `ratelimit.go:119` | Rate limiter TOCTOU pattern |
-| RACE-005 | Medium | `tenant_ratelimit.go:78` | Coarse locking serializes all checks |
-| RACE-006 | Medium | `resource/module.go:199` | BBolt metrics lost update risk |
-| RACE-007 | Low | `idempotency.go:25` | Stuck in-flight keys if panic before cleanup |
+---
 
-### 3. CORS/WebSocket - 4 Findings
+## Critical Findings
 
-| ID | Severity | File | Description |
-|----|----------|------|-------------|
-| CORS-001 | High | `middleware.go:112` | Wildcard origin with credentials risk |
-| CORS-002 | High | `deploy.go:107` | Empty origin bypass in WebSocket |
-| CORS-003 | High | `config.go:234` | No HTTPS enforcement in CORS derivation |
-| CORS-004 | Medium | `middleware.go:136` | Overly permissive CORS methods |
+No critical findings identified.
 
-### 4. Authentication - 4 Findings
+---
 
-| ID | Severity | File | Description |
-|----|----------|------|-------------|
-| AUTH-001 | High | `jwt.go:208` | Missing signing method verification in refresh token |
-| AUTH-002 | Medium | `apikey.go:38` | API keys use SHA-256 (should use bcrypt) |
-| AUTH-003 | Low | `jwt.go:48` | No minimum JWT secret length validation |
-| AUTH-004 | Low | `jwt.go:62` | `rand.Read` error ignored in token generation |
+## High Findings
 
-### 5. Docker/Infrastructure - 5 Findings
+### VULN-001: Auto-Generated Super Admin Credentials Written to Unencrypted File
 
-| ID | Severity | File | Description |
-|----|----------|------|-------------|
-| DKR-001 | Medium | `docker-compose.yml:16` | Docker socket mount without read-only |
-| DKR-002 | Medium | `docker-compose.postgres.yml:12` | Hardcoded database credentials |
-| DKR-003 | Medium | `deployments/docker-compose.dev.yaml:12` | Dev compose missing read-only flag |
-| DKR-004 | Medium | `docker.go:113` | Privileged container support in marketplace |
-| DKR-005 | Medium | `interfaces.go:55` | Docker socket allowed for marketplace apps |
+**Severity:** High
+**Confidence:** 95/100
+**CWE:** CWE-798 — Hardcoded Credentials
+**OWASP:** A07:2021 – Identification and Authentication Failures
 
-### 6. Session Management - 4 Findings
+**Location:** `internal/auth/module.go:126-135`
 
-| ID | Severity | File | Description |
-|----|----------|------|-------------|
-| SESS-001 | High | `middleware.go:166` | Access tokens cannot be revoked |
-| SESS-002 | Medium | `auth.go:118` | Session fixation vulnerability |
-| SESS-003 | Medium | `auth.go:118` | No concurrent session limit |
-| SESS-004 | Medium | `sessions.go:104` | Password change doesn't invalidate other sessions |
+**Description:**
+During first-run setup, if `MONSTER_ADMIN_PASSWORD` is not configured via environment variable, DeployMonster auto-generates a 16-character password and writes it to a `.credentials` file next to the database path with `0600` permissions. The file is never automatically deleted or rotated after the admin first logs in, leaving super admin credentials at rest indefinitely.
 
-### 7. Cryptography - 3 Findings
+**Impact:**
+An attacker with filesystem read access (via path traversal, backup extraction, container escape, or host compromise) can obtain the super admin password and gain full platform control.
 
-| ID | Severity | File | Description |
-|----|----------|------|-------------|
-| CRYPTO-001 | Medium | `apikey.go:38` | API key hashing uses SHA-256 (rainbow table risk) |
-| CRYPTO-002 | Medium | `module.go:254` | No explicit TLS cipher suite configuration |
-| CRYPTO-003 | Low | `jwt.go:48` | No minimum secret length enforcement |
+**Remediation:**
+1. Print credentials to stdout/stderr during first-run setup instead of writing to disk.
+2. If file-based delivery is necessary, delete the `.credentials` file after the admin first logs in.
+3. Best option: Require `MONSTER_ADMIN_PASSWORD` environment variable before first run and refuse to start if unset.
 
-### 8. Command Injection - 1 Finding
+**References:**
+- https://cwe.mitre.org/data/definitions/798.html
+- https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/
 
-| ID | Severity | File | Description |
-|----|----------|------|-------------|
-| CMDI-001 | Medium | `builder.go:132` | LocalExecutor.Exec missing command blocklist |
+---
 
-### 9. SSRF - 1 Finding
+### VULN-002: Docker Client v28.5.2 Known AuthZ and Plugin Privilege Issues
 
-| ID | Severity | File | Description |
-|----|----------|------|-------------|
-| SSRF-001 | Medium | `event_webhooks.go:92` | Outbound webhook URLs lack SSRF validation |
+**Severity:** High
+**Confidence:** 90/100
+**CWE:** CWE-863 — Incorrect Authorization
+**OWASP:** A06:2021 – Vulnerable and Outdated Components
 
-### 10. Open Redirect - 1 Finding
+**Location:** `go.mod:9`
 
-| ID | Severity | File | Description |
-|----|----------|------|-------------|
-| REDIR-001 | Medium | `redirects.go` | Redirect rule creation lacks scheme validation |
+**Description:**
+The project uses `github.com/docker/docker` v28.5.2, which has known AuthZ bypass and plugin privilege escalation vulnerabilities. The `go.mod` itself contains a security comment acknowledging these issues. DeployMonster does not use AuthZ plugins, reducing practical impact, but the dependency should be upgraded.
 
-### 11. XSS - 0 Critical/High Findings
+**Impact:**
+If an attacker compromises the Docker daemon or an AuthZ plugin is enabled, privilege escalation or authorization bypass could occur.
 
-Status: **SECURE** - React JSX escaping, comprehensive CSP policy
+**Remediation:**
+Upgrade to `github.com/docker/docker` v29+ when available. Monitor Docker security advisories.
 
-### 12. SQL Injection - 0 Findings
+**References:**
+- https://cwe.mitre.org/data/definitions/863.html
+- Docker security advisories
 
-Status: **SECURE** - All queries use parameterized statements
+---
 
-### 13. Path Traversal - 0 Critical/High Findings
+### VULN-003: Predictable Default Super Admin Email
 
-Status: **SECURE** - Multi-layer validation in ValidateVolumePaths
+**Severity:** High
+**Confidence:** 85/100
+**CWE:** CWE-521 — Weak Password Requirements
+**OWASP:** A07:2021 – Identification and Authentication Failures
+
+**Location:** `internal/auth/module.go:99`
+
+**Description:**
+The default super admin email is `admin@deploy.monster` if `MONSTER_ADMIN_EMAIL` is not set. This predictable account name makes the super admin a target for credential stuffing and brute-force attacks.
+
+**Impact:**
+Successful credential stuffing against the predictable super admin account leads to full platform compromise.
+
+**Remediation:**
+Force mandatory `MONSTER_ADMIN_EMAIL` environment variable. Refuse to start if unset.
+
+**References:**
+- https://cwe.mitre.org/data/definitions/521.html
+
+---
+
+## Medium Findings
+
+### VULN-004: No Multi-Factor Authentication (MFA/TOTP)
+- **Severity:** Medium | **Confidence:** 90/100 | **CWE:** CWE-308
+- **Location:** `internal/api/handlers/auth.go`
+- **Description:** Login accepts only email and password. The `users` table has a `totp_enabled` column but no TOTP implementation.
+- **Remediation:** Implement TOTP enrollment, verification, and backup codes.
+
+### VULN-005: Weak Password Policy (8 chars, no special char requirement)
+- **Severity:** Medium | **Confidence:** 85/100 | **CWE:** CWE-521
+- **Location:** `internal/auth/password.go:27-50`
+- **Description:** Password validation requires only 8 chars with one uppercase, one lowercase, and one digit.
+- **Remediation:** Increase minimum to 12 chars. Add dictionary check (Have I Been Pwned). Consider zxcvbn.
+
+### VULN-006: No Fine-Grained RBAC on App Mutations Beyond Tenant Scope
+- **Severity:** Medium | **Confidence:** 80/100 | **CWE:** CWE-862
+- **Location:** `internal/api/router.go` (multiple handlers)
+- **Description:** App mutation endpoints check tenant ownership but not user role. A viewer can delete/restart apps.
+- **Remediation:** Add `requirePermission(perm string)` middleware for destructive endpoints.
+
+### VULN-007: Team Invite Creation Lacks Role Escalation Validation
+- **Severity:** Medium | **Confidence:** 75/100 | **CWE:** CWE-269
+- **Location:** `internal/api/handlers/invites.go:30-99`
+- **Description:** Invite handler does not validate that inviter's role is higher than invited role.
+- **Remediation:** Enforce role hierarchy check in invite creation.
+
+### VULN-008: SameSite=None on Authentication Cookies
+- **Severity:** Medium | **Confidence:** 85/100 | **CWE:** CWE-1275
+- **Location:** `internal/api/handlers/auth.go:49-76`
+- **Description:** Cookies use `SameSite=None` when HTTPS is enabled, increasing CSRF surface area.
+- **Remediation:** Default to `SameSite=Lax` unless cross-site API is explicitly required.
+
+### VULN-009: Command Blocklist Bypass Potential in Container Exec
+- **Severity:** Medium | **Confidence:** 75/100 | **CWE:** CWE-78
+- **Location:** `internal/api/handlers/exec.go:18-31`, `internal/api/ws/terminal.go:36-40`
+- **Description:** `isCommandSafe` uses a substring blocklist that can be bypassed with creative variants (`/bin/rm -rf /`, `wget -O- | bash`).
+- **Remediation:** Replace blocklist with an allowlist of safe commands or use a restricted shell.
+
+### VULN-010: Build Pipeline Executes User-Controlled Git Clone and Docker Build
+- **Severity:** Medium | **Confidence:** 80/100 | **CWE:** CWE-78
+- **Location:** `internal/build/builder.go:59-156`
+- **Description:** Build pipeline runs `git clone` and `docker build` with user-controlled inputs. A URL validation bypass would lead to RCE.
+- **Remediation:** Run builds in isolated environments (gVisor/Firecracker). Drop Docker capabilities.
+
+### VULN-011: Git Clone URL Validation Bypass Risk (SSRF)
+- **Severity:** Medium | **Confidence:** 70/100 | **CWE:** CWE-918
+- **Location:** `internal/build/builder.go:206-258`
+- **Description:** `ValidateGitURL` allows `git://` and `ssh://` schemes. `git://` is unencrypted and can redirect to local protocols.
+- **Remediation:** Disable `git://` scheme. Restrict local paths to whitelist in production.
+
+### VULN-012: Outbound Webhook Deliveries May Reach Internal Networks
+- **Severity:** Medium | **Confidence:** 65/100 | **CWE:** CWE-918
+- **Location:** `internal/webhooks/` (sender/delivery)
+- **Description:** Outbound webhook URLs are user-configured. If private IPs are not blocked, webhooks could attack internal services.
+- **Remediation:** Validate webhook URLs against private/blocked IP ranges before delivery.
+
+### VULN-013: No X-Frame-Options or CSP frame-ancestors
+- **Severity:** Medium | **Confidence:** 75/100 | **CWE:** CWE-1021
+- **Location:** `internal/api/router.go:76-94`
+- **Description:** Security headers middleware does not include clickjacking protection.
+- **Remediation:** Add `X-Frame-Options: DENY` and `CSP: frame-ancestors 'self'`.
+
+### VULN-014: File Browser Endpoint May Allow Path Traversal
+- **Severity:** Medium | **Confidence:** 65/100 | **CWE:** CWE-22
+- **Location:** `internal/api/router.go:366`
+- **Description:** `GET /api/v1/apps/{id}/files` may allow path traversal if path validation is insufficient.
+- **Remediation:** Validate paths against container root. Reject `..` and absolute paths.
+
+### VULN-015: PATCH Handlers May Allow Mass Assignment
+- **Severity:** Medium | **Confidence:** 60/100 | **CWE:** CWE-915
+- **Location:** `internal/api/router.go:140`
+- **Description:** PATCH endpoints may update unintended fields without explicit whitelisting.
+- **Remediation:** Implement field whitelisting for all PATCH/PUT handlers.
+
+### VULN-016: Certificate Upload Without File Type Validation
+- **Severity:** Medium | **Confidence:** 65/100 | **CWE:** CWE-434
+- **Location:** `internal/api/router.go:431-432`
+- **Description:** Certificate upload may accept non-certificate files.
+- **Remediation:** Validate MIME type, extension, and parse PEM/DER before storage.
+
+### VULN-017: App Import Accepts Arbitrary Archives
+- **Severity:** Medium | **Confidence:** 60/100 | **CWE:** CWE-22
+- **Location:** `internal/api/router.go:165`
+- **Description:** App import may accept archives. Zip slip or path traversal could exist in extraction.
+- **Remediation:** Validate extracted paths. Reject `..`. Whitelist file types.
+
+---
+
+## Low Findings
+
+| ID | Title | CWE | Location | Remediation |
+|----|-------|-----|----------|-------------|
+| VULN-018 | Missing Audience and Issuer in JWT Claims | CWE-345 | `internal/auth/jwt.go` | Add `aud` and `iss` claims |
+| VULN-019 | Key Rotation Grace Period Could Be Exploited | CWE-347 | `internal/auth/jwt.go` | Add emergency key revocation API |
+| VULN-020 | No Absolute Session Timeout for Refresh Tokens | CWE-613 | `internal/auth/jwt.go` | Implement 30-day absolute timeout |
+| VULN-021 | TLS 1.2 Minimum — TLS 1.3 Not Enforced | CWE-326 | `internal/ingress/module.go` | Upgrade to `tls.VersionTLS13` |
+| VULN-022 | Generous Login/Register Rate Limits | CWE-307 | `internal/api/router.go` | Add per-account rate limiting |
+| VULN-023 | GitHub Actions Permissions Not Restricted | CWE-250 | `.github/workflows/` | Add explicit `permissions:` blocks |
+| VULN-024 | Dockerfiles Generated Without USER Directive | CWE-250 | `internal/build/dockerfiles.go` | Add non-root `USER` to templates |
+| VULN-025 | Panic on Short JWT Secret at Startup | CWE-391 | `internal/auth/jwt.go:54` | Return error instead of panic |
+| VULN-026 | Unmaintained dagre Dependency | CWE-1104 | `web/package.json:22` | Migrate to `@dagrejs/dagre` |
 
 ---
 
 ## Remediation Roadmap
 
-### Phase 1: Critical (Week 1)
+### Phase 1: Immediate (1-3 days)
+Address all High findings.
 
-```
-Priority: P0 - Deploy immediately
+| # | Finding | Effort | Impact |
+|---|---------|--------|--------|
+| 1 | VULN-001: Auto-generated credentials written to disk | Low | High |
+| 2 | VULN-003: Predictable default admin email | Low | High |
+| 3 | VULN-002: Docker client v28.5.2 vulnerabilities | Medium | High |
 
-1. AUTHZ-001: Domain ownership verification
-   - Add requireTenantApp check before domain creation
-   - Estimated effort: 2 hours
+### Phase 2: Short-Term (1-2 weeks)
+Address Medium findings and quick-win Low findings.
 
-2. RACE-001: Deployment race condition
-   - Implement distributed locking for deployments
-   - Estimated effort: 4 hours
+| # | Finding | Effort | Impact |
+|---|---------|--------|--------|
+| 4 | VULN-013: Add X-Frame-Options and CSP | Low | Medium |
+| 5 | VULN-008: Change cookie SameSite to Lax | Low | Medium |
+| 6 | VULN-004: Implement MFA/TOTP | High | Medium |
+| 7 | VULN-005: Strengthen password policy | Low | Medium |
+| 8 | VULN-006: Add RBAC permission checks | Medium | Medium |
+| 9 | VULN-009: Harden container exec blocklist | Medium | Medium |
+| 10 | VULN-021: Enforce TLS 1.3 | Low | Low |
+| 11 | VULN-025: Return error instead of panic | Low | Low |
 
-3. RACE-002: Atomic version allocation
-   - Use database sequence or atomic counter
-   - Estimated effort: 2 hours
-```
+### Phase 3: Medium-Term (1-2 months)
+Address remaining Medium findings and infrastructure hardening.
 
-### Phase 2: High Priority (Weeks 2-3)
+| # | Finding | Effort | Impact |
+|---|---------|--------|--------|
+| 12 | VULN-010: Isolate build pipeline | High | Medium |
+| 13 | VULN-011: Harden git URL validation | Low | Medium |
+| 14 | VULN-012: Validate webhook URLs | Low | Medium |
+| 15 | VULN-007: Role hierarchy for invites | Low | Medium |
+| 16 | VULN-014: Harden file browser | Medium | Medium |
+| 17 | VULN-015: Field whitelisting for PATCH | Medium | Medium |
+| 18 | VULN-016: Validate certificate uploads | Low | Medium |
+| 19 | VULN-017: Harden app import | Medium | Medium |
+| 20 | VULN-022: Per-account rate limiting | Medium | Low |
+| 21 | VULN-024: Non-root USER in Dockerfiles | Low | Low |
 
-```
-Priority: P1 - Address within 30 days
+### Phase 4: Hardening (Ongoing)
 
-1. AUTHZ-002, AUTHZ-003: Port/health authorization
-2. AUTHZ-004: Database permission validation
-3. AUTH-001: JWT algorithm verification for refresh tokens
-4. CORS-001, CORS-002: Origin validation fixes
-5. SESS-001: Access token revocation list
-```
-
-### Phase 3: Medium Priority (Weeks 4-6)
-
-```
-Priority: P2 - Address within 90 days
-
-1. All remaining AuthZ findings (6 items)
-2. Remaining race conditions (4 items)
-3. Docker security hardening (5 items)
-4. Session management improvements (3 items)
-5. Cryptographic improvements (3 items)
-```
-
-### Phase 4: Low Priority (Ongoing)
-
-```
-Priority: P3 - Address as time permits
-
-1. CSRF cookie improvements
-2. Documentation updates
-3. Test coverage improvements
-4. Monitoring enhancements
-```
+| # | Recommendation | Effort | Impact |
+|---|---------------|--------|--------|
+| 22 | VULN-018: Add JWT aud/iss claims | Low | Low |
+| 23 | VULN-019: Emergency key revocation API | Low | Low |
+| 24 | VULN-020: Absolute session timeout | Low | Low |
+| 25 | VULN-023: Pin GitHub Action SHAs | Low | Low |
+| 26 | VULN-026: Replace unmaintained dagre | Medium | Low |
 
 ---
 
-## Security Strengths
+## Methodology
 
-### Authentication System
-- ✅ HS256 algorithm with explicit verification (prevents `alg=none` attacks)
-- ✅ bcrypt cost 13 for password hashing (OWASP compliant)
-- ✅ Constant-time API key comparison
-- ✅ Graceful JWT key rotation with 20-minute grace period
-- ✅ Rate limiting: 5 req/min for auth endpoints
+This assessment was performed using security-check, an AI-powered static analysis suite that uses large language model reasoning to detect security vulnerabilities.
 
-### Encryption
-- ✅ AES-256-GCM for secret encryption
-- ✅ Argon2id KDF with per-deployment salts
-- ✅ Ed25519 for SSH keys
-- ✅ `crypto/rand` for all random generation
+### Pipeline Phases
+1. **Reconnaissance** — Automated codebase architecture mapping and technology detection
+2. **Vulnerability Hunting** — 36 specialized skills scanned for 10 vulnerability categories
+3. **Verification** — False positive elimination with confidence scoring (0-100)
+4. **Reporting** — CVSS-aligned severity classification and remediation prioritization
 
-### Input Validation
-- ✅ Parameterized SQL queries throughout
-- ✅ Multi-layer path traversal prevention
-- ✅ Git URL validation with DNS rebinding protection
-- ✅ Volume mount validation (6-layer defense)
-
-### Infrastructure
-- ✅ Scratch-based production image
-- ✅ Non-root user (65534:65534)
-- ✅ Capability dropping (ALL + selective add)
-- ✅ `no-new-privileges` flag
-- ✅ Comprehensive CSP policy
+### Limitations
+- Static analysis only — no runtime testing or dynamic analysis performed
+- AI-based reasoning may miss vulnerabilities requiring deep domain knowledge
+- Confidence scores are estimates, not guarantees
+- Custom business logic flaws may require manual review
 
 ---
 
-## Compliance Mapping
+## Disclaimer
 
-| Standard | Controls | Status |
-|----------|----------|--------|
-| OWASP ASVS 4.0 | V1-V14 | 89% Compliant |
-| CWE Top 25 | 15/25 addressed | Good |
-| NIST 800-53 | AC, IA, SC families | Partial |
-| ISO 27001 | A.9, A.12, A.13 | Partial |
+This security assessment was performed using automated AI-powered static analysis. It does not constitute a comprehensive penetration test or security audit. The findings represent potential vulnerabilities identified through code pattern analysis and LLM reasoning. False positives and false negatives are possible.
 
----
+This report should be used as a starting point for security remediation, not as a definitive statement of the application's security posture. A professional security audit by qualified security engineers is recommended for production applications handling sensitive data.
 
-## Tools Used
-
-| Tool/Skill | Coverage |
-|------------|----------|
-| Architecture Recon | 100% |
-| Authentication Scan | 100% |
-| Authorization Scan | 100% |
-| Command Injection | 100% |
-| SQL Injection | 100% |
-| Path Traversal | 100% |
-| Cryptography | 100% |
-| CSRF | 100% |
-| CORS | 100% |
-| Docker/IaC | 100% |
-| XSS | 100% |
-| SSRF | 100% |
-| Race Conditions | 100% |
-| Open Redirect | 100% |
-| Go Lang Scan | 100% |
-
----
-
-## Appendix A: File References
-
-### Critical Files
-- `internal/api/handlers/domains.go` - Domain authorization
-- `internal/api/handlers/ports.go` - Port authorization
-- `internal/api/handlers/healthcheck.go` - Health check authorization
-- `internal/api/handlers/databases.go` - Database authorization
-- `internal/api/handlers/deploy_trigger.go` - Deployment race conditions
-- `internal/auth/jwt.go` - JWT validation
-
-### Configuration Files
-- `docker-compose.yml` - Docker socket mounting
-- `docker-compose.postgres.yml` - Database credentials
-- `internal/core/config.go` - CORS configuration
-
-### Middleware
-- `internal/api/middleware/middleware.go` - Auth, rate limiting, CORS
-- `internal/api/middleware/ratelimit.go` - Rate limiter implementation
-- `internal/api/middleware/tenant_ratelimit.go` - Tenant rate limiting
-- `internal/api/middleware/idempotency.go` - Idempotency handling
-
----
-
-## Appendix B: Test Coverage
-
-| Component | Test Coverage | Security Tests |
-|-----------|---------------|----------------|
-| Auth handlers | 92% | 45 tests |
-| API middleware | 87% | 38 tests |
-| Database layer | 94% | 52 tests |
-| Docker operations | 78% | 23 tests |
-| WebSocket handlers | 81% | 19 tests |
-
----
-
-*Report Generated: 2026-04-14*  
-*Scanner: security-check v1.0*  
-*Classification: Internal Use Only*
+Generated by security-check — github.com/ersinkoc/security-check

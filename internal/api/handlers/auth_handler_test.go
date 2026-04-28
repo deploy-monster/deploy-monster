@@ -185,7 +185,7 @@ func TestRegister_Success(t *testing.T) {
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "new@example.com",
-		Password: "StrongPass1",
+		Password: "StrongPass1!",
 		Name:     "New User",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
@@ -216,7 +216,7 @@ func TestRegister_DefaultsNameToEmail(t *testing.T) {
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "noname@example.com",
-		Password: "StrongPass1",
+		Password: "StrongPass1!",
 		// Name intentionally omitted
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
@@ -253,7 +253,7 @@ func TestRegister_MissingFields(t *testing.T) {
 		name string
 		body registerRequest
 	}{
-		{"missing email", registerRequest{Password: "StrongPass1"}},
+		{"missing email", registerRequest{Password: "StrongPass1!"}},
 		{"missing password", registerRequest{Email: "a@b.com"}},
 		{"both empty", registerRequest{}},
 	}
@@ -286,6 +286,7 @@ func TestRegister_WeakPassword(t *testing.T) {
 		{"no uppercase", "lowercase1"},
 		{"no lowercase", "UPPERCASE1"},
 		{"no digit", "NoDigitsHere"},
+		{"no special", "NoSpecial123"},
 	}
 
 	for _, tt := range tests {
@@ -310,7 +311,7 @@ func TestRegister_DuplicateEmail(t *testing.T) {
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
 
-	body, _ := json.Marshal(registerRequest{Email: "taken@example.com", Password: "StrongPass1", Name: "Dup"})
+	body, _ := json.Marshal(registerRequest{Email: "taken@example.com", Password: "StrongPass1!", Name: "Dup"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
@@ -329,7 +330,7 @@ func TestRegister_TenantCreationError(t *testing.T) {
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
 
-	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1"})
+	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1!"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
@@ -347,7 +348,7 @@ func TestRegister_UserCreationError(t *testing.T) {
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
 
-	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1"})
+	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1!"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
@@ -386,7 +387,7 @@ func TestRegister_NameTooLong(t *testing.T) {
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "user@example.com",
-		Password: "StrongPass1",
+		Password: "StrongPass1!",
 		Name:     strings.Repeat("X", 101),
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
@@ -406,7 +407,7 @@ func TestRegister_EmailTooLong(t *testing.T) {
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    strings.Repeat("a", 250) + "@b.com", // > 254
-		Password: "StrongPass1",
+		Password: "StrongPass1!",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
@@ -425,7 +426,7 @@ func TestRegister_InvalidEmailFormat(t *testing.T) {
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "not-an-email",
-		Password: "StrongPass1",
+		Password: "StrongPass1!",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
@@ -823,7 +824,7 @@ func TestChangePassword_Success(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]string{
 		"current_password": "Password1",
-		"new_password":     "NewStrongPass2",
+		"new_password":     "NewStrongPass2!",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/change-password", bytes.NewReader(body))
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
@@ -840,7 +841,7 @@ func TestChangePassword_Success(t *testing.T) {
 	}
 
 	// Verify the new password hash works.
-	if err := auth.VerifyPassword(store.updatedPassword, "NewStrongPass2"); err != nil {
+	if err := auth.VerifyPassword(store.updatedPassword, "NewStrongPass2!"); err != nil {
 		t.Errorf("new password hash should verify: %v", err)
 	}
 }
@@ -853,7 +854,7 @@ func TestChangePassword_WrongCurrentPassword(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]string{
 		"current_password": "WrongPass1",
-		"new_password":     "NewStrongPass2",
+		"new_password":     "NewStrongPass2!",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/change-password", bytes.NewReader(body))
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
@@ -930,7 +931,7 @@ func TestChangePassword_StoreError(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]string{
 		"current_password": "Password1",
-		"new_password":     "NewStrongPass2",
+		"new_password":     "NewStrongPass2!",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/change-password", bytes.NewReader(body))
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")

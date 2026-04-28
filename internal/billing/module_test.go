@@ -2,6 +2,7 @@ package billing
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -92,4 +93,50 @@ func TestNewModuleReturnsNonNil(t *testing.T) {
 func TestModuleImplementsInterface(t *testing.T) {
 	// Compile-time check that Module implements core.Module.
 	var _ core.Module = (*Module)(nil)
+}
+
+func TestStripeClient_Disabled(t *testing.T) {
+	m := New()
+	if m.StripeClient() != nil {
+		t.Error("expected StripeClient to be nil when billing disabled")
+	}
+}
+
+func TestStripeClient_Enabled(t *testing.T) {
+	m := New()
+	c := &core.Core{
+		Config: &core.Config{
+			Billing: core.BillingConfig{
+				Enabled:          true,
+				StripeSecretKey:  "sk_test_123",
+				StripeWebhookKey: "whsec_test_123",
+			},
+		},
+		Logger: slog.Default(),
+		Store:  &mockStore{},
+	}
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init error: %v", err)
+	}
+	if m.StripeClient() == nil {
+		t.Error("expected StripeClient to be non-nil when Stripe keys configured")
+	}
+	if m.WebhookHandler() == nil {
+		t.Error("expected WebhookHandler to be non-nil when Stripe keys configured")
+	}
+}
+
+func TestPlans(t *testing.T) {
+	m := New()
+	c := &core.Core{
+		Config: &core.Config{Billing: core.BillingConfig{Enabled: false}},
+		Logger: slog.Default(),
+		Store:  &mockStore{},
+	}
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init error: %v", err)
+	}
+	if len(m.Plans()) == 0 {
+		t.Error("expected Plans to be non-empty")
+	}
 }

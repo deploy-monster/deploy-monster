@@ -176,10 +176,16 @@ func parseBitbucket(body []byte, r *http.Request) (*WebhookPayload, error) {
 			if change, ok := changes[0].(map[string]any); ok {
 				if newRef, ok := change["new"].(map[string]any); ok {
 					nativeFound = true
-					p.Branch, _ = newRef["name"].(string)
+					if v, ok := newRef["name"].(string); ok {
+						p.Branch = v
+					}
 					if target, ok := newRef["target"].(map[string]any); ok {
-						p.CommitSHA, _ = target["hash"].(string)
-						p.CommitMsg, _ = target["message"].(string)
+						if v, ok := target["hash"].(string); ok {
+							p.CommitSHA = v
+						}
+						if v, ok := target["message"].(string); ok {
+							p.CommitMsg = v
+						}
 						if author, ok := target["author"].(map[string]any); ok {
 							if raw, ok := author["raw"].(string); ok {
 								p.Author = raw

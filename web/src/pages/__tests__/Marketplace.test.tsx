@@ -115,7 +115,9 @@ describe('Marketplace page', () => {
     expect(screen.getByRole('heading', { name: 'Marketplace' })).toBeInTheDocument();
     expect(screen.getByText(/2 templates/i)).toBeInTheDocument();
     expect(screen.getByText(/1 featured/i)).toBeInTheDocument();
-    expect(screen.getByText('WordPress')).toBeInTheDocument();
+    // Featured templates render once in the hero carousel and once in the
+    // grid — getAllByText lets both land while still pinning presence.
+    expect(screen.getAllByText('WordPress').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Ghost')).toBeInTheDocument();
   });
 

@@ -81,6 +81,7 @@ type mockStore struct {
 	errUpdateUser               error
 	errUpdatePassword           error
 	errCreateDomain             error
+	errGetDomain                error
 	errGetDomainByFQDN          error
 	errListDomainsByApp         error
 	errListAllDomains           error
@@ -612,6 +613,9 @@ func (m *mockStore) GetDomainByFQDN(_ context.Context, fqdn string) (*core.Domai
 }
 
 func (m *mockStore) GetDomain(_ context.Context, id string) (*core.Domain, error) {
+	if m.errGetDomain != nil {
+		return nil, m.errGetDomain
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	d, ok := m.domains[id]
@@ -823,7 +827,7 @@ func (m *mockStore) Ping(_ context.Context) error { return nil }
 
 // testJWT returns a JWTService configured with the test secret.
 func testJWT() *auth.JWTService {
-	return auth.NewJWTService(testJWTSecret)
+	return auth.MustNewJWTService(testJWTSecret)
 }
 
 // testAuthModule returns an auth.Module wired with the test JWT and mock store.
@@ -904,11 +908,13 @@ func (m *mockStore) addDeployment(appID string, d core.Deployment) {
 
 // mockContainerRuntime implements core.ContainerRuntime for testing.
 type mockContainerRuntime struct {
-	containers []core.ContainerInfo
-	pingErr    error
-	listErr    error
-	logsData   string
-	logsErr    error
+	containers  []core.ContainerInfo
+	pingErr     error
+	listErr     error
+	logsData    string
+	logsErr     error
+	imageList   []core.ImageInfo
+	imageListErr error
 }
 
 func (m *mockContainerRuntime) Ping() error { return m.pingErr }
@@ -954,7 +960,10 @@ func (m *mockContainerRuntime) Stats(_ context.Context, _ string) (*core.Contain
 func (m *mockContainerRuntime) ImagePull(_ context.Context, _ string) error { return nil }
 
 func (m *mockContainerRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) {
-	return nil, nil
+	if m.imageListErr != nil {
+		return nil, m.imageListErr
+	}
+	return m.imageList, nil
 }
 
 func (m *mockContainerRuntime) ImageRemove(_ context.Context, _ string) error { return nil }

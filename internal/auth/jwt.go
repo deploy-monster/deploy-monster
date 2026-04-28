@@ -16,6 +16,12 @@ import (
 // SECURITY FIX (SESS-006): Reduced from 1 hour to 20 minutes to limit exposure window.
 const RotationGracePeriod = 20 * time.Minute
 
+// SECURITY FIX (JWT-004): Standard issuer and audience for all tokens.
+const (
+	tokenIssuer   = "deploymonster"
+	tokenAudience = "deploymonster"
+)
+
 // Claims represents the JWT token claims.
 type Claims struct {
 	jwt.RegisteredClaims
@@ -47,11 +53,11 @@ type JWTService struct {
 // validation but only within RotationGracePeriod of when they were added.
 // This prevents indefinitely-valid compromised keys.
 // SECURITY: Enforces minimum secret length of 32 characters (256 bits).
-func NewJWTService(secret string, previousSecrets ...string) *JWTService {
+func NewJWTService(secret string, previousSecrets ...string) (*JWTService, error) {
 	// SECURITY FIX (JWT-002): Enforce minimum secret length
 	const minSecretLength = 32 // 256 bits minimum
 	if len(secret) < minSecretLength {
-		panic(fmt.Sprintf("JWT secret must be at least %d characters (256 bits) for security", minSecretLength))
+		return nil, fmt.Errorf("JWT secret must be at least %d characters (256 bits) for security", minSecretLength)
 	}
 
 	prev := make([][]byte, 0, len(previousSecrets))
@@ -69,7 +75,17 @@ func NewJWTService(secret string, previousSecrets ...string) *JWTService {
 		previousAdded: added,
 		accessExpiry:  15 * time.Minute,
 		refreshExpiry: 7 * 24 * time.Hour,
+	}, nil
+}
+
+// MustNewJWTService is a test helper that panics if the secret is too short.
+// Use only in tests; production code should use NewJWTService and handle the error.
+func MustNewJWTService(secret string, previousSecrets ...string) *JWTService {
+	svc, err := NewJWTService(secret, previousSecrets...)
+	if err != nil {
+		panic(err)
 	}
+	return svc
 }
 
 // AddPreviousKey adds an old key that was rotated out. Call this during
@@ -115,6 +131,8 @@ func (j *JWTService) GenerateTokenPair(userID, tenantID, roleID, email string) (
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
 			ID:        generateTokenID(),
+			Issuer:    tokenIssuer,
+			Audience:  jwt.ClaimStrings{tokenAudience},
 		},
 		UserID:   userID,
 		TenantID: tenantID,
@@ -132,6 +150,8 @@ func (j *JWTService) GenerateTokenPair(userID, tenantID, roleID, email string) (
 		IssuedAt:  jwt.NewNumericDate(now),
 		Subject:   userID,
 		ID:        generateTokenID(),
+		Issuer:    tokenIssuer,
+		Audience:  jwt.ClaimStrings{tokenAudience},
 	}
 	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString(j.secretKey)
 	if err != nil {
@@ -156,7 +176,9 @@ func (j *JWTService) ValidateAccessToken(tokenStr string) (*Claims, error) {
 		// alg=none and alg-confusion attacks.
 		token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
 			return key, nil
-		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}))
+		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
+			jwt.WithIssuer(tokenIssuer),
+			jwt.WithAudience(tokenAudience))
 		if err != nil {
 			continue
 		}
@@ -231,7 +253,9 @@ func (j *JWTService) ValidateRefreshToken(tokenStr string) (*RefreshTokenClaims,
 		// the alg header is not HS256 — mirrors ValidateAccessToken.
 		token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
 			return key, nil
-		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}))
+		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
+			jwt.WithIssuer(tokenIssuer),
+			jwt.WithAudience(tokenAudience))
 		if err != nil {
 			continue
 		}

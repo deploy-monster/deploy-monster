@@ -7,7 +7,7 @@ import (
 const testSecret = "test-secret-key-at-least-32-bytes-long!"
 
 func TestJWT_GenerateAndValidate(t *testing.T) {
-	svc := NewJWTService(testSecret)
+	svc := MustNewJWTService(testSecret)
 
 	pair, err := svc.GenerateTokenPair("user-1", "tenant-1", "role_admin", "test@example.com")
 	if err != nil {
@@ -48,7 +48,7 @@ func TestJWT_GenerateAndValidate(t *testing.T) {
 }
 
 func TestJWT_ValidateInvalidToken(t *testing.T) {
-	svc := NewJWTService(testSecret)
+	svc := MustNewJWTService(testSecret)
 
 	_, err := svc.ValidateAccessToken("invalid-token")
 	if err == nil {
@@ -57,8 +57,8 @@ func TestJWT_ValidateInvalidToken(t *testing.T) {
 }
 
 func TestJWT_ValidateWrongSecret(t *testing.T) {
-	svc1 := NewJWTService("secret-one-at-least-32-bytes-long!")
-	svc2 := NewJWTService("secret-two-at-least-32-bytes-long!")
+	svc1 := MustNewJWTService("secret-one-at-least-32-bytes-long!")
+	svc2 := MustNewJWTService("secret-two-at-least-32-bytes-long!")
 
 	pair, _ := svc1.GenerateTokenPair("user-1", "tenant-1", "role_admin", "test@example.com")
 
@@ -69,7 +69,7 @@ func TestJWT_ValidateWrongSecret(t *testing.T) {
 }
 
 func TestJWT_RefreshToken(t *testing.T) {
-	svc := NewJWTService(testSecret)
+	svc := MustNewJWTService(testSecret)
 
 	pair, _ := svc.GenerateTokenPair("user-1", "tenant-1", "role_admin", "test@example.com")
 
@@ -87,14 +87,14 @@ func TestJWT_KeyRotation_AccessToken(t *testing.T) {
 	newSecret := "new-secret-key-at-least-32-bytes-long!"
 
 	// Generate token with the old key
-	oldSvc := NewJWTService(oldSecret)
+	oldSvc := MustNewJWTService(oldSecret)
 	pair, err := oldSvc.GenerateTokenPair("user-1", "tenant-1", "role_admin", "test@example.com")
 	if err != nil {
 		t.Fatalf("GenerateTokenPair: %v", err)
 	}
 
 	// After rotation: new service has new key as active, old key as previous
-	rotatedSvc := NewJWTService(newSecret, oldSecret)
+	rotatedSvc := MustNewJWTService(newSecret, oldSecret)
 
 	// Token signed with old key should still validate
 	claims, err := rotatedSvc.ValidateAccessToken(pair.AccessToken)
@@ -119,7 +119,7 @@ func TestJWT_KeyRotation_AccessToken(t *testing.T) {
 	}
 
 	// Service with only new key (no previous) should reject old token
-	newOnlySvc := NewJWTService(newSecret)
+	newOnlySvc := MustNewJWTService(newSecret)
 	_, err = newOnlySvc.ValidateAccessToken(pair.AccessToken)
 	if err == nil {
 		t.Error("old-key token should fail without previous key configured")
@@ -130,14 +130,14 @@ func TestJWT_KeyRotation_RefreshToken(t *testing.T) {
 	oldSecret := "old-secret-key-at-least-32-bytes-long!"
 	newSecret := "new-secret-key-at-least-32-bytes-long!"
 
-	oldSvc := NewJWTService(oldSecret)
+	oldSvc := MustNewJWTService(oldSecret)
 	pair, err := oldSvc.GenerateTokenPair("user-1", "tenant-1", "role_admin", "test@example.com")
 	if err != nil {
 		t.Fatalf("GenerateTokenPair: %v", err)
 	}
 
 	// Rotated service accepts old refresh token
-	rotatedSvc := NewJWTService(newSecret, oldSecret)
+	rotatedSvc := MustNewJWTService(newSecret, oldSecret)
 	rtClaims, err := rotatedSvc.ValidateRefreshToken(pair.RefreshToken)
 	if err != nil {
 		t.Fatalf("old-key refresh token should validate after rotation: %v", err)
@@ -153,14 +153,14 @@ func TestJWT_KeyRotation_MultiplePreviousKeys(t *testing.T) {
 	key3 := "secret-key-three-at-least-32-bytes!!"
 
 	// Generate tokens with each key
-	svc1 := NewJWTService(key1)
+	svc1 := MustNewJWTService(key1)
 	pair1, _ := svc1.GenerateTokenPair("u1", "t", "r", "e@e.com")
 
-	svc2 := NewJWTService(key2)
+	svc2 := MustNewJWTService(key2)
 	pair2, _ := svc2.GenerateTokenPair("u2", "t", "r", "e@e.com")
 
 	// Current service has key3 as active, key1 and key2 as previous
-	svc3 := NewJWTService(key3, key1, key2)
+	svc3 := MustNewJWTService(key3, key1, key2)
 
 	// All three should validate
 	c1, err := svc3.ValidateAccessToken(pair1.AccessToken)
@@ -191,7 +191,7 @@ func TestJWT_KeyRotation_MultiplePreviousKeys(t *testing.T) {
 }
 
 func TestJWT_KeyRotation_EmptyPreviousKeysIgnored(t *testing.T) {
-	svc := NewJWTService(testSecret, "", "", "")
+	svc := MustNewJWTService(testSecret, "", "", "")
 	pair, err := svc.GenerateTokenPair("user-1", "t", "r", "e@e.com")
 	if err != nil {
 		t.Fatalf("GenerateTokenPair: %v", err)
@@ -203,7 +203,7 @@ func TestJWT_KeyRotation_EmptyPreviousKeysIgnored(t *testing.T) {
 }
 
 func TestJWT_UniqueTokenIDs(t *testing.T) {
-	svc := NewJWTService(testSecret)
+	svc := MustNewJWTService(testSecret)
 
 	pair1, _ := svc.GenerateTokenPair("user-1", "t", "r", "e@e.com")
 	pair2, _ := svc.GenerateTokenPair("user-1", "t", "r", "e@e.com")

@@ -72,9 +72,7 @@ func TestHandleHealth_OKWhenAllHealthy(t *testing.T) {
 	if body["status"] != "ok" {
 		t.Errorf("status = %q, want ok", body["status"])
 	}
-	if body["version"] != "2.0.0" {
-		t.Errorf("version = %q, want 2.0.0", body["version"])
-	}
+	// version field removed from health endpoint to avoid information disclosure
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

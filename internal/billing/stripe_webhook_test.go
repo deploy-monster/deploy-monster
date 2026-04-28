@@ -420,6 +420,74 @@ func TestStripeEventHandler_NilEventBus(t *testing.T) {
 	}
 }
 
+func TestStripeEventHandler_SubscriptionCanceled_MissingTenantID(t *testing.T) {
+	// When the event payload lacks a tenant_id, the handler should
+	// log a warning and return nil (no error).
+	store := newWebhookStore()
+	h, secret := newTestHandler(t, store, nil)
+
+	payload := []byte(`{
+		"id":"evt_1","type":"customer.subscription.deleted",
+		"data":{"object":{"id":"sub_1","metadata":{}}}
+	}`)
+	sig := signPayload(t, secret, payload)
+
+	if err := h.Handle(context.Background(), payload, sig); err != nil {
+		t.Fatalf("Handle: expected nil error, got %v", err)
+	}
+}
+
+func TestStripeEventHandler_SubscriptionCanceled_GetTenantError(t *testing.T) {
+	// When the store fails to load the tenant, Handle must propagate the error.
+	store := newWebhookStore()
+	store.getErr = errors.New("db down")
+	h, secret := newTestHandler(t, store, nil)
+
+	payload := []byte(`{
+		"id":"evt_1","type":"customer.subscription.deleted",
+		"data":{"object":{"id":"sub_1","metadata":{"tenant_id":"tenant-1"}}}
+	}`)
+	sig := signPayload(t, secret, payload)
+
+	if err := h.Handle(context.Background(), payload, sig); err == nil {
+		t.Fatal("expected error when GetTenant fails")
+	}
+}
+
+func TestStripeEventHandler_SubscriptionCanceled_NoFreePlan(t *testing.T) {
+	// When the catalog has no "free" plan, the tenant should keep their
+	// existing plan ID but metadata should still be cleared.
+	tenant := &core.Tenant{ID: "tenant-1", PlanID: "pro"}
+	_ = SetStripeMetadata(tenant, StripeMetadata{
+		SubscriptionID:     "sub_1",
+		SubscriptionItemID: "si_1",
+		PriceID:            "price_pro",
+		Status:             "active",
+	})
+	store := newWebhookStore(tenant)
+	plans := []Plan{{ID: "pro", StripePriceID: "price_pro"}}
+	h, secret := newTestHandler(t, store, plans)
+
+	payload := []byte(`{
+		"id":"evt_1","type":"customer.subscription.deleted",
+		"data":{"object":{"id":"sub_1","metadata":{"tenant_id":"tenant-1"}}}
+	}`)
+	sig := signPayload(t, secret, payload)
+
+	if err := h.Handle(context.Background(), payload, sig); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	got := store.tenants["tenant-1"]
+	// Plan should stay "pro" because no free plan exists
+	if got.PlanID != "pro" {
+		t.Errorf("expected plan to stay pro, got %q", got.PlanID)
+	}
+	md, _ := GetStripeMetadata(got)
+	if md.Status != "canceled" {
+		t.Errorf("Status = %q, want canceled", md.Status)
+	}
+}
+
 func TestFindPlanByID(t *testing.T) {
 	plans := []Plan{{ID: "free"}, {ID: "pro"}, {ID: "biz"}}
 	if got := findPlanByID(plans, "pro"); got == nil || got.ID != "pro" {

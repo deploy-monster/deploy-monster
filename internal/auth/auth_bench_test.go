@@ -18,7 +18,7 @@ func BenchmarkPasswordCompare(b *testing.B) {
 }
 
 func BenchmarkJWTGenerate(b *testing.B) {
-	svc := NewJWTService("bench-secret-key-at-least-32-bytes-long!")
+	svc := MustNewJWTService("bench-secret-key-at-least-32-bytes-long!")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -27,7 +27,7 @@ func BenchmarkJWTGenerate(b *testing.B) {
 }
 
 func BenchmarkJWTValidate(b *testing.B) {
-	svc := NewJWTService("bench-secret-key-at-least-32-bytes-long!")
+	svc := MustNewJWTService("bench-secret-key-at-least-32-bytes-long!")
 	pair, _ := svc.GenerateTokenPair("user-1", "tenant-1", "role_admin", "bench@example.com")
 
 	b.ResetTimer()

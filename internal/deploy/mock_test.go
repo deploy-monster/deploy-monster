@@ -22,9 +22,14 @@ type mockRuntime struct {
 	createCalled     bool
 	restartCalled    bool
 	lastOpts         core.ContainerOpts
+	pingErr          error
 }
 
-func (m *mockRuntime) Ping() error { return nil }
+func (m *mockRuntime) Ping() error { return m.pingErr }
+
+func (m *mockRuntime) EnsureNetwork(_ context.Context, _ string) error { return nil }
+
+func (m *mockRuntime) Close() error { return nil }
 
 func (m *mockRuntime) CreateAndStart(ctx context.Context, opts core.ContainerOpts) (string, error) {
 	m.createCalled = true

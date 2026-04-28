@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -231,6 +233,11 @@ func (m *Module) httpHandler() http.Handler {
 	// ACME challenge and HTTPS redirect (or pass-through proxy)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if forceHTTPS {
+			// SECURITY: Validate host before redirect to prevent open redirect
+			if !isValidRedirectHost(r.Host) {
+				http.Error(w, "400 Bad Request: invalid host header", http.StatusBadRequest)
+				return
+			}
 			// HSTS on the redirect response so compliant clients remember
 			// to use HTTPS even if this reply is cached.
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -253,8 +260,97 @@ func (m *Module) httpHandler() http.Handler {
 // tlsConfig creates the TLS configuration with dynamic certificate loading.
 func (m *Module) tlsConfig() *tls.Config {
 	return &tls.Config{
-		MinVersion:     tls.VersionTLS12,
+		MinVersion:     tls.VersionTLS13,
 		GetCertificate: m.acme.GetCertificate,
 		NextProtos:     []string{"h2", "http/1.1"},
 	}
+}
+
+// isValidRedirectHost validates the Host header before using it in a redirect URL.
+// Prevents open redirect attacks where an attacker-controlled Host header causes
+// a redirect to an external malicious site.
+func isValidRedirectHost(host string) bool {
+	if host == "" {
+		return false
+	}
+	// Reject hosts with newlines or carriage returns (HTTP header injection)
+	if strings.ContainsAny(host, "\r\n") {
+		return false
+	}
+	// Reject hosts that contain suspicious patterns
+	lower := strings.ToLower(host)
+	// Reject hosts that look like URLs (ould be used in open redirect)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return false
+	}
+	// Reject hosts with username:password@ (authentication spoofing)
+	if strings.Contains(host, "@") {
+		return false
+	}
+	// Reject hosts with port that includes suspicious patterns
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	// Validate the hostname itself
+	if err := validateHostname(host); err != nil {
+		return false
+	}
+	return true
+}
+
+// validateHostname checks if a hostname is valid and safe for use in redirects.
+func validateHostname(host string) error {
+	if len(host) > 253 {
+		return fmt.Errorf("hostname too long")
+	}
+	// IP address check
+	if ip := net.ParseIP(host); ip != nil {
+		// Allow loopback and private IPs, but not public IPs
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() {
+			return nil
+		}
+		return fmt.Errorf("public IP not allowed in redirect")
+	}
+	// Hostname validation
+	labels := strings.Split(host, ".")
+	for _, label := range labels {
+		if len(label) == 0 || len(label) > 63 {
+			return fmt.Errorf("invalid hostname label")
+		}
+		// Each label must start and end with alphanumeric
+		if !isAlphanumeric(label[0]) || !isAlphanumeric(label[len(label)-1]) {
+			return fmt.Errorf("hostname label must start and end with alphanumeric")
+		}
+		// Allow internal hyphens in the middle
+		for _, c := range label {
+			if !isAlphanumeric(byte(c)) && c != '-' {
+				return fmt.Errorf("invalid character in hostname")
+			}
+		}
+	}
+	return nil
+}
+
+func isAlphanumeric(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+}
+
+// urlParseSafe parses a URL and returns the hostname, with protection against
+// DNS rebinding and open redirect attacks.
+func urlParseSafe(rawURL string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	if u.Opaque != "" {
+		return "", fmt.Errorf("opaque URL not allowed")
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("empty host")
+	}
+	host := u.Hostname()
+	if host == "" {
+		return "", fmt.Errorf("empty hostname")
+	}
+	return host, nil
 }

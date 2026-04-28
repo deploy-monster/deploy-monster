@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 
@@ -149,14 +150,23 @@ type fakeStore struct {
 	versions []core.SecretVersion
 	updates  map[string]string // id -> new encrypted value
 
+	listErr error
+	updErr  error
+
 	core.Store // embed to satisfy the interface — unused methods panic on use
 }
 
 func (s *fakeStore) ListAllSecretVersions(context.Context) ([]core.SecretVersion, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
 	return s.versions, nil
 }
 
 func (s *fakeStore) UpdateSecretVersionValue(_ context.Context, id, enc string) error {
+	if s.updErr != nil {
+		return s.updErr
+	}
 	if s.updates == nil {
 		s.updates = map[string]string{}
 	}
@@ -334,5 +344,50 @@ func TestMigrateLegacyVault_IdempotentOnRestart(t *testing.T) {
 	}
 	if usedLegacy {
 		t.Error("second boot flagged legacy migration; salt persistence failed to take effect")
+	}
+}
+
+func TestMigrateLegacyVault_ListError(t *testing.T) {
+	bolt := newFakeBolt()
+	store := &fakeStore{listErr: errors.New("db down")}
+	m := newTestModule(bolt, store)
+
+	err := m.migrateLegacyVault(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "list versions") {
+		t.Errorf("expected list versions error, got %v", err)
+	}
+}
+
+func TestMigrateLegacyVault_UpdateError(t *testing.T) {
+	bolt := newFakeBolt()
+	// Create a version encrypted with legacy vault
+	legacy := NewVault("test-master-secret")
+	enc, _ := legacy.Encrypt("my-secret")
+	store := &fakeStore{
+		versions: []core.SecretVersion{{ID: "v1", ValueEnc: enc}},
+		updErr:   errors.New("db write failed"),
+	}
+	m := newTestModule(bolt, store)
+
+	err := m.migrateLegacyVault(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "update version") {
+		t.Errorf("expected update version error, got %v", err)
+	}
+}
+
+func TestMigrateLegacyVault_PersistSaltError(t *testing.T) {
+	bolt := newFakeBolt()
+	bolt.err = errors.New("bolt write failed")
+
+	legacy := NewVault("test-master-secret")
+	enc, _ := legacy.Encrypt("my-secret")
+	store := &fakeStore{
+		versions: []core.SecretVersion{{ID: "v1", ValueEnc: enc}},
+	}
+	m := newTestModule(bolt, store)
+
+	err := m.migrateLegacyVault(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "persist salt") {
+		t.Errorf("expected persist salt error, got %v", err)
 	}
 }

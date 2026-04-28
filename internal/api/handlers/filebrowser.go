@@ -27,26 +27,38 @@ type FileEntry struct {
 }
 
 // isPathSafe checks if a path is safe from traversal attacks.
+// Rejects .. components, null bytes, non-printable chars, Windows drive
+// letters, and any path that does not resolve to an absolute location.
 func isPathSafe(p string) bool {
+	// Block null bytes and non-printable characters early
+	for i := 0; i < len(p); i++ {
+		if p[i] == 0 || p[i] < 32 {
+			return false
+		}
+	}
+	// Block absolute paths outside root (Windows drive letters)
+	if len(p) >= 2 && p[1] == ':' && (p[0] >= 'A' && p[0] <= 'Z' || p[0] >= 'a' && p[0] <= 'z') {
+		return false
+	}
 	// Ensure path starts with /
 	if !strings.HasPrefix(p, "/") {
 		p = "/" + p
 	}
-	// Block path traversal attempts
-	if strings.Contains(p, "..") {
-		return false
-	}
-	// Block null bytes
-	if strings.Contains(p, "\x00") {
-		return false
-	}
-	// Block absolute paths outside root (Windows drive letters)
-	if len(p) >= 2 && p[1] == ':' && (p[0] >= 'A' && p[0] <= 'Z') {
+	// Reject traversal attempts that path.Clean silently resolves upward
+	if strings.Contains(p, "/../") || strings.HasSuffix(p, "/..") {
 		return false
 	}
 	// Use path.Clean (forward slashes) instead of filepath.Clean (OS-specific)
 	cleaned := stdpath.Clean(p)
-	return strings.HasPrefix(cleaned, "/")
+	// After cleaning the path must still start with / and must not contain ..
+	if !strings.HasPrefix(cleaned, "/") || strings.Contains(cleaned, "..") {
+		return false
+	}
+	// Reject empty or root-only paths used as traversal anchors
+	if cleaned == "/" && p != "/" && p != "/." {
+		return false
+	}
+	return true
 }
 
 // List handles GET /api/v1/apps/{id}/files?path=/

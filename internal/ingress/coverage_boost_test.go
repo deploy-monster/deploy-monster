@@ -185,8 +185,8 @@ func TestModule_tlsConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("expected non-nil TLS config")
 	}
-	if cfg.MinVersion != 0x0303 { // tls.VersionTLS12
-		t.Errorf("expected MinVersion TLS 1.2, got %x", cfg.MinVersion)
+	if cfg.MinVersion != 0x0304 { // tls.VersionTLS13
+		t.Errorf("expected MinVersion TLS 1.3, got %x", cfg.MinVersion)
 	}
 	if cfg.GetCertificate == nil {
 		t.Error("expected GetCertificate callback to be set")

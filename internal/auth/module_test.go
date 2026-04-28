@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -65,7 +64,7 @@ func TestModule_Health_NoJWT(t *testing.T) {
 
 func TestModule_Health_WithJWT(t *testing.T) {
 	m := New()
-	m.jwt = NewJWTService("test-secret-key-at-least-32-bytes-long!")
+	m.jwt = MustNewJWTService("test-secret-key-at-least-32-bytes-long!")
 	got := m.Health()
 	if got != core.HealthOK {
 		t.Errorf("Health() = %v, want HealthOK when JWT service is set", got)
@@ -97,7 +96,7 @@ func TestModule_JWT(t *testing.T) {
 	}
 
 	// Set JWT manually and verify accessor
-	jwtSvc := NewJWTService("test-secret-key-at-least-32-bytes-long!")
+	jwtSvc := MustNewJWTService("test-secret-key-at-least-32-bytes-long!")
 	m.jwt = jwtSvc
 	if m.JWT() != jwtSvc {
 		t.Error("JWT() should return the configured JWT service")
@@ -125,52 +124,5 @@ func TestModule_Stop(t *testing.T) {
 	// Stop should return nil regardless of state
 	if err := m.Stop(context.TODO()); err != nil {
 		t.Errorf("Stop() = %v, want nil", err)
-	}
-}
-
-func TestGetEnvOrDefault(t *testing.T) {
-	tests := []struct {
-		name     string
-		key      string
-		envVal   string
-		fallback string
-		want     string
-	}{
-		{
-			name:     "env var set",
-			key:      "MONSTER_TEST_ENV_SET",
-			envVal:   "from-env",
-			fallback: "default-val",
-			want:     "from-env",
-		},
-		{
-			name:     "env var empty uses fallback",
-			key:      "MONSTER_TEST_ENV_EMPTY",
-			envVal:   "",
-			fallback: "fallback-val",
-			want:     "fallback-val",
-		},
-		{
-			name:     "env var not set uses fallback",
-			key:      "MONSTER_TEST_ENV_UNSET",
-			envVal:   "",
-			fallback: "default-123",
-			want:     "default-123",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.envVal != "" {
-				t.Setenv(tt.key, tt.envVal)
-			} else {
-				os.Unsetenv(tt.key)
-			}
-
-			got := getEnvOrDefault(tt.key, tt.fallback)
-			if got != tt.want {
-				t.Errorf("getEnvOrDefault(%q, %q) = %q, want %q", tt.key, tt.fallback, got, tt.want)
-			}
-		})
 	}
 }

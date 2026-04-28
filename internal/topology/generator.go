@@ -162,7 +162,7 @@ func (c *Compiler) generateDatabaseService(db *Database) (*Service, error) {
 		}
 	case EngineRedis:
 		if password != "" {
-			svc.Command = fmt.Sprintf("redis-server --requirepass %s", password)
+			svc.Environment["REDIS_PASSWORD"] = password
 		}
 		svc.HealthCheck = &HealthCheck{
 			Test:     []string{"CMD", "redis-cli", "ping"},

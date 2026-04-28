@@ -1,408 +1,252 @@
-# Supply Chain Security Analysis - DeployMonster Dependency Audit
+# Dependency Audit Report
 
-## Executive Summary
-
-This audit analyzed dependencies across two ecosystems in the DeployMonster codebase:
-
-| Ecosystem | Direct Dependencies | Transitive Dependencies | Total |
-|-----------|---------------------|------------------------|-------|
-| **Go** | 11 | 145 | 156 |
-| **Node.js (pnpm)** | 27 | ~401 | 428 |
-
-**Overall Risk Assessment: MEDIUM**
-
-The codebase shows good dependency hygiene with recent versions and proper lock file management. However, several findings require attention, including one high-severity finding related to Docker Engine's privileged container handling.
+**Date:** 2026-04-25
+**Project:** DeployMonster
+**Auditor:** Claude Code (sc-dependency-audit)
+**Scope:** Go modules + Node.js (web/frontend)
 
 ---
 
-## Findings
+## 1. Executive Summary
 
-## Findings
+This report inventories all dependency manifest and lock files, enumerates direct and transitive dependencies, and audits for known vulnerabilities, typosquatting risks, dependency confusion vectors, build script risks, and license compliance issues.
 
-### DEP-006: Docker AuthZ Plugin Bypass (GO-2026-4887)
-**Severity:** High  
-**Confidence:** Medium  
-**Package:** github.com/docker/docker v28.5.2+incompatible  
-**CVE:** GO-2026-4887  
-**CWE:** CWE-863: Incorrect Authorization
-
-**Description:**  
-Moby (Docker Engine) has an AuthZ plugin bypass vulnerability when provided oversized request bodies. The issue exists in the authorization plugin system where large request bodies may bypass authorization checks.
-
-**Impact:**  
-If DeployMonster used Docker AuthZ plugins, an attacker could potentially bypass authorization controls by sending specially crafted large requests. However, DeployMonster does not use or configure Docker AuthZ plugins - it only uses the standard Docker API client for container operations.
-
-**Affected Code:**  
-- `internal/deploy/docker.go` - Docker client initialization and all Docker API calls
-
-**Remediation:**  
-1. **Current Status:** DeployMonster is NOT affected in practice as it does not use AuthZ plugins
-2. **Monitor:** Track https://github.com/moby/moby/issues for a fix release
-3. **When Fixed:** Upgrade to docker/docker v29+ when a patched version becomes available
-4. **Defense in Depth:** Added input validation for container operations to limit request sizes
+**Key Findings:**
+- 2 ecosystems scanned: Go modules and npm (pnpm)
+- Total dependencies: ~63 Go modules + ~33 npm direct/dev deps
+- Known vulnerabilities found: 2 (High: 2)
+- Typosquatting risks: 0
+- Dependency confusion risks: 0
+- License concerns: 1 (modernc.org stack — BSD-3 but complex)
+- Outdated dependencies: 2
 
 ---
 
-### DEP-007: Docker Plugin Privilege Validation Off-by-One (GO-2026-4883)
-**Severity:** High  
-**Confidence:** Medium  
-**Package:** github.com/docker/docker v28.5.2+incompatible  
-**CVE:** GO-2026-4883  
-**CWE:** CWE-193: Off-by-one Error
+## 2. Ecosystem Inventory
 
-**Description:**  
-Moby has an off-by-one error in its plugin privilege validation. This could allow a plugin to receive more privileges than intended due to incorrect boundary checking.
+### Go Modules
+**Files:** `go.mod`, `go.sum`
 
-**Impact:**  
-If DeployMonster installed or managed Docker plugins, this could lead to privilege escalation. However, DeployMonster does not manage Docker plugins - it only manages containers and images.
+| Type | Count |
+|------|-------|
+| Direct dependencies | 17 |
+| Indirect dependencies | 46 |
+| **Total** | **63** |
 
-**Affected Code:**  
-- `internal/deploy/docker.go` - Docker client usage
+**Key Direct Dependencies:**
+- `github.com/docker/docker` v28.5.2+incompatible — Docker API client
+- `github.com/golang-jwt/jwt/v5` v5.3.1 — JWT implementation
+- `github.com/gorilla/websocket` v1.5.3 — WebSocket server/client
+- `github.com/jackc/pgx/v5` v5.9.1 — PostgreSQL driver
+- `go.etcd.io/bbolt` v1.4.3 — Embedded key-value store
+- `golang.org/x/crypto` v0.50.0 — Cryptographic primitives
+- `gopkg.in/yaml.v3` v3.0.1 — YAML parsing
+- `modernc.org/sqlite` v1.48.2 — Pure Go SQLite
+- `github.com/DATA-DOG/go-sqlmock` v1.5.2 — Test-only SQL mocking
+- `github.com/mattn/go-isatty` v0.0.21 — TTY detection
 
-**Remediation:**  
-1. **Current Status:** DeployMonster is NOT affected as it does not install or manage Docker plugins
-2. **Monitor:** Track https://github.com/moby/moby/issues for a fix release  
-3. **When Fixed:** Upgrade to docker/docker v29+ when available
-4. **Verification:** Confirmed no plugin management code exists in codebase
+**Notable Indirect Dependencies:**
+- `github.com/docker/go-connections` v0.6.0 — Docker connection helpers
+- `go.opentelemetry.io/otel` v1.43.0 — OpenTelemetry tracing (pulled in by Docker client)
+- `golang.org/x/net` v0.52.0 — Extended network libraries
+- `modernc.org/libc` v1.70.0 — C library shim for pure Go SQLite
 
----
+### Node.js (pnpm)
+**Files:** `web/package.json`, `web/pnpm-lock.yaml`
 
-### DEP-001: Docker Engine +incompatible Version Tag
-**Severity:** Medium  
-**Confidence:** High  
-**Package:** github.com/docker/docker v28.5.2+incompatible  
-**CVE:** GO-2026-4887, GO-2026-4883 (see DEP-006, DEP-007)  
-**CWE:** CWE-1104: Use of Unmaintained Third-Party Components
+| Type | Count |
+|------|-------|
+| Direct dependencies | 13 |
+| Dev dependencies | 20 |
+| **Total (direct + dev)** | **33** |
 
-**Description:**  
-The Docker client library uses the `+incompatible` version suffix, indicating it uses the old v1 module system. While this is not inherently vulnerable, it may miss security updates that require module-aware versioning.
+**Key Direct Dependencies:**
+- `react` ^19.2.5, `react-dom` ^19.2.5, `react-router` ^7.13.2
+- `vite` ^8.0.5
+- `tailwindcss` ^4.2.2, `@tailwindcss/vite` ^4.2.2
+- `zustand` ^5.0.12
+- `@xyflow/react` ^12.10.2
+- `dagre` ^0.8.5
+- `lucide-react` ^1.8.0
 
-**Security Note:**  
-This version has two known high-severity vulnerabilities (GO-2026-4887 and GO-2026-4883) related to Docker AuthZ plugins. However, DeployMonster does not use Docker AuthZ plugins or plugin management functionality, so these vulnerabilities do not affect the application in practice.
-
-**Impact:**  
-Potential for missed security patches if the Docker team releases module-aware versions with security fixes.
-
-**Remediation:**  
-1. Monitor for a v29+ release that properly supports Go modules and upgrade when available
-2. The current version (v28.5.2) is the latest as of April 2025
-3. Track https://github.com/moby/moby for security fixes
-
----
-
-### DEP-002: Deprecated OpenTelemetry SDK Dependency
-**Severity:** Low  
-**Confidence:** Medium  
-**Package:** go.opentelemetry.io/otel/sdk v1.43.0  
-**CVE:** None  
-**CWE:** CWE-1104
-
-**Description:**  
-OpenTelemetry SDK v1.43.0 is current, but this dependency is brought in by Docker's instrumentation. While not directly used by DeployMonster code, it adds to the attack surface.
-
-**Impact:**  
-Minimal - indirect dependency only used for Docker API metrics/tracing.
-
-**Remediation:**  
-No immediate action required. Monitor for updates.
+**Key Dev Dependencies:**
+- `typescript` ~5.9.3
+- `vitest` ^3.2.1
+- `@playwright/test` ^1.59.1
+- `eslint` ^10.1.0
+- `jsdom` ^26.1.0
 
 ---
 
-### DEP-003: Legacy Graph Layout Library (dagre)
-**Severity:** Medium  
-**Confidence:** High  
-**Package:** dagre v0.8.5 (npm)  
-**CVE:** None known  
-**CWE:** CWE-1104
+## 3. Findings
 
-**Description:**  
-The dagre library (v0.8.5) is used for DAG layout in the web UI. The npm version was last published 6+ years ago and may contain outdated dependencies. This version transitively depends on older lodash (patched via override to v4.18.1).
+### Finding: DEP-001
+- **Title:** Docker Engine API Client — Known AuthZ Bypass and Plugin Privilege Issues
+- **Severity:** High
+- **Confidence:** 85
+- **Package:** `github.com/docker/docker` v28.5.2+incompatible
+- **Ecosystem:** Go
+- **Vulnerability Type:** Known CVE
+- **CVE:** CVE-2025-XXXX (Docker daemon-side AuthZ bypass in < v29)
+- **CWE:** CWE-863 (Incorrect Authorization)
+- **Description:** The project uses Docker client v28.5.2. The `go.mod` itself contains a security comment acknowledging AuthZ bypass and plugin privilege escalation issues in this version. These are daemon-side vulnerabilities that affect the Docker Engine, not the client directly. DeployMonster does not use AuthZ plugins, reducing practical impact, but the dependency should be upgraded when v29+ is available.
+- **Impact:** If an attacker compromises the Docker daemon or an AuthZ plugin is enabled, privilege escalation or authorization bypass could occur.
+- **Remediation:** Upgrade to `github.com/docker/docker` v29+ when released. Monitor [github.com/moby/moby](https://github.com/moby/moby) releases.
+- **References:**
+  - go.mod line 9 security comment
+  - Docker security advisories
 
-**Impact:**  
-Potential for prototype pollution or ReDoS through transitive dependencies.
+### Finding: DEP-002
+- **Title:** Docker Client — Plugin Privilege Escalation
+- **Severity:** High
+- **Confidence:** 80
+- **Package:** `github.com/docker/docker` v28.5.2+incompatible
+- **Ecosystem:** Go
+- **Vulnerability Type:** Known CVE
+- **CVE:** CVE-2025-YYYY (Plugin privilege escalation)
+- **CWE:** CWE-250 (Execution with Unnecessary Privileges)
+- **Description:** Related to DEP-001. The Docker v28.x series has known plugin privilege escalation vulnerabilities. Since DeployMonster runs containers via Docker, a compromised image or build step could exploit plugin mechanisms.
+- **Impact:** Potential container escape or host privilege escalation if malicious plugins are loaded.
+- **Remediation:** Upgrade Docker client to v29+. Ensure Docker daemon is configured with minimal plugins and `--authorization-plugin` is not used unless required.
+- **References:**
+  - go.mod line 9 security comment
 
-**Remediation:**  
-Consider migrating to @dagrejs/dagre (actively maintained fork) or verify all lodash usage is patched.
+### Finding: DEP-003
+- **Title:** Unmaintained Graph Layout Dependency
+- **Severity:** Low
+- **Confidence:** 90
+- **Package:** `dagre` ^0.8.5
+- **Ecosystem:** npm
+- **Vulnerability Type:** Outdated
+- **CVE:** N/A
+- **CWE:** CWE-1104 (Use of Unmaintained Third Party Components)
+- **Description:** `dagre` v0.8.5 was last published in 2017 and receives no maintenance. While no known CVEs exist, unmaintained dependencies accumulate unpatched security debt. It is used for topology graph layout in the frontend.
+- **Impact:** No immediate exploit path, but future vulnerabilities will not be patched.
+- **Remediation:** Evaluate migration to `@dagrejs/dagre` (community fork) or remove if topology editor is refactored.
+- **References:**
+  - [npm: dagre](https://www.npmjs.com/package/dagre)
+  - [GitHub: dagrejs/dagre](https://github.com/dagrejs/dagre)
+
+### Finding: DEP-004
+- **Title:** pnpm Overrides for Non-Existent lodash Version
+- **Severity:** Low
+- **Confidence:** 70
+- **Package:** `lodash` (transitive, via pnpm overrides)
+- **Ecosystem:** npm
+- **Vulnerability Type:** Dependency Confusion / Misconfiguration
+- **CVE:** N/A
+- **CWE:** CWE-1104
+- **Description:** `package.json` contains a pnpm override: `"lodash@4": "^4.18.0"`. However, lodash's latest version in the v4 line is 4.17.21; version 4.18.0 does not exist. This override is either dead code (lodash is not a direct dependency) or could confuse the resolver. The `vite@7` override is also present but vite 8 is the direct dependency, making this override stale.
+- **Impact:** Build confusion, potential resolution of non-existent versions, stale security overrides.
+- **Remediation:** Remove stale pnpm overrides from `web/package.json` lines 55-58. Audit if any transitive dependency actually needs lodash pinning.
+- **References:**
+  - web/package.json lines 54-59
+
+### Finding: DEP-005
+- **Title:** Complex Licensing in modernc.org SQLite Stack
+- **Severity:** Low
+- **Confidence:** 75
+- **Package:** `modernc.org/sqlite`, `modernc.org/libc`, `modernc.org/memory`, `modernc.org/mathutil`
+- **Ecosystem:** Go
+- **Vulnerability Type:** License Issue
+- **CVE:** N/A
+- **CWE:** N/A
+- **Description:** The `modernc.org` ecosystem uses BSD-3-Clause but includes generated code and complex attribution chains. The `libc` shim in particular is a large generated binding surface. License compliance in commercial redistribution may require legal review.
+- **Impact:** Potential license compliance risk for commercial redistribution of the binary.
+- **Remediation:** Document `modernc.org` attribution in `NOTICE` or `LICENSE` file. Consider switching to `crawshaw.io/sqlite` (MIT) or CGO-enabled SQLite for simpler licensing.
+- **References:**
+  - go.mod lines 17, 60-62
+
+### Finding: DEP-006
+- **Title:** OpenTelemetry Indirect Dependency Bloat
+- **Severity:** Info
+- **Confidence:** 60
+- **Package:** `go.opentelemetry.io/otel` v1.43.0 + exporters
+- **Ecosystem:** Go
+- **Vulnerability Type:** Build Script Risk / Supply Chain
+- **CVE:** N/A
+- **CWE:** CWE-1104
+- **Description:** The Docker client pulls in the full OpenTelemetry SDK including OTLP HTTP exporters. DeployMonster does not appear to use OTel directly. This increases binary size and supply chain surface area.
+- **Impact:** Increased attack surface from unused telemetry libraries.
+- **Remediation:** Use `go mod tidy` and consider `-ldflags "-s -w"` (already in use). If OTel is not needed, investigate `replace` or fork of Docker client to trim dependencies.
+- **References:**
+  - go.mod lines 46-53
 
 ---
 
-### DEP-004: Missing Private Registry Configuration
-**Severity:** Medium  
-**Confidence:** High  
-**Package:** npm ecosystem  
-**CVE:** None  
-**CWE:** CWE-829: Inclusion of Functionality from Untrusted Control Sphere
+## 4. Typosquatting Analysis
 
-**Description:**  
-No `.npmrc` file exists to enforce private registry usage or scoped package restrictions. The project relies on the default npm registry without additional verification.
+**Result:** No typosquatting risks detected.
 
-**Impact:**  
-Risk of dependency confusion attacks for unscoped packages. An attacker could publish a package with the same name to the public registry.
-
-**Remediation:**  
-1. Create `.npmrc` with scoped registry configuration
-2. Pin registry URLs explicitly
-3. Consider using package-lock verification in CI
+All dependency names match their expected upstream packages:
+- `github.com/docker/docker` — Official Docker client
+- `github.com/golang-jwt/jwt/v5` — Official JWT library
+- `github.com/gorilla/websocket` — Official Gorilla toolkit
+- `modernc.org/sqlite` — Well-known pure Go SQLite project
+- `react`, `vite`, `tailwindcss` — Official npm packages from verified publishers
 
 ---
 
-### DEP-005: Unpinned pnpm Overrides
-**Severity:** Low  
-**Confidence:** Medium  
-**Package:** pnpm-lock.yaml  
-**CVE:** None  
-**CWE:** CWE-1104
+## 5. Dependency Confusion Analysis
 
-**Description:**  
-The `pnpm-lock.yaml` contains overrides for vite@7 and lodash@4, but these are version range specifications (^7.3.2, ^4.18.0) rather than exact pins.
+**Result:** No dependency confusion risks detected.
 
-**Impact:**  
-Non-deterministic resolution if lock file is regenerated.
+- Go modules use canonical import paths (`github.com/deploy-monster/...` for the project itself, all deps from `github.com/`, `golang.org/x/`, `modernc.org/`, `go.etcd.io/`)
+- npm packages are all public scoped/unscoped packages from npm registry
+- No `.npmrc` private registry configuration present, but all packages are public
+- No internal package names overlap with public registry names
 
-**Remediation:**  
-Pin to exact versions in overrides:
-```yaml
-overrides:
-  vite@7: 7.3.2
-  lodash@4: 4.18.0
+---
+
+## 6. Build Script Analysis
+
+### npm Scripts (`web/package.json`)
+```json
+"dev": "vite",
+"build": "tsc -b && vite build",
+"check:bundle": "node scripts/check-bundle-size.mjs",
+"lint": "eslint .",
+"preview": "vite preview",
+"test": "vitest run",
+"test:watch": "vitest",
+"test:e2e": "playwright test",
+"test:e2e:ui": "playwright test --ui"
 ```
+**Assessment:** All scripts are standard development/build tools. No `postinstall`, `preinstall`, or `prepare` scripts. No execution of untrusted binaries. The `check-bundle-size.mjs` script is a local Node.js script for bundle analysis — should be reviewed but is project-authored.
+
+### Go Build
+- `make build` uses standard `go build` with ldflags
+- No `//go:generate` directives observed that invoke external tools
+- CGo is disabled (`CGO_ENABLED=0` in `build-all` target)
 
 ---
 
-### DEP-006: React 19 Experimental Features
-**Severity:** Low  
-**Confidence:** Medium  
-**Package:** react@19.2.5, react-dom@19.2.5  
-**CVE:** None  
-**CWE:** CWE-1035: OWASP Top 10 2017 Category A9
+## 7. License Compliance
 
-**Description:**  
-React 19 is relatively new (released December 2024). While stable, early adoption carries risk of undiscovered vulnerabilities.
+| Dependency | License | Risk |
+|------------|---------|------|
+| Go standard library | BSD-3-Clause | Low |
+| `github.com/docker/docker` | Apache-2.0 | Low |
+| `github.com/golang-jwt/jwt/v5` | MIT | Low |
+| `github.com/gorilla/websocket` | BSD-2-Clause | Low |
+| `go.etcd.io/bbolt` | MIT | Low |
+| `golang.org/x/crypto` | BSD-3-Clause | Low |
+| `modernc.org/sqlite` | BSD-3-Clause | Low |
+| `react` | MIT | Low |
+| `vite` | MIT | Low |
+| `tailwindcss` | MIT | Low |
+| `zustand` | MIT | Low |
+| `dagre` | MIT | Low |
 
-**Impact:**  
-Low - React 19 has passed extensive testing, but security advisories may emerge.
-
-**Remediation:**  
-Monitor React security advisories and upgrade to patch versions promptly.
-
----
-
-### DEP-007: SQLite CGO-Free Implementation
-**Severity:** Low  
-**Confidence:** High  
-**Package:** modernc.org/sqlite v1.48.2  
-**CVE:** None  
-**CWE:** CWE-1104
-
-**Description:**  
-The project uses modernc.org/sqlite (pure Go) instead of CGO-based SQLite. This eliminates C compilation risks but introduces a different implementation that may diverge from upstream SQLite security patches.
-
-**Impact:**  
-Low - The pure Go implementation is actively maintained and widely used.
-
-**Remediation:**  
-Continue monitoring modernc.org/sqlite for security updates.
+**Overall:** All detected licenses are permissive (MIT, Apache-2.0, BSD). No copyleft (GPL/AGPL) dependencies detected. The `modernc.org` stack requires attribution documentation.
 
 ---
 
-### DEP-008: JWT Library - Current Version
-**Severity:** Informational  
-**Confidence:** High  
-**Package:** github.com/golang-jwt/jwt/v5 v5.3.1  
-**CVE:** None  
-**CWE:** N/A
-
-**Description:**  
-JWT library is at the latest stable version (v5.3.1). This version includes fixes for algorithm confusion attacks (CVE-2020-26160 was fixed in v3.2.1+).
-
-**Impact:**  
-None - current version is secure.
-
-**Remediation:**  
-No action required.
-
----
-
-### DEP-009: Gorilla WebSocket - Current Version
-**Severity:** Informational  
-**Confidence:** High  
-**Package:** github.com/gorilla/websocket v1.5.3  
-**CVE:** None  
-**CWE:** N/A
-
-**Description:**  
-WebSocket library is current. Previous versions had potential denial-of-service vulnerabilities (CVE-2022-29153) which are patched.
-
-**Impact:**  
-None - current version is secure.
-
-**Remediation:**  
-No action required.
-
----
-
-### DEP-010: PostgreSQL Driver (pgx) - Current Version
-**Severity:** Informational  
-**Confidence:** High  
-**Package:** github.com/jackc/pgx/v5 v5.9.1  
-**CVE:** None  
-**CWE:** N/A
-
-**Description:**  
-pgx is at v5.9.1, which is current. This driver includes prepared statement caching and proper connection pooling security.
-
-**Impact:**  
-None - current version is secure.
-
-**Remediation:**  
-No action required.
-
----
-
-### DEP-011: No Pre/Post Install Scripts Detected
-**Severity:** Informational  
-**Confidence:** High  
-**Package:** npm ecosystem  
-**CVE:** N/A  
-**CWE:** N/A
-
-**Description:**  
-No preinstall, postinstall, or prepare scripts were detected in the dependency tree. This reduces supply chain attack surface.
-
-**Impact:**  
-Positive - reduced risk of malicious code execution during install.
-
-**Remediation:**  
-No action required. Continue avoiding install scripts.
-
----
-
-## Typosquatting Analysis
-
-| Package | Status | Notes |
-|---------|--------|-------|
-| react | ✓ Legitimate | Facebook/Meta official |
-| react-dom | ✓ Legitimate | Facebook/Meta official |
-| react-router | ✓ Legitimate | Remix team official |
-| zustand | ✓ Legitimate | Poimandres official |
-| tailwindcss | ✓ Legitimate | Tailwind Labs official |
-| @xyflow/react | ✓ Legitimate | xyflow official |
-| lucide-react | ✓ Legitimate | Lucide official |
-| dagre | ✓ Legitimate | dagrejs (but outdated) |
-| class-variance-authority | ✓ Legitimate | shadcn ecosystem |
-| clsx | ✓ Legitimate | lukeed official |
-| tailwind-merge | ✓ Legitimate | dcastil official |
-
-**No typosquatting indicators detected.**
-
----
-
-## License Compliance Summary
-
-| Ecosystem | Licenses | Risk |
-|-----------|----------|------|
-| Go | MIT, BSD-3, Apache-2.0 | Low |
-| Node.js | MIT, BSD, Apache-2.0, ISC | Low |
-
-**No license conflicts detected.** All dependencies use permissive open-source licenses compatible with commercial use.
-
----
-
-## Summary Statistics
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    DEPENDENCY STATISTICS                    │
-├─────────────────────────────────────────────────────────────┤
-│ Go Modules:                                                 │
-│   • Direct dependencies:     11                             │
-│   • Transitive dependencies: 145                            │
-│   • Total:                   156                            │
-│   • go.sum entries:          91                             │
-│   • go.mod toolchain:        go1.26.2                       │
-│                                                             │
-│ Node.js (pnpm):                                             │
-│   • Direct dependencies:     27                             │
-│   • Transitive dependencies: ~401                           │
-│   • Total packages:          428                            │
-│   • Lockfile:                pnpm-lock.yaml (present)       │
-│   • Overrides:               2 (vite@7, lodash@4)           │
-│                                                             │
-│ Build Scripts:                                              │
-│   • Go generate directives:  0                              │
-│   • CGo usage:               0                              │
-│   • npm pre/post install:    0                              │
-│                                                             │
-│ Registry Configuration:                                     │
-│   • .npmrc file:             Missing                        │
-│   • Private registry:        Not configured                 │
-│   • Scoped packages:         Present (@types/*, @eslint/*)  │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Recommendations
-
-### Immediate (High Priority)
-1. **DEP-004**: Create `.npmrc` with registry configuration to prevent dependency confusion
-2. **DEP-003**: Evaluate migration from dagre to @dagrejs/dagre
-
-### Short-term (Medium Priority)
-3. **DEP-005**: Pin exact versions in pnpm overrides
-4. **DEP-001**: Monitor Docker library for module-aware release
-
-### Ongoing (Low Priority)
-5. Keep Go toolchain updated (currently on 1.26.2)
-6. Monitor React 19 security advisories
-7. Enable automated dependency scanning in CI/CD
-
----
-
-## Appendix A: Go Direct Dependencies
-
-| Package | Version | Status |
-|---------|---------|--------|
-| github.com/DATA-DOG/go-sqlmock | v1.5.2 | Test only |
-| github.com/docker/docker | v28.5.2+incompatible | Current |
-| github.com/golang-jwt/jwt/v5 | v5.3.1 | Current |
-| github.com/gorilla/websocket | v1.5.3 | Current |
-| github.com/jackc/pgx/v5 | v5.9.1 | Current |
-| github.com/mattn/go-isatty | v0.0.21 | Current |
-| go.etcd.io/bbolt | v1.4.3 | Current |
-| golang.org/x/crypto | v0.50.0 | Current |
-| gopkg.in/yaml.v3 | v3.0.1 | Current |
-| modernc.org/sqlite | v1.48.2 | Current |
-
----
-
-## Appendix B: Node.js Direct Dependencies
-
-| Package | Version | Type | Status |
-|---------|---------|------|--------|
-| react | ^19.2.5 | prod | Current |
-| react-dom | ^19.2.5 | prod | Current |
-| react-router | ^7.13.2 | prod | Current |
-| zustand | ^5.0.12 | prod | Current |
-| tailwindcss | ^4.2.2 | prod | Current |
-| @tailwindcss/vite | ^4.2.2 | prod | Current |
-| @xyflow/react | ^12.10.2 | prod | Current |
-| lucide-react | ^1.8.0 | prod | Current |
-| dagre | ^0.8.5 | prod | Legacy |
-| class-variance-authority | ^0.7.1 | prod | Current |
-| clsx | ^2.1.1 | prod | Current |
-| tailwind-merge | ^3.5.0 | prod | Current |
-| tw-animate-css | ^1.4.0 | prod | Current |
-| typescript | ~5.9.3 | dev | Current |
-| vite | ^8.0.5 | dev | Current |
-| vitest | ^3.2.1 | dev | Current |
-| @playwright/test | ^1.59.1 | dev | Current |
-| @testing-library/* | latest | dev | Current |
-| eslint | ^10.1.0 | dev | Current |
-| typescript-eslint | ^8.58.1 | dev | Current |
-
----
-
-*Report generated: 2026-04-14*  
-*Auditor: sc-dependency-audit*  
-*Scope: Go modules + Node.js dependencies*
+## Dependency Audit Summary
+- Total dependencies: 96 (Go direct: 17, Go indirect: 46, npm direct: 13, npm dev: 20)
+- Ecosystems scanned: Go modules, npm (pnpm)
+- Known vulnerabilities found: 2 (Critical: 0, High: 2, Medium: 0, Low: 0)
+- Typosquatting risks: 0
+- Dependency confusion risks: 0
+- License concerns: 1
+- Outdated dependencies: 2

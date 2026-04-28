@@ -135,6 +135,10 @@ describe('Topology page', () => {
   });
 
   it('renders the mocked ComponentPalette, TopologyCanvas, and ConfigPanel', () => {
+    // Topology.tsx only mounts the three subcomponents when nodes.length > 0
+    // — the empty state is a full-width "No components" placeholder. Seed
+    // one node so the subcomponent branch runs.
+    store.nodes = [{ id: 'n1', type: 'app', data: {} }];
     renderTopology();
 
     expect(screen.getByTestId('component-palette')).toBeInTheDocument();

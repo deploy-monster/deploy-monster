@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/mail"
 	"net/smtp"
@@ -40,13 +41,15 @@ type SMTPProvider struct {
 	// dialer overrides the dialing function in tests. Nil uses the
 	// real network.
 	dialer func(ctx context.Context, addr string) (net.Conn, error)
+	// logger for structured security warnings
+	logger *slog.Logger
 }
 
 // NewSMTPProvider constructs an SMTPProvider from the validated
 // config. The returned provider is NOT validated — call Validate()
 // before registering it with the dispatcher so misconfiguration
 // surfaces at startup rather than on first send.
-func NewSMTPProvider(cfg core.SMTPConfig) *SMTPProvider {
+func NewSMTPProvider(cfg core.SMTPConfig, logger *slog.Logger) *SMTPProvider {
 	return &SMTPProvider{
 		Host:               cfg.Host,
 		Port:               cfg.Port,
@@ -56,6 +59,7 @@ func NewSMTPProvider(cfg core.SMTPConfig) *SMTPProvider {
 		FromName:           cfg.FromName,
 		UseTLS:             cfg.UseTLS,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		logger:             logger,
 	}
 }
 
@@ -81,10 +85,11 @@ func (s *SMTPProvider) Validate() error {
 	// SECURITY WARNING: InsecureSkipVerify disables TLS certificate verification
 	// This should only be used in development environments or with trusted internal relays
 	if s.InsecureSkipVerify {
-		// Log warning - in production, this should be logged and alerted
-		fmt.Printf("SECURITY WARNING: SMTP InsecureSkipVerify is enabled for host %s. "+
-			"This disables TLS certificate verification and should only be used in "+
-			"development or with trusted internal relays.\n", s.Host)
+		if s.logger != nil {
+			s.logger.Warn("SMTP InsecureSkipVerify is enabled – TLS certificate verification disabled",
+				"host", s.Host,
+			)
+		}
 	}
 
 	return nil

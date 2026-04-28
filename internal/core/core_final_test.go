@@ -425,3 +425,36 @@ func TestScheduler_Start_TickerFires(t *testing.T) {
 		t.Error("handler should have been called via manual tick")
 	}
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Role.HasPermission — covers wildcard and prefix matching in store.go
+// ═══════════════════════════════════════════════════════════════════════════════
+
+func TestRole_HasPermission(t *testing.T) {
+	tests := []struct {
+		name       string
+		permsJSON  string
+		permission string
+		want       bool
+	}{
+		{"exact match", `["app.delete"]`, "app.delete", true},
+		{"no match", `["app.view"]`, "app.delete", false},
+		{"star wildcard", `["*"]`, "anything.goes", true},
+		{"prefix wildcard app", `["app.*"]`, "app.delete", true},
+		{"prefix wildcard tenant", `["tenant.*"]`, "tenant.billing", true},
+		{"prefix wildcard no dot", `["app.*"]`, "app", false},
+		{"prefix mismatch", `["app.*"]`, "tenant.delete", false},
+		{"empty perms", `[]`, "app.delete", false},
+		{"invalid json", `{bad`, "app.delete", false},
+		{"multiple with wildcard", `["app.view","app.*"]`, "app.deploy", true},
+		{"exact before wildcard", `["app.delete","app.*"]`, "app.delete", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &Role{PermissionsJSON: tt.permsJSON}
+			if got := r.HasPermission(tt.permission); got != tt.want {
+				t.Errorf("HasPermission(%q) = %v, want %v", tt.permission, got, tt.want)
+			}
+		})
+	}
+}

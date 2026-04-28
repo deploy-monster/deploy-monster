@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // Role identifiers. These match the seed values written by 0001_init.sql
@@ -45,4 +46,29 @@ func RequireSuperAdmin(next http.Handler) http.Handler {
 	return requireRole(map[string]struct{}{
 		RoleSuperAdmin: {},
 	})(next)
+}
+
+// RequirePermission returns middleware that validates the authenticated user
+// has the given permission through their role. Must be used after RequireAuth
+// so claims are present in the request context.
+func RequirePermission(store core.Store, permission string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := auth.ClaimsFromContext(r.Context())
+			if claims == nil {
+				writeErrorJSON(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+			role, err := store.GetRole(r.Context(), claims.RoleID)
+			if err != nil || role == nil {
+				writeErrorJSON(w, http.StatusForbidden, "role not found")
+				return
+			}
+			if !role.HasPermission(permission) {
+				writeErrorJSON(w, http.StatusForbidden, "missing permission: "+permission)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }

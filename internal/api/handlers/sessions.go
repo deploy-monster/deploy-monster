@@ -147,7 +147,7 @@ func (h *SessionHandler) ChangePassword(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Validate new password
-	if err := auth.ValidatePasswordStrength(req.NewPassword, 8); err != nil {
+	if err := auth.ValidatePasswordStrength(req.NewPassword, 0); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}

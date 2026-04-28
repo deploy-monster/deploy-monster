@@ -230,20 +230,24 @@ func ValidateGitURL(raw string) error {
 		return nil
 	}
 
-	// Standard URL: https://, ssh://, git://, file:// (http:// is NOT allowed — SSRF risk)
+	// Standard URL: https://, ssh://, git:// (file:// NOT allowed — SSRF risk)
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return fmt.Errorf("git URL is malformed: %w", err)
 	}
 	switch parsed.Scheme {
-	case "https", "ssh", "git", "file":
+	case "https", "ssh":
 		// allowed
+	case "git":
+		return fmt.Errorf("git URL scheme %q is not allowed (unencrypted and can redirect to local protocols)", parsed.Scheme)
 	case "http":
 		return fmt.Errorf("git URL scheme %q is not allowed (use HTTPS)", parsed.Scheme)
+	case "file":
+		return fmt.Errorf("git URL scheme %q is not allowed (local file access is a security risk)", parsed.Scheme)
 	default:
 		return fmt.Errorf("git URL scheme %q is not allowed", parsed.Scheme)
 	}
-	if parsed.Scheme != "file" && parsed.Host == "" {
+	if parsed.Host == "" {
 		return fmt.Errorf("git URL has no host")
 	}
 
@@ -267,7 +271,7 @@ func validateResolvedHost(repoURL string) error {
 
 	// Only check schemes that involve network access
 	switch parsed.Scheme {
-	case "https", "http", "ssh", "git":
+	case "https", "http", "ssh":
 		// SSH shorthand (git@host:path) — can't resolve without DNS
 		if parsed.Scheme == "ssh" && parsed.Host == "" {
 			return nil

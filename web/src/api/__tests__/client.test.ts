@@ -6,7 +6,9 @@ describe('API client', () => {
 
   beforeEach(() => {
     globalThis.fetch = vi.fn();
-    // Clear cookies
+    // Clear cookies — note: __Host- prefixed cookies require Secure flag
+    // which jsdom doesn't support, so we only clear regular cookies here.
+    // Tests that need __Host- cookies mock document.cookie directly.
     document.cookie = 'dm_csrf=; max-age=0';
   });
 
@@ -78,13 +80,37 @@ describe('API client', () => {
     });
 
     it('includes CSRF token from cookie', async () => {
-      document.cookie = 'dm_csrf=test-csrf-token';
+      // jsdom silently rejects __Host- prefixed cookies (requires Secure
+      // flag which jsdom doesn't support).  Mock document.cookie to
+      // simulate a real browser where the backend has set the cookie.
+      const cookies: Record<string, string> = {};
+      const origDesc = Object.getOwnPropertyDescriptor(document, 'cookie');
+      Object.defineProperty(document, 'cookie', {
+        get() {
+          return Object.entries(cookies)
+            .map(([k, v]) => `${k}=${v}`)
+            .join('; ');
+        },
+        set(val: string) {
+          const eq = val.indexOf('=');
+          if (eq === -1) return;
+          const name = val.slice(0, eq).trim();
+          const value = val.slice(eq + 1).split(';')[0];
+          cookies[name] = value;
+        },
+        configurable: true,
+      });
+
+      document.cookie = '__Host-dm_csrf=test-csrf-token';
       mockFetch(200, {});
 
       await api.post('/apps', { name: 'App' });
 
       const headers = vi.mocked(globalThis.fetch).mock.calls[0][1]?.headers as Record<string, string>;
       expect(headers['X-CSRF-Token']).toBe('test-csrf-token');
+
+      // Restore original descriptor
+      if (origDesc) Object.defineProperty(document, 'cookie', origDesc);
     });
   });
 

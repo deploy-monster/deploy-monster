@@ -115,8 +115,15 @@ describe('authStore', () => {
 
   describe('initialize', () => {
     it('sets user when /auth/me succeeds', async () => {
-      const user = { id: 'u1', email: 'a@b.com', name: 'A', role: 'admin', tenant_id: 't1' };
-      vi.mocked(api.get).mockResolvedValue(user);
+      // /auth/me returns a wrapped MeResponse ({user, membership, role_id,
+      // tenant_id}) — see stores/auth.ts:48. The test must match that shape
+      // or the initialize() branch that reads resp.user.id short-circuits.
+      vi.mocked(api.get).mockResolvedValue({
+        user: { id: 'u1', email: 'a@b.com', name: 'A' },
+        membership: { role_id: 'admin', tenant_id: 't1' },
+        role_id: 'admin',
+        tenant_id: 't1',
+      });
 
       await useAuthStore.getState().initialize();
 

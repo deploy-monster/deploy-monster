@@ -9,12 +9,12 @@ require (
 	github.com/docker/docker v28.5.2+incompatible // SECURITY: See DEP-006, DEP-007 in security-report/dependency-audit.md - AuthZ bypass and plugin privilege issues. DeployMonster does not use AuthZ plugins, so not affected in practice. Upgrade to v29+ when available.
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3
-	github.com/jackc/pgx/v5 v5.9.1
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/mattn/go-isatty v0.0.21
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.50.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.48.2
+	modernc.org/sqlite v1.50.0
 )
 
 require (
@@ -57,7 +57,7 @@ require (
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
-	modernc.org/libc v1.70.0 // indirect
+	modernc.org/libc v1.72.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )

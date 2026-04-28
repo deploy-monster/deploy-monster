@@ -248,7 +248,8 @@ type Role struct {
 }
 
 // HasPermission returns true if the role has the given permission.
-// Supports wildcard "*" which means all permissions.
+// Supports wildcard "*" which means all permissions, and prefix wildcards
+// like "app.*" which match any permission starting with "app.".
 func (r *Role) HasPermission(permission string) bool {
 	if r.PermissionsJSON == "" {
 		return false
@@ -260,6 +261,12 @@ func (r *Role) HasPermission(permission string) bool {
 	for _, p := range perms {
 		if p == "*" || p == permission {
 			return true
+		}
+		// Prefix matching: "app.*" matches "app.delete", "app.deploy", etc.
+		if prefix, ok := cutSuffix(p, ".*"); ok {
+			if len(permission) > len(prefix) && permission[:len(prefix)] == prefix && permission[len(prefix)] == '.' {
+				return true
+			}
 		}
 	}
 	return false

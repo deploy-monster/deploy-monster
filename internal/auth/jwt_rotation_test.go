@@ -50,28 +50,17 @@ func (f *fakeBolt) Get(bucket, key string, _ any) error {
 }
 
 func TestNewJWTService_RejectsShortSecret(t *testing.T) {
-	// The panic branch is deliberate: a process that boots with a weak
-	// secret is a misconfiguration we refuse to run under, not a runtime
-	// error to handle. Wrap in recover() so the test can assert the
-	// panic happens and carries the explanatory message.
-	defer func() {
-		r := recover()
-		if r == nil {
-			t.Fatal("expected panic on short secret, got none")
-		}
-		msg, ok := r.(string)
-		if !ok {
-			t.Fatalf("expected string panic, got %T (%v)", r, r)
-		}
-		if !strings.Contains(msg, "at least 32") {
-			t.Errorf("panic message missing length requirement: %q", msg)
-		}
-	}()
-	_ = NewJWTService("too-short")
+	_, err := NewJWTService("too-short")
+	if err == nil {
+		t.Fatal("expected error on short secret, got nil")
+	}
+	if !strings.Contains(err.Error(), "at least 32") {
+		t.Errorf("error message missing length requirement: %q", err.Error())
+	}
 }
 
 func TestJWTService_AddPreviousKey_EmptyIsNoOp(t *testing.T) {
-	j := NewJWTService("primary-key-32-bytes-long-abcdefg")
+	j := MustNewJWTService("primary-key-32-bytes-long-abcdefg")
 	before := len(j.previousKeys)
 	j.AddPreviousKey("")
 	if len(j.previousKeys) != before {
@@ -88,13 +77,13 @@ func TestJWTService_AddPreviousKey_AcceptsOldToken(t *testing.T) {
 	oldSecret := "old-primary-key-32-bytes-abcdefgh"
 	newSecret := "new-primary-key-32-bytes-abcdefgh"
 
-	oldSvc := NewJWTService(oldSecret)
+	oldSvc := MustNewJWTService(oldSecret)
 	pair, err := oldSvc.GenerateTokenPair("u1", "t1", "role_admin", "a@b.com")
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
 
-	newSvc := NewJWTService(newSecret)
+	newSvc := MustNewJWTService(newSecret)
 	// Without AddPreviousKey the rotated service must reject the old
 	// token — pins the negative case so the positive case below isn't a
 	// false confirmation.
@@ -127,7 +116,7 @@ func TestJWTService_PurgeExpiredPreviousKeys_CompactsMixed(t *testing.T) {
 	// purgeExpiredPreviousKeys must compact to just the middle entry,
 	// exercising both the slide branch (validIdx != i) and the truncate
 	// branch at the end. Pre-rotation tests didn't reach either.
-	j := NewJWTService("primary-key-32-bytes-long-abcdefg")
+	j := MustNewJWTService("primary-key-32-bytes-long-abcdefg")
 	now := time.Now()
 	j.previousKeys = [][]byte{[]byte("keep-1"), []byte("keep-2"), []byte("keep-3")}
 	j.previousAdded = []time.Time{
@@ -151,7 +140,7 @@ func TestJWTService_PurgeExpiredPreviousKeys_CompactsMixed(t *testing.T) {
 
 func TestJWTService_PurgeExpiredPreviousKeys_AllExpired(t *testing.T) {
 	// All-expired is the pure-truncate branch.
-	j := NewJWTService("primary-key-32-bytes-long-abcdefg")
+	j := MustNewJWTService("primary-key-32-bytes-long-abcdefg")
 	j.previousKeys = [][]byte{[]byte("a"), []byte("b")}
 	j.previousAdded = []time.Time{
 		time.Now().Add(-2 * RotationGracePeriod),
@@ -164,7 +153,7 @@ func TestJWTService_PurgeExpiredPreviousKeys_AllExpired(t *testing.T) {
 }
 
 func TestJWTService_RevokeAndCheck(t *testing.T) {
-	j := NewJWTService("primary-key-32-bytes-long-abcdefg")
+	j := MustNewJWTService("primary-key-32-bytes-long-abcdefg")
 	bolt := newFakeBolt()
 
 	// IsAccessTokenRevoked on an empty store returns false.

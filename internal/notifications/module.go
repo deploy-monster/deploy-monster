@@ -93,7 +93,7 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 			m.logger.Info("telegram provider registered")
 		}
 		if cfg.SMTP.Host != "" {
-			smtpProv := NewSMTPProvider(cfg.SMTP)
+			smtpProv := NewSMTPProvider(cfg.SMTP, m.logger)
 			if err := smtpProv.Validate(); err != nil {
 				// Don't hard-fail startup — log and skip so a bad
 				// SMTP config doesn't take the whole server offline.

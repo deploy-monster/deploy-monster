@@ -98,3 +98,28 @@ func TestNew(t *testing.T) {
 		}
 	}
 }
+
+func TestParseXFF(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"empty", "", ""},
+		{"single_ip", "203.0.113.1", "203.0.113.1"},
+		{"single_ipv6", "::1", "::1"},
+		{"multi_proxy", "203.0.113.1, 10.0.0.1, 172.16.0.1", "203.0.113.1"},
+		{"extra_spaces", "  203.0.113.1  , 10.0.0.1", "203.0.113.1"},
+		{"invalid_first", "not-an-ip, 10.0.0.1", ""},
+		{"all_garbage", "foo, bar, baz", ""},
+		{"ip_with_port", "203.0.113.1:8080, 10.0.0.1", ""}, // port makes net.ParseIP fail
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseXFF(tt.raw)
+			if got != tt.want {
+				t.Errorf("parseXFF(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}

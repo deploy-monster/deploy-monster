@@ -1,94 +1,29 @@
-# RCE Security Scan Report
+# sc-rce Results
 
-**Scan Date:** 2026-04-14  
-**Scanner:** sc-rce  
-**Target:** DeployMonster Go Codebase
+## Summary
+Remote code execution security scan.
 
----
+## Findings
 
-## Executive Summary
+### Finding: RCE-001
+- **Title:** Container Exec as Intentional RCE Surface
+- **Severity:** Info
+- **Confidence:** 95
+- **File:** internal/api/handlers/exec.go:164, internal/api/ws/terminal.go:163
+- **Description:** `POST /api/v1/apps/{id}/exec` and terminal endpoints allow authenticated users to execute arbitrary commands inside their containers. This is an intentional platform feature, not a vulnerability per se, but it represents a significant RCE surface that depends entirely on authentication and authorization controls.
+- **Remediation:** Ensure continuous monitoring of exec commands via audit logs. Consider adding a mandatory approval workflow for exec access in high-security environments.
 
-Scan analyzed the DeployMonster codebase for Remote Code Execution vulnerabilities.
+### Finding: RCE-002
+- **Title:** Build Pipeline Executes User-Controlled Git Clone and Docker Build
+- **Severity:** Medium
+- **Confidence:** 80
+- **File:** internal/build/builder.go:59-156
+- **Description:** The build pipeline clones user-provided Git URLs and builds Docker images. While `ValidateGitURL` and `validateResolvedHost` provide SSRF and DNS rebinding protection, the pipeline still executes `git clone` and `docker build` with user-controlled inputs. A bypass in URL validation could lead to RCE.
+- **Remediation:** Run builds in isolated, sandboxed environments (e.g., gVisor, Firecracker, or a separate VM). Drop all unnecessary Docker capabilities during build.
 
-**Overall Findings:**
-- **Critical Severity:** 0 issues
-- **High Severity:** 1 issue
-- **Medium/Low Severity:** 1 informational finding
-
----
-
-## RCE-001: Command Injection via Unsanitized Build Arguments
-
-**Severity:** High  
-**Confidence:** 75%  
-**CWE:** CWE-78 (OS Command Injection)  
-**File:** `internal/build/builder.go`  
-**Line:** 377-378
-
-### Description
-
-The `dockerBuild` function accepts build arguments via the `buildArgs map[string]string` parameter without proper sanitization:
-
-```go
-for k, v := range buildArgs {
-    args = append(args, "--build-arg", k+"="+v)
-}
-```
-
-### Attack Scenario
-
-If an attacker can control the `buildArgs` values, they could inject malicious content.
-
-### Mitigating Factors
-
-1. Uses `exec.CommandContext` with argument lists rather than shell string concatenation
-2. Build args are sourced from `opts.EnvVars` which may have validation upstream
-
-### Remediation
-
-1. **Validate build argument keys and values:**
-```go
-var safeArgKey = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
-
-for k, v := range buildArgs {
-    if !safeArgKey.MatchString(k) {
-        return fmt.Errorf("invalid build arg key: %s", k)
-    }
-    if strings.ContainsAny(v, "\x00\n\r") {
-        return fmt.Errorf("invalid build arg value for %s", k)
-    }
-    args = append(args, "--build-arg", k+"="+v)
-}
-```
-
----
-
-## RCE-002: Command Execution in Container Exec Handler (Informational)
-
-**Severity:** Medium  
-**Confidence:** 60%  
-**CWE:** CWE-78  
-**File:** `internal/api/handlers/exec.go`  
-**Line:** 186-195, 224-232
-
-**Description:**
-The `Exec` handler allows users to execute commands inside containers with a blocklist-based safety check.
-
-**Observation:**
-Blocklists are inherently incomplete and can be bypassed with variations.
-
-**Recommendation:**
-1. Implement comprehensive command parsing
-2. Use an allowlist approach instead of blocklist
-3. Consider using seccomp profiles
-
----
-
-## Conclusion
-
-The DeployMonster codebase demonstrates generally secure coding practices:
-1. **Proper use of exec.Command:** Arguments are passed as arrays
-2. **Input validation:** Multiple layers of validation exist
-3. **Path traversal protection:** Sanitization functions are in place
-
-The primary concern is **RCE-001** which should be addressed.
+## Positive Security Patterns Observed
+- Git URL validation blocks shell metacharacters, private IPs, and DNS rebinding
+- Docker build args validated against control characters and flag injection
+- Build timeout enforced (30 min default)
+- Build directory cleaned up after completion
+- Panic recovery in build pipeline prevents crashes

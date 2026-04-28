@@ -191,25 +191,28 @@ describe('Team page', () => {
     );
   });
 
+  // Remove uses AlertDialog (title "Remove Team Member", confirmLabel
+  // "Remove") — see Team.tsx:470.
+
   it('calls teamAPI.removeMember when the delete prompt is confirmed', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     setApi('/team/members', [fakeMember({ id: 'm1' })]);
     setApi('/team/audit-log', []);
     renderTeam();
 
-    // The remove button is an icon-only Trash2; scope via the lucide class.
     const trashIcon = document.querySelector('svg.lucide-trash2');
     const btn = trashIcon?.closest('button');
     expect(btn).not.toBeNull();
     fireEvent.click(btn!);
 
+    expect(screen.getByRole('heading', { name: /remove team member/i })).toBeInTheDocument();
+    const allRemove = screen.getAllByRole('button', { name: /^remove$/i });
+    fireEvent.click(allRemove[allRemove.length - 1]);
+
     await waitFor(() => expect(removeMemberMock).toHaveBeenCalledWith('m1'));
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Member removed'));
-    confirmSpy.mockRestore();
   });
 
   it('skips the removeMember call if the confirm prompt is declined', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     setApi('/team/members', [fakeMember({ id: 'm1' })]);
     setApi('/team/audit-log', []);
     renderTeam();
@@ -218,8 +221,10 @@ describe('Team page', () => {
     const btn = trashIcon?.closest('button');
     fireEvent.click(btn!);
 
+    expect(screen.getByRole('heading', { name: /remove team member/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+
     expect(removeMemberMock).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it('shows the audit-log empty state on the Audit Log tab when no entries exist', () => {

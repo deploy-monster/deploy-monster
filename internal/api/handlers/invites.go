@@ -61,6 +61,12 @@ func (h *InviteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Role hierarchy check: inviter cannot assign a role higher than their own.
+	if !auth.CanAssignRole(member.RoleID, req.RoleID) {
+		writeError(w, http.StatusForbidden, "cannot invite with a role higher than your own")
+		return
+	}
+
 	// Generate invite token
 	token := core.GenerateSecret(32)
 	tokenHash := hashToken(token)

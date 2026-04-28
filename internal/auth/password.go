@@ -26,13 +26,13 @@ func VerifyPassword(hash, password string) error {
 // ValidatePasswordStrength checks if a password meets minimum requirements.
 func ValidatePasswordStrength(password string, minLength int) error {
 	if minLength == 0 {
-		minLength = 8
+		minLength = 12
 	}
 	if len(password) < minLength {
 		return fmt.Errorf("password must be at least %d characters", minLength)
 	}
 
-	var hasUpper, hasLower, hasDigit bool
+	var hasUpper, hasLower, hasDigit, hasSpecial bool
 	for _, r := range password {
 		switch {
 		case unicode.IsUpper(r):
@@ -41,10 +41,12 @@ func ValidatePasswordStrength(password string, minLength int) error {
 			hasLower = true
 		case unicode.IsDigit(r):
 			hasDigit = true
+		case unicode.IsPunct(r) || unicode.IsSymbol(r):
+			hasSpecial = true
 		}
 	}
-	if !hasUpper || !hasLower || !hasDigit {
-		return fmt.Errorf("password must contain uppercase, lowercase, and digit")
+	if !hasUpper || !hasLower || !hasDigit || !hasSpecial {
+		return fmt.Errorf("password must contain uppercase, lowercase, digit, and special character")
 	}
 	return nil
 }

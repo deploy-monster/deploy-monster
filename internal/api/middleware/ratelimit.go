@@ -35,7 +35,7 @@ func NewAuthRateLimiter(bolt core.BoltStorer, rate int, window time.Duration, pr
 		rate:     rate,
 		window:   window,
 		prefix:   prefix,
-		trustXFF: true, // default: match original behavior (trust XFF)
+		trustXFF: false, // default: safer - use RemoteAddr (can't be spoofed). Enable WithTrustXFF() only if behind a trusted proxy.
 	}
 	for _, opt := range opts {
 		opt(rl)

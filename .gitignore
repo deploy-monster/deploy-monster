@@ -70,3 +70,5 @@ screenshots/
 *.tmp
 *.log
 *.bak
+
+.dfmt/
