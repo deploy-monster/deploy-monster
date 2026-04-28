@@ -436,8 +436,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Build Docker image
-        run: docker build -t deploymonster:latest .
+      - name: Build Docker image (full build from source)
+        run: docker build -t deploymonster:latest -f deployments/Dockerfile .
 
   release:
     name: Release
