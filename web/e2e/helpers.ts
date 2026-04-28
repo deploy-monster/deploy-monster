@@ -101,21 +101,36 @@ export function uniqueId(prefix = 'e2e') {
  */
 export async function ensureAuthenticated(page: Page): Promise<void> {
   const shell = page.locator('[data-testid="dashboard-shell"]');
+
+  // Quick check — shell already visible (common fast path).
   try {
     await shell.waitFor({ state: 'visible', timeout: 3_000 });
     return;
   } catch {
-    // Not visible within 3s
+    // Not visible within 3s — continue healing flow.
   }
 
+  // If we're on the login page, re-authenticate.
   const loginText = page.getByText(/welcome back|sign in to your account/i);
   const isLoginPage = await loginText.isVisible({ timeout: 500 }).catch(() => false);
   if (isLoginPage) {
     await loginViaUI(page, TEST_USER.email, TEST_USER.password);
-    // loginViaUI already waited for dashboard; return immediately to avoid
-    // burning the test's remaining time budget on a redundant check.
     return;
   }
 
-  await expect(shell).toBeVisible({ timeout: 30_000 });
+  // Shell not visible and not on login page — page may be stuck loading.
+  // Try waiting for DOM content then re-check.
+  await page.waitForLoadState('domcontentloaded', { timeout: 10_000 }).catch(() => {});
+
+  // Retry shell check with generous timeout.
+  try {
+    await shell.waitFor({ state: 'visible', timeout: 15_000 });
+    return;
+  } catch {
+    // Still not visible — try reload as last resort.
+  }
+
+  // Reload and re-check — handles stale renders from previous test navigation.
+  await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+  await shell.waitFor({ state: 'visible', timeout: 15_000 });
 }
