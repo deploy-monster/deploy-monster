@@ -161,6 +161,8 @@ jobs:
         env:
           MONSTER_SERVER_ADDRESS: :8443
           MONSTER_DATABASE_DRIVER: sqlite
+          MONSTER_ADMIN_EMAIL: admin@deploymonster.test
+          MONSTER_ADMIN_PASSWORD: test-password-123
 
       - name: Wait for server
         run: |
