@@ -9,3 +9,17 @@
 #
 # A stale allowlist entry (one that no longer corresponds to real drift) fails CI,
 # so the file cannot rot silently.
+
+# --- Routes in spec but not in router.go ---
+# These routes are registered in routes_admin.go, not router.go.
+# The openapi-gen tool only parses router.go.
+DELETE /api/v1/admin/api-keys/{prefix}
+GET /api/v1/admin/api-keys
+GET /api/v1/admin/db/backup
+GET /api/v1/admin/license
+GET /api/v1/admin/stats
+GET /api/v1/admin/system
+GET /api/v1/admin/tenants
+PATCH /api/v1/admin/settings
+POST /api/v1/admin/api-keys
+POST /api/v1/admin/license

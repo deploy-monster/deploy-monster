@@ -1248,6 +1248,13 @@ paths:
                             type: string
 
   /api/v1/team/invites:
+    get:
+      operationId: listInvites
+      tags: [Team]
+      summary: List pending team invitations
+      responses:
+        "200":
+          description: Invitation list
     post:
       operationId: createInvite
       tags: [Team]
@@ -3528,6 +3535,19 @@ paths:
       responses:
         "101":
           description: WebSocket upgrade
+    post:
+      operationId: sendTerminalCommand
+      tags: [Apps]
+      summary: Send a command to a terminal session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Command sent
 
   # ── App Misc ─────────────────────────────────────────
   /api/v1/apps/{id}/commands:
