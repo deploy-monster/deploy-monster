@@ -344,6 +344,7 @@ export function Settings() {
                     <p className="text-xs text-muted-foreground">{desc}</p>
                   </div>
                   <Switch
+                    aria-label={label}
                     checked={notifications[key]}
                     onCheckedChange={(v) =>
                       setNotifications((prev) => ({ ...prev, [key]: v }))
@@ -456,6 +457,7 @@ export function Settings() {
                   </p>
                 </div>
                 <Switch
+                  aria-label="Enable 2FA"
                   checked={twoFA}
                   onCheckedChange={setTwoFA}
                 />
