@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,16 +20,31 @@ import (
 // =============================================================================
 
 type mockBoltStoreDelivery struct {
+	mu        sync.Mutex
 	setCalled bool
 	lastKey   string
 	lastVal   any
 }
 
 func (m *mockBoltStoreDelivery) Set(_, key string, val any, _ int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.setCalled = true
 	m.lastKey = key
 	m.lastVal = val
 	return nil
+}
+
+func (m *mockBoltStoreDelivery) wasCalled() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.setCalled
+}
+
+func (m *mockBoltStoreDelivery) lastValue() any {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastVal
 }
 func (m *mockBoltStoreDelivery) BatchSet(_ []core.BoltBatchItem) error                   { return nil }
 func (m *mockBoltStoreDelivery) Get(_, _ string, _ any) error                            { return nil }
@@ -62,12 +78,12 @@ func TestDeliveryTracker_Start_SentEvent(t *testing.T) {
 	// Async handler — give it a moment
 	time.Sleep(50 * time.Millisecond)
 
-	if !bolt.setCalled {
+	if !bolt.wasCalled() {
 		t.Error("record should have been called for sent event")
 	}
-	log, ok := bolt.lastVal.(DeliveryLog)
+	log, ok := bolt.lastValue().(DeliveryLog)
 	if !ok {
-		t.Fatalf("expected DeliveryLog, got %T", bolt.lastVal)
+		t.Fatalf("expected DeliveryLog, got %T", bolt.lastValue())
 	}
 	if log.Status != "sent" {
 		t.Errorf("status = %q, want sent", log.Status)
@@ -90,12 +106,12 @@ func TestDeliveryTracker_Start_FailedEvent(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	if !bolt.setCalled {
+	if !bolt.wasCalled() {
 		t.Error("record should have been called for failed event")
 	}
-	log, ok := bolt.lastVal.(DeliveryLog)
+	log, ok := bolt.lastValue().(DeliveryLog)
 	if !ok {
-		t.Fatalf("expected DeliveryLog, got %T", bolt.lastVal)
+		t.Fatalf("expected DeliveryLog, got %T", bolt.lastValue())
 	}
 	if log.Status != "failed" {
 		t.Errorf("status = %q, want failed", log.Status)
@@ -116,7 +132,7 @@ func TestDeliveryTracker_Start_WrongDataType(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	if bolt.setCalled {
+	if bolt.wasCalled() {
 		t.Error("record should NOT have been called for wrong data type")
 	}
 }

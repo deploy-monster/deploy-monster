@@ -110,3 +110,92 @@ func TestDeployer_composeUp_Error(t *testing.T) {
 		t.Error("expected error when docker is not available")
 	}
 }
+
+func fakeDockerConfigFail(t *testing.T) func() {
+	t.Helper()
+	tmpDir := t.TempDir()
+
+	var dockerPath string
+	if runtime.GOOS == "windows" {
+		dockerPath = filepath.Join(tmpDir, "docker.bat")
+		if err := os.WriteFile(dockerPath, []byte("@echo off\nif \"%4\"==\"config\" exit /b 1\nexit /b 0\n"), 0755); err != nil {
+			t.Fatalf("write fake docker.bat: %v", err)
+		}
+	} else {
+		dockerPath = filepath.Join(tmpDir, "docker")
+		if err := os.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$4\" = \"config\" ]; then exit 1; fi\nexit 0\n"), 0755); err != nil {
+			t.Fatalf("write fake docker: %v", err)
+		}
+	}
+
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", tmpDir+string(filepath.ListSeparator)+oldPath)
+	return func() { os.Setenv("PATH", oldPath) }
+}
+
+func fakeDockerConfigOkUpFail(t *testing.T) func() {
+	t.Helper()
+	tmpDir := t.TempDir()
+
+	var dockerPath string
+	if runtime.GOOS == "windows" {
+		dockerPath = filepath.Join(tmpDir, "docker.bat")
+		if err := os.WriteFile(dockerPath, []byte("@echo off\nif \"%4\"==\"up\" exit /b 1\nexit /b 0\n"), 0755); err != nil {
+			t.Fatalf("write fake docker.bat: %v", err)
+		}
+	} else {
+		dockerPath = filepath.Join(tmpDir, "docker")
+		if err := os.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$4\" = \"up\" ]; then exit 1; fi\nexit 0\n"), 0755); err != nil {
+			t.Fatalf("write fake docker: %v", err)
+		}
+	}
+
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", tmpDir+string(filepath.ListSeparator)+oldPath)
+	return func() { os.Setenv("PATH", oldPath) }
+}
+
+func TestDeployer_Deploy_Success(t *testing.T) {
+	cleanup := fakeDockerInPath(t)
+	defer cleanup()
+
+	d := NewDeployer(t.TempDir())
+	result, err := d.Deploy(context.Background(), minimalCompose(), "", "", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Error("expected Success=true")
+	}
+	if len(result.Containers) != 1 {
+		t.Errorf("expected 1 container, got %d", len(result.Containers))
+	}
+}
+
+func TestDeployer_Deploy_VerifyComposeError(t *testing.T) {
+	cleanup := fakeDockerConfigFail(t)
+	defer cleanup()
+
+	d := NewDeployer(t.TempDir())
+	result, err := d.Deploy(context.Background(), minimalCompose(), "", "", false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if result.Success {
+		t.Error("expected Success=false")
+	}
+}
+
+func TestDeployer_Deploy_ComposeUpError(t *testing.T) {
+	cleanup := fakeDockerConfigOkUpFail(t)
+	defer cleanup()
+
+	d := NewDeployer(t.TempDir())
+	result, err := d.Deploy(context.Background(), minimalCompose(), "", "", false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if result.Success {
+		t.Error("expected Success=false")
+	}
+}

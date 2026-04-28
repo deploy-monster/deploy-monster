@@ -346,3 +346,101 @@ func TestDeployHub_OriginValidation_StrictDefault(t *testing.T) {
 		t.Fatal("expected connection to be rejected with empty allowedOrigins")
 	}
 }
+
+func TestDeployHub_BroadcastProgress_DeadClient(t *testing.T) {
+	hub := NewDeployHub()
+	registered := make(chan struct{})
+	block := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+		conn, _ := up.Upgrade(w, r, nil)
+		hub.Register("proj-dead", conn)
+		close(registered)
+		<-block
+	}))
+	defer close(block)
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	<-registered
+	ws.Close()
+
+	// Explicitly close the server-side connection so safeWrite fails
+	hub.mu.RLock()
+	var deadConn *websocket.Conn
+	for c := range hub.clients["proj-dead"] {
+		deadConn = c
+		break
+	}
+	hub.mu.RUnlock()
+
+	if deadConn == nil {
+		t.Fatal("no connection registered")
+	}
+	deadConn.Close()
+	time.Sleep(50 * time.Millisecond)
+
+	hub.BroadcastProgress("proj-dead", "stage", "msg", 50)
+	hub.BroadcastComplete("proj-dead", true, "done", "1s", nil, nil, nil, nil)
+
+	hub.mu.RLock()
+	count := len(hub.clients["proj-dead"])
+	hub.mu.RUnlock()
+	if count != 0 {
+		t.Errorf("expected dead client to be evicted, got %d", count)
+	}
+}
+
+func TestDeployHub_BroadcastComplete_DeadClient(t *testing.T) {
+	hub := NewDeployHub()
+	registered := make(chan struct{})
+	block := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+		conn, _ := up.Upgrade(w, r, nil)
+		hub.Register("proj-dead2", conn)
+		close(registered)
+		<-block
+	}))
+	defer close(block)
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	<-registered
+	ws.Close()
+
+	// Explicitly close the server-side connection so safeWrite fails
+	hub.mu.RLock()
+	var deadConn *websocket.Conn
+	for c := range hub.clients["proj-dead2"] {
+		deadConn = c
+		break
+	}
+	hub.mu.RUnlock()
+
+	if deadConn == nil {
+		t.Fatal("no connection registered")
+	}
+	deadConn.Close()
+	time.Sleep(50 * time.Millisecond)
+
+	// Only BroadcastComplete — must detect and evict the dead client
+	hub.BroadcastComplete("proj-dead2", true, "done", "1s", nil, nil, nil, nil)
+
+	hub.mu.RLock()
+	count := len(hub.clients["proj-dead2"])
+	hub.mu.RUnlock()
+	if count != 0 {
+		t.Errorf("expected dead client to be evicted by BroadcastComplete, got %d", count)
+	}
+}

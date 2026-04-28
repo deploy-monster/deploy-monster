@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1163,4 +1164,261 @@ type mockStorePingErr struct {
 
 func (m *mockStorePingErr) Ping(_ context.Context) error {
 	return errors.New("ping failed")
+}
+
+// =============================================================================
+// AnnouncementHandler Create — validation error paths
+// =============================================================================
+
+func TestAnnouncementHandler_Create_TitleTooLong(t *testing.T) {
+	h := NewAnnouncementHandler(newMockBoltStore())
+	body, _ := json.Marshal(Announcement{
+		Title: strings.Repeat("a", 201),
+		Body:  "Valid body",
+		Type:  "info",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/announcements", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_super_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestAnnouncementHandler_Create_BodyTooLong(t *testing.T) {
+	h := NewAnnouncementHandler(newMockBoltStore())
+	body, _ := json.Marshal(Announcement{
+		Title: "Valid title",
+		Body:  strings.Repeat("b", 10001),
+		Type:  "info",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/announcements", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_super_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestAnnouncementHandler_Create_InvalidType(t *testing.T) {
+	h := NewAnnouncementHandler(newMockBoltStore())
+	body, _ := json.Marshal(Announcement{
+		Title: "Valid title",
+		Body:  "Valid body",
+		Type:  "invalid_type",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/announcements", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_super_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestAnnouncementHandler_Create_LimitReached(t *testing.T) {
+	bolt := newMockBoltStore()
+	list := announcementList{Items: make([]Announcement, 100)}
+	for i := range list.Items {
+		list.Items[i] = Announcement{ID: core.GenerateID(), Title: "Ann " + string(rune(i)), Type: "info"}
+	}
+	bolt.Set("announcements", "all", list, 0)
+
+	h := NewAnnouncementHandler(bolt)
+	body, _ := json.Marshal(Announcement{
+		Title: "One more",
+		Body:  "Should fail",
+		Type:  "info",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/announcements", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_super_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+	if rr.Code != http.StatusConflict {
+		t.Errorf("expected 409, got %d", rr.Code)
+	}
+}
+
+// =============================================================================
+// EnvImportHandler Import — validation error paths
+// =============================================================================
+
+func TestEnvImportHandler_EmptyKey(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
+	h := NewEnvImportHandler(store)
+
+	body := `[{"key":"","value":"val"}]`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/env/import", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Import(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestEnvImportHandler_KeyTooLong(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
+	h := NewEnvImportHandler(store)
+
+	body := `[{"key":"` + strings.Repeat("k", 257) + `","value":"val"}]`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/env/import", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Import(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestEnvImportHandler_ValueTooLong(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
+	h := NewEnvImportHandler(store)
+
+	body := `[{"key":"KEY","value":"` + strings.Repeat("v", 64*1024+1) + `"}]`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/env/import", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Import(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestEnvImportHandler_TotalSizeExceeded(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
+	h := NewEnvImportHandler(store)
+
+	vars := make([]envVarEntry, 10)
+	for i := range vars {
+		vars[i] = envVarEntry{Key: "KEY" + string(rune('0'+i)), Value: strings.Repeat("x", 60*1024)}
+	}
+	body, _ := json.Marshal(vars)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/env/import", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Import(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+// =============================================================================
+// DomainHandler Create — field validation error paths
+// =============================================================================
+
+func TestDomainHandler_Create_FQDNTooLong(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test-app"})
+	h := NewDomainHandler(store, core.NewEventBus(nil))
+
+	body, _ := json.Marshal(createDomainRequest{
+		AppID: "app1",
+		FQDN:  strings.Repeat("a", 254) + ".com",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/domains", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestDomainHandler_Create_DNSProviderTooLong(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test-app"})
+	h := NewDomainHandler(store, core.NewEventBus(nil))
+
+	body, _ := json.Marshal(createDomainRequest{
+		AppID:       "app1",
+		FQDN:        "example.com",
+		DNSProvider: strings.Repeat("p", 51),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/domains", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+// =============================================================================
+// DeployTriggerHandler — image app store error paths
+// =============================================================================
+
+func TestDeployTriggerHandler_ImageDeploy_AtomicVersionError(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{
+		ID: "app1", Name: "img-app", SourceType: "image",
+		SourceURL: "nginx:latest", TenantID: "t1",
+	})
+	store.errGetNextDeployVersion = core.ErrNotFound
+
+	h := NewDeployTriggerHandler(store, nil, core.NewEventBus(nil))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.TriggerDeploy(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestDeployTriggerHandler_ImageDeploy_CreateDeploymentError(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{
+		ID: "app1", Name: "img-app", SourceType: "image",
+		SourceURL: "nginx:latest", TenantID: "t1",
+	})
+	store.nextDeployVersion["app1"] = 1
+	store.errCreateDeployment = core.ErrNotFound
+
+	h := NewDeployTriggerHandler(store, nil, core.NewEventBus(nil))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.TriggerDeploy(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
+	}
+}
+
+// =============================================================================
+// AppHandler Delete — runtime available path
+// =============================================================================
+
+func TestAppHandler_Delete_WithRuntime(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test-app"})
+
+	c := testCore()
+	c.Services.Container = &mockContainerRuntime{}
+
+	h := NewAppHandler(store, c)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app1", nil)
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Delete(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Errorf("expected 204, got %d", rr.Code)
+	}
 }

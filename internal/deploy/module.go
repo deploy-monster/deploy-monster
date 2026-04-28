@@ -13,6 +13,14 @@ func init() {
 	core.RegisterModule(func() core.Module { return New() })
 }
 
+// dockerRuntime is the subset of *DockerManager methods the Module actually
+// calls. It lets tests inject a mock without requiring a real Docker client.
+type dockerRuntime interface {
+	core.ContainerRuntime
+	EnsureNetwork(ctx context.Context, name string) error
+	Close() error
+}
+
 // Module implements the deployment module.
 //
 // Lifecycle note for Tier 74: pre-Tier-74 autoRollback was created
@@ -24,7 +32,7 @@ func init() {
 // Docker.
 type Module struct {
 	core         *core.Core
-	docker       *DockerManager
+	docker       dockerRuntime
 	store        core.Store
 	logger       *slog.Logger
 	autoRestart  *AutoRestarter
@@ -235,5 +243,8 @@ func (m *Module) Health() core.HealthStatus {
 
 // Docker returns the Docker manager for use by other modules.
 func (m *Module) Docker() *DockerManager {
-	return m.docker
+	if d, ok := m.docker.(*DockerManager); ok {
+		return d
+	}
+	return nil
 }
