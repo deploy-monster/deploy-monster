@@ -93,6 +93,90 @@ paths:
                     additionalProperties:
                       type: string
 
+  /api/v1/health:
+    get:
+      operationId: getApiHealth
+      tags: [Health]
+      summary: API health check (alias)
+      security: []
+      responses:
+        "200":
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded]
+
+  /health/detailed:
+    get:
+      operationId: getHealthDetailed
+      tags: [Health]
+      summary: Detailed health check with per-module status
+      security: []
+      responses:
+        "200":
+          description: All modules healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded]
+                  version:
+                    type: string
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                          enum: [ok, degraded, down]
+                        healthy:
+                          type: boolean
+                  duration:
+                    type: string
+        "503":
+          description: One or more modules degraded or down
+
+  /readyz:
+    get:
+      operationId: getReadyz
+      tags: [Health]
+      summary: Readiness probe
+      security: []
+      responses:
+        "200":
+          description: System is ready to accept traffic
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ready]
+        "503":
+          description: System is draining or dependencies are unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [draining, not_ready]
+                  reasons:
+                    type: array
+                    items:
+                      type: string
+
   # ── Auth ──────────────────────────────────────────────
   /api/v1/auth/login:
     post:
@@ -2200,6 +2284,1702 @@ paths:
                         type: integer
                       total_domains:
                         type: integer
+
+  # ── Billing (usage history) ──────────────────────────
+  /api/v1/billing/usage/history:
+    get:
+      operationId: getUsageHistory
+      tags: [Billing]
+      summary: Get usage history over a time period
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 24h
+      responses:
+        "200":
+          description: Usage history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenant_id:
+                    type: string
+                  period:
+                    type: string
+                  buckets:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        hour:
+                          type: string
+                          format: date-time
+                        cpu_seconds:
+                          type: number
+                        ram_mb_hours:
+                          type: number
+                        bandwidth_mb:
+                          type: number
+                        build_seconds:
+                          type: number
+                  count:
+                    type: integer
+
+  # ── Certificates ─────────────────────────────────────
+  /api/v1/certificates:
+    get:
+      operationId: listCertificates
+      tags: [Certificates]
+      summary: List SSL certificates for the tenant
+      responses:
+        "200":
+          description: Certificate list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        tenant_id:
+                          type: string
+                        domain:
+                          type: string
+                        issuer:
+                          type: string
+                        expires_at:
+                          type: string
+                          format: date-time
+                        auto_renew:
+                          type: boolean
+                        status:
+                          type: string
+                          enum: [active, expired, pending]
+                  total:
+                    type: integer
+    post:
+      operationId: uploadCertificate
+      tags: [Certificates]
+      summary: Upload a custom SSL certificate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain_id, cert_pem, key_pem]
+              properties:
+                domain_id:
+                  type: string
+                cert_pem:
+                  type: string
+                  description: PEM-encoded certificate
+                key_pem:
+                  type: string
+                  description: PEM-encoded private key
+      responses:
+        "201":
+          description: Certificate uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  domain_id:
+                    type: string
+                  issuer:
+                    type: string
+                  status:
+                    type: string
+        "400":
+          description: Invalid certificate or key
+
+  /api/v1/certificates/wildcard:
+    post:
+      operationId: requestWildcardCertificate
+      tags: [Certificates]
+      summary: Request a wildcard SSL certificate
+      responses:
+        "201":
+          description: Wildcard certificate requested
+
+  # ── Deploy Freeze ────────────────────────────────────
+  /api/v1/deploy/freeze:
+    get:
+      operationId: listDeployFreezes
+      tags: [Deployments]
+      summary: List deploy freeze windows
+      responses:
+        "200":
+          description: Freeze windows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        reason:
+                          type: string
+                        starts_at:
+                          type: string
+                          format: date-time
+                        ends_at:
+                          type: string
+                          format: date-time
+                        active:
+                          type: boolean
+                  frozen:
+                    type: boolean
+                    description: True if any active window currently covers now
+    post:
+      operationId: createDeployFreeze
+      tags: [Deployments]
+      summary: Create a deploy freeze window
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                starts_at:
+                  type: string
+                  format: date-time
+                  description: Defaults to now
+                ends_at:
+                  type: string
+                  format: date-time
+                  description: Defaults to starts_at + 24h
+      responses:
+        "201":
+          description: Freeze window created
+        "409":
+          description: Freeze window limit reached (50 max per tenant)
+
+  /api/v1/deploy/freeze/{id}:
+    delete:
+      operationId: deleteDeployFreeze
+      tags: [Deployments]
+      summary: Delete (deactivate) a deploy freeze window
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Freeze window deactivated
+
+  # ── DNS Records ──────────────────────────────────────
+  /api/v1/dns/records:
+    get:
+      operationId: listDnsRecords
+      tags: [Domains]
+      summary: List DNS records for a domain
+      parameters:
+        - name: domain
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: provider
+          in: query
+          schema:
+            type: string
+            default: cloudflare
+      responses:
+        "200":
+          description: DNS records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  domain:
+                    type: string
+                  provider:
+                    type: string
+                  verified:
+                    type: boolean
+                  data:
+                    type: array
+                  total:
+                    type: integer
+        "400":
+          description: Missing domain parameter
+    post:
+      operationId: createDnsRecord
+      tags: [Domains]
+      summary: Create a DNS record
+      parameters:
+        - name: provider
+          in: query
+          schema:
+            type: string
+            default: cloudflare
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, name, value]
+              properties:
+                type:
+                  type: string
+                  enum: [A, AAAA, CNAME, TXT]
+                name:
+                  type: string
+                  maxLength: 253
+                value:
+                  type: string
+                  maxLength: 2048
+                ttl:
+                  type: integer
+                  default: 300
+                proxied:
+                  type: boolean
+                  default: false
+      responses:
+        "201":
+          description: DNS record created
+
+  /api/v1/dns/records/{id}:
+    delete:
+      operationId: deleteDnsRecord
+      tags: [Domains]
+      summary: Delete a DNS record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: provider
+          in: query
+          schema:
+            type: string
+            default: cloudflare
+      responses:
+        "204":
+          description: DNS record deleted
+
+  # ── App Bulk Operations ──────────────────────────────
+  /api/v1/apps/bulk:
+    post:
+      operationId: bulkAppAction
+      tags: [Apps]
+      summary: Perform a bulk action on multiple apps (max 50)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, app_ids]
+              properties:
+                action:
+                  type: string
+                  enum: [start, stop, restart, delete]
+                app_ids:
+                  type: array
+                  items:
+                    type: string
+                  maxItems: 50
+      responses:
+        "200":
+          description: Bulk action completed (may include partial failures)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        app_id:
+                          type: string
+                        status:
+                          type: string
+                          enum: [started, stopped, restarted, deleted, error]
+                        error:
+                          type: string
+                  total:
+                    type: integer
+                  succeeded:
+                    type: integer
+                  failed:
+                    type: integer
+                  rolled_back:
+                    type: boolean
+                  message:
+                    type: string
+        "400":
+          description: Invalid request (missing action/app_ids, too many apps)
+
+  # ── App Import / Export ──────────────────────────────
+  /api/v1/apps/import:
+    post:
+      operationId: importApp
+      tags: [Apps]
+      summary: Import an application from a manifest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type, source_type, source_url]
+              properties:
+                name:
+                  type: string
+                  maxLength: 64
+                type:
+                  type: string
+                  enum: [web, worker, static, cron, docker, compose, database, service]
+                source_type:
+                  type: string
+                  enum: [git, github, gitlab, image, tarball, docker, dockerfile]
+                source_url:
+                  type: string
+                branch:
+                  type: string
+                dockerfile:
+                  type: string
+                env_vars:
+                  type: object
+                  additionalProperties:
+                    type: string
+                domains:
+                  type: array
+                  items:
+                    type: string
+                labels:
+                  type: object
+                  additionalProperties:
+                    type: string
+                replicas:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+      responses:
+        "201":
+          description: App imported
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  app_id:
+                    type: string
+                  name:
+                    type: string
+                  domains_created:
+                    type: integer
+                  domains_failed:
+                    type: integer
+        "400":
+          description: Invalid manifest
+
+  /api/v1/apps/{id}/export:
+    get:
+      operationId: exportApp
+      tags: [Apps]
+      summary: Export an application as a manifest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: App manifest
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                  name:
+                    type: string
+                  type:
+                    type: string
+                  source_type:
+                    type: string
+                  source_url:
+                    type: string
+                  branch:
+                    type: string
+                  env_vars:
+                    type: object
+                  domains:
+                    type: array
+                    items:
+                      type: string
+                  labels:
+                    type: object
+                  replicas:
+                    type: integer
+        "404":
+          description: App not found
+
+  # ── App Environment Export/Import ────────────────────
+  /api/v1/apps/{id}/env/export:
+    get:
+      operationId: exportAppEnv
+      tags: [Apps]
+      summary: Export environment variables as .env format
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Environment variables in .env format
+
+  /api/v1/apps/env/compare:
+    post:
+      operationId: compareAppEnv
+      tags: [Apps]
+      summary: Compare environment variables between apps
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_app_id:
+                  type: string
+                target_app_id:
+                  type: string
+      responses:
+        "200":
+          description: Environment diff
+
+  /api/v1/apps/{id}/env/import:
+    post:
+      operationId: importAppEnv
+      tags: [Apps]
+      summary: Import environment variables from .env format
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                env:
+                  type: string
+                  description: Environment variables in .env format
+                overwrite:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Environment variables imported
+
+  # ── App Lifecycle (missing) ──────────────────────────
+  /api/v1/apps/{id}/suspend:
+    post:
+      operationId: suspendApp
+      tags: [Apps]
+      summary: Suspend an application (freeze containers)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: App suspended
+        "404":
+          description: App not found
+
+  /api/v1/apps/{id}/resume:
+    post:
+      operationId: resumeApp
+      tags: [Apps]
+      summary: Resume a suspended application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: App resumed
+        "404":
+          description: App not found
+
+  /api/v1/apps/{id}/clone:
+    post:
+      operationId: cloneApp
+      tags: [Apps]
+      summary: Clone an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: App cloned
+
+  /api/v1/apps/{id}/rename:
+    post:
+      operationId: renameApp
+      tags: [Apps]
+      summary: Rename an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          description: App renamed
+
+  /api/v1/apps/{id}/transfer:
+    post:
+      operationId: transferApp
+      tags: [Apps]
+      summary: Transfer an application to another tenant (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_tenant_id]
+              properties:
+                target_tenant_id:
+                  type: string
+      responses:
+        "200":
+          description: App transferred
+
+  /api/v1/apps/{id}/scale:
+    post:
+      operationId: scaleApp
+      tags: [Apps]
+      summary: Scale an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                replicas:
+                  type: integer
+                  minimum: 0
+      responses:
+        "200":
+          description: App scaled
+
+  /api/v1/apps/{id}/pin:
+    post:
+      operationId: pinApp
+      tags: [Apps]
+      summary: Pin an application version
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: App version pinned
+    delete:
+      operationId: unpinApp
+      tags: [Apps]
+      summary: Unpin an application version
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: App version unpinned
+
+  /api/v1/apps/{id}/save-template:
+    post:
+      operationId: saveAppTemplate
+      tags: [Apps]
+      summary: Save an application as a marketplace template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Template saved
+
+  /api/v1/apps/{id}/rollback-to-commit:
+    post:
+      operationId: rollbackToCommit
+      tags: [Deployments]
+      summary: Rollback to a specific git commit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [commit_sha]
+              properties:
+                commit_sha:
+                  type: string
+      responses:
+        "200":
+          description: Rollback triggered
+
+  # ── App Snapshots ────────────────────────────────────
+  /api/v1/apps/{id}/snapshots:
+    get:
+      operationId: listAppSnapshots
+      tags: [Apps]
+      summary: List snapshots for an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Snapshot list
+    post:
+      operationId: createAppSnapshot
+      tags: [Apps]
+      summary: Create a snapshot of an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Snapshot created
+
+  # ── App Webhooks ─────────────────────────────────────
+  /api/v1/apps/{id}/webhooks/test:
+    post:
+      operationId: testAppWebhook
+      tags: [Webhooks]
+      summary: Test webhook delivery for an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Webhook test sent
+
+  /api/v1/apps/{id}/webhooks/rotate:
+    post:
+      operationId: rotateAppWebhookSecret
+      tags: [Webhooks]
+      summary: Rotate webhook signing secret for an application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Secret rotated
+
+  /api/v1/apps/{id}/webhooks/{logId}/replay:
+    post:
+      operationId: replayAppWebhook
+      tags: [Webhooks]
+      summary: Replay a webhook delivery
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: logId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Webhook replayed
+
+  # ── App Resources ────────────────────────────────────
+  /api/v1/apps/{id}/autoscale:
+    get:
+      operationId: getAutoscaleConfig
+      tags: [Apps]
+      summary: Get autoscale configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Autoscale config
+    put:
+      operationId: updateAutoscaleConfig
+      tags: [Apps]
+      summary: Update autoscale configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Autoscale config updated
+
+  /api/v1/apps/{id}/basic-auth:
+    get:
+      operationId: getBasicAuth
+      tags: [Apps]
+      summary: Get basic auth configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Basic auth config
+    put:
+      operationId: updateBasicAuth
+      tags: [Apps]
+      summary: Update basic auth configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Basic auth config updated
+
+  /api/v1/apps/{id}/maintenance:
+    get:
+      operationId: getMaintenanceMode
+      tags: [Apps]
+      summary: Get maintenance mode status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Maintenance mode status
+    put:
+      operationId: updateMaintenanceMode
+      tags: [Apps]
+      summary: Toggle maintenance mode
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Maintenance mode updated
+
+  /api/v1/apps/{id}/middleware:
+    get:
+      operationId: getMiddleware
+      tags: [Apps]
+      summary: Get middleware configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Middleware config
+    put:
+      operationId: updateMiddleware
+      tags: [Apps]
+      summary: Update middleware configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Middleware config updated
+
+  /api/v1/apps/{id}/resources:
+    get:
+      operationId: getResourceLimits
+      tags: [Apps]
+      summary: Get resource limits (CPU, RAM, disk)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resource limits
+    put:
+      operationId: updateResourceLimits
+      tags: [Apps]
+      summary: Update resource limits
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resource limits updated
+
+  /api/v1/apps/{id}/restart-policy:
+    put:
+      operationId: updateRestartPolicy
+      tags: [Apps]
+      summary: Update restart policy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Restart policy updated
+
+  /api/v1/apps/{id}/deploy-notifications:
+    get:
+      operationId: getDeployNotifications
+      tags: [Notifications]
+      summary: Get deploy notification settings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deploy notification settings
+    put:
+      operationId: updateDeployNotifications
+      tags: [Notifications]
+      summary: Update deploy notification settings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deploy notification settings updated
+
+  /api/v1/apps/{id}/gpu:
+    get:
+      operationId: getGpuConfig
+      tags: [Apps]
+      summary: Get GPU configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: GPU config
+    put:
+      operationId: updateGpuConfig
+      tags: [Apps]
+      summary: Update GPU configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: GPU config updated
+
+  # ── App Metrics & Logs ───────────────────────────────
+  /api/v1/apps/{id}/metrics:
+    get:
+      operationId: getAppMetrics
+      tags: [Metrics]
+      summary: Get application metrics
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Application metrics
+
+  /api/v1/apps/{id}/metrics/export:
+    get:
+      operationId: exportAppMetrics
+      tags: [Metrics]
+      summary: Export application metrics
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Metrics export
+
+  /api/v1/apps/{id}/logs/download:
+    get:
+      operationId: downloadAppLogs
+      tags: [Apps]
+      summary: Download application logs
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Log file
+
+  /api/v1/apps/{id}/logs/stream:
+    get:
+      operationId: streamAppLogs
+      tags: [Apps]
+      summary: Stream application logs (SSE)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Log stream (text/event-stream)
+
+  # ── App Deployments ──────────────────────────────────
+  /api/v1/apps/{id}/deployments/latest:
+    get:
+      operationId: getLatestDeployment
+      tags: [Deployments]
+      summary: Get the latest deployment for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Latest deployment
+        "404":
+          description: No deployments found
+
+  /api/v1/apps/{id}/deployments/diff:
+    get:
+      operationId: getDeploymentDiff
+      tags: [Deployments]
+      summary: Get diff between current and previous deployment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deployment diff
+
+  /api/v1/apps/{id}/deploy/preview:
+    post:
+      operationId: previewDeploy
+      tags: [Deployments]
+      summary: Preview a deployment without executing it
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deploy preview
+
+  # ── App Build ────────────────────────────────────────
+  /api/v1/apps/{id}/builds/latest/log:
+    get:
+      operationId: getLatestBuildLog
+      tags: [Apps]
+      summary: Get the latest build log
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Build log
+
+  /api/v1/apps/{id}/builds/latest/log/download:
+    get:
+      operationId: downloadLatestBuildLog
+      tags: [Apps]
+      summary: Download the latest build log
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Build log file
+
+  /api/v1/build/cache:
+    get:
+      operationId: getBuildCache
+      tags: [Apps]
+      summary: Get build cache status
+      responses:
+        "200":
+          description: Build cache status
+    delete:
+      operationId: clearBuildCache
+      tags: [Apps]
+      summary: Clear build cache
+      responses:
+        "204":
+          description: Build cache cleared
+
+  # ── App Containers & Processes ───────────────────────
+  /api/v1/apps/{id}/containers/history:
+    get:
+      operationId: getContainerHistory
+      tags: [Apps]
+      summary: Get container history for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Container history
+
+  /api/v1/apps/{id}/processes:
+    get:
+      operationId: listAppProcesses
+      tags: [Apps]
+      summary: List running processes for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Process list
+
+  /api/v1/apps/{id}/exec:
+    post:
+      operationId: execInContainer
+      tags: [Apps]
+      summary: Execute a command in a running container
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                command:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Command output
+
+  /api/v1/apps/{id}/terminal:
+    get:
+      operationId: appTerminal
+      tags: [Apps]
+      summary: Open a terminal session to a container (WebSocket upgrade)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "101":
+          description: WebSocket upgrade
+
+  # ── App Misc ─────────────────────────────────────────
+  /api/v1/apps/{id}/commands:
+    get:
+      operationId: listAppCommands
+      tags: [Apps]
+      summary: List available commands for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Command list
+    post:
+      operationId: runAppCommand
+      tags: [Apps]
+      summary: Run a command on an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Command output
+
+  /api/v1/apps/{id}/cron:
+    get:
+      operationId: listAppCronJobs
+      tags: [Apps]
+      summary: List cron jobs for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cron job list
+    post:
+      operationId: createAppCronJob
+      tags: [Apps]
+      summary: Create a cron job for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Cron job created
+
+  /api/v1/apps/{id}/cron/{jobId}:
+    delete:
+      operationId: deleteAppCronJob
+      tags: [Apps]
+      summary: Delete a cron job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Cron job deleted
+
+  /api/v1/apps/{id}/dependencies:
+    get:
+      operationId: listAppDependencies
+      tags: [Apps]
+      summary: List app dependencies
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dependency list
+
+  /api/v1/apps/{id}/disk:
+    get:
+      operationId: getAppDiskUsage
+      tags: [Apps]
+      summary: Get disk usage for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Disk usage
+
+  /api/v1/apps/{id}/files:
+    get:
+      operationId: listAppFiles
+      tags: [Apps]
+      summary: List files in an app's container
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File list
+
+  /api/v1/apps/{id}/restarts:
+    get:
+      operationId: listAppRestarts
+      tags: [Apps]
+      summary: List restart events for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Restart event list
+
+  /api/v1/apps/{id}/stats:
+    get:
+      operationId: getAppStats
+      tags: [Apps]
+      summary: Get real-time stats for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: App stats
+
+  /api/v1/apps/{id}/versions:
+    get:
+      operationId: listAppVersions
+      tags: [Apps]
+      summary: List deployment versions for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Version list
+
+  /api/v1/apps/{id}/webhooks/logs:
+    get:
+      operationId: listAppWebhookLogs
+      tags: [Webhooks]
+      summary: List webhook delivery logs for an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Webhook log list
+
+  # ── Agents ───────────────────────────────────────────
+  /api/v1/agents:
+    get:
+      operationId: listAgents
+      tags: [Servers]
+      summary: List agent nodes
+      responses:
+        "200":
+          description: Agent list
+
+  /api/v1/agents/{id}:
+    get:
+      operationId: getAgent
+      tags: [Servers]
+      summary: Get agent details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent details
+        "404":
+          description: Agent not found
+
+  # ── Images ───────────────────────────────────────────
+  /api/v1/images/tags:
+    get:
+      operationId: listImageTags
+      tags: [Apps]
+      summary: List Docker image tags
+      responses:
+        "200":
+          description: Image tag list
+
+  /api/v1/images/dangling:
+    get:
+      operationId: listDanglingImages
+      tags: [Apps]
+      summary: List dangling Docker images
+      responses:
+        "200":
+          description: Dangling image list
+
+  /api/v1/images/prune:
+    delete:
+      operationId: pruneImages
+      tags: [Apps]
+      summary: Prune unused Docker images
+      responses:
+        "200":
+          description: Prune result
+
+  # ── Networks ─────────────────────────────────────────
+  /api/v1/networks:
+    get:
+      operationId: listNetworks
+      tags: [Servers]
+      summary: List Docker networks
+      responses:
+        "200":
+          description: Network list
+
+  /api/v1/networks/connect:
+    post:
+      operationId: connectNetwork
+      tags: [Servers]
+      summary: Connect a container to a network
+      responses:
+        "200":
+          description: Connected
+
+  # ── Volumes ──────────────────────────────────────────
+  /api/v1/volumes:
+    get:
+      operationId: listVolumes
+      tags: [Servers]
+      summary: List Docker volumes
+      responses:
+        "200":
+          description: Volume list
+    post:
+      operationId: createVolume
+      tags: [Servers]
+      summary: Create a Docker volume
+      responses:
+        "201":
+          description: Volume created
+
+  # ── Registries ───────────────────────────────────────
+  /api/v1/registries:
+    get:
+      operationId: listRegistries
+      tags: [Apps]
+      summary: List container registries
+      responses:
+        "200":
+          description: Registry list
+    post:
+      operationId: addRegistry
+      tags: [Apps]
+      summary: Add a container registry
+      responses:
+        "201":
+          description: Registry added
+
+  # ── SSH Keys ─────────────────────────────────────────
+  /api/v1/ssh-keys:
+    get:
+      operationId: listSSHKeys
+      tags: [Servers]
+      summary: List SSH keys
+      responses:
+        "200":
+          description: SSH key list
+
+  /api/v1/ssh-keys/generate:
+    post:
+      operationId: generateSSHKey
+      tags: [Servers]
+      summary: Generate a new SSH key pair
+      responses:
+        "201":
+          description: SSH key generated
+
+  # ── Storage ──────────────────────────────────────────
+  /api/v1/storage/usage:
+    get:
+      operationId: getStorageUsage
+      tags: [Servers]
+      summary: Get storage usage
+      responses:
+        "200":
+          description: Storage usage
+
+  # ── Tenant Settings ──────────────────────────────────
+  /api/v1/tenant/settings:
+    get:
+      operationId: getTenantSettings
+      tags: [Team]
+      summary: Get tenant settings
+      responses:
+        "200":
+          description: Tenant settings
+    patch:
+      operationId: updateTenantSettings
+      tags: [Team]
+      summary: Update tenant settings
+      responses:
+        "200":
+          description: Tenant settings updated
+
+  # ── Environment Presets ──────────────────────────────
+  /api/v1/environments/presets:
+    get:
+      operationId: listEnvironmentPresets
+      tags: [Apps]
+      summary: List environment presets
+      responses:
+        "200":
+          description: Environment preset list
+
+  # ── OpenAPI Spec ─────────────────────────────────────
+  /api/v1/openapi.json:
+    get:
+      operationId: getOpenApiSpec
+      tags: [Health]
+      summary: Get the OpenAPI spec as JSON
+      security: []
+      responses:
+        "200":
+          description: OpenAPI spec
+
+  # ── Stripe Webhook ───────────────────────────────────
+  /api/v1/webhooks/stripe:
+    post:
+      operationId: stripeWebhook
+      tags: [Billing]
+      summary: Stripe webhook endpoint
+      security: []
+      description: Receives Stripe webhook events. Verified via Stripe signature, not JWT.
+      responses:
+        "200":
+          description: Webhook processed
+        "400":
+          description: Invalid signature
+
+  # ── Domain Batch Verify ──────────────────────────────
+  /api/v1/domains/verify-batch:
+    post:
+      operationId: batchVerifyDomains
+      tags: [Domains]
+      summary: Batch verify multiple domains
+      responses:
+        "200":
+          description: Verification results
+
+  /api/v1/domains/ssl-check:
+    get:
+      operationId: checkDomainSSL
+      tags: [Domains]
+      summary: Check SSL certificate status for a domain
+      parameters:
+        - name: domain
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: SSL check result
+
+  # ── Deploy Approvals ─────────────────────────────────
+  /api/v1/deploy/approvals:
+    get:
+      operationId: listDeployApprovals
+      tags: [Deployments]
+      summary: List pending deploy approvals
+      responses:
+        "200":
+          description: Approval list
+
+  /api/v1/deploy/approvals/{id}/approve:
+    post:
+      operationId: approveDeployment
+      tags: [Deployments]
+      summary: Approve a deployment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deployment approved
+
+  /api/v1/deploy/approvals/{id}/reject:
+    post:
+      operationId: rejectDeployment
+      tags: [Deployments]
+      summary: Reject a deployment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deployment rejected
+
+  # ── Project Environment ──────────────────────────────
+  /api/v1/projects/{id}/environment:
+    post:
+      operationId: setProjectEnvironment
+      tags: [Apps]
+      summary: Set environment for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Environment set
 
 components:
   securitySchemes:
