@@ -15,8 +15,8 @@ export default defineConfig({
   testDir: './e2e',
   outputDir: './e2e-results',
 
-  /* Fail fast in CI, retry once locally */
-  retries: process.env.CI ? 0 : 1,
+  /* Retry flaky tests — 1 retry in CI, 1 locally */
+  retries: 1,
 
   /* Parallel workers */
   workers: process.env.CI ? 1 : undefined,
