@@ -143,7 +143,7 @@ export function Secrets() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const list = secrets || [];
+  const list = useMemo(() => secrets || [], [secrets]);
   const filtered = useMemo(() => debouncedSearch
     ? list.filter((s) =>
         s.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||

@@ -182,7 +182,7 @@ export function Databases() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const list = databases || [];
+  const list = useMemo(() => databases || [], [databases]);
   const filtered = useMemo(() => debouncedSearch
     ? list.filter((db) =>
         db.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||

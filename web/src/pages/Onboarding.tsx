@@ -96,7 +96,7 @@ export function Onboarding() {
   useEffect(() => {
     if (step !== 1) return;
 
-    // Reset checks
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset check statuses when entering server step
     setServerChecks((prev) => prev.map((c) => ({ ...c, status: 'pending' as const })));
 
     const timers: ReturnType<typeof setTimeout>[] = [];

@@ -43,7 +43,7 @@ async function withRetry<T>(
 
 setup('authenticate', async ({ page }) => {
   // Try to register first. If user already exists (409), fall back to login.
-  const registerRes = await withRetry(
+  await withRetry(
     () => page.request.post('/api/v1/auth/register', {
       data: {
         name: TEST_USER.name,

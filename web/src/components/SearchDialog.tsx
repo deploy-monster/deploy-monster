@@ -31,6 +31,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset local state when dialog opens
       setQuery('');
       setResults([]);
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -39,6 +40,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
 
   useEffect(() => {
     if (query.length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear results when query is too short
       setResults([]);
       return;
     }

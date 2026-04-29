@@ -196,6 +196,7 @@ test.describe('Session Persistence', () => {
     });
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   test.skip('redirects unauthenticated users to login', async ({ page }) => {
     // SKIPPED: This test is inherently unreliable in the E2E environment because
     // global-setup logs in the test user server-side. A fresh Playwright context

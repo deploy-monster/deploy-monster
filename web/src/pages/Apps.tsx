@@ -147,7 +147,7 @@ export function Apps() {
     '/apps?page=1&per_page=50',
     { refreshInterval: 10000 }
   );
-  const allApps = appsResponse?.data || [];
+  const allApps = useMemo(() => appsResponse?.data || [], [appsResponse?.data]);
   const total = appsResponse?.total || 0;
 
   const [filter, setFilter] = useState<FilterKey>('all');

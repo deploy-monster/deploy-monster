@@ -62,6 +62,7 @@ export default function TopologyPage() {
   // Update status from WebSocket
   useEffect(() => {
     if (wsEnabled && wsStatus !== 'idle') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync ws status to local state for deploy modal
       setWsDeployStatus(wsStatus);
     }
   }, [wsStatus, wsEnabled]);

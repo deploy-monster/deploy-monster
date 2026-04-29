@@ -92,7 +92,7 @@ function parseServices(yaml: string): string[] {
       continue;
     }
     if (inServices) {
-      const match = /^  ([a-zA-Z0-9_-]+):/.exec(line);
+      const match = /^ {2}([a-zA-Z0-9_-]+):/.exec(line);
       if (match) {
         services.push(match[1]);
       } else if (!line.startsWith(' ') && trimmed !== '') {

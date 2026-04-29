@@ -180,7 +180,7 @@ export function Marketplace() {
   if (category) params.set('category', category);
 
   const { data: marketplaceData, loading } = useApi<MarketplaceResponse>(`/marketplace?${params}`);
-  const templates = marketplaceData?.data || [];
+  const templates = useMemo(() => marketplaceData?.data || [], [marketplaceData?.data]);
   const categories = marketplaceData?.categories || [];
 
   const featuredTemplates = useMemo(() => templates.filter((t) => t.featured), [templates]);

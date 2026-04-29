@@ -65,6 +65,7 @@ export function AlertDialog({
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook is tightly coupled to AlertDialogComponent
 export function useConfirmDialog() {
   const [state, setState] = React.useState<{
     open: boolean
