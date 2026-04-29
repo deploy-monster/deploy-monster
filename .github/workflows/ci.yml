@@ -113,15 +113,6 @@ jobs:
     name: E2E Tests
     needs: [test, test-react]
     runs-on: ubuntu-latest
-    # Tier 102: E2E Playwright suite has drifted from current UI state.
-    # Most of the 86 tests assert element text/labels that don't match
-    # the shipped React components, and global-setup/auth flows need a
-    # pass before the suite is trustworthy. Marked continue-on-error so
-    # it still runs, uploads artifacts, and reports failures, but no
-    # longer blocks Go + lint + build + docker from turning master
-    # green. Tracking proper fix under a dedicated frontend-testing
-    # tier; remove this flag once the suite is rewired to the UI.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
 
