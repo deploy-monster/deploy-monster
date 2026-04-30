@@ -237,14 +237,12 @@ Things we are explicitly *not* pretending to be ready:
   cost; deferred until a paying customer asks for it.
 - **Route53 DNS** is deferred for the same reason. Cloudflare is
   the only DNS provider that ships today.
-- **OpenAPI coverage is partial** — 90 of 205 routes are in the
-  spec. CI fails if the gap grows, but the backlog is 115 routes
-  and being worked down incrementally. Handlers are authoritative;
-  the spec is catching up.
-- **E2E Playwright suite runs in `continue-on-error: true`** mode
-  because selectors have drifted with recent UI iterations. It is
-  gated by a tier that blocks the main build pipeline; green-for-5
-  flips the flag.
+- **OpenAPI coverage is partial** — 197 of 207 routes are documented
+  in the spec. CI (`openapi-gen`) fails if undocumented routes are
+  added; 10 routes are allowlisted as ongoing gaps (admin routes).
+  Handlers are authoritative; the spec is catching up.
+- **E2E Playwright suite** is blocking (no `continue-on-error`),
+  green on master. Retries enabled for flakiness resilience.
 - **Distributed tracing** is stubbed (OpenTelemetry SDK pulled in
   transitively) but not wired. Add OTLP exporter + span emission
   from middleware + module lifecycle when needed.
