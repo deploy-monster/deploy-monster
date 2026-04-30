@@ -1,1 +1,0 @@
-import{t as e}from"./client-DJzLVpvF.js";var t={list:t=>e.get(`/marketplace${t?`?${t}`:``}`),deploy:t=>e.post(`/marketplace/deploy`,t)};export{t};
