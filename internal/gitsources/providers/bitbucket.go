@@ -183,7 +183,7 @@ func (b *Bitbucket) do(ctx context.Context, method, path string, payload any) ([
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("bitbucket API %s: HTTP %d", path, resp.StatusCode)

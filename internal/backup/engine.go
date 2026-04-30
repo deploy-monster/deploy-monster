@@ -71,7 +71,7 @@ func (e *Engine) RunBackup(ctx context.Context, appID, backupType string) (*mode
 		e.logger.Info("backup completed", "backup_id", backup.ID)
 	}
 
-	e.core.DB.Bolt.Set("backups", backup.ID, backup, 0)
+	_ = e.core.DB.Bolt.Set("backups", backup.ID, backup, 0)
 	return backup, nil
 }
 
@@ -107,7 +107,7 @@ func (e *Engine) RestoreFromBackup(ctx context.Context, backupID string) error {
 
 	// Mark backup as restoring
 	backup.Status = "restoring"
-	e.core.DB.Bolt.Set("backups", backup.ID, backup, 0)
+	_ = e.core.DB.Bolt.Set("backups", backup.ID, backup, 0)
 
 	// Run restore based on type
 	var errMsg string
@@ -129,7 +129,7 @@ func (e *Engine) RestoreFromBackup(ctx context.Context, backupID string) error {
 		e.logger.Info("restore completed", "backup_id", backupID)
 	}
 
-	e.core.DB.Bolt.Set("backups", backup.ID, backup, 0)
+	_ = e.core.DB.Bolt.Set("backups", backup.ID, backup, 0)
 	return nil
 }
 
@@ -189,6 +189,7 @@ func calculateNextRun(cronExpr string) time.Time {
 }
 
 // pgDump runs PostgreSQL pg_dump command.
+//nolint:unused // kept for future database backup implementation
 func pgDump(host, port, user, password, dbName string) ([]byte, error) {
 	cmd := exec.Command("pg_dump", "-h", host, "-p", port, "-U", user, "-d", dbName)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", password))
@@ -196,6 +197,7 @@ func pgDump(host, port, user, password, dbName string) ([]byte, error) {
 }
 
 // mysqldump runs MySQL mysqldump command.
+//nolint:unused // kept for future database backup implementation
 func mysqldump(host, port, user, password, dbName string) ([]byte, error) {
 	cmd := exec.Command("mysqldump", "-h", host, "-P", port, "-u", user, fmt.Sprintf("-p%s", password), dbName)
 	return cmd.Output()

@@ -152,7 +152,7 @@ func (g *Gitea) do(ctx context.Context, method, path string, payload any) ([]byt
 	if err != nil {
 		return nil, fmt.Errorf("gitea API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("gitea API %s: HTTP %d", path, resp.StatusCode)

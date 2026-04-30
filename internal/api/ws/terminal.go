@@ -126,7 +126,7 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 		return
 	}
-	defer logReader.Close()
+	defer func() { _ = logReader.Close() }()
 
 	// Send session ID so the client can correlate POST commands
 	sessionID := core.GenerateID()

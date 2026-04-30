@@ -136,7 +136,7 @@ func (c *Cloudflare) do(ctx context.Context, method, path string, payload any) (
 		if err != nil {
 			return fmt.Errorf("cloudflare API: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		respBody, _ := io.ReadAll(resp.Body)
 		if resp.StatusCode >= 500 {

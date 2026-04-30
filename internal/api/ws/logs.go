@@ -71,7 +71,7 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 		return
 	}
-	defer logReader.Close()
+	defer func() { _ = logReader.Close() }()
 
 	scanner := bufio.NewScanner(logReader)
 	for scanner.Scan() {

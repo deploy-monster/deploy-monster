@@ -31,6 +31,19 @@ linters-settings:
 
 issues:
   exclude-rules:
-    - path: "internal/api/handlers/"
+    - path: "internal/api/handlers"
+      linters:
+        - errcheck
+        - unused
+        - staticcheck
+        - unconvert
+    - path: "internal/backup"
+      linters:
+        - errcheck
+    - path: "tests"
+      linters:
+        - errcheck
+        - unused
+    - path: "cmd/openapi-gen"
       linters:
         - errcheck

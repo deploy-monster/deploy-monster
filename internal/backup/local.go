@@ -47,7 +47,7 @@ func (l *LocalStorage) Upload(_ context.Context, key string, reader io.Reader, _
 	if err != nil {
 		return fmt.Errorf("create backup file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := io.Copy(f, reader); err != nil {
 		return fmt.Errorf("write backup: %w", err)

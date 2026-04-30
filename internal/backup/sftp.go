@@ -72,7 +72,7 @@ func (s *SFTPStorage) Upload(ctx context.Context, key string, reader io.Reader, 
 	if err != nil {
 		return fmt.Errorf("SFTP dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Ensure directory exists
 	if err := conn.MkdirAll(dirPath); err != nil {
@@ -84,7 +84,7 @@ func (s *SFTPStorage) Upload(ctx context.Context, key string, reader io.Reader, 
 	if err != nil {
 		return fmt.Errorf("create remote file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := io.Copy(f, reader); err != nil {
 		return fmt.Errorf("upload to SFTP: %w", err)
@@ -108,7 +108,6 @@ func (s *SFTPStorage) Download(ctx context.Context, key string) (io.ReadCloser, 
 
 	f, err := conn.Open(fullPath)
 	if err != nil {
-		conn.Close()
 		return nil, fmt.Errorf("open remote file: %w", err)
 	}
 
@@ -128,7 +127,7 @@ func (s *SFTPStorage) Delete(ctx context.Context, key string) error {
 	if err != nil {
 		return fmt.Errorf("SFTP dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	return conn.Remove(fullPath)
 }
@@ -148,7 +147,7 @@ func (s *SFTPStorage) List(ctx context.Context, prefix string) ([]core.BackupEnt
 	if err != nil {
 		return nil, fmt.Errorf("SFTP dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	entries, err := conn.ReadDir(searchPath)
 	if err != nil {
@@ -184,7 +183,7 @@ type sftpReadCloser struct {
 }
 
 func (r *sftpReadCloser) Close() error {
-	r.ReadCloser.Close()
+	_ = r.ReadCloser.Close()
 	return r.conn.Close()
 }
 
@@ -203,7 +202,7 @@ func (s *SFTPStorage) dial(ctx context.Context) (sftpConn, error) {
 	// Note: Full SFTP implementation would use golang.org/x/crypto/ssh
 	// and golang.org/x/crypto/sftp packages. This is a stub that returns
 	// an error indicating SFTP is not yet fully implemented.
-	conn.Close()
+	_ = conn.Close()
 	return nil, fmt.Errorf("SFTP storage not fully implemented: requires golang.org/x/crypto/ssh and sftp packages")
 }
 

@@ -402,7 +402,7 @@ func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID st
 		h.logger.Error("WebSocket upgrade failed", "error", err)
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set read limit to prevent memory exhaustion from large messages
 	conn.SetReadLimit(4096)

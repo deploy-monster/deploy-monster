@@ -168,7 +168,7 @@ func (s *S3Storage) Upload(ctx context.Context, key string, reader io.Reader, si
 		if err != nil {
 			return fmt.Errorf("S3 upload: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode >= 400 {
 			return fmt.Errorf("S3 upload failed: HTTP %d", resp.StatusCode)
@@ -208,7 +208,7 @@ func (s *S3Storage) Download(ctx context.Context, key string) (io.ReadCloser, er
 			return fmt.Errorf("S3 download: %w", err)
 		}
 		if resp.StatusCode >= 400 {
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			_, _ = io.Copy(io.Discard, resp.Body)
 			return fmt.Errorf("S3 download failed: HTTP %d", resp.StatusCode)
 		}
@@ -231,7 +231,7 @@ func (s *S3Storage) Delete(ctx context.Context, key string) error {
 		if err != nil {
 			return fmt.Errorf("S3 delete: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode >= 400 && resp.StatusCode != 404 {
 			return fmt.Errorf("S3 delete failed: HTTP %d", resp.StatusCode)
@@ -266,7 +266,7 @@ func (s *S3Storage) List(ctx context.Context, prefix string) ([]core.BackupEntry
 		if err != nil {
 			return fmt.Errorf("S3 list: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode >= 400 {
 			return fmt.Errorf("S3 list failed: HTTP %d", resp.StatusCode)

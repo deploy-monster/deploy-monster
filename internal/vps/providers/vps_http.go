@@ -75,7 +75,7 @@ func vpsDoRequest(
 				}
 				return fmt.Errorf("%s API: %w", providerName, err)
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 
 			readBody, readErr := io.ReadAll(resp.Body)
 			if readErr != nil {

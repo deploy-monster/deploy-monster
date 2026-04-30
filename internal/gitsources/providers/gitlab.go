@@ -149,7 +149,7 @@ func (g *GitLab) do(ctx context.Context, method, path string, payload any) ([]by
 	if err != nil {
 		return nil, fmt.Errorf("gitlab API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("gitlab API %s: HTTP %d", path, resp.StatusCode)

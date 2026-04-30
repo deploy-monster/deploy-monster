@@ -24,7 +24,6 @@ type TenantRateLimiter struct {
 	bolt          core.BoltStorer
 	defaultRate   int
 	defaultWindow time.Duration
-	entries sync.Map   // map[string]*tenantRateLimitEntry
 	mu      sync.Mutex // protects bolt operations for same key
 }
 

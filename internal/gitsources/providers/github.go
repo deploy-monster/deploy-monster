@@ -160,7 +160,7 @@ func (g *GitHub) do(ctx context.Context, method, path string, payload any) ([]by
 	if err != nil {
 		return nil, fmt.Errorf("github API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
