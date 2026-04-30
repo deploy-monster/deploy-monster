@@ -59,13 +59,10 @@ jobs:
 
       # Phase 7.10 writers-under-load gate. Runs the 64-worker
       # DeploymentStore.Create fan-out against the committed p95 baseline
-      # and fails on >10 % regression. continue-on-error is ON until a
-      # GH-runner-class baseline is captured via workflow_dispatch one-off
-      # with the DM_DB_GATE_UPDATE=1 flag on the same input as the
-      # loadtest-nightly workflow. Flip continue-on-error OFF in the same
-      # commit that lands the runner-class baseline file.
+      # and fails on >10 % regression. Baseline captured on GH runner
+      # (ubuntu-latest 2-vCPU) on 2026-04-30 — p95=187878µs, 933 ops/s.
+      # To re-capture: CI workflow_dispatch capture_db_gate_baseline=true.
       - name: Writers-under-load gate
-        continue-on-error: true
         env:
           DM_DB_GATE: "1"
           DM_DB_GATE_VERBOSE: "1"
