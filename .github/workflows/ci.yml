@@ -5,6 +5,12 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      capture_db_gate_baseline:
+        description: 'Recapture writers-under-load baseline on this runner (DM_DB_GATE_UPDATE=1) — OVERWRITES internal/db/testdata/concurrent_writes_baseline.json'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
@@ -54,18 +60,16 @@ jobs:
       # Phase 7.10 writers-under-load gate. Runs the 64-worker
       # DeploymentStore.Create fan-out against the committed p95 baseline
       # and fails on >10 % regression. continue-on-error is ON until a
-      # CI-runner-class baseline is captured (the committed baseline was
-      # generated on a Ryzen 9 16-core dev workstation — ubuntu-latest
-      # 2-vCPU runners run the same workload ~3–5× slower, so first runs
-      # under this gate would flag every PR). Flip continue-on-error
-      # OFF in the same commit that recaptures the baseline via:
-      #   DM_DB_GATE=1 DM_DB_GATE_UPDATE=1 go test -run TestStore_ConcurrentWrites_BaselineGate ./internal/db/
-      # on a GH Actions runner (workflow_dispatch one-off).
+      # GH-runner-class baseline is captured via workflow_dispatch one-off
+      # with the DM_DB_GATE_UPDATE=1 flag on the same input as the
+      # loadtest-nightly workflow. Flip continue-on-error OFF in the same
+      # commit that lands the runner-class baseline file.
       - name: Writers-under-load gate
         continue-on-error: true
         env:
           DM_DB_GATE: "1"
           DM_DB_GATE_VERBOSE: "1"
+          DM_DB_GATE_UPDATE: ${{ inputs.capture_db_gate_baseline == 'true' && '1' || '0' }}
         run: go test -run TestStore_ConcurrentWrites_BaselineGate -v ./internal/db/
 
   test-react:
