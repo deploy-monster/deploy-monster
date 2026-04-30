@@ -7,7 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Grouped into **Breaking**, **Security**, **Features**, **Fixes**, and **Performance**
 at the request of the Phase 7 roadmap.
 
-## [0.1.7] — 2026-04-16 — Sprint 1: Test portability, CORS restoration, JWT alg pin
+## [0.1.8] — 2026-04-30 — golangci-lint v1 upgrade, Vite security patches, security findings closed
+
+Session cleanup and hardening. golangci-lint upgraded from v2.11.4 to v1.64.8
+with v1-compatible config. Vite 8.0.9 → 8.0.10 patches two high-severity
+findings (arbitrary file read via dev server WebSocket, fs.deny bypass).
+@tailwindcss/vite updated to 4.2.4.
+
+### Security
+
+- **VULN-001 (auto-generated credentials written to disk) remediated.**
+  `firstRunSetup` now requires `MONSTER_ADMIN_EMAIL` and
+  `MONSTER_ADMIN_PASSWORD` via environment variables — refuses to start
+  if either is absent. No credentials written to disk.
+- **VULN-003 (predictable default admin email) remediated.** Default
+  `admin@deploy.monster` fallback removed. Same env-var enforcement applies.
+- **Security report top-risks updated** to reflect the above and correctly
+  count VULN-002 (Docker client upstream) as the sole remaining High.
+
+### Fixes
+
+- **golangci-lint v1 config** — dropped unsupported `version: 2` top-level
+  key; converted all `path-regexp` exclude rules to `path` (v1 field).
+- **Dead `response` variable removed** in `event_webhooks.go` Create method —
+  triggered `unusedwrite` govet error.
+- **97 stale UI chunks/assets deleted** — refreshed with `pnpm run build`.
+
+### Dependencies
+
+- Vite 8.0.9 → 8.0.10 (2 High severity patched)
+- @tailwindcss/vite 4.2.2 → 4.2.4
 
 Sprint 1 of the post-audit roadmap. Four failing tests turned green, one
 security regression from v0.1.4 reverted, one canonical defense added.

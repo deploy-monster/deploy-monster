@@ -9,13 +9,13 @@ Turn any VPS with Docker into a multi-tenant deployment platform.
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/v0.1.7-release-brightgreen)](./)
+[![Version](https://img.shields.io/badge/v0.1.8-release-brightgreen)](./)
 
 [📚 Docs](docs/) · [🏗 ADRs](docs/adr/) · [🛣 Roadmap](.project/ROADMAP.md)
 
 </div>
 
-> **Status: v0.1.7 (conditional-go).** Self-hosted single-tenant: ready.
+> **Status: v0.1.8 (conditional-go).** Self-hosted single-tenant: ready.
 > Multi-tenant SaaS: closing residual Sprint 1–3 items. See
 > [`PRODUCTION-READY.md`](PRODUCTION-READY.md) for the current verdict.
 
@@ -25,8 +25,8 @@ Turn any VPS with Docker into a multi-tenant deployment platform.
 
 ```bash
 # One-line install (systemd)
-curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.7/scripts/install.sh \
-  | bash -s -- --version=v0.1.7
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh \
+  | bash -s -- --version=v0.1.8
 
 deploymonster setup             # interactive: domain, SSL, admin account
 sudo systemctl restart deploymonster
@@ -36,7 +36,7 @@ docker run -d --name deploymonster \
   -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  ghcr.io/deploy-monster/deploymonster:v0.1.7
+  ghcr.io/deploy-monster/deploymonster:v0.1.8
 ```
 
 Open `http://<host>:8443`. First-run admin credentials are printed to
