@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash"
+      "Bash",
+      "Bash(rm -rf /home/ersinkoc/Codebox/deploy-monster/internal/api/static/*)",
+      "Bash(cp -r /home/ersinkoc/Codebox/deploy-monster/web/dist/* /home/ersinkoc/Codebox/deploy-monster/internal/api/static/)"
     ]
   }
 }

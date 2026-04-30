@@ -1,0 +1,55 @@
+{
+  "duration_seconds": 60,
+  "concurrency": 50,
+  "total_requests": 267545,
+  "successful": 214053,
+  "errors": 53492,
+  "requests_per_second": 4459.083333333333,
+  "endpoints": {
+    "GET /api/v1/health": {
+      "total": 53517,
+      "successful": 53517,
+      "errors": 0,
+      "requests_per_second": 891.95,
+      "p50_us": 11995,
+      "p95_us": 27309,
+      "p99_us": 37162
+    },
+    "GET /api/v1/marketplace": {
+      "total": 53503,
+      "successful": 53503,
+      "errors": 0,
+      "requests_per_second": 891.7166666666667,
+      "p50_us": 8358,
+      "p95_us": 21460,
+      "p99_us": 31096
+    },
+    "GET /api/v1/openapi.json": {
+      "total": 53499,
+      "successful": 53499,
+      "errors": 0,
+      "requests_per_second": 891.65,
+      "p50_us": 7365,
+      "p95_us": 18741,
+      "p99_us": 26992
+    },
+    "GET /health": {
+      "total": 53534,
+      "successful": 53534,
+      "errors": 0,
+      "requests_per_second": 892.2333333333333,
+      "p50_us": 11679,
+      "p95_us": 26274,
+      "p99_us": 35974
+    },
+    "GET /metrics/api": {
+      "total": 53492,
+      "successful": 0,
+      "errors": 53492,
+      "requests_per_second": 891.5333333333333,
+      "p50_us": 6751,
+      "p95_us": 17594,
+      "p99_us": 25733
+    }
+  }
+}
