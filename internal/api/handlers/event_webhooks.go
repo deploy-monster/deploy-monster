@@ -146,8 +146,6 @@ func (h *EventWebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Return the config WITH the plaintext secret — client must save it
 	// since it cannot be recovered from the stored hash.
-	response := wh
-	response.SecretHash = "" // Don't leak hash in response
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id":          wh.ID,
 		"url":         wh.URL,

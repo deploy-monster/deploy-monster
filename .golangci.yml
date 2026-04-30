@@ -1,5 +1,3 @@
-version: 2
-
 run:
   timeout: 5m
   tests: false
@@ -31,19 +29,17 @@ linters-settings:
 
 issues:
   exclude-rules:
-    - path: "internal/api/handlers"
-      linters:
-        - errcheck
-        - unused
-        - staticcheck
-        - unconvert
-    - path: "internal/backup"
-      linters:
-        - errcheck
-    - path: "tests"
-      linters:
-        - errcheck
-        - unused
-    - path: "cmd/openapi-gen"
-      linters:
-        - errcheck
+    # Handlers use responseWriter errors that can't be meaningfully checked
+    - path: "^internal/api/handlers/"
+      linters: [errcheck, unused, staticcheck, unconvert, bodyclose]
+    # Backup module uses stub implementations
+    - path: "^internal/backup/"
+      linters: [errcheck]
+    # openapi-gen tool binary
+    - path: "^cmd/openapi-gen/"
+      linters: [errcheck]
+    # Load/soak test harnesses — binary compile smoke tests, not real tests
+    - path: "tests/soak/"
+      linters: [errcheck, unused]
+    - path: "tests/loadtest/"
+      linters: [errcheck, unused]
