@@ -2,6 +2,7 @@
 
 **Project:** DeployMonster
 **Date:** 2026-04-25
+**Last Updated:** 2026-04-30 (VULN-001/VULN-003 remediated in commit c6105a2, 2026-04-26)
 **Scanner:** security-check v1.1.0
 **Risk Score:** 7.1/10 (High Risk)
 
@@ -20,15 +21,15 @@ DeployMonster demonstrates a strong security foundation with comprehensive authe
 |--------|-------|
 | Total Findings | 26 |
 | Critical | 0 |
-| High | 3 |
+| High | 1 (VULN-002 Docker client — upstream, no patched version available) |
 | Medium | 14 |
 | Low | 9 |
 | Info | 0 |
 
 ### Top Risks
-1. **Auto-generated super admin credentials written to disk** (High) — First-run setup writes plaintext credentials to `.credentials` file with no automatic cleanup.
-2. **Docker client v28.5.2 known vulnerabilities** (High) — AuthZ bypass and plugin privilege escalation in upstream Docker client.
-3. **Predictable default super admin email** (High) — Default `admin@deploy.monster` account is a credential stuffing target.
+1. **Docker client v28.5.2 known vulnerabilities** (High) — AuthZ bypass and plugin privilege escalation in upstream Docker client; v29 not yet released.
+2. ~~Auto-generated super admin credentials written to disk~~ — **REMEDIATED** (commit c6105a2, 2026-04-26)
+3. ~~Predictable default admin email~~ — **REMEDIATED** (commit c6105a2, 2026-04-26)
 
 ---
 
@@ -73,6 +74,9 @@ No critical findings identified.
 ## High Findings
 
 ### VULN-001: Auto-Generated Super Admin Credentials Written to Unencrypted File
+
+**Status: REMEDIATED** (2026-04-26, commit c6105a2)
+> The auto-generation logic was removed. `firstRunSetup` now requires `MONSTER_ADMIN_EMAIL` and `MONSTER_ADMIN_PASSWORD` to be set via environment variables — it refuses to start if either is missing. No plaintext credentials are written to disk.
 
 **Severity:** High
 **Confidence:** 95/100
@@ -123,6 +127,9 @@ Upgrade to `github.com/docker/docker` v29+ when available. Monitor Docker securi
 ---
 
 ### VULN-003: Predictable Default Super Admin Email
+
+**Status: REMEDIATED** (2026-04-26, commit c6105a2)
+> The default email fallback was removed. `firstRunSetup` now requires `MONSTER_ADMIN_EMAIL` to be set via environment variable — it refuses to start if unset. No predictable default account is created.
 
 **Severity:** High
 **Confidence:** 85/100
