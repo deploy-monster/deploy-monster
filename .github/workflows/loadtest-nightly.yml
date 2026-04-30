@@ -89,6 +89,8 @@ jobs:
         env:
           MONSTER_SERVER_ADDRESS: :8443
           MONSTER_DATABASE_DRIVER: sqlite
+          MONSTER_ADMIN_EMAIL: loadtest@deploymonster.local
+          MONSTER_ADMIN_PASSWORD: LoadTest-Pass-2026!
 
       - name: Wait for server ready
         run: |
