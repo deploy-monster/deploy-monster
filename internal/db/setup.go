@@ -96,7 +96,7 @@ func (s *SQLiteDB) ListRoles(ctx context.Context, tenantID string) ([]core.Role,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var roles []core.Role
 	for rows.Next() {
@@ -148,7 +148,7 @@ func (s *SQLiteDB) ListProjectsByTenant(ctx context.Context, tenantID string) ([
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var projects []core.Project
 	for rows.Next() {
@@ -200,7 +200,7 @@ func (s *SQLiteDB) ListAuditLogs(ctx context.Context, tenantID string, limit, of
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []core.AuditEntry
 	for rows.Next() {

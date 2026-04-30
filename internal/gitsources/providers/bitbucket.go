@@ -63,9 +63,10 @@ func (b *Bitbucket) ListRepos(ctx context.Context, page, perPage int) ([]core.Gi
 			Private:       r.IsPrivate,
 		}
 		for _, link := range r.Links.Clone {
-			if link.Name == "https" {
+			switch link.Name {
+			case "https":
 				repos[i].CloneURL = link.Href
-			} else if link.Name == "ssh" {
+			case "ssh":
 				repos[i].SSHURL = link.Href
 			}
 		}

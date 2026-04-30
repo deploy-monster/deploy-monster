@@ -90,12 +90,12 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	if err := os.MkdirAll(buildDir, 0750); err != nil {
 		return nil, fmt.Errorf("create build dir: %w", err)
 	}
-	defer os.RemoveAll(buildDir)
+	defer func() { _ = os.RemoveAll(buildDir) }()
 
-	fmt.Fprintf(logWriter, "==> Build started for %s\n", opts.AppName)
+	_, _ = fmt.Fprintf(logWriter, "==> Build started for %s\n", opts.AppName)
 
 	// 2. Clone repository
-	fmt.Fprintf(logWriter, "==> Cloning %s (branch: %s)\n", opts.SourceURL, opts.Branch)
+	_, _ = fmt.Fprintf(logWriter, "==> Cloning %s (branch: %s)\n", opts.SourceURL, opts.Branch)
 	commitSHA, err := gitClone(ctx, opts.SourceURL, opts.Branch, opts.Token, buildDir, logWriter)
 	if err != nil {
 		b.emitFailed(ctx, opts.AppID, err)
@@ -107,7 +107,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 
 	// 3. Detect project type
 	detected := Detect(buildDir)
-	fmt.Fprintf(logWriter, "==> Detected project type: %s (indicators: %v)\n", detected.Type, detected.Indicators)
+	_, _ = fmt.Fprintf(logWriter, "==> Detected project type: %s (indicators: %v)\n", detected.Type, detected.Indicators)
 
 	// 4. Generate Dockerfile if needed
 	dockerfilePath := filepath.Join(buildDir, "Dockerfile")
@@ -116,7 +116,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	} else if detected.Type != TypeDockerfile && detected.Type != TypeUnknown {
 		template := GetDockerfileTemplate(detected.Type)
 		if template != "" {
-			fmt.Fprintf(logWriter, "==> Generating Dockerfile for %s\n", detected.Type)
+			_, _ = fmt.Fprintf(logWriter, "==> Generating Dockerfile for %s\n", detected.Type)
 			if err := os.WriteFile(dockerfilePath, []byte(template), 0644); err != nil {
 				return nil, fmt.Errorf("write generated Dockerfile: %w", err)
 			}
@@ -134,14 +134,14 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 		imageTag = fmt.Sprintf("monster/%s:%s", opts.AppName, opts.CommitSHA[:8])
 	}
 
-	fmt.Fprintf(logWriter, "==> Building image %s\n", imageTag)
+	_, _ = fmt.Fprintf(logWriter, "==> Building image %s\n", imageTag)
 	if err := dockerBuild(ctx, buildDir, dockerfilePath, imageTag, opts.EnvVars, logWriter); err != nil {
 		b.emitFailed(ctx, opts.AppID, err)
 		return nil, fmt.Errorf("docker build: %w", err)
 	}
 
 	duration := time.Since(start)
-	fmt.Fprintf(logWriter, "==> Build completed in %s\n", duration.Round(time.Millisecond))
+	_, _ = fmt.Fprintf(logWriter, "==> Build completed in %s\n", duration.Round(time.Millisecond))
 
 	// Emit build completed event
 	_ = b.events.Publish(ctx, core.NewEvent(core.EventBuildCompleted, "build",

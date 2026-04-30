@@ -45,7 +45,7 @@ func NewDockerManager(host string) (*DockerManager, error) {
 
 	// Verify connection
 	if _, err := cli.Ping(context.Background()); err != nil {
-		cli.Close()
+		_ = cli.Close()
 		return nil, fmt.Errorf("docker ping: %w", err)
 	}
 
@@ -88,7 +88,7 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 	if err != nil {
 		return "", fmt.Errorf("pull image %s: %w", opts.Image, err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	_, _ = io.Copy(io.Discard, reader)
 
 	// Container config
@@ -124,10 +124,10 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 	}
 
 	if opts.CPUQuota > 0 {
-		hostCfg.Resources.CPUQuota = opts.CPUQuota
+		hostCfg.CPUQuota = opts.CPUQuota
 	}
 	if opts.MemoryMB > 0 {
-		hostCfg.Resources.Memory = opts.MemoryMB * 1024 * 1024
+		hostCfg.Memory = opts.MemoryMB * 1024 * 1024
 	}
 	if opts.RestartPolicy != "" {
 		hostCfg.RestartPolicy = container.RestartPolicy{Name: container.RestartPolicyMode(opts.RestartPolicy)}
@@ -260,7 +260,7 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 	if err != nil {
 		return nil, fmt.Errorf("container stats: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var stats container.StatsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
@@ -342,7 +342,7 @@ func (d *DockerManager) ImagePull(ctx context.Context, img string) error {
 	if err != nil {
 		return fmt.Errorf("pull image %s: %w", img, err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	_, _ = io.Copy(io.Discard, reader)
 	return nil
 }

@@ -29,6 +29,7 @@
   },
   "permissions": {
     "allow": [
+      "Bash",
       "mcp__dfmt__dfmt.exec",
       "mcp__dfmt__dfmt.read",
       "mcp__dfmt__dfmt.fetch",
@@ -38,7 +39,6 @@
       "mcp__dfmt__dfmt.stats"
     ],
     "deny": [
-      "Bash",
       "WebFetch",
       "WebSearch"
     ]

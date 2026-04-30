@@ -40,7 +40,7 @@ func (s *SQLiteDB) ListBackupsByTenant(ctx context.Context, tenantID string, lim
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var backups []core.Backup
 	for rows.Next() {

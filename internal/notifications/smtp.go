@@ -169,7 +169,7 @@ func (s *SMTPProvider) deliver(ctx context.Context, addr, recipient string, msg 
 		_ = conn.Close()
 		return fmt.Errorf("smtp client: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// STARTTLS path: upgrade the plain connection before we send
 	// credentials. If the server doesn't advertise STARTTLS, bail

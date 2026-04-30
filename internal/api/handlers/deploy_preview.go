@@ -37,11 +37,12 @@ func (h *DeployPreviewHandler) Preview(w http.ResponseWriter, r *http.Request) {
 
 	// Detect what would be built
 	var detectedType string
-	if app.SourceType == "git" {
+	switch app.SourceType {
+	case "git":
 		detectedType = "would clone and auto-detect"
-	} else if app.SourceType == "image" {
+	case "image":
 		detectedType = "image pull: " + app.SourceURL
-	} else {
+	default:
 		detectedType = app.SourceType
 	}
 

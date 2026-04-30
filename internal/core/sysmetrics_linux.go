@@ -75,7 +75,7 @@ func readCPUTimes() (uint64, uint64, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	if !scanner.Scan() {
@@ -129,7 +129,7 @@ func readMeminfo() (uint64, uint64, bool) {
 	if err != nil {
 		return 0, 0, false
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var memTotal, memAvailable uint64
 	scanner := bufio.NewScanner(f)

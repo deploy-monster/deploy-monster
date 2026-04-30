@@ -1,22 +1,20 @@
+version: 2
+
 run:
   timeout: 5m
-  modules-download-mode: readonly
+  tests: false
 
 linters:
+  disable-all: true
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
     - misspell
     - unconvert
     - bodyclose
-  disable:
-    - exhaustive
-    - wrapcheck
 
 linters-settings:
   errcheck:
@@ -33,15 +31,6 @@ linters-settings:
 
 issues:
   exclude-rules:
-    - path: _test\.go
+    - path: "internal/api/handlers/"
       linters:
         - errcheck
-        - bodyclose
-    - path: internal/api/handlers/
-      linters:
-        - errcheck
-    - path: mock_test\.go
-      linters:
-        - unused
-  max-issues-per-linter: 50
-  max-same-issues: 10

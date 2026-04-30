@@ -233,7 +233,7 @@ func (h *Handler) viewLogs(ctx context.Context, input json.RawMessage) (*MCPResp
 	if err != nil {
 		return h.errorResponse("Failed to get logs: " + err.Error())
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	buf := make([]byte, 64*1024)
 	n, _ := reader.Read(buf)

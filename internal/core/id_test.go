@@ -42,7 +42,7 @@ func TestGeneratePassword_Length(t *testing.T) {
 func TestGeneratePassword_Alphanumeric(t *testing.T) {
 	p := GeneratePassword(100)
 	for _, r := range p {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
 			t.Errorf("non-alphanumeric character in password: %c", r)
 		}
 	}

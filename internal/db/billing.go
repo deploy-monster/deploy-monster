@@ -38,7 +38,7 @@ func (s *SQLiteDB) ListUsageRecordsByTenant(ctx context.Context, tenantID string
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var records []core.UsageRecord
 	for rows.Next() {

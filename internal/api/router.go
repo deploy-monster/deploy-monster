@@ -675,8 +675,8 @@ func (r *Router) registerRoutes() {
 	// ── Prometheus metrics (internal, auth-protected) ──
 	// Exposes runtime metrics — protect with auth to prevent info disclosure
 	promExporter := integrations.NewPrometheusExporter(r.core.Registry, r.core.Events, r.core.Services)
-	r.mux.Handle("GET /metrics", protected(http.HandlerFunc(promExporter.Handler())))
-	r.mux.Handle("GET /metrics/api", protected(http.HandlerFunc(r.apiMetrics.Handler())))
+	r.mux.Handle("GET /metrics", protected(promExporter.Handler()))
+	r.mux.Handle("GET /metrics/api", protected(r.apiMetrics.Handler()))
 
 	// ── pprof (opt-in, auth-protected) ───────────────
 	if r.core.Config.Server.EnablePprof {

@@ -117,7 +117,7 @@ func (s *SlackProvider) Send(ctx context.Context, recipient, subject, body, form
 		if err != nil {
 			return fmt.Errorf("slack send: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("slack returned %d", resp.StatusCode)
@@ -173,7 +173,7 @@ func (d *DiscordProvider) Send(ctx context.Context, recipient, subject, body, fo
 		if err != nil {
 			return fmt.Errorf("discord send: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode >= 400 {
 			return fmt.Errorf("discord returned %d", resp.StatusCode)
@@ -243,7 +243,7 @@ func (t *TelegramProvider) Send(ctx context.Context, recipient, subject, body, f
 		if err != nil {
 			return fmt.Errorf("telegram send: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("telegram returned %d", resp.StatusCode)

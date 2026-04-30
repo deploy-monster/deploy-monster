@@ -258,7 +258,7 @@ func (s *SQLiteDB) Rollback(steps int) error {
 		if err != nil {
 			return nil, fmt.Errorf("list applied migrations: %w", err)
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		var out []migration
 		for rows.Next() {

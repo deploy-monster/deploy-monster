@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -333,24 +332,4 @@ func validateHostname(host string) error {
 
 func isAlphanumeric(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
-}
-
-// urlParseSafe parses a URL and returns the hostname, with protection against
-// DNS rebinding and open redirect attacks.
-func urlParseSafe(rawURL string) (string, error) {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return "", err
-	}
-	if u.Opaque != "" {
-		return "", fmt.Errorf("opaque URL not allowed")
-	}
-	if u.Host == "" {
-		return "", fmt.Errorf("empty host")
-	}
-	host := u.Hostname()
-	if host == "" {
-		return "", fmt.Errorf("empty hostname")
-	}
-	return host, nil
 }

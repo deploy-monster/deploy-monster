@@ -79,7 +79,7 @@ func readCPUSample() (cpuSample, error) {
 	if err != nil {
 		return cpuSample{}, fmt.Errorf("open /proc/stat: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	if !scanner.Scan() {
@@ -117,7 +117,7 @@ func (h *hostStats) MemoryMB() (used, total int64, err error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("open /proc/meminfo: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var memTotalKB, memAvailKB int64
 	scanner := bufio.NewScanner(f)
@@ -167,7 +167,7 @@ func (h *hostStats) DiskMB() (used, total int64, err error) {
 	if err := syscall.Statfs(rootFS, &stat); err != nil {
 		return 0, 0, fmt.Errorf("statfs %s: %w", rootFS, err)
 	}
-	blockSize := int64(stat.Bsize)
+	blockSize := int64(stat.Bsize) //nolint:unconvert // uint64→int64 needed for arithmetic and return type
 	totalBytes := int64(stat.Blocks) * blockSize
 	freeBytes := int64(stat.Bavail) * blockSize
 	usedBytes := totalBytes - freeBytes
@@ -182,7 +182,7 @@ func (h *hostStats) NetworkMB() (rx, tx int64, err error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("open /proc/net/dev: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	// Skip the two header rows.

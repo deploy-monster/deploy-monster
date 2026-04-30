@@ -39,13 +39,13 @@ func NewPostgres(dsn string) (*PostgresDB, error) {
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("postgres ping: %w", err)
 	}
 
 	pg := &PostgresDB{db: db, dsn: dsn}
 	if err := pg.migrate(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("postgres migrate: %w", err)
 	}
 
@@ -369,7 +369,7 @@ func (p *PostgresDB) ListAppsByTenant(ctx context.Context, tenantID string, limi
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var apps []core.Application
 	for rows.Next() {
@@ -393,7 +393,7 @@ func (p *PostgresDB) ListAppsByProject(ctx context.Context, projectID string) ([
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var apps []core.Application
 	for rows.Next() {
@@ -477,7 +477,7 @@ func (p *PostgresDB) ListDeploymentsByStatus(ctx context.Context, status string)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var deployments []core.Deployment
 	for rows.Next() {
@@ -517,7 +517,7 @@ func (p *PostgresDB) ListDeploymentsByApp(ctx context.Context, appID string, lim
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var deployments []core.Deployment
 	for rows.Next() {
@@ -558,7 +558,7 @@ func (p *PostgresDB) AtomicNextDeployVersion(ctx context.Context, appID string) 
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Acquire advisory lock (exclusive)
 	_, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, lockID)
@@ -645,7 +645,7 @@ func (p *PostgresDB) ListDomainsByApp(ctx context.Context, appID string) ([]core
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var domains []core.Domain
 	for rows.Next() {
@@ -681,7 +681,7 @@ func (p *PostgresDB) ListAllDomains(ctx context.Context) ([]core.Domain, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var domains []core.Domain
 	for rows.Next() {
@@ -732,7 +732,7 @@ func (p *PostgresDB) ListProjectsByTenant(ctx context.Context, tenantID string) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var projects []core.Project
 	for rows.Next() {
@@ -817,7 +817,7 @@ func (p *PostgresDB) ListRoles(ctx context.Context, tenantID string) ([]core.Rol
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var roles []core.Role
 	for rows.Next() {
@@ -863,7 +863,7 @@ func (p *PostgresDB) ListAuditLogs(ctx context.Context, tenantID string, limit, 
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []core.AuditEntry
 	for rows.Next() {
@@ -915,7 +915,7 @@ func (p *PostgresDB) ListSecretsByTenant(ctx context.Context, tenantID string) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var secrets []core.Secret
 	for rows.Next() {
@@ -956,7 +956,7 @@ func (p *PostgresDB) ListInvitesByTenant(ctx context.Context, tenantID string) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var invites []core.Invitation
 	for rows.Next() {
@@ -985,7 +985,7 @@ func (p *PostgresDB) ListAllTenants(ctx context.Context, limit, offset int) ([]c
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tenants []core.Tenant
 	for rows.Next() {
@@ -1048,7 +1048,7 @@ func (p *PostgresDB) ListAllSecretVersions(ctx context.Context) ([]core.SecretVe
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var versions []core.SecretVersion
 	for rows.Next() {
@@ -1098,7 +1098,7 @@ func (p *PostgresDB) ListUsageRecordsByTenant(ctx context.Context, tenantID stri
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var records []core.UsageRecord
 	for rows.Next() {
 		var r core.UsageRecord
@@ -1141,7 +1141,7 @@ func (p *PostgresDB) ListBackupsByTenant(ctx context.Context, tenantID string, l
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var backups []core.Backup
 	for rows.Next() {
 		var b core.Backup

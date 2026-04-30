@@ -55,7 +55,7 @@ func (recv *Receiver) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"failed to read body"}`, http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	// Detect provider from headers
 	provider := detectProvider(r)

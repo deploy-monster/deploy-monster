@@ -447,14 +447,14 @@ func (c *Compiler) GenerateCaddyfile() string {
 		}
 
 		// Domain block
-		sb.WriteString(fmt.Sprintf("%s {\n", domain.FQDN))
+		fmt.Fprintf(&sb, "%s {\n", domain.FQDN)
 
 		// Reverse proxy
 		port := app.Port
 		if port == 0 {
 			port = 3000
 		}
-		sb.WriteString(fmt.Sprintf("  reverse_proxy %s:%d\n", app.Name, port))
+		fmt.Fprintf(&sb, "  reverse_proxy %s:%d\n", app.Name, port)
 
 		// Encoding
 		sb.WriteString("  encode gzip zstd\n")
@@ -477,12 +477,12 @@ func (c *Compiler) GenerateEnvFile() string {
 	var sb strings.Builder
 
 	sb.WriteString("# Auto-generated environment file\n")
-	sb.WriteString(fmt.Sprintf("# Project: %s\n", c.project))
-	sb.WriteString(fmt.Sprintf("# Environment: %s\n\n", c.env))
+	fmt.Fprintf(&sb, "# Project: %s\n", c.project)
+	fmt.Fprintf(&sb, "# Environment: %s\n\n", c.env)
 
 	// Add all resolved connections
 	for key, val := range c.connections {
-		sb.WriteString(fmt.Sprintf("%s=%s\n", key, val))
+		fmt.Fprintf(&sb, "%s=%s\n", key, val)
 	}
 
 	return sb.String()

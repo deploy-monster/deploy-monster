@@ -76,7 +76,7 @@ func (s *SQLiteDB) ListAppsByTenant(ctx context.Context, tenantID string, limit,
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var apps []core.Application
 	for rows.Next() {
@@ -101,7 +101,7 @@ func (s *SQLiteDB) ListAppsByProject(ctx context.Context, projectID string) ([]c
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var apps []core.Application
 	for rows.Next() {

@@ -70,7 +70,7 @@ func (s *SQLiteDB) ListDeploymentsByStatus(ctx context.Context, status string) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var deployments []core.Deployment
 	for rows.Next() {
@@ -96,7 +96,7 @@ func (s *SQLiteDB) ListDeploymentsByApp(ctx context.Context, appID string, limit
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var deployments []core.Deployment
 	for rows.Next() {

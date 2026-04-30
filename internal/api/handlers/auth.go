@@ -443,7 +443,7 @@ func (h *AuthHandler) trackSession(r *http.Request, userID, refreshToken string)
 	// Get client IP and User-Agent
 	ip := r.RemoteAddr
 	if fwdFor := r.Header.Get("X-Forwarded-For"); fwdFor != "" {
-		ip = string(fwdFor)
+		ip = fwdFor
 	}
 	userAgent := r.Header.Get("User-Agent")
 

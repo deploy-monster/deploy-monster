@@ -248,7 +248,7 @@ func (s *AgentServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	if err := ac.decoder.Decode(&initMsg); err != nil {
 		s.logger.Error("failed to read agent info", "error", err)
 		cancel()
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	_ = conn.SetReadDeadline(time.Time{}) // clear deadline
@@ -258,7 +258,7 @@ func (s *AgentServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.Error("invalid agent info payload", "error", err)
 		cancel()
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
@@ -281,7 +281,7 @@ func (s *AgentServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	// Close existing connection for this server if any
 	if old, exists := s.agents[info.ServerID]; exists {
 		old.cancel()
-		old.conn.Close()
+		_ = old.conn.Close()
 	}
 	s.agents[info.ServerID] = ac
 	s.wg.Add(1)
@@ -448,7 +448,7 @@ func tryDecodeServerMetrics(payload any) (*core.ServerMetrics, bool) {
 // removeAgent cleans up after an agent disconnects.
 func (s *AgentServer) removeAgent(ac *AgentConn) {
 	ac.cancel()
-	ac.conn.Close()
+	_ = ac.conn.Close()
 
 	s.mu.Lock()
 	delete(s.agents, ac.ServerID)
@@ -645,7 +645,7 @@ func (s *AgentServer) Stop() {
 		s.closed = true
 		for id, ac := range s.agents {
 			ac.cancel()
-			ac.conn.Close()
+			_ = ac.conn.Close()
 			delete(s.agents, id)
 		}
 		s.mu.Unlock()

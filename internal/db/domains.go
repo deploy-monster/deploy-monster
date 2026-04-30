@@ -58,7 +58,7 @@ func (s *SQLiteDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.D
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var domains []core.Domain
 	for rows.Next() {
@@ -91,7 +91,7 @@ func (s *SQLiteDB) ListAllDomains(ctx context.Context) ([]core.Domain, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var domains []core.Domain
 	for rows.Next() {

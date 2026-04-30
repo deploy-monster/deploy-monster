@@ -33,7 +33,7 @@ func (s *SQLiteDB) ListInvitesByTenant(ctx context.Context, tenantID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var invites []core.Invitation
 	for rows.Next() {
@@ -63,7 +63,7 @@ func (s *SQLiteDB) ListAllTenants(ctx context.Context, limit, offset int) ([]cor
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tenants []core.Tenant
 	for rows.Next() {

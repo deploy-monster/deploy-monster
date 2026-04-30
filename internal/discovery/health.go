@@ -246,7 +246,7 @@ func (hc *HealthChecker) probeHTTP(backend, path string, timeout time.Duration) 
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode >= 400 {
@@ -260,7 +260,7 @@ func (hc *HealthChecker) probeTCP(backend string, timeout time.Duration) error {
 	if err != nil {
 		return err
 	}
-	conn.Close()
+	_ = conn.Close()
 	return nil
 }
 

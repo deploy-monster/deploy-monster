@@ -62,7 +62,7 @@ func (s *SQLiteDB) ListSecretsByTenant(ctx context.Context, tenantID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var secrets []core.Secret
 	for rows.Next() {
@@ -105,7 +105,7 @@ func (s *SQLiteDB) ListAllSecretVersions(ctx context.Context) ([]core.SecretVers
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var versions []core.SecretVersion
 	for rows.Next() {

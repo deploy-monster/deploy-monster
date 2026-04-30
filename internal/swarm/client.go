@@ -67,7 +67,7 @@ func (c *AgentClient) Connect(ctx context.Context) error {
 	if err := c.dial(ctx); err != nil {
 		return fmt.Errorf("connect to master: %w", err)
 	}
-	defer c.conn.Close()
+	defer func() { _ = c.conn.Close() }()
 
 	// Send initial AgentInfo
 	info := c.collectAgentInfo()
@@ -148,7 +148,7 @@ func (c *AgentClient) dial(ctx context.Context) error {
 	path := fmt.Sprintf("/api/v1/agent/ws?token=%s", c.token)
 	req := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: deploymonster-agent/1\r\n\r\n", path, host)
 	if _, err := conn.Write([]byte(req)); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return fmt.Errorf("send upgrade request: %w", err)
 	}
 
@@ -156,14 +156,14 @@ func (c *AgentClient) dial(ctx context.Context) error {
 	reader := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(reader, nil)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return fmt.Errorf("read upgrade response: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
-		conn.Close()
+		_ = conn.Close()
 		return fmt.Errorf("master rejected connection: HTTP %d", resp.StatusCode)
 	}
 
@@ -301,7 +301,7 @@ func (c *AgentClient) handleContainerLogs(ctx context.Context, msg core.AgentMes
 	if err != nil {
 		return "", err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	buf := make([]byte, 64*1024) // 64KB max log fetch
 	n, _ := reader.Read(buf)

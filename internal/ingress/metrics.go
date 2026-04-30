@@ -146,40 +146,40 @@ func (m *Module) PrometheusHandler() http.HandlerFunc {
 		// Help and type declarations
 		sb.WriteString("# HELP ingress_requests_total Total number of requests processed\n")
 		sb.WriteString("# TYPE ingress_requests_total counter\n")
-		sb.WriteString(fmt.Sprintf("ingress_requests_total %d\n", snapshot.TotalRequests))
+		fmt.Fprintf(&sb, "ingress_requests_total %d\n", snapshot.TotalRequests)
 
 		sb.WriteString("\n# HELP ingress_requests_active Number of active requests\n")
 		sb.WriteString("# TYPE ingress_requests_active gauge\n")
-		sb.WriteString(fmt.Sprintf("ingress_requests_active %d\n", snapshot.ActiveRequests))
+		fmt.Fprintf(&sb, "ingress_requests_active %d\n", snapshot.ActiveRequests)
 
 		sb.WriteString("\n# HELP ingress_errors_total Total number of errors\n")
 		sb.WriteString("# TYPE ingress_errors_total counter\n")
-		sb.WriteString(fmt.Sprintf("ingress_errors_total %d\n", snapshot.ErrorCount))
+		fmt.Fprintf(&sb, "ingress_errors_total %d\n", snapshot.ErrorCount)
 
 		sb.WriteString("\n# HELP ingress_bytes_in_total Total bytes received\n")
 		sb.WriteString("# TYPE ingress_bytes_in_total counter\n")
-		sb.WriteString(fmt.Sprintf("ingress_bytes_in_total %d\n", snapshot.BytesIn))
+		fmt.Fprintf(&sb, "ingress_bytes_in_total %d\n", snapshot.BytesIn)
 
 		sb.WriteString("\n# HELP ingress_bytes_out_total Total bytes sent\n")
 		sb.WriteString("# TYPE ingress_bytes_out_total counter\n")
-		sb.WriteString(fmt.Sprintf("ingress_bytes_out_total %d\n", snapshot.BytesOut))
+		fmt.Fprintf(&sb, "ingress_bytes_out_total %d\n", snapshot.BytesOut)
 
 		sb.WriteString("\n# HELP ingress_latency_avg_microseconds Average request latency\n")
 		sb.WriteString("# TYPE ingress_latency_avg_microseconds gauge\n")
-		sb.WriteString(fmt.Sprintf("ingress_latency_avg_microseconds %.2f\n", snapshot.LatencyAvg))
+		fmt.Fprintf(&sb, "ingress_latency_avg_microseconds %.2f\n", snapshot.LatencyAvg)
 
 		// Requests by host
 		sb.WriteString("\n# HELP ingress_host_requests_total Requests per host\n")
 		sb.WriteString("# TYPE ingress_host_requests_total counter\n")
 		for host, count := range snapshot.RequestsByHost {
-			sb.WriteString(fmt.Sprintf("ingress_host_requests_total{host=%q} %d\n", host, count))
+			fmt.Fprintf(&sb, "ingress_host_requests_total{host=%q} %d\n", host, count)
 		}
 
 		// Requests by status
 		sb.WriteString("\n# HELP ingress_status_requests_total Requests per status code\n")
 		sb.WriteString("# TYPE ingress_status_requests_total counter\n")
 		for status, count := range snapshot.RequestsByStatus {
-			sb.WriteString(fmt.Sprintf("ingress_status_requests_total{status=%q} %d\n", status, count))
+			fmt.Fprintf(&sb, "ingress_status_requests_total{status=%q} %d\n", status, count)
 		}
 
 		// Route count
@@ -189,14 +189,14 @@ func (m *Module) PrometheusHandler() http.HandlerFunc {
 		}
 		sb.WriteString("\n# HELP ingress_routes Number of configured routes\n")
 		sb.WriteString("# TYPE ingress_routes gauge\n")
-		sb.WriteString(fmt.Sprintf("ingress_routes %d\n", routeCount))
+		fmt.Fprintf(&sb, "ingress_routes %d\n", routeCount)
 
 		// Circuit breaker stats
 		if m.proxy.circuit != nil {
 			sb.WriteString("\n# HELP ingress_circuit_state Circuit breaker state (0=closed, 1=open, 2=half-open)\n")
 			sb.WriteString("# TYPE ingress_circuit_state gauge\n")
 			for backend, stats := range m.proxy.circuit.AllStats() {
-				sb.WriteString(fmt.Sprintf("ingress_circuit_state{backend=%q} %d\n", backend, stats.State))
+				fmt.Fprintf(&sb, "ingress_circuit_state{backend=%q} %d\n", backend, stats.State)
 			}
 		}
 

@@ -67,7 +67,7 @@ func splitCommand(cmd string) []string {
 		} else {
 			switch ch {
 			case '\'', '"':
-				inQuote = rune(ch)
+				inQuote = ch
 			case ' ', '\t', '\n', '\r':
 				if current.Len() > 0 {
 					tokens = append(tokens, current.String())

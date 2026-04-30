@@ -176,7 +176,7 @@ func (s *StripeClient) post(ctx context.Context, path string, params url.Values,
 	if err != nil {
 		return fmt.Errorf("stripe API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {

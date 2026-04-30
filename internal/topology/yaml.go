@@ -19,7 +19,7 @@ func (c *ComposeConfig) ToYAML() string {
 
 	// Version
 	if c.Version != "" {
-		sb.WriteString(fmt.Sprintf("version: %q\n\n", c.Version))
+		fmt.Fprintf(&sb, "version: %q\n\n", c.Version)
 	}
 
 	// Services
@@ -34,7 +34,7 @@ func (c *ComposeConfig) ToYAML() string {
 
 		for _, name := range names {
 			svc := c.Services[name]
-			sb.WriteString(fmt.Sprintf("  %s:\n", name))
+			fmt.Fprintf(&sb, "  %s:\n", name)
 			sb.WriteString(svc.toYAML(4))
 		}
 		sb.WriteString("\n")
@@ -44,9 +44,9 @@ func (c *ComposeConfig) ToYAML() string {
 	if len(c.Networks) > 0 {
 		sb.WriteString("networks:\n")
 		for name, net := range c.Networks {
-			sb.WriteString(fmt.Sprintf("  %s:\n", name))
+			fmt.Fprintf(&sb, "  %s:\n", name)
 			if net.Driver != "" {
-				sb.WriteString(fmt.Sprintf("    driver: %s\n", net.Driver))
+				fmt.Fprintf(&sb, "    driver: %s\n", net.Driver)
 			}
 		}
 		sb.WriteString("\n")
@@ -56,9 +56,9 @@ func (c *ComposeConfig) ToYAML() string {
 	if len(c.Volumes) > 0 {
 		sb.WriteString("volumes:\n")
 		for name, vol := range c.Volumes {
-			sb.WriteString(fmt.Sprintf("  %s:\n", name))
+			fmt.Fprintf(&sb, "  %s:\n", name)
 			if vol.Driver != "" {
-				sb.WriteString(fmt.Sprintf("    driver: %s\n", vol.Driver))
+				fmt.Fprintf(&sb, "    driver: %s\n", vol.Driver)
 			}
 			if vol.External {
 				sb.WriteString("    external: true\n")
@@ -76,59 +76,59 @@ func (s *Service) toYAML(indent int) string {
 
 	// Image
 	if s.Image != "" {
-		sb.WriteString(fmt.Sprintf("%simage: %q\n", pad, s.Image))
+		fmt.Fprintf(&sb, "%simage: %q\n", pad, s.Image)
 	}
 
 	// Build
 	if s.Build != nil {
-		sb.WriteString(fmt.Sprintf("%sbuild:\n", pad))
+		fmt.Fprintf(&sb, "%sbuild:\n", pad)
 		if s.Build.Context != "" {
-			sb.WriteString(fmt.Sprintf("%s  context: %q\n", pad, s.Build.Context))
+			fmt.Fprintf(&sb, "%s  context: %q\n", pad, s.Build.Context)
 		}
 		if s.Build.Dockerfile != "" {
-			sb.WriteString(fmt.Sprintf("%s  dockerfile: %q\n", pad, s.Build.Dockerfile))
+			fmt.Fprintf(&sb, "%s  dockerfile: %q\n", pad, s.Build.Dockerfile)
 		}
 		if len(s.Build.Args) > 0 {
-			sb.WriteString(fmt.Sprintf("%s  args:\n", pad))
+			fmt.Fprintf(&sb, "%s  args:\n", pad)
 			for k, v := range s.Build.Args {
-				sb.WriteString(fmt.Sprintf("%s    %s: %q\n", pad, k, v))
+				fmt.Fprintf(&sb, "%s    %s: %q\n", pad, k, v)
 			}
 		}
 	}
 
 	// Container name
 	if s.ContainerName != "" {
-		sb.WriteString(fmt.Sprintf("%scontainer_name: %q\n", pad, s.ContainerName))
+		fmt.Fprintf(&sb, "%scontainer_name: %q\n", pad, s.ContainerName)
 	}
 
 	// Restart
 	if s.Restart != "" {
-		sb.WriteString(fmt.Sprintf("%srestart: %s\n", pad, s.Restart))
+		fmt.Fprintf(&sb, "%srestart: %s\n", pad, s.Restart)
 	}
 
 	// Ports
 	if len(s.Ports) > 0 {
-		sb.WriteString(fmt.Sprintf("%sports:\n", pad))
+		fmt.Fprintf(&sb, "%sports:\n", pad)
 		for _, p := range s.Ports {
 			if p.Protocol != "" {
-				sb.WriteString(fmt.Sprintf("%s  - \"%d:%d/%s\"\n", pad, p.Host, p.Container, p.Protocol))
+				fmt.Fprintf(&sb, "%s  - \"%d:%d/%s\"\n", pad, p.Host, p.Container, p.Protocol)
 			} else {
-				sb.WriteString(fmt.Sprintf("%s  - \"%d:%d\"\n", pad, p.Host, p.Container))
+				fmt.Fprintf(&sb, "%s  - \"%d:%d\"\n", pad, p.Host, p.Container)
 			}
 		}
 	}
 
 	// Expose
 	if len(s.Expose) > 0 {
-		sb.WriteString(fmt.Sprintf("%sexpose:\n", pad))
+		fmt.Fprintf(&sb, "%sexpose:\n", pad)
 		for _, port := range s.Expose {
-			sb.WriteString(fmt.Sprintf("%s  - %q\n", pad, strconv.Itoa(port)))
+			fmt.Fprintf(&sb, "%s  - %q\n", pad, strconv.Itoa(port))
 		}
 	}
 
 	// Environment
 	if len(s.Environment) > 0 {
-		sb.WriteString(fmt.Sprintf("%senvironment:\n", pad))
+		fmt.Fprintf(&sb, "%senvironment:\n", pad)
 		// Sort for deterministic output
 		keys := make([]string, 0, len(s.Environment))
 		for k := range s.Environment {
@@ -137,94 +137,94 @@ func (s *Service) toYAML(indent int) string {
 		sortStrings(keys)
 		for _, k := range keys {
 			v := s.Environment[k]
-			sb.WriteString(fmt.Sprintf("%s  %s: %q\n", pad, k, v))
+			fmt.Fprintf(&sb, "%s  %s: %q\n", pad, k, v)
 		}
 	}
 
 	// Volumes
 	if len(s.Volumes) > 0 {
-		sb.WriteString(fmt.Sprintf("%svolumes:\n", pad))
+		fmt.Fprintf(&sb, "%svolumes:\n", pad)
 		for _, v := range s.Volumes {
-			sb.WriteString(fmt.Sprintf("%s  - %s\n", pad, v))
+			fmt.Fprintf(&sb, "%s  - %s\n", pad, v)
 		}
 	}
 
 	// Networks
 	if len(s.Networks) > 0 {
-		sb.WriteString(fmt.Sprintf("%snetworks:\n", pad))
+		fmt.Fprintf(&sb, "%snetworks:\n", pad)
 		for _, n := range s.Networks {
-			sb.WriteString(fmt.Sprintf("%s  - %s\n", pad, n))
+			fmt.Fprintf(&sb, "%s  - %s\n", pad, n)
 		}
 	}
 
 	// DependsOn
 	if len(s.DependsOn) > 0 {
-		sb.WriteString(fmt.Sprintf("%sdepends_on:\n", pad))
+		fmt.Fprintf(&sb, "%sdepends_on:\n", pad)
 		for _, d := range s.DependsOn {
-			sb.WriteString(fmt.Sprintf("%s  - %s\n", pad, d))
+			fmt.Fprintf(&sb, "%s  - %s\n", pad, d)
 		}
 	}
 
 	// Labels
 	if len(s.Labels) > 0 {
-		sb.WriteString(fmt.Sprintf("%slabels:\n", pad))
+		fmt.Fprintf(&sb, "%slabels:\n", pad)
 		keys := make([]string, 0, len(s.Labels))
 		for k := range s.Labels {
 			keys = append(keys, k)
 		}
 		sortStrings(keys)
 		for _, k := range keys {
-			sb.WriteString(fmt.Sprintf("%s  %s: %q\n", pad, k, s.Labels[k]))
+			fmt.Fprintf(&sb, "%s  %s: %q\n", pad, k, s.Labels[k])
 		}
 	}
 
 	// Health check
 	if s.HealthCheck != nil {
-		sb.WriteString(fmt.Sprintf("%shealthcheck:\n", pad))
+		fmt.Fprintf(&sb, "%shealthcheck:\n", pad)
 		if len(s.HealthCheck.Test) > 0 {
-			sb.WriteString(fmt.Sprintf("%s  test: [", pad))
+			fmt.Fprintf(&sb, "%s  test: [", pad)
 			for i, t := range s.HealthCheck.Test {
 				if i > 0 {
 					sb.WriteString(", ")
 				}
-				sb.WriteString(fmt.Sprintf("%q", t))
+				fmt.Fprintf(&sb, "%q", t)
 			}
 			sb.WriteString("]\n")
 		}
 		if s.HealthCheck.Interval != "" {
-			sb.WriteString(fmt.Sprintf("%s  interval: %s\n", pad, s.HealthCheck.Interval))
+			fmt.Fprintf(&sb, "%s  interval: %s\n", pad, s.HealthCheck.Interval)
 		}
 		if s.HealthCheck.Timeout != "" {
-			sb.WriteString(fmt.Sprintf("%s  timeout: %s\n", pad, s.HealthCheck.Timeout))
+			fmt.Fprintf(&sb, "%s  timeout: %s\n", pad, s.HealthCheck.Timeout)
 		}
 		if s.HealthCheck.Retries > 0 {
-			sb.WriteString(fmt.Sprintf("%s  retries: %d\n", pad, s.HealthCheck.Retries))
+			fmt.Fprintf(&sb, "%s  retries: %d\n", pad, s.HealthCheck.Retries)
 		}
 		if s.HealthCheck.Disable {
-			sb.WriteString(fmt.Sprintf("%s  disable: true\n", pad))
+			fmt.Fprintf(&sb, "%s  disable: true\n", pad)
 		}
 	}
 
 	// Command
 	if s.Command != "" {
-		sb.WriteString(fmt.Sprintf("%scommand: %s\n", pad, yamlCommandEscape(s.Command)))
+		fmt.Fprintf(&sb, "%scommand: %s\n", pad, yamlCommandEscape(s.Command))
 	}
 
 	// Deploy
 	if s.Deploy != nil {
-		sb.WriteString(fmt.Sprintf("%sdeploy:\n", pad))
+		fmt.Fprintf(&sb, "%sdeploy:\n", pad)
 		if s.Deploy.Replicas > 0 {
-			sb.WriteString(fmt.Sprintf("%s  replicas: %d\n", pad, s.Deploy.Replicas))
+			fmt.Fprintf(&sb, "%s  replicas: %d\n", pad, s.Deploy.Replicas)
 		}
 		if s.Deploy.Resources != nil {
-			sb.WriteString(fmt.Sprintf("%s  resources:\n", pad))
+			fmt.Fprintf(&sb, "%s  resources:\n", pad)
 			if s.Deploy.Resources.Limits != nil {
-				sb.WriteString(fmt.Sprintf("%s    limits:\n", pad))
+				fmt.Fprintf(&sb, "%s    limits:\n", pad)
 				if s.Deploy.Resources.Limits.CPUs != "" {
-					sb.WriteString(fmt.Sprintf("%s      cpus: %s\n", pad, s.Deploy.Resources.Limits.CPUs))
+					fmt.Fprintf(&sb, "%s      cpus: %s\n", pad, s.Deploy.Resources.Limits.CPUs)
 				}
 				if s.Deploy.Resources.Limits.Memory != "" {
-					sb.WriteString(fmt.Sprintf("%s      memory: %s\n", pad, s.Deploy.Resources.Limits.Memory))
+					fmt.Fprintf(&sb, "%s      memory: %s\n", pad, s.Deploy.Resources.Limits.Memory)
 				}
 			}
 		}

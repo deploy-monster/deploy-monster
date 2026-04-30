@@ -1,0 +1,1 @@
+import{t as e}from"./client-Pwts-ZKd.js";var t={system:()=>e.get(`/admin/system`),tenants:()=>e.get(`/admin/tenants`),saveSettings:t=>e.put(`/admin/settings`,t),generateApiKey:()=>e.post(`/admin/api-keys`)};export{t};
