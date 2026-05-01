@@ -10,14 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deploy-monster/deploy-monster/internal/core"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // TOTPConfig holds TOTP configuration.
 type TOTPConfig struct {
-	Digits    int // 6 or 8
-	Period    int // seconds, typically 30
+	Digits    int    // 6 or 8
+	Period    int    // seconds, typically 30
 	Algorithm string // "SHA1", "SHA256", "SHA512"
 }
 
@@ -95,7 +94,7 @@ func ValidateTOTP(token string, secret string) bool {
 func generateTOTP(secret []byte, counter int64, period int, digits int) string {
 	// Pack counter into 8 bytes (big-endian)
 	msg := make([]byte, 8)
-	binary.BigEndian.PutUint64(msg, uint64(counter/ int64(period)))
+	binary.BigEndian.PutUint64(msg, uint64(counter/int64(period)))
 
 	// HMAC-SHA1
 	mac := hmacSHA1(secret, msg)
@@ -136,12 +135,11 @@ func constantTimeCompare(a, b string) bool {
 // Returns 10 backup codes, each 8 characters. Each code is hashed with bcrypt
 // for storage. The plain text codes are returned only once to the user.
 const backupCodesCount = 10
-const backupCodeLength = 8
 
 // BackupCodes holds a set of hashed backup codes and the plain text versions (for display).
 type BackupCodes struct {
-	Hashes  []string // bcrypt hashes for storage
-	Plain   []string // Plain text codes (show to user once only)
+	Hashes []string // bcrypt hashes for storage
+	Plain  []string // Plain text codes (show to user once only)
 }
 
 // GenerateBackupCodes generates a new set of backup codes.
@@ -171,29 +169,4 @@ func GenerateBackupCodes() (*BackupCodes, error) {
 	}
 
 	return codes, nil
-}
-
-// VerifyBackupCode checks a plain text backup code against stored hashes.
-// Returns the index of the matched code, or -1 if no match.
-// Also invalidates the used code by replacing its hash.
-func VerifyBackupCode(plain string, hashes []string) int {
-	for i, hash := range hashes {
-		if bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) == nil {
-			return i
-		}
-	}
-	return -1
-}
-
-// CanEnableTOTP checks if TOTP can be enabled for a user.
-// Returns an error if TOTP is already enabled or if the user has other issues.
-func CanEnableTOTP(store core.Store, userID string) error {
-	user, err := store.GetUser(nil, userID)
-	if err != nil {
-		return fmt.Errorf("user not found: %w", err)
-	}
-	if user.TOTPEnabled {
-		return fmt.Errorf("TOTP is already enabled")
-	}
-	return nil
 }

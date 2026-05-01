@@ -8,7 +8,7 @@ export interface BackupEntry {
   created_at: number;
 }
 
-export interface CreateBackupRequest {
+interface CreateBackupRequest {
   source_type: string;
   source_id: string;
 }

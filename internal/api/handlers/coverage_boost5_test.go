@@ -121,7 +121,7 @@ func TestBrandingHandler_Update_Valid(t *testing.T) {
 }
 
 // =============================================================================
-// EventWebhookHandler — hashSecret, checkSecret
+// EventWebhookHandler — hashSecret
 // =============================================================================
 
 func TestHashSecret(t *testing.T) {
@@ -137,18 +137,6 @@ func TestHashSecret(t *testing.T) {
 	}
 	if len(h1) != 64 {
 		t.Errorf("expected sha256 hex length 64, got %d", len(h1))
-	}
-}
-
-func TestCheckSecret(t *testing.T) {
-	secret := "my-webhook-secret"
-	hash := hashSecret(secret)
-
-	if !checkSecret(secret, hash) {
-		t.Error("checkSecret should return true for matching secret")
-	}
-	if checkSecret("wrong-secret", hash) {
-		t.Error("checkSecret should return false for wrong secret")
 	}
 }
 
@@ -207,19 +195,19 @@ func TestDNSRecordHandler_SetEvents(t *testing.T) {
 }
 
 // =============================================================================
-// DeployApprovalHandler — CreatePending
+// DeployApprovalHandler — pending request storage
 // =============================================================================
 
-func TestDeployApprovalHandler_CreatePending(t *testing.T) {
+func TestDeployApprovalHandler_SeedPendingForTests(t *testing.T) {
 	h := NewDeployApprovalHandler(newMockStore(), nil)
 	req := &ApprovalRequest{
-		ID:       "app-1",
-		AppID:    "app-1",
-		TenantID: "tenant-1",
-		Status:   "pending",
+		ID:        "app-1",
+		AppID:     "app-1",
+		TenantID:  "tenant-1",
+		Status:    "pending",
 		CreatedAt: time.Now(),
 	}
-	h.CreatePending(req)
+	seedApprovalRequest(h, req)
 
 	h.mu.RLock()
 	_, ok := h.pending["app-1"]
@@ -227,6 +215,12 @@ func TestDeployApprovalHandler_CreatePending(t *testing.T) {
 	if !ok {
 		t.Error("expected pending request to be stored")
 	}
+}
+
+func seedApprovalRequest(h *DeployApprovalHandler, req *ApprovalRequest) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.pending[req.ID] = req
 }
 
 // =============================================================================
@@ -451,11 +445,11 @@ func TestEventWebhookHandler_Delete_NoClaims(t *testing.T) {
 func TestDeployApprovalHandler_Approve_Success(t *testing.T) {
 	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	h := NewDeployApprovalHandler(newMockStore(), events)
-	h.CreatePending(&ApprovalRequest{
-		ID:       "apr-1",
-		AppID:    "app-1",
-		TenantID: "tenant-1",
-		Status:   "pending",
+	seedApprovalRequest(h, &ApprovalRequest{
+		ID:        "apr-1",
+		AppID:     "app-1",
+		TenantID:  "tenant-1",
+		Status:    "pending",
 		CreatedAt: time.Now(),
 	})
 
@@ -472,11 +466,11 @@ func TestDeployApprovalHandler_Approve_Success(t *testing.T) {
 
 func TestDeployApprovalHandler_Approve_WrongTenant(t *testing.T) {
 	h := NewDeployApprovalHandler(newMockStore(), nil)
-	h.CreatePending(&ApprovalRequest{
-		ID:       "apr-1",
-		AppID:    "app-1",
-		TenantID: "tenant-2",
-		Status:   "pending",
+	seedApprovalRequest(h, &ApprovalRequest{
+		ID:        "apr-1",
+		AppID:     "app-1",
+		TenantID:  "tenant-2",
+		Status:    "pending",
 		CreatedAt: time.Now(),
 	})
 
@@ -507,11 +501,11 @@ func TestDeployApprovalHandler_Approve_NotFound(t *testing.T) {
 func TestDeployApprovalHandler_Reject_Success(t *testing.T) {
 	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	h := NewDeployApprovalHandler(newMockStore(), events)
-	h.CreatePending(&ApprovalRequest{
-		ID:       "apr-1",
-		AppID:    "app-1",
-		TenantID: "tenant-1",
-		Status:   "pending",
+	seedApprovalRequest(h, &ApprovalRequest{
+		ID:        "apr-1",
+		AppID:     "app-1",
+		TenantID:  "tenant-1",
+		Status:    "pending",
 		CreatedAt: time.Now(),
 	})
 
@@ -529,11 +523,11 @@ func TestDeployApprovalHandler_Reject_Success(t *testing.T) {
 
 func TestDeployApprovalHandler_Reject_WrongTenant(t *testing.T) {
 	h := NewDeployApprovalHandler(newMockStore(), nil)
-	h.CreatePending(&ApprovalRequest{
-		ID:       "apr-1",
-		AppID:    "app-1",
-		TenantID: "tenant-2",
-		Status:   "pending",
+	seedApprovalRequest(h, &ApprovalRequest{
+		ID:        "apr-1",
+		AppID:     "app-1",
+		TenantID:  "tenant-2",
+		Status:    "pending",
 		CreatedAt: time.Now(),
 	})
 
@@ -563,8 +557,8 @@ func TestDeployApprovalHandler_Reject_NotFound(t *testing.T) {
 
 func TestDeployApprovalHandler_ListPending(t *testing.T) {
 	h := NewDeployApprovalHandler(newMockStore(), nil)
-	h.CreatePending(&ApprovalRequest{ID: "apr-1", AppID: "app-1", TenantID: "t1", Status: "pending", CreatedAt: time.Now()})
-	h.CreatePending(&ApprovalRequest{ID: "apr-2", AppID: "app-1", TenantID: "t1", Status: "approved", CreatedAt: time.Now()})
+	seedApprovalRequest(h, &ApprovalRequest{ID: "apr-1", AppID: "app-1", TenantID: "t1", Status: "pending", CreatedAt: time.Now()})
+	seedApprovalRequest(h, &ApprovalRequest{ID: "apr-2", AppID: "app-1", TenantID: "t1", Status: "approved", CreatedAt: time.Now()})
 
 	req := httptest.NewRequest("GET", "/api/v1/deploy/approvals", nil)
 	rr := httptest.NewRecorder()
@@ -928,7 +922,9 @@ func TestBasicAuthHandler_Update_Validation(t *testing.T) {
 		{"too many users", `{"enabled":true,"users":{` + func() string {
 			var sb strings.Builder
 			for i := 0; i < 51; i++ {
-				if i > 0 { sb.WriteByte(',') }
+				if i > 0 {
+					sb.WriteByte(',')
+				}
 				sb.WriteString(fmt.Sprintf("\"u%d\":\"h\"", i))
 			}
 			return sb.String()

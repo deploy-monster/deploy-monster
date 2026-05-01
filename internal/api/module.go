@@ -22,7 +22,7 @@ type Module struct {
 	core    *core.Core
 	server  *http.Server
 	router  *Router
-	authMod *auth.Module
+	authMod handlers.AuthServices
 	store   core.Store
 	logger  *slog.Logger
 }

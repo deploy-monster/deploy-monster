@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+type autoRollbackTestContextKey string
+
 func TestAutoRollbackManager_runCtx_WithStopCtx(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -19,7 +21,7 @@ func TestAutoRollbackManager_runCtx_WithStopCtx(t *testing.T) {
 
 func TestAutoRollbackManager_runCtx_WithEventCtx(t *testing.T) {
 	ar := &AutoRollbackManager{}
-	eventCtx := context.WithValue(context.Background(), "key", "val")
+	eventCtx := context.WithValue(context.Background(), autoRollbackTestContextKey("key"), "val")
 	got := ar.runCtx(eventCtx)
 	if got != eventCtx {
 		t.Error("expected runCtx to return eventCtx when stopCtx is nil")
@@ -28,6 +30,7 @@ func TestAutoRollbackManager_runCtx_WithEventCtx(t *testing.T) {
 
 func TestAutoRollbackManager_runCtx_Fallback(t *testing.T) {
 	ar := &AutoRollbackManager{}
+	//lint:ignore SA1012 runCtx explicitly supports nil as a legacy fallback path.
 	got := ar.runCtx(nil)
 
 	// Should return a background context

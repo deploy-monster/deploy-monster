@@ -16,7 +16,15 @@ import (
 const testJWTSecret = "test-secret-key-for-jwt-minimum-32-bytes"
 
 func testJWT() *auth.JWTService {
-	return auth.MustNewJWTService(testJWTSecret)
+	return mustNewJWTService(testJWTSecret)
+}
+
+func mustNewJWTService(secret string, previousSecrets ...string) *auth.JWTService {
+	svc, err := auth.NewJWTService(secret, previousSecrets...)
+	if err != nil {
+		panic(err)
+	}
+	return svc
 }
 
 func generateTestToken(userID, tenantID, roleID, email string) string {
@@ -299,7 +307,7 @@ func TestRequireAuth_InvalidAPIKey(t *testing.T) {
 
 func TestRequireAuth_ExpiredToken(t *testing.T) {
 	// Use a different secret to create a token that won't validate
-	wrongJWT := auth.MustNewJWTService("wrong-secret-key-at-least-32-bytes!!")
+	wrongJWT := mustNewJWTService("wrong-secret-key-at-least-32-bytes!!")
 	pair, err := wrongJWT.GenerateTokenPair("user-1", "tenant-1", "role_admin", "admin@test.com")
 	if err != nil {
 		t.Fatalf("generating token: %v", err)

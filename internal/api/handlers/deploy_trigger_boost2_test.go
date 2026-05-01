@@ -49,13 +49,13 @@ type errCreateRuntime struct {
 	err error
 }
 
-func (e *errCreateRuntime) Ping() error                                         { return nil }
+func (e *errCreateRuntime) Ping() error { return nil }
 func (e *errCreateRuntime) CreateAndStart(_ context.Context, _ core.ContainerOpts) (string, error) {
 	return "", e.err
 }
-func (e *errCreateRuntime) Stop(_ context.Context, _ string, _ int) error       { return nil }
-func (e *errCreateRuntime) Remove(_ context.Context, _ string, _ bool) error    { return nil }
-func (e *errCreateRuntime) Restart(_ context.Context, _ string) error           { return nil }
+func (e *errCreateRuntime) Stop(_ context.Context, _ string, _ int) error    { return nil }
+func (e *errCreateRuntime) Remove(_ context.Context, _ string, _ bool) error { return nil }
+func (e *errCreateRuntime) Restart(_ context.Context, _ string) error        { return nil }
 func (e *errCreateRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
 	return nil, nil
 }
@@ -68,11 +68,13 @@ func (e *errCreateRuntime) Exec(_ context.Context, _ string, _ []string) (string
 func (e *errCreateRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
 	return nil, nil
 }
-func (e *errCreateRuntime) ImagePull(_ context.Context, _ string) error               { return nil }
-func (e *errCreateRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error)     { return nil, nil }
-func (e *errCreateRuntime) ImageRemove(_ context.Context, _ string) error             { return nil }
-func (e *errCreateRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) { return nil, nil }
-func (e *errCreateRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error)   { return nil, nil }
+func (e *errCreateRuntime) ImagePull(_ context.Context, _ string) error           { return nil }
+func (e *errCreateRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) { return nil, nil }
+func (e *errCreateRuntime) ImageRemove(_ context.Context, _ string) error         { return nil }
+func (e *errCreateRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) {
+	return nil, nil
+}
+func (e *errCreateRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) { return nil, nil }
 
 func TestDeployTrigger_ImageApp_AtomicVersionError_Boost(t *testing.T) {
 	store := newMockStore()

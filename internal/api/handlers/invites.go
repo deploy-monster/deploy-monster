@@ -139,9 +139,3 @@ func hashToken(token string) string {
 	}
 	return string(hash)
 }
-
-// verifyTokenHash checks a plain token against a bcrypt-hashed stored hash.
-func verifyTokenHash(token, storedHash string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(token))
-	return err == nil
-}

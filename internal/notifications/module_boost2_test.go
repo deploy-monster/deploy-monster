@@ -1,6 +1,7 @@
 package notifications
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
@@ -14,7 +15,7 @@ func TestModule_Init_NilConfig(t *testing.T) {
 		Logger:   slog.Default(),
 		Services: core.NewServices(),
 	}
-	if err := m.Init(nil, c); err != nil {
+	if err := m.Init(context.Background(), c); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if c.Services.Notifications != m {
@@ -33,7 +34,7 @@ func TestModule_Init_SlackProvider(t *testing.T) {
 		Logger:   slog.Default(),
 		Services: core.NewServices(),
 	}
-	if err := m.Init(nil, c); err != nil {
+	if err := m.Init(context.Background(), c); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if len(m.dispatcher.Providers()) != 1 {
@@ -52,7 +53,7 @@ func TestModule_Init_DiscordProvider(t *testing.T) {
 		Logger:   slog.Default(),
 		Services: core.NewServices(),
 	}
-	if err := m.Init(nil, c); err != nil {
+	if err := m.Init(context.Background(), c); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if len(m.dispatcher.Providers()) != 1 {
@@ -65,14 +66,14 @@ func TestModule_Init_TelegramProvider(t *testing.T) {
 	c := &core.Core{
 		Config: &core.Config{
 			Notifications: core.NotificationConfig{
-				TelegramToken: "123:ABC",
+				TelegramToken:  "123:ABC",
 				TelegramChatID: "-12345",
 			},
 		},
 		Logger:   slog.Default(),
 		Services: core.NewServices(),
 	}
-	if err := m.Init(nil, c); err != nil {
+	if err := m.Init(context.Background(), c); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if len(m.dispatcher.Providers()) != 1 {
@@ -92,7 +93,7 @@ func TestModule_Init_TelegramProvider_NoChatID(t *testing.T) {
 		Logger:   slog.Default(),
 		Services: core.NewServices(),
 	}
-	if err := m.Init(nil, c); err != nil {
+	if err := m.Init(context.Background(), c); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if len(m.dispatcher.Providers()) != 1 {
@@ -115,7 +116,7 @@ func TestModule_Init_SMTPProvider_Valid(t *testing.T) {
 		Logger:   slog.Default(),
 		Services: core.NewServices(),
 	}
-	if err := m.Init(nil, c); err != nil {
+	if err := m.Init(context.Background(), c); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if len(m.dispatcher.Providers()) != 1 {
@@ -137,7 +138,7 @@ func TestModule_Init_SMTPProvider_Invalid(t *testing.T) {
 		Logger:   slog.Default(),
 		Services: core.NewServices(),
 	}
-	if err := m.Init(nil, c); err != nil {
+	if err := m.Init(context.Background(), c); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	// Invalid SMTP should be skipped, so no providers registered
@@ -165,7 +166,7 @@ func TestModule_Init_MultipleProviders(t *testing.T) {
 		Logger:   slog.Default(),
 		Services: core.NewServices(),
 	}
-	if err := m.Init(nil, c); err != nil {
+	if err := m.Init(context.Background(), c); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if len(m.dispatcher.Providers()) != 4 {
@@ -191,7 +192,7 @@ func TestModule_Health_Degraded(t *testing.T) {
 		Logger:   slog.Default(),
 		Services: core.NewServices(),
 	}
-	if err := m.Init(nil, c); err != nil {
+	if err := m.Init(context.Background(), c); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	// Manually clear providers to simulate validation failure
@@ -212,7 +213,7 @@ func TestModule_Health_OK(t *testing.T) {
 		Logger:   slog.Default(),
 		Services: core.NewServices(),
 	}
-	if err := m.Init(nil, c); err != nil {
+	if err := m.Init(context.Background(), c); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if m.Health() != core.HealthOK {

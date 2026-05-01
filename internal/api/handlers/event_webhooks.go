@@ -43,13 +43,6 @@ func hashSecret(secret string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// checkSecret verifies if a provided secret matches the stored hash.
-// Used during outbound webhook delivery to sign requests.
-func checkSecret(provided, storedHash string) bool {
-	h := hashSecret(provided)
-	return h == storedHash
-}
-
 // webhookListKey returns the BBolt bucket key for a tenant's webhook list.
 func webhookListKey(tenantID string) string {
 	return "tenant:" + tenantID

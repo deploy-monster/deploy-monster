@@ -44,7 +44,9 @@ func (m *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) (
 }
 func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
 
-func (m *mockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error { return nil }
+func (m *mockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
+	return nil
+}
 
 // mockBackupStorage implements core.BackupStorage for cleanup tests.
 type mockBackupStorage struct {

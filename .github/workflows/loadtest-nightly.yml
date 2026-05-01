@@ -87,8 +87,10 @@ jobs:
           ./bin/deploymonster serve &
           echo $! > server.pid
         env:
-          MONSTER_SERVER_ADDRESS: :8443
-          MONSTER_DATABASE_DRIVER: sqlite
+          MONSTER_HOST: 127.0.0.1
+          MONSTER_PORT: 8443
+          MONSTER_SECRET: nightly-loadtest-secret-with-at-least-32-characters
+          MONSTER_DB_PATH: ${{ runner.temp }}/deploymonster-loadtest.db
           MONSTER_ADMIN_EMAIL: loadtest@deploymonster.local
           MONSTER_ADMIN_PASSWORD: LoadTest-Pass-2026!
 

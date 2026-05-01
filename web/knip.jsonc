@@ -1,0 +1,5 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  // Playwright loads this setup project through projects[].testMatch.
+  "ignore": ["e2e/global-setup.ts"]
+}

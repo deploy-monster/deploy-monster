@@ -19,29 +19,6 @@ function Avatar({
   )
 }
 
-function AvatarImage({
-  className,
-  ref,
-  onError,
-  ...props
-}: React.ComponentProps<"img">) {
-  const [hasError, setHasError] = React.useState(false)
-
-  if (hasError) return null
-
-  return (
-    <img
-      className={cn("aspect-square size-full object-cover", className)}
-      ref={ref}
-      onError={(e) => {
-        setHasError(true)
-        onError?.(e)
-      }}
-      {...props}
-    />
-  )
-}
-
 function AvatarFallback({
   className,
   ref,
@@ -59,4 +36,4 @@ function AvatarFallback({
   )
 }
 
-export { Avatar, AvatarImage, AvatarFallback }
+export { Avatar, AvatarFallback }

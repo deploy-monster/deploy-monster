@@ -9,31 +9,6 @@ import (
 	"time"
 )
 
-func TestSessionHandler_TrackUserSession(t *testing.T) {
-	bolt := newMockBoltStore()
-	h := NewSessionHandler(newMockStore(), bolt, nil)
-
-	err := h.TrackUserSession("user-1", "jti-123", "127.0.0.1", "Mozilla/5.0")
-	if err != nil {
-		t.Errorf("TrackUserSession: %v", err)
-	}
-
-	// Verify it was stored
-	keys, _ := bolt.List("user_sessions")
-	if len(keys) == 0 {
-		t.Error("expected session to be stored")
-	}
-}
-
-func TestSessionHandler_TrackUserSession_NilBolt(t *testing.T) {
-	h := NewSessionHandler(newMockStore(), nil, nil)
-
-	err := h.TrackUserSession("user-1", "jti-123", "127.0.0.1", "Mozilla/5.0")
-	if err != nil {
-		t.Error("expected nil error when bolt is nil")
-	}
-}
-
 func TestSessionHandler_GetUserSessions(t *testing.T) {
 	bolt := newMockBoltStore()
 	h := NewSessionHandler(newMockStore(), bolt, nil)
@@ -84,28 +59,6 @@ func TestSessionHandler_revokeAllUserSessions(t *testing.T) {
 	keys, _ := bolt.List("user_sessions")
 	if len(keys) != 0 {
 		t.Errorf("expected 0 sessions, got %d", len(keys))
-	}
-}
-
-func TestSessionHandler_enforceSessionLimit(t *testing.T) {
-	bolt := newMockBoltStore()
-	h := NewSessionHandler(newMockStore(), bolt, nil)
-
-	// Seed 12 sessions (over limit of 10)
-	for i := 0; i < 12; i++ {
-		jti := "jti-" + string(rune('a'+i)) + "1234567"
-		bolt.Set("user_sessions", "user-1:"+jti, SessionTrackingInfo{UserID: "user-1", JTI: jti, CreatedAt: time.Now().Add(time.Duration(i) * time.Hour)}, 0)
-	}
-
-	err := h.enforceSessionLimit("user-1")
-	if err != nil {
-		t.Errorf("enforceSessionLimit: %v", err)
-	}
-
-	// 2 oldest should be revoked
-	keys, _ := bolt.List("user_sessions")
-	if len(keys) != 10 {
-		t.Errorf("expected 10 sessions after limit enforcement, got %d", len(keys))
 	}
 }
 

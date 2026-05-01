@@ -13,8 +13,8 @@ import (
 // The TOTP secret is stored encrypted using the secrets vault for
 // secure storage and retrieval during validation.
 type TOTPService struct {
-	store  core.Store
-	vault  interface {
+	store core.Store
+	vault interface {
 		Encrypt(string) (string, error)
 		Decrypt(string) (string, error)
 	}
@@ -84,7 +84,7 @@ func (s *TOTPService) Validate(userID, code string) bool {
 		return false
 	}
 
-	user, err := s.store.GetUser(nil, userID)
+	user, err := s.store.GetUser(context.Background(), userID)
 	if err != nil || !user.TOTPEnabled || user.TOTPSecret == "" {
 		return false
 	}
@@ -128,7 +128,7 @@ func (s *TOTPService) Disable(ctx context.Context, userID, code string) error {
 
 // Status returns whether TOTP is enabled for a user.
 func (s *TOTPService) Status(userID string) (enabled bool, err error) {
-	user, err := s.store.GetUser(nil, userID)
+	user, err := s.store.GetUser(context.Background(), userID)
 	if err != nil {
 		return false, fmt.Errorf("get user: %w", err)
 	}

@@ -1,5 +1,3 @@
-import { api } from './client';
-
 export interface ServerMetrics {
   cpu_percent: number;
   memory_used: number;
@@ -22,8 +20,3 @@ export interface AlertRule {
   status: 'ok' | 'firing' | 'resolved';
   last_checked: string;
 }
-
-export const monitoringAPI = {
-  serverMetrics: () => api.get<ServerMetrics>('/metrics/server'),
-  alerts: () => api.get<AlertRule[]>('/alerts'),
-};

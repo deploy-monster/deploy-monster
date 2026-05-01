@@ -15,7 +15,7 @@ export interface App {
   updated_at: string;
 }
 
-export interface PaginatedResponse<T> {
+interface PaginatedResponse<T> {
   data: T[];
   total: number;
   page: number;
@@ -23,7 +23,7 @@ export interface PaginatedResponse<T> {
   total_pages: number;
 }
 
-export interface CreateAppRequest {
+interface CreateAppRequest {
   name: string;
   type?: string;
   source_type?: string;

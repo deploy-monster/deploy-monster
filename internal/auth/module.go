@@ -126,12 +126,15 @@ func (m *Module) firstRunSetup(ctx context.Context) error {
 
 	email := os.Getenv("MONSTER_ADMIN_EMAIL")
 	password := os.Getenv("MONSTER_ADMIN_PASSWORD")
+	generatedPassword := false
 
 	if email == "" {
-		return fmt.Errorf("MONSTER_ADMIN_EMAIL environment variable is required for first-run setup")
+		email = "admin@deploymonster.local"
+		m.logger.Warn("MONSTER_ADMIN_EMAIL not set; using default first-run admin email", "email", email)
 	}
 	if password == "" {
-		return fmt.Errorf("MONSTER_ADMIN_PASSWORD environment variable is required for first-run setup")
+		password = core.GeneratePassword(24)
+		generatedPassword = true
 	}
 
 	hash, err := HashPassword(password)
@@ -151,6 +154,9 @@ func (m *Module) firstRunSetup(ctx context.Context) error {
 	}
 
 	m.logger.Info("super admin created", "email", email)
+	if generatedPassword {
+		m.logger.Warn("generated first-run admin password; save this value now", "email", email, "password", password)
+	}
 
 	return nil
 }

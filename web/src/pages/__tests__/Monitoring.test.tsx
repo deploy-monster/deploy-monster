@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { act } from 'react';
 
 // -- Mocks -------------------------------------------------------------------
 //
@@ -58,6 +59,7 @@ describe('Monitoring page', () => {
   beforeEach(() => {
     clearApi();
     refetchMetricsMock.mockReset();
+    refetchMetricsMock.mockResolvedValue(undefined);
   });
 
   it('renders the hero header with the Monitoring title and healthy badge', () => {
@@ -108,12 +110,15 @@ describe('Monitoring page', () => {
     expect(screen.getByText(/3d 2h/i)).toBeInTheDocument();
   });
 
-  it('calls refetch on the metrics feed when Refresh is clicked', () => {
+  it('calls refetch on the metrics feed when Refresh is clicked', async () => {
     setApi('/metrics/server', metricsFixture);
     setApi('/alerts', []);
     renderMonitoring();
 
-    fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
+    });
+
     expect(refetchMetricsMock).toHaveBeenCalled();
   });
 

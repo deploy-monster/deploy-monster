@@ -18,39 +18,39 @@ import (
 // (no shell interpretation), so the allowlist is a defense-in-depth measure.
 var allowedCommands = map[string]struct{}{
 	// File and directory operations
-	"ls":      {},
-	"ll":      {},
-	"la":      {},
-	"dir":     {},
-	"find":    {},
-	"stat":    {},
-	"cat":     {},
-	"head":    {},
-	"tail":    {},
-	"grep":    {},
-	"egrep":   {},
-	"awk":     {},
-	"sed":     {},
-	"cut":     {},
-	"sort":    {},
-	"uniq":    {},
-	"wc":      {},
-	"tr":      {},
-	"base64":  {},
+	"ls":     {},
+	"ll":     {},
+	"la":     {},
+	"dir":    {},
+	"find":   {},
+	"stat":   {},
+	"cat":    {},
+	"head":   {},
+	"tail":   {},
+	"grep":   {},
+	"egrep":  {},
+	"awk":    {},
+	"sed":    {},
+	"cut":    {},
+	"sort":   {},
+	"uniq":   {},
+	"wc":     {},
+	"tr":     {},
+	"base64": {},
 
 	// Navigation and info
-	"pwd":     {},
-	"cd":      {},
-	"echo":    {},
-	"printf":  {},
-	"env":     {},
+	"pwd":      {},
+	"cd":       {},
+	"echo":     {},
+	"printf":   {},
+	"env":      {},
 	"printenv": {},
-	"id":      {},
-	"whoami":  {},
+	"id":       {},
+	"whoami":   {},
 	"hostname": {},
-	"uname":   {},
-	"uptime":  {},
-	"date":    {},
+	"uname":    {},
+	"uptime":   {},
+	"date":     {},
 
 	// Process and system info
 	"ps":      {},
@@ -63,33 +63,33 @@ var allowedCommands = map[string]struct{}{
 	"watch":   {},
 
 	// Network utilities
-	"ping":    {},
-	"ping6":   {},
-	"curl":    {},
-	"wget":    {},
-	"nc":      {},
-	"netcat":  {},
-	"ssh":     {},
-	"scp":     {},
-	"rsync":   {},
-	"dig":     {},
+	"ping":     {},
+	"ping6":    {},
+	"curl":     {},
+	"wget":     {},
+	"nc":       {},
+	"netcat":   {},
+	"ssh":      {},
+	"scp":      {},
+	"rsync":    {},
+	"dig":      {},
 	"nslookup": {},
-	"host":    {},
+	"host":     {},
 
 	// Disk and filesystem
-	"df":      {},
-	"du":      {},
-	"mount":   {},
-	"umount":  {},
-	"ln":      {},
-	"mkdir":   {},
-	"touch":   {},
-	"file":    {},
-	"tar":     {},
-	"gzip":    {},
-	"gunzip":  {},
-	"zip":     {},
-	"unzip":   {},
+	"df":     {},
+	"du":     {},
+	"mount":  {},
+	"umount": {},
+	"ln":     {},
+	"mkdir":  {},
+	"touch":  {},
+	"file":   {},
+	"tar":    {},
+	"gzip":   {},
+	"gunzip": {},
+	"zip":    {},
+	"unzip":  {},
 
 	// Package managers (read-only introspection)
 	"apt":     {},
@@ -113,19 +113,19 @@ var allowedCommands = map[string]struct{}{
 	"lua":     {},
 
 	// Text editors (interactive - but allowed as exec)
-	"vi":      {},
-	"vim":     {},
-	"nano":    {},
-	"emacs":   {},
-	"ed":      {},
+	"vi":    {},
+	"vim":   {},
+	"nano":  {},
+	"emacs": {},
+	"ed":    {},
 
 	// Utility commands (commonly used in scripts and testing)
-	"true":    {},  // Returns exit code 0
-	"false":   {},  // Returns exit code 1 (used in testing)
-	"yes":     {},  // Print continuous output
-	"seq":     {},  // Generate sequences
-	"expr":    {},  // Evaluate expressions
-	"test":    {},  // Shell built-in test command
+	"true":  {}, // Returns exit code 0
+	"false": {}, // Returns exit code 1 (used in testing)
+	"yes":   {}, // Print continuous output
+	"seq":   {}, // Generate sequences
+	"expr":  {}, // Evaluate expressions
+	"test":  {}, // Shell built-in test command
 }
 
 // isCommandSafe validates the primary command against the allowlist.

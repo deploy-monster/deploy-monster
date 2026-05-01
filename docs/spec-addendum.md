@@ -60,13 +60,13 @@ The initial implementation used a hard-coded fallback salt for the secrets vault
 
 ### Behavior
 - On first boot, `secrets.Module` generates a 32-byte random salt and persists it in BBolt (`_config` bucket, key `vault.salt`).
-- The salt is combined with the operator-supplied `MONSTER_SECRET_KEY` via HKDF-SHA256 to derive the vault KEK.
+- The salt is combined with the operator-supplied `MONSTER_SECRET` via HKDF-SHA256 to derive the vault KEK.
 - Legacy installations that lack a persisted salt are transparently migrated: the old hard-coded salt is used to decrypt existing secrets, then a new random salt is generated and all secrets are re-encrypted.
-- If `MONSTER_SECRET_KEY` is rotated, the operator must run `deploymonster vault rotate --old-key=... --new-key=...` manually; there is no automatic rotation on config change.
+- If `MONSTER_SECRET` is rotated, the operator must run `deploymonster vault rotate --old-key=... --new-key=...` manually; there is no automatic rotation on config change.
 
 ### API / UI Impact
 - No direct API change.
-- First-run wizard warns the operator if `MONSTER_SECRET_KEY` is the default placeholder (`changeme`).
+- First-run wizard warns the operator if `MONSTER_SECRET` is the default placeholder (`changeme`).
 
 ### Technical Notes
 - ADR-0008 (`docs/adr/0008-encryption-key-strategy.md`) documents the full threat model and migration path.

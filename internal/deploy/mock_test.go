@@ -2,7 +2,6 @@ package deploy
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"io"
 	"time"
@@ -447,6 +446,3 @@ func (s *mockStore) Ping(_ context.Context) error { return nil }
 
 // Ensure mockStore satisfies core.Store at compile time.
 var _ core.Store = (*mockStore)(nil)
-
-// Suppress unused import warning for sql package.
-var _ = sql.ErrNoRows

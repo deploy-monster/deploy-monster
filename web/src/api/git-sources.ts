@@ -9,7 +9,7 @@ export interface GitProvider {
   url?: string;
 }
 
-export interface ConnectGitProviderRequest {
+interface ConnectGitProviderRequest {
   type: string;
   token: string;
   url?: string;

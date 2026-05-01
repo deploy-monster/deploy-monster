@@ -10,46 +10,6 @@ export const TEST_USER = {
   password: 'TestPass123!',
 };
 
-/** Wait for the dashboard to fully load (stat cards rendered). */
-export async function waitForDashboard(page: Page) {
-  // Wait for the dashboard shell to be visible (more reliable than greeting text)
-  await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
-}
-
-/**
- * Log in via direct API — fast, rate-limit-friendly with retry on 429.
- * Sets the session cookie in the browser context without UI rendering overhead.
- * Use this in ensureAuthenticated to avoid burning auth quota with UI retries.
- */
-export async function apiLogin(page: Page, email: string, password: string): Promise<boolean> {
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await page.request.post('/api/v1/auth/login', {
-      data: { email, password },
-    });
-
-    if (res.ok()) {
-      // Login succeeded — navigate to dashboard and verify auth
-      await page.goto('/');
-      try {
-        await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 10_000 });
-        return true;
-      } catch {
-        return false;
-      }
-    }
-
-    if (res.status() === 429 && attempt < 3) {
-      // Rate limited — wait and retry (5s, 10s)
-      await new Promise((resolve) => setTimeout(resolve, attempt * 5_000));
-      continue;
-    }
-
-    // Non-retryable error (400, 401, 500, etc.)
-    return false;
-  }
-  return false;
-}
-
 /** Log in via the UI form (for tests that start without stored auth). */
 export async function loginViaUI(page: Page, email: string, password: string) {
   await page.goto('/login');
@@ -59,40 +19,6 @@ export async function loginViaUI(page: Page, email: string, password: string) {
   // Wait for dashboard — catch timeout and return, letting ensureAuthenticated
   // do the final assertion with the test's remaining time budget.
   await expect(page.locator('[data-testid="dashboard-shell"]')).toBeVisible({ timeout: 45_000 }).catch(() => {});
-}
-
-/** Register a new user via the UI form. */
-export async function registerViaUI(
-  page: Page,
-  name: string,
-  email: string,
-  password: string,
-) {
-  await page.goto('/register');
-  if (name) {
-    await page.getByLabel('Name').fill(name);
-  }
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByLabel('Confirm password').fill(password);
-  await page.getByRole('button', { name: /create account/i }).click();
-}
-
-/** Navigate to a sidebar page and wait for it to load. */
-export async function navigateTo(page: Page, path: string) {
-  await page.goto(path);
-}
-
-/** Assert that the page shows an error alert with the given text. */
-export async function expectError(page: Page, text: string | RegExp) {
-  const alert = page.locator('[role="alert"], .bg-destructive\\/10');
-  await expect(alert).toBeVisible();
-  await expect(alert).toContainText(text);
-}
-
-/** Generate a unique string for test isolation. */
-export function uniqueId(prefix = 'e2e') {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 /**

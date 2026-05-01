@@ -439,16 +439,13 @@ func (h *StripeEventHandler) handleCheckoutCompleted(ctx context.Context, env st
 // metadata wins; otherwise the customer and subscription fields are matched
 // against tenants' stored Stripe metadata. Returns empty string when nothing
 // can be resolved — the event is still emitted without a tenant context.
-func (h *StripeEventHandler) resolveTenantID(ctx context.Context, metaTenantID, customerID, subscriptionID string) string {
+func (h *StripeEventHandler) resolveTenantID(_ context.Context, metaTenantID, _, _ string) string {
 	if metaTenantID != "" {
 		return metaTenantID
 	}
 	// Without a tenant-search index we can't scale a scan across tenants,
 	// so just return empty — the event still fires with an empty tenant id
 	// which is honest and matches how other billing events behave.
-	_ = ctx
-	_ = customerID
-	_ = subscriptionID
 	return ""
 }
 

@@ -60,7 +60,7 @@ interface RequestOptions {
 }
 
 /** Options accepted by every public verb on `api`. */
-export interface CallOptions {
+interface CallOptions {
   timeout?: number;
   signal?: AbortSignal;
   retries?: number;

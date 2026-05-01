@@ -3,7 +3,6 @@ package billing
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -441,6 +440,3 @@ func (srt *stripeRedirectTransport) RoundTrip(req *http.Request) (*http.Response
 	// Keep the path from the original request
 	return http.DefaultTransport.RoundTrip(newReq)
 }
-
-// Suppress unused import warnings
-var _ = fmt.Sprintf

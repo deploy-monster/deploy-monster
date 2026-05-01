@@ -86,9 +86,9 @@ func TestTopologyHandler_Save_InvalidBody(t *testing.T) {
 func TestGetStringMapFromMap(t *testing.T) {
 	m := map[string]any{
 		"labels": map[string]any{
-			"app":  "myapp",
-			"env":  "prod",
-			"num":  42,
+			"app": "myapp",
+			"env": "prod",
+			"num": 42,
 		},
 		"empty": map[string]any{},
 	}

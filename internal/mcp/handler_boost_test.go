@@ -42,8 +42,8 @@ func TestScaleApp_Success(t *testing.T) {
 	h := NewHandler(store, nil, eb, discardLogger())
 
 	input, _ := json.Marshal(map[string]any{
-		"app_id":    "app-1",
-		"replicas":  3,
+		"app_id":   "app-1",
+		"replicas": 3,
 	})
 	resp, err := h.HandleToolCall(context.Background(), "scale_app", input)
 	if err != nil {

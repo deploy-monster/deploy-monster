@@ -56,24 +56,24 @@ export interface WorkerNodeData {
 }
 
 // Union type for all node data
-export type TopologyNodeData = AppNodeData | DatabaseNodeData | DomainNodeData | VolumeNodeData | WorkerNodeData;
+type TopologyNodeData = AppNodeData | DatabaseNodeData | DomainNodeData | VolumeNodeData | WorkerNodeData;
 
 // Node types
 export type TopologyNodeType = 'app' | 'database' | 'domain' | 'volume' | 'worker';
 
 // Typed nodes
-export type AppNode = Node<AppNodeData, 'app'>;
-export type DatabaseNode = Node<DatabaseNodeData, 'database'>;
-export type DomainNode = Node<DomainNodeData, 'domain'>;
-export type VolumeNode = Node<VolumeNodeData, 'volume'>;
-export type WorkerNode = Node<WorkerNodeData, 'worker'>;
+type AppNode = Node<AppNodeData, 'app'>;
+type DatabaseNode = Node<DatabaseNodeData, 'database'>;
+type DomainNode = Node<DomainNodeData, 'domain'>;
+type VolumeNode = Node<VolumeNodeData, 'volume'>;
+type WorkerNode = Node<WorkerNodeData, 'worker'>;
 
 export type TopologyNode = AppNode | DatabaseNode | DomainNode | VolumeNode | WorkerNode;
 
 // Edge types
 export type TopologyEdgeType = 'default' | 'dependency' | 'mount' | 'dns';
 
-export interface TopologyEdgeData {
+interface TopologyEdgeData {
   type?: TopologyEdgeType;
   label?: string;
   [key: string]: unknown;
@@ -93,7 +93,7 @@ export interface TopologyState {
 }
 
 // Store actions
-export interface TopologyActions {
+interface TopologyActions {
   setNodes: (nodes: TopologyNode[]) => void;
   setEdges: (edges: TopologyEdge[]) => void;
   addNode: (node: TopologyNode) => void;

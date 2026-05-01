@@ -279,7 +279,7 @@ func TestBulkExecute_FirstAppFailsNoRollback(t *testing.T) {
 func TestBulkExecute_RestartStartFailsRollback(t *testing.T) {
 	store := &errorAfterCountStore{
 		mockStore: newMockStore(),
-		after:     1, // first (stop) succeeds, second (start) fails
+		after:     1,         // first (stop) succeeds, second (start) fails
 		errOn:     "restart", // the errorOn applies to the start phase
 	}
 

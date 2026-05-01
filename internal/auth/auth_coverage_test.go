@@ -219,31 +219,6 @@ func TestModule_Start_WithLogger(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// NewTestModule
-// ═══════════════════════════════════════════════════════════════════════════════
-
-func TestNewTestModule_Functional(t *testing.T) {
-	store := &mockStore{userCount: 1}
-	m := NewTestModule("test-secret-key-at-least-32-bytes-long!", store)
-
-	if m.JWT() == nil {
-		t.Error("JWT should be set in test module")
-	}
-	if m.Store() != store {
-		t.Error("Store should be set in test module")
-	}
-
-	// Verify JWT works
-	pair, err := m.JWT().GenerateTokenPair("u1", "t1", "r1", "test@test.com")
-	if err != nil {
-		t.Fatalf("GenerateTokenPair: %v", err)
-	}
-	if pair.AccessToken == "" {
-		t.Error("access token should not be empty")
-	}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // JWT ValidateRefreshToken edge cases
 // ═══════════════════════════════════════════════════════════════════════════════
 

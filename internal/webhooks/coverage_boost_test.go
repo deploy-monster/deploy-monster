@@ -46,11 +46,11 @@ func (m *mockBoltStoreDelivery) lastValue() any {
 	defer m.mu.Unlock()
 	return m.lastVal
 }
-func (m *mockBoltStoreDelivery) BatchSet(_ []core.BoltBatchItem) error                   { return nil }
-func (m *mockBoltStoreDelivery) Get(_, _ string, _ any) error                            { return nil }
-func (m *mockBoltStoreDelivery) Delete(_, _ string) error                                { return nil }
-func (m *mockBoltStoreDelivery) List(_ string) ([]string, error)                         { return nil, nil }
-func (m *mockBoltStoreDelivery) Close() error                                            { return nil }
+func (m *mockBoltStoreDelivery) BatchSet(_ []core.BoltBatchItem) error { return nil }
+func (m *mockBoltStoreDelivery) Get(_, _ string, _ any) error          { return nil }
+func (m *mockBoltStoreDelivery) Delete(_, _ string) error              { return nil }
+func (m *mockBoltStoreDelivery) List(_ string) ([]string, error)       { return nil, nil }
+func (m *mockBoltStoreDelivery) Close() error                          { return nil }
 func (m *mockBoltStoreDelivery) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
 	return nil, nil
 }

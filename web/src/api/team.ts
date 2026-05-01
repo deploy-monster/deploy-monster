@@ -19,7 +19,7 @@ export interface AuditEntry {
   created_at: string;
 }
 
-export interface InviteRequest {
+interface InviteRequest {
   email: string;
   role_id: string;
 }

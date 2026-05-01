@@ -67,37 +67,28 @@ func TestReloadConfig_SIGHUPTriggersReload(t *testing.T) {
 		}
 	}()
 
-	// Rewrite the YAML, then send SIGHUP. Repeat a few times so any
-	// racing in signal delivery surfaces. syscall.Kill to self is
+	// Rewrite the YAML, then send SIGHUP. syscall.Kill to self is
 	// the standard trick for self-signaling in Go tests on Unix.
-	for i := 0; i < 3; i++ {
-		writeYAML(t, yamlPath, `server:
+	writeYAML(t, yamlPath, `server:
   port: 8443
   host: 0.0.0.0
   log_level: debug
   log_format: json
 `)
-		if err := syscall.Kill(syscall.Getpid(), syscall.SIGHUP); err != nil {
-			t.Fatalf("Kill self: %v", err)
-		}
-		// Give the signal goroutine time to observe the signal and
-		// run ReloadConfig. A real deployment would not poll for a
-		// reload to finish, but the test needs a bounded wait so a
-		// stuck handler fails loudly instead of hanging.
-		deadline := time.Now().Add(time.Second)
-		target := int32(i + 1)
-		for reloaded.Load() < target && time.Now().Before(deadline) {
-			time.Sleep(5 * time.Millisecond)
-		}
-		if reloaded.Load() < target {
-			t.Fatalf("ReloadConfig not observed within 1s after SIGHUP #%d (got %d reloads)",
-				i+1, reloaded.Load())
-		}
-		// Only the first iteration mutates the file to a new value;
-		// subsequent iterations write the same content so reload
-		// becomes a no-op. Skip them — we already proved the signal
-		// path wakes the goroutine exactly once per SIGHUP.
-		break
+	if err := syscall.Kill(syscall.Getpid(), syscall.SIGHUP); err != nil {
+		t.Fatalf("Kill self: %v", err)
+	}
+	// Give the signal goroutine time to observe the signal and run
+	// ReloadConfig. A real deployment would not poll for a reload to
+	// finish, but the test needs a bounded wait so a stuck handler
+	// fails loudly instead of hanging.
+	deadline := time.Now().Add(time.Second)
+	for reloaded.Load() < 1 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if reloaded.Load() < 1 {
+		t.Fatalf("ReloadConfig not observed within 1s after SIGHUP (got %d reloads)",
+			reloaded.Load())
 	}
 
 	close(stop)

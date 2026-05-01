@@ -3,8 +3,8 @@ package handlers
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"strings"
 	"time"

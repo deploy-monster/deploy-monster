@@ -15,9 +15,9 @@ import AxeBuilder from '@axe-core/playwright';
  *   or keyboard.
  */
 
-export type A11ySeverity = 'minor' | 'moderate' | 'serious' | 'critical';
+type A11ySeverity = 'minor' | 'moderate' | 'serious' | 'critical';
 
-export const BLOCKING_IMPACT: A11ySeverity[] = ['serious', 'critical'];
+const BLOCKING_IMPACT: A11ySeverity[] = ['serious', 'critical'];
 
 /**
  * Rules we intentionally disable for our context:
@@ -27,9 +27,9 @@ export const BLOCKING_IMPACT: A11ySeverity[] = ['serious', 'critical'];
  *  - `region`: landing / login pages deliberately keep focus on a single
  *    form card without a surrounding `<main>`. Not a real usability issue.
  */
-export const DEFAULT_DISABLED_RULES = ['color-contrast', 'region'] as const;
+const DEFAULT_DISABLED_RULES = ['color-contrast', 'region'] as const;
 
-export interface ScanOptions {
+interface ScanOptions {
   /** Extra axe rule IDs to disable for this call only. */
   disableRules?: string[];
   /** Override the default blocking severities (unlikely — tighten in review). */

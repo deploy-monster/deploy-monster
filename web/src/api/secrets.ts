@@ -8,7 +8,7 @@ export interface SecretEntry {
   updated_at: string;
 }
 
-export interface CreateSecretRequest {
+interface CreateSecretRequest {
   name: string;
   value: string;
   scope: string;

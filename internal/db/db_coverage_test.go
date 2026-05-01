@@ -1169,6 +1169,3 @@ func TestSQLite_NewSQLite_ConnectionPool(t *testing.T) {
 		t.Errorf("1+1 = %d", val)
 	}
 }
-
-// Suppress unused import warnings.
-var _ = os.Remove

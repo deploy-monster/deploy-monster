@@ -36,7 +36,7 @@ export interface MarketplaceResponse {
   categories: string[];
 }
 
-export interface DeployTemplateRequest {
+interface DeployTemplateRequest {
   slug: string;
   name: string;
   config?: Record<string, string>;

@@ -7,6 +7,7 @@
 #   ./scripts/ci-local.sh           # Full CI (all checks)
 #   ./scripts/ci-local.sh --quick   # Quick checks only (skip slow tests)
 #   ./scripts/ci-local.sh --fix     # Auto-fix issues where possible
+#   ./scripts/ci-local.sh --allow-dirty  # Do not fail on uncommitted changes
 #
 
 set -o pipefail
@@ -26,11 +27,13 @@ SKIPPED=0
 # Parse arguments
 QUICK=false
 FIX_MODE=false
+ALLOW_DIRTY=false
 
 for arg in "$@"; do
     case $arg in
         --quick) QUICK=true ;;
         --fix) FIX_MODE=true ;;
+        --allow-dirty) ALLOW_DIRTY=true ;;
     esac
 done
 
@@ -43,6 +46,8 @@ print_banner() {
     echo "╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
+
+print_banner
 
 section() {
     echo ""
@@ -114,6 +119,20 @@ else
     fail "go vet found issues" "Run: go vet ./..."
 fi
 
+echo -e "  ${BLUE}Running go vet with integration tags...${NC}"
+
+if go vet -tags integration ./... 2>&1; then
+    pass "go vet -tags integration passed"
+else
+    fail "go vet -tags integration found issues" "Run: go vet -tags integration ./..."
+fi
+
+if go vet -tags pgintegration ./... 2>&1; then
+    pass "go vet -tags pgintegration passed"
+else
+    fail "go vet -tags pgintegration found issues" "Run: go vet -tags pgintegration ./..."
+fi
+
 # ============================================
 # 3. Go Mod Tidy
 # ============================================
@@ -143,6 +162,19 @@ fi
 rm -f go.mod.bak go.sum.bak
 
 # ============================================
+# 3a. OpenAPI Drift
+# ============================================
+section "3a. OpenAPI Drift"
+
+echo -e "  ${BLUE}Checking router/OpenAPI drift...${NC}"
+
+if go run ./cmd/openapi-gen 2>&1; then
+    pass "OpenAPI drift check passed"
+else
+    fail "OpenAPI drift check failed" "Run: go run ./cmd/openapi-gen"
+fi
+
+# ============================================
 # 4. Build Check
 # ============================================
 section "4. Build Check"
@@ -152,7 +184,7 @@ echo -e "  ${BLUE}Building binary...${NC}"
 if [[ "$QUICK" == "true" ]]; then
     skip "Build check (quick mode)"
 else
-    if go build -o /dev/null ./... 2>&1; then
+    if go build ./... 2>&1; then
         pass "Build passed"
     else
         fail "Build failed"
@@ -169,7 +201,16 @@ if [[ "$QUICK" == "true" ]]; then
 else
     echo -e "  ${BLUE}Running Go tests...${NC}"
 
-    if go test -v -race -coverprofile=coverage.out ./... 2>&1; then
+    test_args=(-v -coverprofile=coverage.out)
+    if [ "${CGO_ENABLED:-}" = "0" ]; then
+        skip "Race detector disabled (CGO_ENABLED=0)"
+    elif ! command -v gcc >/dev/null 2>&1 && ! command -v cc >/dev/null 2>&1; then
+        skip "Race detector disabled (no C compiler found)"
+    else
+        test_args=(-v -race -coverprofile=coverage.out)
+    fi
+
+    if go test "${test_args[@]}" ./... 2>&1; then
         pass "All Go tests passed"
 
         # Show coverage summary
@@ -177,10 +218,23 @@ else
         echo -e "  ${BLUE}Coverage Summary:${NC}"
         go tool cover -func=coverage.out 2>/dev/null | tail -5
 
-        rm -f coverage.out
+        grep -v '/tests/loadtest\|/tests/soak' coverage.out > coverage.filtered.out || true
+        coverage=$(go tool cover -func=coverage.filtered.out 2>/dev/null | awk '/^total:/ {gsub(/%/, "", $3); print $3}')
+        if [ -n "$coverage" ]; then
+            echo -e "  ${BLUE}Filtered coverage:${NC} ${coverage}%"
+            if awk -v coverage="$coverage" 'BEGIN { exit !(coverage < 85) }'; then
+                fail "Coverage ${coverage}% is below 85% threshold"
+            else
+                pass "Coverage threshold passed (${coverage}%)"
+            fi
+        else
+            skip "Coverage threshold check (unable to parse coverage)"
+        fi
+
+        rm -f coverage.out coverage.filtered.out
     else
         fail "Go tests failed"
-        echo -e "    ${YELLOW}Run: go test -v ./...${NC}"
+        echo -e "    ${YELLOW}Run: go test ${test_args[*]} ./...${NC}"
     fi
 fi
 
@@ -225,13 +279,32 @@ else
         # Check if server is running
         if curl -s http://localhost:8443/health >/dev/null 2>&1; then
             echo -e "  ${BLUE}Running Playwright E2E tests...${NC}"
-            if (cd web && npx playwright test 2>&1); then
+            if (cd web && pnpm test:e2e 2>&1); then
                 pass "Playwright E2E tests passed"
             else
                 fail "Playwright E2E tests failed"
             fi
         else
             skip "Playwright E2E tests (server not running on :8443)"
+        fi
+    fi
+fi
+
+# ============================================
+# 8a. Frontend Quality Gates
+# ============================================
+section "8a. Frontend Quality Gates"
+
+if [ ! -f "web/package.json" ]; then
+    skip "No web/package.json found"
+else
+    if [[ "$QUICK" == "true" ]]; then
+        skip "Frontend quality gates (quick mode)"
+    else
+        if (cd web && pnpm exec tsc -b --pretty false && pnpm exec eslint . && pnpm run check:bundle && pnpm dlx knip --reporter compact 2>&1); then
+            pass "Frontend quality gates passed"
+        else
+            fail "Frontend quality gates failed"
         fi
     fi
 fi
@@ -260,17 +333,21 @@ fi
 section "9. Git Status"
 
 # Check for staged changes
-staged=$(git diff --cached --stat 2>/dev/null | wc -l)
+staged=$(git diff --cached --name-only 2>/dev/null | wc -l | tr -d ' ')
 
-if [ -n "$staged" ]; then
+if [ "$staged" -gt 0 ]; then
     pass "Has staged changes ready to commit"
 else
     # Check for unstaged changes
-    unstaged=$(git status --porcelain 2>/dev/null | wc -l)
+    unstaged=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
 
-    if [ -n "$unstaged" ]; then
-        fail "Has unstaged/uncommitted changes"
-        echo -e "    ${YELLOW}Run: git status${NC}"
+    if [ "$unstaged" -gt 0 ]; then
+        if [ "$ALLOW_DIRTY" == "true" ]; then
+            skip "Working tree dirty (--allow-dirty)"
+        else
+            fail "Has unstaged/uncommitted changes"
+            echo -e "    ${YELLOW}Run: git status${NC}"
+        fi
     else
         pass "Working tree clean"
     fi
@@ -282,7 +359,17 @@ fi
 section "10. Large Files Check"
 
 # Check for files > 500KB
-large_files=$(find . -type f -size +500k -not -path "./.git/*" -not -path "./web/node_modules/*" -not -path "*.db" -not -path "*.db-shm" 2>/dev/null | head -5)
+large_files=$(find . -type f -size +500k \
+    -not -path "./.git/*" \
+    -not -path "./bin/*" \
+    -not -path "./coverage/*" \
+    -not -path "./web/node_modules/*" \
+    -not -path "./web/dist/*" \
+    -not -path "./internal/api/static/*" \
+    -not -path "*.db" \
+    -not -path "*.db-shm" \
+    -not -path "*.db-wal" \
+    2>/dev/null | head -5)
 
 if [ -n "$large_files" ]; then
     echo -e "  ${YELLOW}Large files found (>500KB):${NC}"
@@ -313,7 +400,7 @@ fi
 
 # Step 2: Setup Go
 if go version &>/dev/null; then
-    pass "Go setup would succeed (Go $(go version | head -1 | awk '{print $3}')"
+    pass "Go setup would succeed (Go $(go version | head -1 | awk '{print $3}'))"
 else
     fail "Go not installed"
 fi
@@ -362,7 +449,11 @@ else
     echo ""
     echo -e "${GREEN}════════════════════════════════════════════${NC}"
     echo -e "${GREEN}  ✓ ALL CHECKS PASSED!${NC}"
-    echo -e "${GREEN}  Safe to push to GitHub${NC}"
+    if [ "$ALLOW_DIRTY" == "true" ]; then
+        echo -e "${GREEN}  Local validation passed with dirty worktree allowed${NC}"
+    else
+        echo -e "${GREEN}  Safe to push to GitHub${NC}"
+    fi
     echo -e "${GREEN}══════════════════════════════════════════════${NC}"
     echo ""
     END_TIME=$(date +%s)

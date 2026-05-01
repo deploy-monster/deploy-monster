@@ -1,1 +1,0 @@
-import"./rolldown-runtime-CTaEoa_n.js";import{c as e,x as t}from"./vendor-react-Ck_8o1v4.js";import{d as n}from"../assets/index-DfZjOyG-.js";t();var r=e();function i({className:e,ref:t,...i}){return(0,r.jsx)(`label`,{className:n(`flex items-center gap-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70`,e),ref:t,...i})}export{i as t};

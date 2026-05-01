@@ -1,5 +1,3 @@
-import { api } from './client';
-
 export interface Plan {
   id: string;
   name: string;
@@ -22,8 +20,3 @@ export interface UsageData {
   plan: { id: string; name: string };
   quota: { apps_ok: boolean; containers_ok: boolean; ram_ok: boolean };
 }
-
-export const billingAPI = {
-  plans: () => api.get<Plan[]>('/billing/plans'),
-  usage: () => api.get<UsageData>('/billing/usage'),
-};

@@ -18,11 +18,8 @@ type Strategy interface {
 // New creates a load balancer strategy by name.
 //
 // "weighted" returns a Weighted balancer with all backends at default
-// weight 1 — caller is expected to call SetWeight/SetWeights to diverge
-// from plain round-robin behavior. Canary splits are constructed
-// directly via NewCanary; they aren't exposed through this factory
-// because they need the stable and canary pools at construction time,
-// which the string-name factory cannot convey.
+// weight 1; caller is expected to call SetWeight/SetWeights to diverge
+// from plain round-robin behavior.
 func New(name string) Strategy {
 	switch name {
 	case "least-conn", "leastconn":

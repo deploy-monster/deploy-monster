@@ -92,16 +92,6 @@ func NewJWTService(secret string, previousSecrets ...string) (*JWTService, error
 	}, nil
 }
 
-// MustNewJWTService is a test helper that panics if the secret is too short.
-// Use only in tests; production code should use NewJWTService and handle the error.
-func MustNewJWTService(secret string, previousSecrets ...string) *JWTService {
-	svc, err := NewJWTService(secret, previousSecrets...)
-	if err != nil {
-		panic(err)
-	}
-	return svc
-}
-
 // AddPreviousKey adds an old key that was rotated out. Call this during
 // key rotation to register the old primary as a fallback with its add time.
 // The key will be accepted for validation only within RotationGracePeriod.

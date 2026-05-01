@@ -1282,7 +1282,7 @@ func (s *testStore) GetProject(_ context.Context, _ string) (*core.Project, erro
 func (s *testStore) ListProjectsByTenant(_ context.Context, _ string) ([]core.Project, error) {
 	return nil, nil
 }
-func (s *testStore) DeleteProject(_ context.Context, _ string) error         { return nil }
+func (s *testStore) DeleteProject(_ context.Context, _ string) error { return nil }
 func (s *testStore) GetRole(_ context.Context, roleID string) (*core.Role, error) {
 	perms := "[]"
 	switch roleID {
@@ -1839,21 +1839,29 @@ func (t *testContainerRuntime) Ping() error { return nil }
 func (t *testContainerRuntime) CreateAndStart(_ context.Context, _ core.ContainerOpts) (string, error) {
 	return "", nil
 }
-func (t *testContainerRuntime) Stop(_ context.Context, _ string, _ int) error     { return nil }
-func (t *testContainerRuntime) Remove(_ context.Context, _ string, _ bool) error  { return nil }
-func (t *testContainerRuntime) Restart(_ context.Context, _ string) error         { return nil }
+func (t *testContainerRuntime) Stop(_ context.Context, _ string, _ int) error    { return nil }
+func (t *testContainerRuntime) Remove(_ context.Context, _ string, _ bool) error { return nil }
+func (t *testContainerRuntime) Restart(_ context.Context, _ string) error        { return nil }
 func (t *testContainerRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
 	return nil, nil
 }
 func (t *testContainerRuntime) ListByLabels(_ context.Context, _ map[string]string) ([]core.ContainerInfo, error) {
 	return nil, nil
 }
-func (t *testContainerRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) { return "", nil }
+func (t *testContainerRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) {
+	return "", nil
+}
 func (t *testContainerRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
 	return nil, nil
 }
-func (t *testContainerRuntime) ImagePull(_ context.Context, _ string) error                  { return nil }
-func (t *testContainerRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error)          { return nil, nil }
-func (t *testContainerRuntime) ImageRemove(_ context.Context, _ string) error                  { return nil }
-func (t *testContainerRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error)      { return nil, nil }
-func (t *testContainerRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error)        { return nil, nil }
+func (t *testContainerRuntime) ImagePull(_ context.Context, _ string) error { return nil }
+func (t *testContainerRuntime) ImageList(_ context.Context) ([]core.ImageInfo, error) {
+	return nil, nil
+}
+func (t *testContainerRuntime) ImageRemove(_ context.Context, _ string) error { return nil }
+func (t *testContainerRuntime) NetworkList(_ context.Context) ([]core.NetworkInfo, error) {
+	return nil, nil
+}
+func (t *testContainerRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) {
+	return nil, nil
+}

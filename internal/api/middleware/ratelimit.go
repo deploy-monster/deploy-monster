@@ -15,43 +15,24 @@ import (
 // AuthRateLimiter enforces per-IP rate limits on auth endpoints using BBolt.
 // SECURITY FIX: Uses mutex to prevent race conditions on read-modify-write operations.
 type AuthRateLimiter struct {
-	bolt     core.BoltStorer
-	rate     int
-	window   time.Duration
-	prefix   string
-	logger   *slog.Logger
-	trustXFF bool       // if true, trust X-Forwarded-For; if false, only use RemoteAddr
-	mu       sync.Mutex // protects bolt operations for same key
+	bolt   core.BoltStorer
+	rate   int
+	window time.Duration
+	prefix string
+	logger *slog.Logger
+	mu     sync.Mutex // protects bolt operations for same key
 }
 
 // NewAuthRateLimiter creates a rate limiter for auth endpoints.
 // rate is the max number of requests allowed per window per IP.
 // prefix differentiates keys (e.g., "login", "register").
-// opts: WithTrustXFF(false) to disable XFF-based limiting (safer default —
-// prevents spoofing when no trusted proxy is in front).
-func NewAuthRateLimiter(bolt core.BoltStorer, rate int, window time.Duration, prefix string, opts ...Option) *AuthRateLimiter {
-	rl := &AuthRateLimiter{
-		bolt:     bolt,
-		rate:     rate,
-		window:   window,
-		prefix:   prefix,
-		trustXFF: false, // default: safer - use RemoteAddr (can't be spoofed). Enable WithTrustXFF() only if behind a trusted proxy.
+func NewAuthRateLimiter(bolt core.BoltStorer, rate int, window time.Duration, prefix string) *AuthRateLimiter {
+	return &AuthRateLimiter{
+		bolt:   bolt,
+		rate:   rate,
+		window: window,
+		prefix: prefix,
 	}
-	for _, opt := range opts {
-		opt(rl)
-	}
-	return rl
-}
-
-// Option configures an AuthRateLimiter.
-type Option func(*AuthRateLimiter)
-
-// WithTrustXFF enables trusting X-Forwarded-For header for rate limiting.
-// Only use this if a trusted reverse proxy (e.g., nginx, Traefik) is in front
-// that always sets XFF. Without a trusted proxy, attackers can spoof XFF to
-// bypass rate limits.
-func WithTrustXFF() Option {
-	return func(rl *AuthRateLimiter) { rl.trustXFF = true }
 }
 
 // safeClientIP returns the real client IP, respecting the trustXFF setting.
@@ -124,7 +105,7 @@ func (rl *AuthRateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := safeClientIP(r, rl.trustXFF)
+		ip := safeClientIP(r, false)
 		key := fmt.Sprintf("auth_rl:%s:%s", rl.prefix, ip)
 
 		// Acquire lock to prevent race condition

@@ -34,9 +34,8 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	m.logger = c.Logger.With("module", m.ID())
 
 	// Register built-in provider factories
-	for name, factory := range providers.Registry {
+	for name := range providers.Registry {
 		m.logger.Debug("VPS provider available", "provider", name)
-		_ = factory // Will be instantiated when user configures a provider
 	}
 
 	return nil

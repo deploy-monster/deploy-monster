@@ -63,15 +63,19 @@ func generateCSPNonce() string {
 
 func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
+
+	// Root path must always be served with nonce-injected index.html for CSP
 	if path == "/" {
-		path = "index.html"
-	} else {
-		path = strings.TrimPrefix(path, "/")
+		nonce := generateCSPNonce()
+		h.serveIndexHTMLWithNonce(w, r, nonce)
+		return
 	}
+
+	path = strings.TrimPrefix(path, "/")
 
 	// Try to serve the exact file
 	if _, err := fs.Stat(h.fsys, path); err == nil {
-		h.fileServer.ServeHTTP(w, r)
+		h.serveFileWithNonce(w, r, path)
 		return
 	}
 
@@ -85,12 +89,37 @@ func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// SPA fallback: serve index.html for all non-file routes
 	r.URL.Path = "/"
-
-	// Serve index.html with a per-request CSP nonce injected.
-	// This replaces the placeholder nonce in the meta tag CSP and in
-	// the module script tag, making 'unsafe-inline' unnecessary.
 	nonce := generateCSPNonce()
 	h.serveIndexHTMLWithNonce(w, r, nonce)
+}
+
+// serveFileWithNonce serves a static file with CSP headers that allow
+// the page's nonce to satisfy script execution.
+// For external script files (scripts loaded via <script src=>), the response
+// CSP does NOT need a matching nonce — strict-dynamic in the page's CSP
+// propagates trust to scripts loaded by a trusted script. We use a
+// permissive CSP for script responses that does not require nonce matching
+// on fetch, since the browser has already validated the containing page's nonce.
+func (h *spaHandler) serveFileWithNonce(w http.ResponseWriter, r *http.Request, path string) {
+	isScript := strings.HasSuffix(path, ".js")
+	isStyle := strings.HasSuffix(path, ".css")
+
+	if isScript {
+		// Scripts loaded via strict-dynamic from an authenticated page
+		// do not require a matching response nonce. We send a CSP that
+		// permits execution without nonce requirement.
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; script-src 'self' 'unsafe-inline' 'strict-dynamic' https:; style-src 'self' 'unsafe-inline';")
+	} else if isStyle {
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; style-src 'self' 'unsafe-inline';")
+	} else {
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self';")
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	h.fileServer.ServeHTTP(w, r)
 }
 
 // serveIndexHTMLWithNonce serves index.html with a CSP nonce injected.

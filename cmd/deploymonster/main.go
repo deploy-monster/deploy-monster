@@ -83,7 +83,11 @@ func runServe() {
 	agentToken := fs.String("token", os.Getenv("MONSTER_JOIN_TOKEN"), "join token for agent authentication")
 	masterPort := fs.Int("master-port", envInt("MONSTER_MASTER_PORT", 0), "fallback port for --master if URL has none (agent mode; 0 = 8443)")
 	configPath := fs.String("config", "", "path to monster.yaml config file")
-	_ = fs.Parse(os.Args[1:])
+	args := os.Args[1:]
+	if len(args) > 0 && (args[0] == "serve" || args[0] == "start") {
+		args = args[1:]
+	}
+	_ = fs.Parse(args)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

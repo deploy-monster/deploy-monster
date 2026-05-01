@@ -22,9 +22,6 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// Ensure context import is used (needed by mock module interfaces).
-var _ = context.Background
-
 // =============================================================================
 // AdminAPIKeyHandler — List, Generate, Revoke
 // =============================================================================

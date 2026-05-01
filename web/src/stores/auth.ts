@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { authAPI, type TokenPair } from '../api/auth';
+import { authAPI } from '../api/auth';
 import { api } from '../api/client';
 
 interface User {
@@ -19,23 +19,6 @@ interface AuthState {
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
   initialize: () => Promise<void>;
-}
-
-function userFromTokenResponse(pair: TokenPair): User | null {
-  // Parse the access token payload for display info
-  try {
-    const payload = pair.access_token.split('.')[1];
-    const decoded = JSON.parse(atob(payload));
-    return {
-      id: decoded.uid as string,
-      email: decoded.email as string,
-      name: (decoded.name as string) || (decoded.email as string),
-      role: decoded.rid as string,
-      tenant_id: decoded.tid as string,
-    };
-  } catch {
-    return null;
-  }
 }
 
 let initPromise: Promise<void> | null = null;
@@ -58,16 +41,35 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   login: async (email, password) => {
-    const pair = await authAPI.login({ email, password });
-    // Cookies are set by the server — we only use the response body for user info
-    const user = userFromTokenResponse(pair);
-    set({ user, isAuthenticated: true });
+    await authAPI.login({ email, password });
+    // Use /auth/me to get verified user info instead of decoding JWT client-side
+    const resp = await api.get<MeResponse>('/auth/me');
+    if (resp?.user?.id) {
+      const user: User = {
+        id: resp.user.id,
+        email: resp.user.email,
+        name: resp.user.name,
+        role: resp.role_id || resp.membership?.role_id || '',
+        tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
+      };
+      set({ user, isAuthenticated: true });
+    }
   },
 
   register: async (email, password, name) => {
-    const pair = await authAPI.register({ email, password, name });
-    const user = userFromTokenResponse(pair);
-    set({ user, isAuthenticated: true });
+    await authAPI.register({ email, password, name });
+    // Use /auth/me to get verified user info instead of decoding JWT client-side
+    const resp = await api.get<MeResponse>('/auth/me');
+    if (resp?.user?.id) {
+      const user: User = {
+        id: resp.user.id,
+        email: resp.user.email,
+        name: resp.user.name,
+        role: resp.role_id || resp.membership?.role_id || '',
+        tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
+      };
+      set({ user, isAuthenticated: true });
+    }
   },
 
   logout: () => {

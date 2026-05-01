@@ -380,7 +380,8 @@ func injectToken(gitURL, token string) string {
 // Firecracker microVMs to sandbox the build container. Docker's default
 // security profile can be hardened by dropping all capabilities and
 // running with a read-only root filesystem:
-//   docker build --cap-drop=ALL --read-only
+//
+//	docker build --cap-drop=ALL --read-only
 func dockerBuild(ctx context.Context, contextDir, dockerfile, tag string, buildArgs map[string]string, logWriter io.Writer) error {
 	// Validate image tag format
 	if err := validateDockerImageTag(tag); err != nil {

@@ -50,14 +50,14 @@ describe('authStore', () => {
   });
 
   describe('login', () => {
-    it('sets user from JWT on success', async () => {
-      const pair = fakeTokenPair({
-        uid: 'u1',
-        email: 'test@example.com',
-        rid: 'admin',
-        tid: 't1',
+    it('sets user from /auth/me on success', async () => {
+      vi.mocked(authAPI.login).mockResolvedValue(fakeTokenPair({}));
+      vi.mocked(api.get).mockResolvedValue({
+        user: { id: 'u1', email: 'test@example.com', name: 'Test User' },
+        membership: { role_id: 'admin', tenant_id: 't1' },
+        role_id: 'admin',
+        tenant_id: 't1',
       });
-      vi.mocked(authAPI.login).mockResolvedValue(pair);
 
       await useAuthStore.getState().login('test@example.com', 'password');
 
@@ -80,14 +80,14 @@ describe('authStore', () => {
   });
 
   describe('register', () => {
-    it('sets user from JWT on success', async () => {
-      const pair = fakeTokenPair({
-        uid: 'u2',
-        email: 'new@example.com',
-        rid: 'member',
-        tid: 't2',
+    it('sets user from /auth/me on success', async () => {
+      vi.mocked(authAPI.register).mockResolvedValue(fakeTokenPair({}));
+      vi.mocked(api.get).mockResolvedValue({
+        user: { id: 'u2', email: 'new@example.com', name: 'New User' },
+        membership: { role_id: 'member', tenant_id: 't2' },
+        role_id: 'member',
+        tenant_id: 't2',
       });
-      vi.mocked(authAPI.register).mockResolvedValue(pair);
 
       await useAuthStore.getState().register('new@example.com', 'password', 'New User');
 

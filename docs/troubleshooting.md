@@ -4,19 +4,19 @@ Common issues and solutions when running DeployMonster.
 
 ## Startup Issues
 
-### "config validation error: server.secret_key must be at least 16 characters"
+### "config validation error: server.secret_key must be at least 32 characters"
 
-DeployMonster requires a secret key of at least 16 characters for JWT signing.
+DeployMonster requires a secret key of at least 32 characters for JWT HS256 signing.
 
 **Fix:** Set a strong secret key in `monster.yaml` or via environment variable:
 
 ```yaml
 server:
-  secret_key: "your-secret-key-at-least-16-chars"
+  secret_key: "your-secret-key-at-least-32-characters"
 ```
 
 ```bash
-export MONSTER_SECRET_KEY="your-secret-key-at-least-16-chars"
+export MONSTER_SECRET="your-secret-key-at-least-32-characters"
 ```
 
 On first run without a config file, a random key is generated automatically.
@@ -139,7 +139,7 @@ The container is running but the ingress proxy can't route to it.
 **Fix:**
 - Verify email and password are correct
 - Passwords are bcrypt-hashed — there's no way to recover them. Use password reset if available.
-- On first run, an admin account is created. Check startup logs for the initial credentials.
+- On first run, an admin account is created. If `MONSTER_ADMIN_PASSWORD` was not set, check startup logs for the generated initial password.
 
 ### JWT token expired / 401 on every request
 

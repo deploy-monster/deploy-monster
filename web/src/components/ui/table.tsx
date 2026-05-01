@@ -42,23 +42,6 @@ function TableBody({
   )
 }
 
-function TableFooter({
-  className,
-  ref,
-  ...props
-}: React.ComponentProps<"tfoot">) {
-  return (
-    <tfoot
-      className={cn(
-        "bg-muted/50 border-t font-medium [&>tr]:last:border-b-0",
-        className
-      )}
-      ref={ref}
-      {...props}
-    />
-  )
-}
-
 function TableRow({
   className,
   ref,
@@ -110,27 +93,11 @@ function TableCell({
   )
 }
 
-function TableCaption({
-  className,
-  ref,
-  ...props
-}: React.ComponentProps<"caption">) {
-  return (
-    <caption
-      className={cn("text-muted-foreground mt-4 text-sm", className)}
-      ref={ref}
-      {...props}
-    />
-  )
-}
-
 export {
   Table,
   TableHeader,
   TableBody,
-  TableFooter,
   TableHead,
   TableRow,
   TableCell,
-  TableCaption,
 }

@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/db"
 	"github.com/deploy-monster/deploy-monster/internal/marketplace"
@@ -47,7 +46,7 @@ func TestFullAPILifecycle(t *testing.T) {
 	mpRegistry.LoadBuiltins()
 
 	// Create auth module
-	authMod := auth.NewTestModule("test-secret-key-for-integration-tests-32b", sqlite)
+	authMod := newTestAuthServices(t, "test-secret-key-for-integration-tests-32b")
 
 	cfg, _ := core.LoadConfig("")
 	c := &core.Core{

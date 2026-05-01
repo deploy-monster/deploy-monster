@@ -51,6 +51,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((s) => s.user);
+  // Admin panel requires role_admin
+  if (user?.role !== 'role_admin') {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
 export default function App() {
   const initAuth = useAuthStore((s) => s.initialize);
   const initTheme = useThemeStore((s) => s.initialize);
@@ -95,7 +104,7 @@ export default function App() {
             <Route path="secrets" element={<Secrets />} />
             <Route path="monitoring" element={<Monitoring />} />
             <Route path="topology" element={<Topology />} />
-            <Route path="admin" element={<Admin />} />
+            <Route path="admin" element={<AdminRoute><Admin /></AdminRoute>} />
             <Route path="settings" element={<Settings />} />
           </Route>
 

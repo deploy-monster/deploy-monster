@@ -29,7 +29,7 @@ const (
 type Router struct {
 	mux              *http.ServeMux
 	core             *core.Core
-	authMod          *auth.Module
+	authMod          handlers.AuthServices
 	store            core.Store
 	apiMetrics       *middleware.APIMetrics
 	gracefulShutdown *middleware.GracefulShutdown
@@ -40,7 +40,7 @@ type Router struct {
 }
 
 // NewRouter creates a new API router with all routes registered.
-func NewRouter(c *core.Core, authMod *auth.Module, store core.Store) *Router {
+func NewRouter(c *core.Core, authMod handlers.AuthServices, store core.Store) *Router {
 	ctx, cancel := context.WithCancel(context.Background())
 	// Global rate limit: default 120 req/min per IP if not configured
 	rlRate := c.Config.Server.RateLimitPerMinute

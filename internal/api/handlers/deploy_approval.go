@@ -42,13 +42,6 @@ type ApprovalRequest struct {
 	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
 }
 
-// CreatePending adds a new pending approval request. Call this when a deploy needs approval.
-func (h *DeployApprovalHandler) CreatePending(req *ApprovalRequest) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.pending[req.ID] = req
-}
-
 // ListPending handles GET /api/v1/deploy/approvals
 func (h *DeployApprovalHandler) ListPending(w http.ResponseWriter, _ *http.Request) {
 	h.mu.RLock()

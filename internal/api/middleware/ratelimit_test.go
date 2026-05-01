@@ -110,7 +110,7 @@ func TestAuthRateLimiter_BlocksOverLimit(t *testing.T) {
 
 func TestAuthRateLimiter_DifferentIPs_Independent(t *testing.T) {
 	store := newRLBoltStore()
-	rl := NewAuthRateLimiter(store, 1, time.Minute, "login", WithTrustXFF()) // explicitly enable XFF to test per-IP limiting
+	rl := NewAuthRateLimiter(store, 1, time.Minute, "login")
 
 	handler := rl.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -118,7 +118,7 @@ func TestAuthRateLimiter_DifferentIPs_Independent(t *testing.T) {
 
 	// First IP uses its limit
 	req1 := httptest.NewRequest(http.MethodPost, "/", nil)
-	req1.Header.Set("X-Real-IP", "1.1.1.1")
+	req1.RemoteAddr = "1.1.1.1:1234"
 	rec1 := httptest.NewRecorder()
 	handler.ServeHTTP(rec1, req1)
 	if rec1.Code != http.StatusOK {
@@ -127,7 +127,7 @@ func TestAuthRateLimiter_DifferentIPs_Independent(t *testing.T) {
 
 	// Second IP should not be affected
 	req2 := httptest.NewRequest(http.MethodPost, "/", nil)
-	req2.Header.Set("X-Real-IP", "2.2.2.2")
+	req2.RemoteAddr = "2.2.2.2:1234"
 	rec2 := httptest.NewRecorder()
 	handler.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {

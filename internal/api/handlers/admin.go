@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -13,13 +12,13 @@ import (
 type AdminHandler struct {
 	core    *core.Core
 	store   core.Store
-	authMod *auth.Module
+	authMod AuthServices
 }
 
 // NewAdminHandler creates an AdminHandler. authMod may be nil in tests
 // that don't exercise key revocation — RevokeAllKeys checks before use.
-func NewAdminHandler(c *core.Core, store core.Store, authMod ...*auth.Module) *AdminHandler {
-	var mod *auth.Module
+func NewAdminHandler(c *core.Core, store core.Store, authMod ...AuthServices) *AdminHandler {
+	var mod AuthServices
 	if len(authMod) > 0 {
 		mod = authMod[0]
 	}

@@ -23,7 +23,7 @@ func TestConfig_LegacyMinimalYAML(t *testing.T) {
 server:
   host: 0.0.0.0
   port: 8443
-  secret_key: legacy-secret-key-minimum-16-chars
+  secret_key: legacy-secret-key-minimum-32-chars
 database:
   driver: sqlite
   path: legacy.db
@@ -55,7 +55,7 @@ limits:
 	if cfg.Server.Port != 8443 {
 		t.Errorf("server.port: got %d, want 8443", cfg.Server.Port)
 	}
-	if cfg.Server.SecretKey != "legacy-secret-key-minimum-16-chars" {
+	if cfg.Server.SecretKey != "legacy-secret-key-minimum-32-chars" {
 		t.Errorf("server.secret_key not preserved")
 	}
 	if cfg.Database.Path != "legacy.db" {
@@ -264,7 +264,7 @@ func TestConfig_EnvVarPrecedence(t *testing.T) {
 server:
   host: from-yaml
   port: 7443
-  secret_key: yaml-secret-key-minimum-16-chars
+  secret_key: yaml-secret-key-minimum-32-chars
 database:
   driver: sqlite
   path: yaml.db
@@ -306,7 +306,7 @@ limits:
 	}
 
 	// YAML beats defaults (no env override for secret_key)
-	if cfg.Server.SecretKey != "yaml-secret-key-minimum-16-chars" {
+	if cfg.Server.SecretKey != "yaml-secret-key-minimum-32-chars" {
 		t.Errorf("server.secret_key: yaml should override default, got %q", cfg.Server.SecretKey)
 	}
 	if cfg.Database.Path != "yaml.db" {

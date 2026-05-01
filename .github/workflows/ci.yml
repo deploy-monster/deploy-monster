@@ -151,10 +151,12 @@ jobs:
           ./bin/deploymonster serve &
           sleep 3
         env:
-          MONSTER_SERVER_ADDRESS: :8443
-          MONSTER_DATABASE_DRIVER: sqlite
+          MONSTER_HOST: 127.0.0.1
+          MONSTER_PORT: 8443
+          MONSTER_SECRET: ci-e2e-secret-key-with-at-least-32-characters
+          MONSTER_DB_PATH: ${{ runner.temp }}/deploymonster-e2e.db
           MONSTER_ADMIN_EMAIL: admin@deploymonster.test
-          MONSTER_ADMIN_PASSWORD: test-password-123
+          MONSTER_ADMIN_PASSWORD: TestPassword123!
 
       - name: Wait for server
         run: |
@@ -169,7 +171,7 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: web
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run Playwright tests
         working-directory: web

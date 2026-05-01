@@ -167,7 +167,6 @@ function SheetBody({
 
 export {
   Sheet,
-  SheetOverlay,
   SheetContent,
   SheetHeader,
   SheetFooter,

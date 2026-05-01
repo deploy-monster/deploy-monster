@@ -837,14 +837,28 @@ func (m *mockStore) Ping(_ context.Context) error { return nil }
 
 // testJWT returns a JWTService configured with the test secret.
 func testJWT() *auth.JWTService {
-	return auth.MustNewJWTService(testJWTSecret)
+	svc, err := auth.NewJWTService(testJWTSecret)
+	if err != nil {
+		panic(err)
+	}
+	return svc
 }
 
-// testAuthModule returns an auth.Module wired with the test JWT and mock store.
-// The module is NOT fully initialized (no DB init, no first-run); only the
-// JWT() method works, which is all the handlers call.
-func testAuthModule(store core.Store) *auth.Module {
-	return auth.NewTestModule(testJWTSecret, store)
+type testAuthServices struct {
+	jwt *auth.JWTService
+}
+
+func (s *testAuthServices) JWT() *auth.JWTService {
+	return s.jwt
+}
+
+func (s *testAuthServices) TOTP() *auth.TOTPService {
+	return nil
+}
+
+// testAuthModule returns the auth surface handlers need for JWT operations.
+func testAuthModule(_ core.Store) AuthServices {
+	return &testAuthServices{jwt: testJWT()}
 }
 
 // testCore returns a minimal *core.Core suitable for handler tests.
@@ -918,12 +932,12 @@ func (m *mockStore) addDeployment(appID string, d core.Deployment) {
 
 // mockContainerRuntime implements core.ContainerRuntime for testing.
 type mockContainerRuntime struct {
-	containers  []core.ContainerInfo
-	pingErr     error
-	listErr     error
-	logsData    string
-	logsErr     error
-	imageList   []core.ImageInfo
+	containers   []core.ContainerInfo
+	pingErr      error
+	listErr      error
+	logsData     string
+	logsErr      error
+	imageList    []core.ImageInfo
 	imageListErr error
 }
 

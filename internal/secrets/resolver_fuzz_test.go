@@ -33,9 +33,9 @@ func FuzzResolveAll(f *testing.F) {
 	f.Add("${SECRET:${SECRET:inner}}")         // nested — parser is non-recursive
 	f.Add("${SECRET:a}${SECRET:b}${SECRET:c}") // multiple
 	f.Add("prefix${SECRET:x}suffix")
-	f.Add("${SECRET:\x00}")                              // NUL in name
-	f.Add("${SECRET:\u00e4\u00f6\u00fc}")                // multi-byte UTF-8 in name
-	f.Add(strings.Repeat("${SECRET:x}", 64))             // many markers
+	f.Add("${SECRET:\x00}")                  // NUL in name
+	f.Add("${SECRET:\u00e4\u00f6\u00fc}")    // multi-byte UTF-8 in name
+	f.Add(strings.Repeat("${SECRET:x}", 64)) // many markers
 	f.Add(strings.Repeat("${SECRET:", 8) + strings.Repeat("}", 8))
 
 	// Seed the store with two resolvable secrets so the happy-path

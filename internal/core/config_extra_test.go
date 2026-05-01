@@ -172,8 +172,8 @@ func TestApplyDefaults_AllFields(t *testing.T) {
 	if cfg.Database.URL != "" {
 		t.Errorf("Database.URL = %q, got %q", cfg.Database.URL, "")
 	}
-	if len(cfg.Server.SecretKey) < 16 {
-		t.Errorf("Server.SecretKey should be auto-generated (>= 16 chars), got %d chars", len(cfg.Server.SecretKey))
+	if len(cfg.Server.SecretKey) < 32 {
+		t.Errorf("Server.SecretKey should be auto-generated (>= 32 chars), got %d chars", len(cfg.Server.SecretKey))
 	}
 	if cfg.Docker.Host != "unix:///var/run/docker.sock" {
 		t.Errorf("Docker.Host = %q, got %q", cfg.Docker.Host, "unix:///var/run/docker.sock")

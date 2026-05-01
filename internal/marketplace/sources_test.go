@@ -136,7 +136,7 @@ func TestSetUpdateInterval_StoresValue(t *testing.T) {
 func TestSetUpdateInterval_AcceptsZero(t *testing.T) {
 	m := New()
 	m.SetUpdateInterval(1 * time.Hour) // set something first
-	m.SetUpdateInterval(0)              // then disable
+	m.SetUpdateInterval(0)             // then disable
 	if m.updateInterval != 0 {
 		t.Errorf("updateInterval = %v, want 0 (loop disabled)", m.updateInterval)
 	}

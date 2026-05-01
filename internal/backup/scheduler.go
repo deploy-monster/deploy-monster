@@ -499,16 +499,6 @@ func CleanupOldBackups(ctx context.Context, storage core.BackupStorage, prefix s
 		if entry.CreatedAt < cutoff {
 			if err := storage.Delete(ctx, entry.Key); err == nil {
 				deleted++
-			} else {
-				// Before Tier 67 delete errors were silently dropped.
-				// A persistent permissions failure on an old backup
-				// would quietly cause retention to stall.
-				// We log but keep going so one broken entry does not
-				// block the rest of the sweep.
-				// Note: we do not return the error — retention is
-				// best-effort and a single Delete failure should not
-				// abort the sweep.
-				_ = err
 			}
 		}
 	}

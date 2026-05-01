@@ -18,10 +18,10 @@ import (
 type SessionHandler struct {
 	store   core.Store
 	bolt    core.BoltStorer
-	authMod *auth.Module
+	authMod AuthServices
 }
 
-func NewSessionHandler(store core.Store, bolt core.BoltStorer, authMod *auth.Module) *SessionHandler {
+func NewSessionHandler(store core.Store, bolt core.BoltStorer, authMod AuthServices) *SessionHandler {
 	return &SessionHandler{
 		store:   store,
 		bolt:    bolt,
@@ -200,25 +200,6 @@ type SessionTrackingInfo struct {
 const userSessionsBucket = "user_sessions"
 const maxConcurrentSessions = 10 // SESS-003: Limit concurrent sessions per user
 
-// TrackUserSession records a new session for a user (called during login/refresh)
-func (h *SessionHandler) TrackUserSession(userID, jti, ip, userAgent string) error {
-	if h.bolt == nil {
-		return nil
-	}
-
-	sessionKey := fmt.Sprintf("%s:%s", userID, jti)
-	session := SessionTrackingInfo{
-		UserID:    userID,
-		JTI:       jti,
-		IP:        ip,
-		UserAgent: userAgent,
-		CreatedAt: time.Now(),
-	}
-
-	// Store with 7-day TTL (matching refresh token lifetime)
-	return h.bolt.Set(userSessionsBucket, sessionKey, session, auth.RefreshTokenTTLSeconds)
-}
-
 // GetUserSessions returns all active sessions for a user
 func (h *SessionHandler) GetUserSessions(userID string) ([]SessionTrackingInfo, error) {
 	if h.bolt == nil {
@@ -275,33 +256,6 @@ func (h *SessionHandler) revokeAllUserSessions(ctx context.Context, userID strin
 				"user_id", userID,
 				"jti", session.JTI,
 				"error", err)
-		}
-	}
-
-	return nil
-}
-
-// enforceSessionLimit ensures a user doesn't exceed max concurrent sessions
-func (h *SessionHandler) enforceSessionLimit(userID string) error {
-	sessions, err := h.GetUserSessions(userID)
-	if err != nil {
-		return err
-	}
-
-	// SESS-003: If over limit, revoke oldest sessions
-	if len(sessions) > maxConcurrentSessions {
-		toRevoke := len(sessions) - maxConcurrentSessions
-		for i := 0; i < toRevoke && i < len(sessions); i++ {
-			session := sessions[i]
-			if err := h.bolt.Set("revoked_tokens", session.JTI, true, auth.RefreshTokenTTLSeconds); err != nil {
-				slog.Warn("failed to revoke old session",
-					"user_id", userID,
-					"jti", session.JTI,
-					"error", err)
-			}
-			// Remove from tracking
-			sessionKey := fmt.Sprintf("%s:%s", userID, session.JTI)
-			h.bolt.Delete(userSessionsBucket, sessionKey)
 		}
 	}
 
@@ -429,6 +383,7 @@ func (h *SessionHandler) GenerateBackupCodes(w http.ResponseWriter, r *http.Requ
 		"backup_codes": codes.Plain,
 	})
 }
+
 // SESS-005: Invalidate all sessions for the current user
 func (h *SessionHandler) LogoutAll(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())

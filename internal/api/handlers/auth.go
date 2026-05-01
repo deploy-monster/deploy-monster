@@ -23,10 +23,16 @@ const (
 
 // AuthHandler handles authentication endpoints.
 type AuthHandler struct {
-	authMod       *internalAuth.Module
+	authMod       AuthServices
 	store         core.Store
 	bolt          core.BoltStorer
 	totpValidator func(userID, code string) bool // TOTP validator function
+}
+
+// AuthServices is the narrow auth surface used by API handlers.
+type AuthServices interface {
+	JWT() *internalAuth.JWTService
+	TOTP() *internalAuth.TOTPService
 }
 
 // isSecureRequest reports whether the request arrived over TLS, either
@@ -103,7 +109,7 @@ func clearTokenCookies(w http.ResponseWriter, r *http.Request) {
 }
 
 // NewAuthHandler creates a new auth handler.
-func NewAuthHandler(authMod *internalAuth.Module, store core.Store, bolt core.BoltStorer) *AuthHandler {
+func NewAuthHandler(authMod AuthServices, store core.Store, bolt core.BoltStorer) *AuthHandler {
 	h := &AuthHandler{
 		authMod: authMod,
 		store:   store,
@@ -127,9 +133,9 @@ func (h *AuthHandler) validateTOTP(userID, code string) bool {
 }
 
 type loginRequest struct {
-	Email     string `json:"email"`
-	Password  string `json:"password"`
-	TOTPCode  string `json:"totp_code,omitempty"` // Required if TOTP is enabled for the user
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	TOTPCode string `json:"totp_code,omitempty"` // Required if TOTP is enabled for the user
 }
 
 type registerRequest struct {

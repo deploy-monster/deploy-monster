@@ -1,18 +1,18 @@
 import { api } from './client';
 
-export interface TokenPair {
+interface TokenPair {
   access_token: string;
   refresh_token: string;
   expires_in: number;
   token_type: string;
 }
 
-export interface LoginRequest {
+interface LoginRequest {
   email: string;
   password: string;
 }
 
-export interface RegisterRequest {
+interface RegisterRequest {
   email: string;
   password: string;
   name: string;

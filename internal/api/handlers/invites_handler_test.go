@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ─── Create Invite ───────────────────────────────────────────────────────────
@@ -214,12 +215,12 @@ func TestHashToken_Deterministic(t *testing.T) {
 	h2 := hashToken(token)
 
 	// bcrypt is non-deterministic due to salt, so hashes differ between calls
-	// but verifyTokenHash should work correctly
-	if !verifyTokenHash(token, h1) {
-		t.Errorf("verifyTokenHash failed for hash h1")
+	// but both hashes must verify against the original token.
+	if err := bcrypt.CompareHashAndPassword([]byte(h1), []byte(token)); err != nil {
+		t.Errorf("bcrypt verify failed for hash h1: %v", err)
 	}
-	if !verifyTokenHash(token, h2) {
-		t.Errorf("verifyTokenHash failed for hash h2")
+	if err := bcrypt.CompareHashAndPassword([]byte(h2), []byte(token)); err != nil {
+		t.Errorf("bcrypt verify failed for hash h2: %v", err)
 	}
 }
 
@@ -233,20 +234,5 @@ func TestHashToken_DifferentInputs(t *testing.T) {
 	// bcrypt hashes have a specific format starting with $2
 	if len(h1) < 50 || h1[:4] != "$2a$" {
 		t.Errorf("expected bcrypt hash format, got length %d and prefix %q", len(h1), h1[:4])
-	}
-}
-
-func TestVerifyTokenHash(t *testing.T) {
-	token := "my-secret-invite-token"
-	hash := hashToken(token)
-
-	// Correct token should verify
-	if !verifyTokenHash(token, hash) {
-		t.Error("correct token should verify against its hash")
-	}
-
-	// Wrong token should not verify
-	if verifyTokenHash("wrong-token", hash) {
-		t.Error("wrong token should not verify")
 	}
 }

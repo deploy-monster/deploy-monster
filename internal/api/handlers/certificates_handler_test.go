@@ -7,8 +7,8 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"encoding/json"
+	"encoding/pem"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -195,7 +195,7 @@ func testCertForDomain(domain string) (certPEM, keyPEM string) {
 		Subject:      pkix.Name{CommonName: domain},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().Add(24 * time.Hour),
-		DNSNames:      []string{domain},
+		DNSNames:     []string{domain},
 	}
 	certDER, _ := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
 	certBuf := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})

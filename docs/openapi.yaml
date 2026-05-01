@@ -1408,6 +1408,107 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/auth/totp/status:
+    get:
+      operationId: getTOTPStatus
+      tags: [Auth]
+      summary: Get TOTP enrollment status
+      responses:
+        "200":
+          description: TOTP enrollment status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: TOTP service unavailable
+
+  /api/v1/auth/totp/enroll:
+    post:
+      operationId: enrollTOTP
+      tags: [Auth]
+      summary: Enroll current user in TOTP MFA
+      responses:
+        "200":
+          description: TOTP provisioning URI generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  provisioning_uri:
+                    type: string
+                  secret:
+                    type: string
+                    description: Returned only during enrollment when available
+        "400":
+          description: TOTP enrollment failed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: TOTP service unavailable
+
+  /api/v1/auth/totp/disable:
+    post:
+      operationId: disableTOTP
+      tags: [Auth]
+      summary: Disable TOTP MFA for the current user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  description: Current TOTP code
+      responses:
+        "200":
+          description: TOTP disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: TOTP disabled
+        "400":
+          description: Invalid request body, missing code, or invalid TOTP code
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: TOTP service unavailable
+
+  /api/v1/auth/totp/backup-codes:
+    post:
+      operationId: generateTOTPBackupCodes
+      tags: [Auth]
+      summary: Generate new TOTP backup codes
+      responses:
+        "200":
+          description: New backup codes generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  backup_codes:
+                    type: array
+                    items:
+                      type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: TOTP service unavailable
+
   # ── Databases ────────────────────────────────────────
   /api/v1/databases/engines:
     get:

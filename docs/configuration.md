@@ -19,7 +19,7 @@ All environment variables use the `MONSTER_` prefix.
 | `MONSTER_HOST` | `server.host` | `0.0.0.0` | HTTP server bind address |
 | `MONSTER_PORT` | `server.port` | `8443` | HTTP server port (1-65535) |
 | `MONSTER_DOMAIN` | `server.domain` | _(empty)_ | Public domain (used for CORS, cookies) |
-| `MONSTER_SECRET` | `server.secret_key` | _(auto-generated)_ | JWT signing key (min 16 chars) |
+| `MONSTER_SECRET` | `server.secret_key` | _(auto-generated)_ | JWT signing key (min 32 chars) |
 | `MONSTER_PREVIOUS_SECRET_KEYS` | `server.previous_secret_keys` | _(empty)_ | Comma-separated old keys for JWT rotation |
 | `MONSTER_CORS_ORIGINS` | `server.cors_origins` | _(derived from domain)_ | Comma-separated allowed CORS origins |
 | `MONSTER_ENABLE_PPROF` | `server.enable_pprof` | `false` | Enable `/debug/pprof/*` endpoints (auth-protected) |
@@ -31,7 +31,7 @@ All environment variables use the `MONSTER_` prefix.
 | `MONSTER_LOG_LEVEL` | `server.log_level` | `info` | Log level (debug, info, warn, error) |
 | `MONSTER_LOG_FORMAT` | `server.log_format` | `text` | Log format: `text` (human-readable) or `json` (structured) |
 | `MONSTER_ADMIN_EMAIL` | — | `admin@deploymonster.local` | Initial admin email (first-run setup only) |
-| `MONSTER_ADMIN_PASSWORD` | — | _(auto-generated)_ | Initial admin password (first-run setup only) |
+| `MONSTER_ADMIN_PASSWORD` | — | _(auto-generated and logged once)_ | Initial admin password (first-run setup only) |
 
 ## YAML Configuration Sections
 
@@ -42,7 +42,7 @@ server:
   host: "0.0.0.0"           # Bind address
   port: 8443                 # HTTP port (validated: 1-65535)
   domain: "deploy.example.com" # Public domain
-  secret_key: ""             # JWT signing key (auto-generated if empty, min 16 chars)
+  secret_key: ""             # JWT signing key (auto-generated if empty, min 32 chars)
   previous_secret_keys: []   # Old signing keys for graceful JWT rotation
   cors_origins: ""           # Comma-separated origins (auto-derived from domain if empty)
   enable_pprof: false        # Enable Go pprof profiling endpoints
@@ -211,7 +211,7 @@ The configuration is validated during `LoadConfig()`. The following rules are en
 | Rule | Error |
 |------|-------|
 | Port must be 1-65535 | `config: server.port N out of range` |
-| Secret key must be >= 16 chars | `config: server.secret_key must be at least 16 characters` |
+| Secret key must be >= 32 chars | `config: server.secret_key must be at least 32 characters` |
 | Database driver must be `sqlite` or `postgres` | `config: unsupported database.driver` |
 | SQLite requires `database.path` | `config: database.path is required for sqlite driver` |
 | PostgreSQL requires `database.url` | `config: database.url is required for postgres driver` |
@@ -225,7 +225,7 @@ The configuration is validated during `LoadConfig()`. The following rules are en
 ```yaml
 server:
   domain: "deploy.example.com"
-  secret_key: "your-secret-key-at-least-16-chars"
+  secret_key: "your-secret-key-at-least-32-characters"
 
 ingress:
   force_https: true

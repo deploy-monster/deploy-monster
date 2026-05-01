@@ -45,6 +45,8 @@ vendor/
 # Binaries
 deploymonster
 deploymonster.exe
+openapi-gen
+openapi-gen.exe
 /loadtest
 /loadtest.exe
 /build_queue
