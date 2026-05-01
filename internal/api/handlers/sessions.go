@@ -308,7 +308,127 @@ func (h *SessionHandler) enforceSessionLimit(userID string) error {
 	return nil
 }
 
-// LogoutAll handles POST /api/v1/auth/logout-all
+// TOTP MFA Endpoints
+
+// totpStatusResponse represents TOTP enrollment status.
+type totpStatusResponse struct {
+	Enabled bool `json:"enabled"`
+}
+
+// totpEnrollResponse represents TOTP enrollment response.
+type totpEnrollResponse struct {
+	ProvisioningURI string `json:"provisioning_uri"`
+	Secret          string `json:"secret,omitempty"` // Only returned once during enrollment
+}
+
+// EnableTOTP handles POST /api/v1/auth/totp/enroll
+// Generates a new TOTP secret and returns the provisioning URI.
+func (h *SessionHandler) EnableTOTP(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if h.authMod == nil || h.authMod.TOTP() == nil {
+		writeError(w, http.StatusServiceUnavailable, "TOTP not available")
+		return
+	}
+
+	uri, err := h.authMod.TOTP().Enroll(r.Context(), claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, totpEnrollResponse{
+		ProvisioningURI: uri,
+	})
+}
+
+// GetTOTPStatus handles GET /api/v1/auth/totp/status
+// Returns whether TOTP is enabled for the current user.
+func (h *SessionHandler) GetTOTPStatus(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if h.authMod == nil || h.authMod.TOTP() == nil {
+		writeError(w, http.StatusServiceUnavailable, "TOTP not available")
+		return
+	}
+
+	enabled, err := h.authMod.TOTP().Status(claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get TOTP status")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, totpStatusResponse{Enabled: enabled})
+}
+
+// DisableTOTP handles POST /api/v1/auth/totp/disable
+// Disables TOTP for the current user after validating the TOTP code.
+func (h *SessionHandler) DisableTOTP(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if h.authMod == nil || h.authMod.TOTP() == nil {
+		writeError(w, http.StatusServiceUnavailable, "TOTP not available")
+		return
+	}
+
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Code == "" {
+		writeError(w, http.StatusBadRequest, "TOTP code is required")
+		return
+	}
+
+	err := h.authMod.TOTP().Disable(r.Context(), claims.UserID, req.Code)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "TOTP disabled"})
+}
+
+// GenerateBackupCodes handles POST /api/v1/auth/totp/backup-codes
+// Generates a new set of backup codes for the current user.
+func (h *SessionHandler) GenerateBackupCodes(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if h.authMod == nil || h.authMod.TOTP() == nil {
+		writeError(w, http.StatusServiceUnavailable, "TOTP not available")
+		return
+	}
+
+	codes, err := h.authMod.TOTP().GenerateBackupCodes(r.Context(), claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate backup codes")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"backup_codes": codes.Plain,
+	})
+}
 // SESS-005: Invalidate all sessions for the current user
 func (h *SessionHandler) LogoutAll(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())

@@ -41,6 +41,10 @@ func (m *mockStore) CreateUserWithMembership(_ context.Context, _, _, _, _, _, _
 	return m.createUserID, nil
 }
 
+func (m *mockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
+	return nil
+}
+
 func TestModule_Init_WithStore(t *testing.T) {
 	store := &mockStore{userCount: 5}
 

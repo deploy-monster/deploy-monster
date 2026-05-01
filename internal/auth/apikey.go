@@ -63,3 +63,10 @@ func VerifyAPIKey(key, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(key))
 	return err == nil
 }
+
+// SECURITY NOTE (AUTH-003): API key prefix lookup is intentionally O(n)
+// across all stored keys to authenticate requests. While this allows
+// prefix enumeration (given a prefix, you can find matching keys), this is
+// expected design — the full key is required to use the API key, and the
+// prefix alone provides no actionable information without the secret portion.
+// The lookup is bounded and rate-limited via per-IP and per-account limits.

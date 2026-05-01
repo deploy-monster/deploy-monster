@@ -74,6 +74,9 @@ func (s *mockStore) CountUsers(_ context.Context) (int, error)           { retur
 func (s *mockStore) CreateUserWithMembership(_ context.Context, _, _, _, _, _, _ string) (string, error) {
 	return "", nil
 }
+func (s *mockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
+	return nil
+}
 
 func (s *mockStore) CreateApp(_ context.Context, _ *core.Application) error { return nil }
 func (s *mockStore) GetApp(_ context.Context, _ string) (*core.Application, error) {

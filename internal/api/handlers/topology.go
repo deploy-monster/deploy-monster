@@ -142,6 +142,10 @@ func (h *TopologyHandler) Save(w http.ResponseWriter, r *http.Request) {
 }
 
 // Load handles GET /api/v1/topology/{projectId}/{environment} - loads saved topology
+// SECURITY NOTE (AUTHZ-002): Tenant isolation is enforced by embedding tenantID
+// in the storage key and verifying the project belongs to the caller's tenant.
+// The key format "topology:{tenantID}:{projectID}:{environment}" ensures cross-tenant
+// data access is impossible even if projectID is manipulated.
 func (h *TopologyHandler) Load(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
 	if claims == nil {

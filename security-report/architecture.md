@@ -1,8 +1,8 @@
 # Architecture Report — DeployMonster
 
-**Date:** 2026-04-25
+**Date:** 2026-05-01
 **Scanner:** Claude Code (sc-recon)
-**Scope:** Full codebase
+**Scope:** Full codebase (post-security-audit commit a844d6e)
 
 ---
 

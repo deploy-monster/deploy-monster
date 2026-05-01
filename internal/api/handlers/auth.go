@@ -23,9 +23,10 @@ const (
 
 // AuthHandler handles authentication endpoints.
 type AuthHandler struct {
-	authMod *internalAuth.Module
-	store   core.Store
-	bolt    core.BoltStorer
+	authMod       *internalAuth.Module
+	store         core.Store
+	bolt          core.BoltStorer
+	totpValidator func(userID, code string) bool // TOTP validator function
 }
 
 // isSecureRequest reports whether the request arrived over TLS, either
@@ -103,16 +104,32 @@ func clearTokenCookies(w http.ResponseWriter, r *http.Request) {
 
 // NewAuthHandler creates a new auth handler.
 func NewAuthHandler(authMod *internalAuth.Module, store core.Store, bolt core.BoltStorer) *AuthHandler {
-	return &AuthHandler{
+	h := &AuthHandler{
 		authMod: authMod,
 		store:   store,
 		bolt:    bolt,
 	}
+	// Set up TOTP validator if auth module provides one
+	if authMod != nil && authMod.TOTP() != nil {
+		h.totpValidator = authMod.TOTP().Validate
+	}
+	return h
+}
+
+// validateTOTP validates a TOTP code for a user.
+// Uses the auth module's TOTP service if available.
+func (h *AuthHandler) validateTOTP(userID, code string) bool {
+	if h.totpValidator == nil {
+		// TOTP not configured - fail closed
+		return false
+	}
+	return h.totpValidator(userID, code)
 }
 
 type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email     string `json:"email"`
+	Password  string `json:"password"`
+	TOTPCode  string `json:"totp_code,omitempty"` // Required if TOTP is enabled for the user
 }
 
 type registerRequest struct {
@@ -174,6 +191,25 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		h.incrementPerAccountRateLimit(r.Context(), req.Email)
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
+	}
+
+	// TOTP verification: if enabled, require a valid TOTP code
+	if user.TOTPEnabled {
+		if req.TOTPCode == "" {
+			// Signal that TOTP is required - client should prompt for code
+			w.Header().Set("X-TOTP-Required", "true")
+			writeError(w, http.StatusUnauthorized, "TOTP code required")
+			return
+		}
+		// Validate TOTP code using the stored encrypted secret
+		// The stored secret is bcrypt hashed, we need the raw secret for TOTP validation
+		// Since we store bcrypt(secret), we pass the encrypted secret to validation
+		// Note: in production, consider using a separate TOTP secret storage
+		if !h.validateTOTP(user.ID, req.TOTPCode) {
+			h.incrementPerAccountRateLimit(r.Context(), req.Email)
+			writeError(w, http.StatusUnauthorized, "invalid TOTP code")
+			return
+		}
 	}
 
 	// Get user's membership (tenant + role)

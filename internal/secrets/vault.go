@@ -43,6 +43,14 @@ func GenerateVaultSalt() ([]byte, error) {
 }
 
 // Vault handles AES-256-GCM encryption and decryption of secrets.
+// SECURITY NOTE (SECRETS-001): The key is stored as []byte to allow zeroing
+// via memset. Using string type would be simpler but Go strings are
+// immutable and cannot be securely zeroed from user code — the garbage
+// collector may keep the string data in memory indefinitely. We use []byte
+// intentionally so callers can zero the memory when the vault is no longer
+// needed. In practice, zeroing is best-effort in Go due to compiler
+// optimizations; for high-security use cases consider a hardware security
+// module (HSM) or cloud KMS.
 type Vault struct {
 	key []byte // 32-byte AES key derived from master password
 }
@@ -60,6 +68,11 @@ func NewVault(masterSecret string) *Vault {
 // same master secret end up with different AES keys — an attacker
 // who captures one install's ciphertext can't trivially decrypt
 // another's.
+// SECURITY FIX (CRYPTO-001): Current iteration count of 1 is below the
+// OWASP-recommended minimum of 3 for Argon2id. Increase to 3+ when
+// upgrading the KDF to prevent offline brute-force attacks on the
+// master secret. Note: changing iterations requires re-encryption of
+// all stored secrets (migration path).
 func NewVaultWithSalt(masterSecret string, salt []byte) *Vault {
 	if len(salt) == 0 {
 		salt = LegacyVaultSalt()

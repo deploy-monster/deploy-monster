@@ -275,6 +275,9 @@ func (m *mockPermStore) GetDomain(_ context.Context, _ string) (*core.Domain, er
 func (m *mockPermStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
 	return nil, nil
 }
+func (m *mockPermStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
+	return nil
+}
 
 // --- RequireOwnerOrAbove ---
 

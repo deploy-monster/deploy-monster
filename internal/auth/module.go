@@ -17,6 +17,7 @@ func init() {
 type Module struct {
 	core   *core.Core
 	jwt    *JWTService
+	totp   *TOTPService
 	store  core.Store
 	logger *slog.Logger
 }
@@ -48,6 +49,25 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 		return fmt.Errorf("init jwt service: %w", err)
 	}
 	m.jwt = jwtSvc
+
+	// Create TOTP service for MFA support
+	m.totp = NewTOTPService(m.store)
+
+	// Set the secrets vault on TOTP service if available
+	if c.Registry != nil {
+		if secretsMod := c.Registry.Get("secrets"); secretsMod != nil {
+			type vaultProvider interface {
+				Vault() interface {
+					Encrypt(string) (string, error)
+					Decrypt(string) (string, error)
+				}
+			}
+			if vp, ok := secretsMod.(vaultProvider); ok {
+				m.totp.SetVault(vp.Vault())
+				m.logger.Info("TOTP vault configured")
+			}
+		}
+	}
 
 	// First-run setup: create super admin if no users exist
 	if err := m.firstRunSetup(ctx); err != nil {
@@ -85,6 +105,11 @@ func (m *Module) JWT() *JWTService {
 // Store returns the data store for auth-related queries.
 func (m *Module) Store() core.Store {
 	return m.store
+}
+
+// TOTP returns the TOTP service for MFA support.
+func (m *Module) TOTP() *TOTPService {
+	return m.totp
 }
 
 // firstRunSetup creates a super admin user and default tenant if no users exist.

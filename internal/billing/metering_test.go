@@ -83,6 +83,10 @@ func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) 
 	return m.err
 }
 
+func (m *mockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
+	return nil
+}
+
 func TestNewMeter(t *testing.T) {
 	logger := slog.Default()
 	runtime := &mockContainerRuntime{}

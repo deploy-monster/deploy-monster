@@ -86,6 +86,10 @@ func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error)
 	return 0, nil
 }
 
+func (m *mockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
+	return nil
+}
+
 // flushRecorder wraps httptest.ResponseRecorder to implement http.Flusher.
 type flushRecorder struct {
 	*httptest.ResponseRecorder

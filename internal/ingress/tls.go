@@ -132,6 +132,11 @@ func (cs *CertStore) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificat
 }
 
 // GenerateSelfSigned creates a self-signed certificate for development.
+// SECURITY NOTE (CRYPTO-002): This uses P-256 (secp256r1) which provides
+// ~128 bits of security. For production certificates, prefer P-384 (384 bits)
+// or P-521 (521 bits) to meet NIST guidelines for long-term security.
+// P-256 is acceptable for development/testing but production deployments
+// should use certificates from Let's Encrypt or another CA.
 func GenerateSelfSigned(domain string) (*tls.Certificate, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

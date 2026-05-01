@@ -68,6 +68,10 @@ func (m *mockStore) CreateApp(_ context.Context, _ *core.Application) error {
 	return nil
 }
 
+func (m *mockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
+	return nil
+}
+
 // mockRuntime implements core.ContainerRuntime with only what's needed.
 type mockRuntime struct {
 	containers []core.ContainerInfo

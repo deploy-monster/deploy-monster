@@ -300,6 +300,16 @@ func (m *mockStore) CountUsers(_ context.Context) (int, error) {
 	return len(m.users), nil
 }
 
+func (m *mockStore) UpdateTOTPEnabled(_ context.Context, userID string, enabled bool, totpSecretEnc string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if user, ok := m.users[userID]; ok {
+		user.TOTPEnabled = enabled
+		user.TOTPSecret = totpSecretEnc
+	}
+	return nil
+}
+
 // ─── AppStore implementation ─────────────────────────────────────────────────
 
 func (m *mockStore) CreateApp(_ context.Context, app *core.Application) error {

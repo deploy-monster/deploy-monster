@@ -147,6 +147,12 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/auth/sessions", protected(http.HandlerFunc(sessionH.ListSessions)))
 	r.mux.Handle("POST /api/v1/auth/logout-all", protected(http.HandlerFunc(sessionH.LogoutAll)))
 
+	// ── TOTP MFA ───────────────────────────────────
+	r.mux.Handle("GET /api/v1/auth/totp/status", protected(http.HandlerFunc(sessionH.GetTOTPStatus)))
+	r.mux.Handle("POST /api/v1/auth/totp/enroll", protected(http.HandlerFunc(sessionH.EnableTOTP)))
+	r.mux.Handle("POST /api/v1/auth/totp/disable", protected(http.HandlerFunc(sessionH.DisableTOTP)))
+	r.mux.Handle("POST /api/v1/auth/totp/backup-codes", protected(http.HandlerFunc(sessionH.GenerateBackupCodes)))
+
 	// ── Webhooks (signature-verified, not JWT) ─────────
 	// Tighter 1MB body limit for external webhook payloads (vs global 10MB)
 	webhookRecv := webhooks.NewReceiver(r.store, r.core.DB.Bolt, r.core.Events, r.core.Logger)
@@ -679,6 +685,11 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /metrics/api", protected(r.apiMetrics.Handler()))
 
 	// ── pprof (opt-in, auth-protected) ───────────────
+	// SECURITY NOTE (PPROF-001): pprof endpoints are protected by RequireAuth
+	// middleware which enforces JWT or API key authentication. CSRF protection
+	// is not required here because authenticated API calls use CSRF tokens via
+	// the frontend's api client, and the pprof endpoints are not accessible from
+	// a browser (no GET form submissions). The auth middleware is sufficient.
 	if r.core.Config.Server.EnablePprof {
 		r.mux.Handle("GET /debug/pprof/", protected(http.HandlerFunc(pprof.Index)))
 		r.mux.Handle("GET /debug/pprof/cmdline", protected(http.HandlerFunc(pprof.Cmdline)))

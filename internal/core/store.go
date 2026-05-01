@@ -52,6 +52,10 @@ type UserStore interface {
 	UpdateLastLogin(ctx context.Context, userID string) error
 	CountUsers(ctx context.Context) (int, error)
 	CreateUserWithMembership(ctx context.Context, email, passwordHash, name, status, tenantID, roleID string) (string, error)
+	// UpdateTOTPEnabled enables or disables TOTP for a user.
+	// When enabling, the totp_secret_enc should be a bcrypt hash of the TOTP secret.
+	// When disabling, totp_secret_enc should be empty.
+	UpdateTOTPEnabled(ctx context.Context, userID string, enabled bool, totpSecretEnc string) error
 }
 
 // AppStore manages application CRUD.
@@ -168,6 +172,7 @@ type User struct {
 	AvatarURL    string     `json:"avatar_url"`
 	Status       string     `json:"status"`
 	TOTPEnabled  bool       `json:"totp_enabled"`
+	TOTPSecret   string     `json:"-"`
 	LastLoginAt  *time.Time `json:"last_login_at,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`

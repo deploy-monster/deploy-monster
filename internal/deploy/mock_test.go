@@ -353,6 +353,9 @@ func (s *mockStore) CountUsers(_ context.Context) (int, error)           { retur
 func (s *mockStore) CreateUserWithMembership(_ context.Context, _, _, _, _, _, _ string) (string, error) {
 	return "", nil
 }
+func (s *mockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
+	return nil
+}
 
 // ProjectStore methods
 func (s *mockStore) CreateProject(_ context.Context, _ *core.Project) error { return nil }

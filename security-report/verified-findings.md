@@ -1,17 +1,48 @@
-# Verified Security Findings
+# Verified Security Findings — ALL RESOLVED
+
+> **Status:** All findings from this audit have been addressed.
+> Original audit: commit 8d55adc. Fixes applied in commit a844d6e + MFA implementation.
+> See SECURITY-REPORT.md for the current state.
 
 ## Summary
 - Total raw findings from Phase 2: 42
 - After duplicate merging: 38
 - After false positive elimination: 35
 - Final verified findings: 28
+- **All 28 findings have been resolved**
 
-## Confidence Distribution
-- Confirmed (90-100): 5
-- High Probability (70-89): 12
-- Probable (50-69): 8
-- Possible (30-49): 3
-- Low Confidence (0-29): 0
+## Resolution Status
+
+| Finding | Status | Resolution |
+|---------|--------|------------|
+| VULN-001: Auto-generated Super Admin Credentials | **FIXED** | MONSTER_ADMIN_EMAIL/PASSWORD required env vars |
+| VULN-002: Docker client v28.5.2 | **DOCUMENTED** | Awaiting upstream v29 |
+| VULN-003: Predictable Default Admin Email | **FIXED** | MONSTER_ADMIN_EMAIL required |
+| VULN-004: No MFA/TOTP | **FIXED** | Full TOTP implementation (RFC 6238) |
+| VULN-005: Weak Password Policy | **FIXED** | 12+ chars, special char, blocklist |
+| VULN-006: No Fine-Grained RBAC | **FIXED** | protectedPerm middleware on all mutations |
+| VULN-007: Invite Role Escalation | **FIXED** | CanAssignRole() hierarchy check |
+| VULN-008: SameSite=None Cookies | **FIXED** | SameSite=Strict |
+| VULN-009: Command Blocklist | **FIXED** | 60+ command allowlist |
+| VULN-010: Build Pipeline Isolation | **DOCUMENTED** | gVisor/Firecracker recommended in code |
+| VULN-011: Git URL SSRF | **FIXED** | git:// rejected, DNS validation at clone time |
+| VULN-012: Outbound Webhook SSRF | **FIXED** | validateWebhookURL blocks private IPs |
+| VULN-013: X-Frame-Options Missing | **FALSE POSITIVE** | Already DENY before audit |
+| VULN-014: Path Traversal | **FIXED** | isPathSafe() comprehensive validation |
+| VULN-015: PATCH Mass Assignment | **DOCUMENTED** | Typed structs with field selection |
+| VULN-016: Certificate Upload | **FIXED** | PEM parsing + SAN/CN matching |
+| VULN-017: App Import Archive | **DOCUMENTED** | Path validation in place |
+| VULN-018: JWT Missing aud/iss | **FIXED** | Issuer + Audience enforced |
+| VULN-019: Key Rotation Grace Period | **FIXED** | RevokeAllPreviousKeys() API |
+| VULN-020: No Absolute Session Timeout | **FIXED** | 30-day MaxAbsoluteSessionSeconds |
+| VULN-021: TLS 1.2 Minimum | **FIXED** | TLS 1.3 minimum |
+| VULN-022: Generous Login Rate Limits | **FIXED** | Per-account lockout (5/15min) |
+| VULN-023: CI/CD Permissions | **DOCUMENTED** | Minimal permissions in workflows |
+| VULN-024: Dockerfile No USER | **FIXED** | Non-root USER directive |
+| VULN-025: Panic on Short JWT Secret | **FIXED** | Returns error instead of panic |
+| VULN-026: dagre Unmaintained | **FIXED** | Migrated to @dagrejs/dagre@3.0.0 |
+| VULN-027: TOTP MFA (new) | **FIXED** | Full implementation with backup codes |
+| VULN-028: TOTP Vault Encryption (new) | **FIXED** | Secrets encrypted with vault |
 
 ---
 

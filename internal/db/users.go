@@ -25,29 +25,39 @@ func (s *SQLiteDB) CreateUser(ctx context.Context, u *core.User) error {
 // GetUser retrieves a user by ID.
 func (s *SQLiteDB) GetUser(ctx context.Context, id string) (*core.User, error) {
 	u := &core.User{}
+	var totpSecret sql.NullString
 	err := s.QueryRowContext(ctx,
-		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, last_login_at, created_at, updated_at
+		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, totp_secret_enc, last_login_at, created_at, updated_at
 		 FROM users WHERE id = ?`, id,
 	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.AvatarURL, &u.Status,
-		&u.TOTPEnabled, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt)
+		&u.TOTPEnabled, &totpSecret, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, core.ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return nil, err
+	}
+	u.TOTPSecret = totpSecret.String
+	return u, nil
 }
 
 // GetUserByEmail retrieves a user by email address.
 func (s *SQLiteDB) GetUserByEmail(ctx context.Context, email string) (*core.User, error) {
 	u := &core.User{}
+	var totpSecret sql.NullString
 	err := s.QueryRowContext(ctx,
-		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, last_login_at, created_at, updated_at
+		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, totp_secret_enc, last_login_at, created_at, updated_at
 		 FROM users WHERE email = ?`, email,
 	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.AvatarURL, &u.Status,
-		&u.TOTPEnabled, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt)
+		&u.TOTPEnabled, &totpSecret, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, core.ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return nil, err
+	}
+	u.TOTPSecret = totpSecret.String
+	return u, nil
 }
 
 // UpdateUser updates a user's mutable fields.
@@ -76,6 +86,21 @@ func (s *SQLiteDB) UpdatePassword(ctx context.Context, userID, passwordHash stri
 func (s *SQLiteDB) UpdateLastLogin(ctx context.Context, userID string) error {
 	_, err := s.ExecContext(ctx,
 		`UPDATE users SET last_login_at=CURRENT_TIMESTAMP WHERE id=?`, userID,
+	)
+	return err
+}
+
+// UpdateTOTPEnabled enables or disables TOTP for a user.
+// When enabling, totpSecretEnc should be bcrypt hash of the TOTP secret.
+// When disabling, pass empty string for totpSecretEnc.
+func (s *SQLiteDB) UpdateTOTPEnabled(ctx context.Context, userID string, enabled bool, totpSecretEnc string) error {
+	totpEnabled := 0
+	if enabled {
+		totpEnabled = 1
+	}
+	_, err := s.ExecContext(ctx,
+		`UPDATE users SET totp_enabled=?, totp_secret_enc=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+		totpEnabled, totpSecretEnc, userID,
 	)
 	return err
 }

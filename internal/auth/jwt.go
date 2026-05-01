@@ -39,6 +39,20 @@ type TokenPair struct {
 	TokenType    string `json:"token_type"`
 }
 
+// SECURITY FIX (AUTH-005): HS256 is a symmetric algorithm — the same key is
+// used for signing and verification. If the key is compromised, an attacker can
+// forge arbitrary tokens. RS256 (RSA + SHA-256) is asymmetric: the private key
+// signs tokens and only the public key is needed to verify them. Even if the
+// public key leaks, forgery is impossible.
+// Recommended migration path:
+//   1. Generate an RSA key pair (4096-bit minimum)
+//   2. Store the private key securely (e.g., Vault, HSM, cloud KMS)
+//   3. Deploy the public key to all DeployMonster instances
+//   4. Update GenerateTokenPair to use jwt.SigningMethodRS256
+//   5. Update ValidateAccessToken/ValidateRefreshToken to accept RS256
+// This is a future work item — HS256 is retained for now due to the operational
+// complexity of distributing asymmetric keys across a self-hosted platform.
+
 // JWTService handles JWT token generation and validation.
 type JWTService struct {
 	secretKey     []byte

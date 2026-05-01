@@ -272,6 +272,18 @@ func (p *PostgresDB) CountUsers(ctx context.Context) (int, error) {
 	return count, err
 }
 
+func (p *PostgresDB) UpdateTOTPEnabled(ctx context.Context, userID string, enabled bool, totpSecretEnc string) error {
+	totpEnabled := 0
+	if enabled {
+		totpEnabled = 1
+	}
+	_, err := p.db.ExecContext(ctx,
+		`UPDATE users SET totp_enabled=$1, totp_secret_enc=$2, updated_at=NOW() WHERE id=$3`,
+		totpEnabled, totpSecretEnc, userID,
+	)
+	return err
+}
+
 func (p *PostgresDB) CreateUserWithMembership(ctx context.Context, email, passwordHash, name, status, tenantID, roleID string) (string, error) {
 	userID := core.GenerateID()
 	tx, err := p.db.BeginTx(ctx, nil)
