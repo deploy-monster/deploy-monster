@@ -35,6 +35,9 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.Server.SecretKey == "" {
 		t.Error("secret key should be auto-generated")
 	}
+	if cfg.Server.RateLimitPerMinute != 120 {
+		t.Errorf("default rate limit = %d, want 120", cfg.Server.RateLimitPerMinute)
+	}
 }
 
 func TestConfigValidate_Valid(t *testing.T) {

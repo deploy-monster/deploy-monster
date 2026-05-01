@@ -288,6 +288,7 @@ limits:
 	t.Setenv("MONSTER_HOST", "from-env")
 	t.Setenv("MONSTER_PORT", "9999")
 	t.Setenv("MONSTER_REGISTRATION_MODE", "invite_only")
+	t.Setenv("MONSTER_RATE_LIMIT_PER_MINUTE", "0")
 
 	cfg, err := LoadConfig(path)
 	if err != nil {
@@ -303,6 +304,9 @@ limits:
 	}
 	if cfg.Registration.Mode != "invite_only" {
 		t.Errorf("registration.mode: env should override yaml, got %q", cfg.Registration.Mode)
+	}
+	if cfg.Server.RateLimitPerMinute != 0 {
+		t.Errorf("server.rate_limit_per_minute: env should override default, got %d", cfg.Server.RateLimitPerMinute)
 	}
 
 	// YAML beats defaults (no env override for secret_key)

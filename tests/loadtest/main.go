@@ -59,7 +59,7 @@ func main() {
 		{"GET", "/api/v1/health"},
 		{"GET", "/api/v1/marketplace"},
 		{"GET", "/api/v1/openapi.json"},
-		{"GET", "/metrics/api"},
+		{"GET", "/login"},
 	}
 
 	fmt.Printf("Load test: %s\n", *baseURL)

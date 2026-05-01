@@ -15,7 +15,7 @@ per endpoint.
 - `http.json` — canonical baseline for the default public read-only
   endpoint mix (`GET /health`, `GET /api/v1/health`,
   `GET /api/v1/marketplace`, `GET /api/v1/openapi.json`,
-  `GET /metrics/api`). Regenerate when the production-shaped config
+  `GET /login`). Regenerate when the production-shaped config
   changes, hardware changes, or after a deliberate perf win you want
   to lock in.
 

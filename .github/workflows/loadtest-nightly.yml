@@ -66,7 +66,7 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
 
       # Same UI bootstrap as test-e2e: the React app must be in the
-      # embed dir so the server can serve /metrics/api and the rest of
+      # embed dir so the server can serve the SPA route and the rest of
       # the endpoints under test.
       - name: Build React UI
         working-directory: web
@@ -91,6 +91,7 @@ jobs:
           MONSTER_PORT: 8443
           MONSTER_SECRET: nightly-loadtest-secret-with-at-least-32-characters
           MONSTER_DB_PATH: ${{ runner.temp }}/deploymonster-loadtest.db
+          MONSTER_RATE_LIMIT_PER_MINUTE: 0
           MONSTER_ADMIN_EMAIL: loadtest@deploymonster.local
           MONSTER_ADMIN_PASSWORD: LoadTest-Pass-2026!
 

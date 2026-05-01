@@ -6,6 +6,7 @@ server:
   host: 0.0.0.0
   port: 8443
   domain: ""                    # Your platform domain (e.g., deploy.example.com)
+  rate_limit_per_minute: 120     # Global per-IP API/hook limit; 0 disables
   # secret_key: ""              # Auto-generated on first run. Set via MONSTER_SECRET env var.
 
 database:

@@ -22,6 +22,7 @@ All environment variables use the `MONSTER_` prefix.
 | `MONSTER_SECRET` | `server.secret_key` | _(auto-generated)_ | JWT signing key (min 32 chars) |
 | `MONSTER_PREVIOUS_SECRET_KEYS` | `server.previous_secret_keys` | _(empty)_ | Comma-separated old keys for JWT rotation |
 | `MONSTER_CORS_ORIGINS` | `server.cors_origins` | _(derived from domain)_ | Comma-separated allowed CORS origins |
+| `MONSTER_RATE_LIMIT_PER_MINUTE` | `server.rate_limit_per_minute` | `120` | Global per-IP API/hook rate limit; `0` disables it |
 | `MONSTER_ENABLE_PPROF` | `server.enable_pprof` | `false` | Enable `/debug/pprof/*` endpoints (auth-protected) |
 | `MONSTER_DB_PATH` | `database.path` | `deploymonster.db` | SQLite database file path |
 | `MONSTER_DB_URL` | `database.url` | _(empty)_ | PostgreSQL connection URL (switches driver to postgres) |
@@ -45,6 +46,7 @@ server:
   secret_key: ""             # JWT signing key (auto-generated if empty, min 32 chars)
   previous_secret_keys: []   # Old signing keys for graceful JWT rotation
   cors_origins: ""           # Comma-separated origins (auto-derived from domain if empty)
+  rate_limit_per_minute: 120 # Global per-IP API/hook limit; 0 disables
   enable_pprof: false        # Enable Go pprof profiling endpoints
   log_level: "info"          # debug, info, warn, error
   log_format: "text"         # text (human-readable) or json (structured, for log aggregators)

@@ -137,6 +137,29 @@ func TestGlobalRateLimiter_BlocksOverLimit(t *testing.T) {
 	}
 }
 
+func TestGlobalRateLimiter_ZeroRateDisablesLimit(t *testing.T) {
+	rl := NewGlobalRateLimiter(0, time.Minute)
+	defer rl.Stop()
+
+	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	for i := 0; i < 20; i++ {
+		req := httptest.NewRequest("GET", "/api/v1/health", nil)
+		req.RemoteAddr = "1.2.3.4:1234"
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("request %d: status = %d, want 200", i+1, rr.Code)
+		}
+		if rr.Header().Get("X-RateLimit-Limit") != "" {
+			t.Fatalf("request %d: expected no rate-limit headers when disabled", i+1)
+		}
+	}
+}
+
 func TestGlobalRateLimiter_DifferentIPsIndependent(t *testing.T) {
 	rl := NewGlobalRateLimiter(2, time.Minute)
 	defer rl.Stop()

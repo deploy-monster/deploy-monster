@@ -71,7 +71,8 @@ type rateLimitWindow struct {
 }
 
 // NewGlobalRateLimiter creates a rate limiter with the given rate
-// per window. The cleanup goroutine runs every 2x window to evict
+// per window. A rate of 0 or less disables limiting. The cleanup
+// goroutine runs every 2x window to evict
 // expired entries. Logs go to slog.Default() — production callers
 // should prefer NewGlobalRateLimiterWithLogger so panic logs are
 // tagged with the api module.
@@ -136,6 +137,10 @@ func (rl *GlobalRateLimiter) shouldRateLimit(path string) bool {
 // Middleware returns an HTTP middleware that enforces the rate limit.
 func (rl *GlobalRateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if rl.rate <= 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if !rl.shouldRateLimit(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return

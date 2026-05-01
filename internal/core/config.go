@@ -410,6 +410,7 @@ func (c *Config) AuditSecrets() []string {
 func applyDefaults(cfg *Config) {
 	cfg.Server.Host = "0.0.0.0"
 	cfg.Server.Port = 8443
+	cfg.Server.RateLimitPerMinute = 120
 	if cfg.Server.SecretKey == "" {
 		cfg.Server.SecretKey = GenerateSecret(32)
 	}
@@ -488,6 +489,11 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("MONSTER_CORS_ORIGINS"); v != "" {
 		cfg.Server.CORSOrigins = v
+	}
+	if v := os.Getenv("MONSTER_RATE_LIMIT_PER_MINUTE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Server.RateLimitPerMinute = n
+		}
 	}
 	if os.Getenv("MONSTER_ENABLE_PPROF") == "true" {
 		cfg.Server.EnablePprof = true

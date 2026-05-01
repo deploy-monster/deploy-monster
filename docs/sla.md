@@ -75,7 +75,7 @@ hot machine — use it as a ceiling, not a floor.
 Measured under 20 concurrent clients, 60-second run, public
 read-only endpoint mix (`GET /health`, `GET /api/v1/health`,
 `GET /api/v1/marketplace`, `GET /api/v1/openapi.json`,
-`GET /metrics/api`).
+`GET /login`).
 
 | Endpoint | Target p95 | Target RPS | Seed p95 | Seed RPS |
 |---|---:|---:|---:|---:|
@@ -83,7 +83,7 @@ read-only endpoint mix (`GET /health`, `GET /api/v1/health`,
 | `GET /api/v1/health` | **< 50 ms** | **>= 150 req/s** | 27.4 ms | 331.5 |
 | `GET /api/v1/marketplace` | **< 100 ms** | **>= 150 req/s** | 24.5 ms | 331.5 |
 | `GET /api/v1/openapi.json` | **< 100 ms** | **>= 150 req/s** | 24.1 ms | 331.4 |
-| `GET /metrics/api` | **< 100 ms** | **>= 150 req/s** | 22.9 ms | 331.4 |
+| `GET /login` | **< 100 ms** | **>= 150 req/s** | 22.9 ms | 331.4 |
 | **Aggregate** | — | **>= 750 req/s** | — | 1657.4 |
 
 - **Target ceiling** is set at roughly **half** the dev-box seed

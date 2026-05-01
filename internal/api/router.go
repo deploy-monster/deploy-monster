@@ -42,11 +42,7 @@ type Router struct {
 // NewRouter creates a new API router with all routes registered.
 func NewRouter(c *core.Core, authMod handlers.AuthServices, store core.Store) *Router {
 	ctx, cancel := context.WithCancel(context.Background())
-	// Global rate limit: default 120 req/min per IP if not configured
 	rlRate := c.Config.Server.RateLimitPerMinute
-	if rlRate == 0 {
-		rlRate = 120
-	}
 
 	r := &Router{
 		mux:              http.NewServeMux(),

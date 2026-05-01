@@ -42,7 +42,7 @@
       "p95_us": 27791,
       "p99_us": 79733
     },
-    "GET /metrics/api": {
+    "GET /login": {
       "total": 19882,
       "successful": 19882,
       "errors": 0,
