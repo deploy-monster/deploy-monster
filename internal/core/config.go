@@ -258,8 +258,8 @@ func (c *Config) Validate() error {
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
 		return fmt.Errorf("config: server.port %d out of range (1-65535)", c.Server.Port)
 	}
-	if len(c.Server.SecretKey) < 16 {
-		return fmt.Errorf("config: server.secret_key must be at least 16 characters")
+	if len(c.Server.SecretKey) < 32 {
+		return fmt.Errorf("config: server.secret_key must be at least 32 characters (256 bits required for JWT HS256)")
 	}
 
 	// Log level

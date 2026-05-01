@@ -782,7 +782,7 @@ func TestTerminal_SendCommand_ExecError(t *testing.T) {
 	store := &mockStore{app: &core.Application{ID: "app-1"}}
 	term := NewTerminal(runtime, store, discardLogger())
 
-	body := strings.NewReader(`{"command":"nonexistent_cmd"}`)
+	body := strings.NewReader(`{"command":"false"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app-1/terminal", body)
 	req.SetPathValue("id", "app-1")
 	w := httptest.NewRecorder()

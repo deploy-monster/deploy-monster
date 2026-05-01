@@ -158,6 +158,13 @@ func (h *TopologyHandler) Load(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Tenant isolation: verify the project belongs to the calling user's tenant
+	project, err := h.store.GetProject(r.Context(), projectID)
+	if err != nil || project.TenantID != claims.TenantID {
+		writeError(w, http.StatusNotFound, "project not found")
+		return
+	}
+
 	// Load topology from BBolt KV store
 	key := fmt.Sprintf("topology:%s:%s:%s", claims.TenantID, projectID, environment)
 

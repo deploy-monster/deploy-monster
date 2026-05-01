@@ -2,10 +2,18 @@ package handlers
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"encoding/json"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 )
@@ -176,5 +184,87 @@ func TestCertificateUpload_AllFieldsMissing(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+// testCertForDomain generates a self-signed certificate for the given domain.
+func testCertForDomain(domain string) (certPEM, keyPEM string) {
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: domain},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		DNSNames:      []string{domain},
+	}
+	certDER, _ := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	certBuf := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyDER, _ := x509.MarshalECPrivateKey(key)
+	keyBuf := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	return string(certBuf), string(keyBuf)
+}
+
+func TestCertificateUpload_DomainMismatch(t *testing.T) {
+	// Upload a cert for example.com but claim domain_id = evil.com
+	cert, key := testCertForDomain("example.com")
+	store := newMockStore()
+	handler := NewCertificateHandler(store, newMockBoltStore())
+
+	body := map[string]string{
+		"domain_id": "evil.com",
+		"cert_pem":  cert,
+		"key_pem":   key,
+	}
+	bodyBytes, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader(bodyBytes))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
+	rr := httptest.NewRecorder()
+
+	handler.Upload(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for domain mismatch, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertErrorMessage(t, rr, "certificate does not match domain: evil.com")
+}
+
+func TestCertificateUpload_WildcardCertMatchesSubdomain(t *testing.T) {
+	// Wildcard cert *.example.com should match app.example.com
+	store := newMockStore()
+	handler := NewCertificateHandler(store, newMockBoltStore())
+
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "*.example.com"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		DNSNames:     []string{"*.example.com"},
+	}
+	certDER, _ := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	cert := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
+	keyDER, _ := x509.MarshalECPrivateKey(key)
+	keyPEM := string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}))
+
+	body := map[string]string{
+		"domain_id": "app.example.com",
+		"cert_pem":  cert,
+		"key_pem":   keyPEM,
+	}
+	bodyBytes, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader(bodyBytes))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
+	rr := httptest.NewRecorder()
+
+	handler.Upload(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for wildcard match, got %d: %s", rr.Code, rr.Body.String())
 	}
 }

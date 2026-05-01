@@ -190,9 +190,15 @@ func calculateNextRun(cronExpr string) time.Time {
 
 // pgDump runs PostgreSQL pg_dump command.
 //nolint:unused // kept for future database backup implementation
-func pgDump(host, port, user, password, dbName string) ([]byte, error) {
+func pgDump(pgpassPath, host, port, user, password, dbName string) ([]byte, error) {
 	cmd := exec.Command("pg_dump", "-h", host, "-p", port, "-U", user, "-d", dbName)
-	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", password))
+	// Use pgpassfile instead of PGPASSWORD env var to avoid leaking
+	// passwords in /proc/<pid>/environ. pgpassfile is owned by root with 0600.
+	if pgpassPath != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSFILE=%s", pgpassPath))
+	} else {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", password))
+	}
 	return cmd.Output()
 }
 

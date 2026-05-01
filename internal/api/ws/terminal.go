@@ -32,18 +32,70 @@ func NewTerminal(runtime core.ContainerRuntime, store core.Store, logger *slog.L
 	}
 }
 
-// blockedPatterns commands that should never run in a tenant container.
-var blockedPatterns = []string{
-	"rm -rf /", "rm -rf /*", ":(){ :|:& };:", "mkfs",
-	"dd if=/dev/zero", "> /dev/sd", "chmod -R 777 /", "chown -R",
-	"curl | sh", "wget | sh", "curl | bash", "wget | bash",
+// Allowed commands for terminal exec. Commands are passed as exec arguments
+// (no shell interpretation). The allowlist provides defense-in-depth.
+var allowedCommands = map[string]struct{}{
+	// File and directory operations
+	"ls": {}, "ll": {}, "la": {}, "dir": {}, "find": {}, "stat": {},
+	"cat": {}, "head": {}, "tail": {}, "grep": {}, "egrep": {}, "awk": {},
+	"sed": {}, "cut": {}, "sort": {}, "uniq": {}, "wc": {}, "tr": {},
+	"base64": {},
+
+	// Navigation and info
+	"pwd": {}, "cd": {}, "echo": {}, "printf": {}, "env": {}, "printenv": {},
+	"id": {}, "whoami": {}, "hostname": {}, "uname": {}, "uptime": {},
+	"date": {},
+
+	// Process and system info
+	"ps": {}, "top": {}, "htop": {}, "kill": {}, "pkill": {}, "killall": {},
+	"sleep": {}, "watch": {}, "free": {}, "vmstat": {}, "iostat": {},
+
+	// Network utilities
+	"ping": {}, "ping6": {}, "curl": {}, "wget": {}, "nc": {}, "netcat": {},
+	"ssh": {}, "scp": {}, "rsync": {}, "dig": {}, "nslookup": {}, "host": {},
+	"ip": {}, "ss": {}, "ifconfig": {}, "route": {}, "netstat": {},
+
+	// Disk and filesystem
+	"df": {}, "du": {}, "mount": {}, "umount": {}, "ln": {}, "mkdir": {},
+	"touch": {}, "file": {}, "tar": {}, "gzip": {}, "gunzip": {}, "zip": {},
+	"unzip": {}, "cp": {}, "mv": {}, "rm": {}, "chmod": {}, "chown": {},
+
+	// Package managers (read-only)
+	"apt": {}, "apt-get": {}, "yum": {}, "dnf": {}, "apk": {}, "pacman": {},
+
+	// Interpreters/shell
+	"sh": {}, "bash": {}, "zsh": {}, "fish": {}, "python": {}, "python3": {},
+	"node": {}, "ruby": {}, "perl": {}, "php": {}, "lua": {},
+
+	// Text editors
+	"vi": {}, "vim": {}, "nano": {}, "emacs": {}, "ed": {},
+
+	// Utility commands
+	"true": {}, "false": {}, "yes": {}, "seq": {}, "expr": {}, "test": {},
 }
 
-// isCommandSafe checks if a command contains dangerous patterns.
+// isCommandSafe validates the primary command against the allowlist.
+// splitCommand already provides shell-injection protection by passing tokens
+// as exec arguments (no shell interpretation). This function is an additional
+// defense-in-depth layer.
 func isCommandSafe(cmd string) bool {
+	tokens := splitCommand(cmd)
+	if len(tokens) == 0 {
+		return false
+	}
+	// Extract the base command name (strip any leading path)
+	base := tokens[0]
+	if idx := strings.LastIndex(base, "/"); idx >= 0 {
+		base = base[idx+1:]
+	}
+	if _, ok := allowedCommands[strings.ToLower(base)]; !ok {
+		return false
+	}
+	// Block shell operators that might appear as arguments
 	cmdLower := strings.ToLower(cmd)
-	for _, pattern := range blockedPatterns {
-		if strings.Contains(cmdLower, strings.ToLower(pattern)) {
+	blockedSuffixes := []string{"&&", "||", "|", ";", "$(", "`"}
+	for _, suffix := range blockedSuffixes {
+		if strings.Contains(cmdLower, suffix) {
 			return false
 		}
 	}

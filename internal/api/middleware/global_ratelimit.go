@@ -32,6 +32,14 @@ import (
 //   - NewGlobalRateLimiter tolerates a nil logger via
 //     NewGlobalRateLimiterWithLogger by falling back to slog.Default,
 //     matching the Tier 68/69/70/71 hardening style.
+//
+// Security notes for RATE-001:
+//
+//   - trustXFF defaults to false (safer). When false, only RemoteAddr
+//     is used — attackers cannot spoof XFF headers to bypass limits.
+//   - When trustXFF is true (enable only behind a trusted proxy),
+//     XFF/X-Real-IP are used but private/loopback IPs are rejected
+//     to prevent spoofing. This mirrors the AuthRateLimiter pattern.
 type GlobalRateLimiter struct {
 	rate    int           // max requests per window
 	window  time.Duration // window duration
@@ -58,6 +66,11 @@ type GlobalRateLimiter struct {
 	// default 120 req/min per-IP budget and served a JSON
 	// "rate_limit exceeded" page in place of the login form.
 	allowlist []string
+
+	// trustXFF controls whether X-Forwarded-For / X-Real-IP headers
+	// are consulted. Default false (safer — can't be spoofed).
+	// Set to true only when behind a trusted reverse proxy.
+	trustXFF bool
 }
 
 type rateLimitWindow struct {
@@ -74,19 +87,34 @@ func NewGlobalRateLimiter(rate int, window time.Duration) *GlobalRateLimiter {
 	return NewGlobalRateLimiterWithLogger(rate, window, nil)
 }
 
+// globalOption configures a GlobalRateLimiter.
+type globalOption func(*GlobalRateLimiter)
+
+// WithGlobalRateLimiterTrustXFF enables trusting X-Forwarded-For / X-Real-IP
+// headers in the GlobalRateLimiter. Only use this if a trusted reverse
+// proxy (nginx, Traefik, etc.) is in front of the API server. Without a
+// trusted proxy, attackers can spoof these headers to bypass rate limits.
+func WithGlobalRateLimiterTrustXFF() globalOption {
+	return func(rl *GlobalRateLimiter) { rl.trustXFF = true }
+}
+
 // NewGlobalRateLimiterWithLogger creates a rate limiter bound to a
 // structured logger. A nil logger is tolerated and replaced with
 // slog.Default().
-func NewGlobalRateLimiterWithLogger(rate int, window time.Duration, logger *slog.Logger) *GlobalRateLimiter {
+func NewGlobalRateLimiterWithLogger(rate int, window time.Duration, logger *slog.Logger, opts ...globalOption) *GlobalRateLimiter {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	rl := &GlobalRateLimiter{
-		rate:    rate,
-		window:  window,
-		clients: make(map[string]*rateLimitWindow),
-		stopCh:  make(chan struct{}),
-		logger:  logger,
+		rate:     rate,
+		window:   window,
+		clients:  make(map[string]*rateLimitWindow),
+		stopCh:   make(chan struct{}),
+		logger:   logger,
+		trustXFF: false, // safe default
+	}
+	for _, opt := range opts {
+		opt(rl)
 	}
 
 	// Background cleanup every 2x window duration. Tracked by wg so
@@ -135,7 +163,7 @@ func (rl *GlobalRateLimiter) Middleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		ip := realIP(r)
+		ip := safeClientIP(r, rl.trustXFF)
 		now := time.Now()
 
 		rl.mu.Lock()

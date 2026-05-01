@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
-	"log/slog"
 	"math/big"
 )
 
@@ -12,15 +11,10 @@ import (
 func GenerateID() string {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback to math/big if crypto/rand fails (e.g., /dev/random unavailable).
-		// This is intentionally not a panic — crypto/rand failures should not
-		// crash a production server. The returned ID has lower entropy but the
-		// server can continue serving. Log at error level for alerting.
-		slog.Error("crypto/rand unavailable, using math/big fallback", "error", err)
-		for i := range b {
-			n, _ := rand.Int(rand.Reader, big.NewInt(256))
-			b[i] = byte(n.Int64())
-		}
+		// Fail closed: crypto/rand must be available for ID generation.
+		// Returning an empty or predictable ID would cause security issues
+		// (JWT JTIs, API keys, etc.). Panic to fail fast and alert operators.
+		panic("crypto/rand unavailable: " + err.Error())
 	}
 	return hex.EncodeToString(b)
 }
@@ -29,11 +23,7 @@ func GenerateID() string {
 func GenerateSecret(length int) string {
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {
-		slog.Error("crypto/rand unavailable for GenerateSecret, using math/big fallback", "error", err)
-		for i := range b {
-			n, _ := rand.Int(rand.Reader, big.NewInt(256))
-			b[i] = byte(n.Int64())
-		}
+		panic("crypto/rand unavailable: " + err.Error())
 	}
 	return base64.URLEncoding.EncodeToString(b)
 }
@@ -46,8 +36,7 @@ func GeneratePassword(length int) string {
 	for i := range b {
 		n, err := rand.Int(rand.Reader, max)
 		if err != nil {
-			// Fallback if crypto/rand fails
-			n, _ = rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+			panic("crypto/rand unavailable: " + err.Error())
 		}
 		b[i] = charset[n.Int64()]
 	}

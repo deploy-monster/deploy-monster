@@ -649,8 +649,8 @@ func (r *Router) registerRoutes() {
 
 	// ── MCP Protocol ──────────────────────────────────
 	mcpH := handlers.NewMCPHandler(r.core, r.store, r.core.Services.Container, r.core.Events)
-	r.mux.Handle("GET /mcp/v1/tools", protected(http.HandlerFunc(mcpH.ListTools)))
-	r.mux.Handle("POST /mcp/v1/tools/{name}", protected(http.HandlerFunc(mcpH.CallTool)))
+	r.mux.Handle("GET /mcp/v1/tools", adminOnly(http.HandlerFunc(mcpH.ListTools)))
+	r.mux.Handle("POST /mcp/v1/tools/{name}", adminOnly(http.HandlerFunc(mcpH.CallTool)))
 
 	// ── Streaming (SSE) ────────────────────────────────
 	logStreamer := ws.NewLogStreamer(r.core.Services.Container, r.core.Logger)

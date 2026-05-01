@@ -213,12 +213,13 @@ func TestHashToken_Deterministic(t *testing.T) {
 	h1 := hashToken(token)
 	h2 := hashToken(token)
 
-	if h1 != h2 {
-		t.Errorf("expected deterministic hash, got %q vs %q", h1, h2)
+	// bcrypt is non-deterministic due to salt, so hashes differ between calls
+	// but verifyTokenHash should work correctly
+	if !verifyTokenHash(token, h1) {
+		t.Errorf("verifyTokenHash failed for hash h1")
 	}
-
-	if len(h1) != 64 {
-		t.Errorf("expected 64-char hex SHA-256, got length %d", len(h1))
+	if !verifyTokenHash(token, h2) {
+		t.Errorf("verifyTokenHash failed for hash h2")
 	}
 }
 
@@ -228,5 +229,24 @@ func TestHashToken_DifferentInputs(t *testing.T) {
 
 	if h1 == h2 {
 		t.Error("expected different hashes for different tokens")
+	}
+	// bcrypt hashes have a specific format starting with $2
+	if len(h1) < 50 || h1[:4] != "$2a$" {
+		t.Errorf("expected bcrypt hash format, got length %d and prefix %q", len(h1), h1[:4])
+	}
+}
+
+func TestVerifyTokenHash(t *testing.T) {
+	token := "my-secret-invite-token"
+	hash := hashToken(token)
+
+	// Correct token should verify
+	if !verifyTokenHash(token, hash) {
+		t.Error("correct token should verify against its hash")
+	}
+
+	// Wrong token should not verify
+	if verifyTokenHash("wrong-token", hash) {
+		t.Error("wrong token should not verify")
 	}
 }

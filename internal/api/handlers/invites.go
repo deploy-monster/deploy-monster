@@ -9,6 +9,7 @@ import (
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // InviteHandler handles team invitation endpoints.
@@ -124,7 +125,23 @@ func (h *InviteHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+const inviteTokenBcryptCost = 10 // Lower than password hashing since tokens are high-entropy
+
 func hashToken(token string) string {
-	h := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(h[:])
+	// Use bcrypt for adaptive hashing (not plain SHA-256).
+	// Tokens are 32 bytes of crypto/rand entropy, so rainbow tables are impractical
+	// but bcrypt adds defense-in-depth if the DB is compromised.
+	hash, err := bcrypt.GenerateFromPassword([]byte(token), inviteTokenBcryptCost)
+	if err != nil {
+		// Fallback to SHA-256 if bcrypt fails (should never happen)
+		h := sha256.Sum256([]byte(token))
+		return hex.EncodeToString(h[:])
+	}
+	return string(hash)
+}
+
+// verifyTokenHash checks a plain token against a bcrypt-hashed stored hash.
+func verifyTokenHash(token, storedHash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(token))
+	return err == nil
 }

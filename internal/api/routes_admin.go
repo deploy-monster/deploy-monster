@@ -72,10 +72,11 @@ func registerAdminRoutes(r *Router, adminOnly func(http.Handler) http.Handler) {
 	r.mux.Handle("GET /api/v1/admin/db/migrations", adminOnly(http.HandlerFunc(migH.Status)))
 
 	// ── Admin (super admin only) ──────────────────────
-	adminH := handlers.NewAdminHandler(r.core, r.store)
+	adminH := handlers.NewAdminHandler(r.core, r.store, r.authMod)
 	r.mux.Handle("GET /api/v1/admin/system", adminOnly(http.HandlerFunc(adminH.SystemInfo)))
 	r.mux.Handle("PATCH /api/v1/admin/settings", adminOnly(http.HandlerFunc(adminH.UpdateSettings)))
 	r.mux.Handle("GET /api/v1/admin/tenants", adminOnly(http.HandlerFunc(adminH.ListTenants)))
+	r.mux.Handle("POST /api/v1/admin/keys/revoke-all", adminOnly(http.HandlerFunc(adminH.RevokeAllKeys)))
 
 	// ── Self-Update ──────────────────────────────────
 	updateH := handlers.NewSelfUpdateHandler(r.core)

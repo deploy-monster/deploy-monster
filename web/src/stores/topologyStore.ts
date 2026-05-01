@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import dagre from 'dagre';
+import dagre from '@dagrejs/dagre';
 import type { TopologyStore, TopologyNode, TopologyEdge, TopologyEdgeType } from '@/types/topology';
 
 // SECURITY FIX: Use crypto.getRandomValues instead of Math.random for ID generation

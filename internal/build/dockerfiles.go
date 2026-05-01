@@ -12,6 +12,7 @@ COPY . .
 RUN npm run build 2>/dev/null || true
 
 FROM node:22-alpine
+USER node
 WORKDIR /app
 COPY --from=builder /app .
 EXPOSE 3000
@@ -30,6 +31,7 @@ COPY . .
 RUN npm run build
 
 FROM node:22-alpine
+USER node
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/public ./public
@@ -59,6 +61,7 @@ server {
 EOF
 EXPOSE 80
 `,
+	// nginx-alpine base image has its own non-root user (nginx) — no explicit USER needed
 
 	TypeNuxt: `FROM node:22-alpine AS builder
 WORKDIR /app
@@ -68,6 +71,7 @@ COPY . .
 RUN npm run build
 
 FROM node:22-alpine
+USER node
 WORKDIR /app
 COPY --from=builder /app/.output ./
 EXPOSE 3000
@@ -82,7 +86,8 @@ COPY . .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /app/server .
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates
+RUN adduser -D -u 1000 appuser
+USER appuser
 COPY --from=builder /app/server /server
 EXPOSE 8080
 CMD ["/server"]
@@ -95,7 +100,8 @@ COPY . .
 RUN cargo build --release
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates
+RUN adduser -D -u 1000 appuser
+USER appuser
 COPY --from=builder /app/target/release/app /app
 EXPOSE 8080
 CMD ["/app"]
@@ -107,6 +113,8 @@ COPY requirements*.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.13-slim
+RUN useradd -m -u 1000 appuser
+USER appuser
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
@@ -121,7 +129,8 @@ COPY composer.json composer.lock ./
 RUN composer install --no-dev --optimize-autoloader
 
 FROM php:8.4-fpm-alpine
-RUN apk add --no-cache nginx
+RUN adduser -D -u 1000 appuser
+USER appuser
 COPY --from=deps /app/vendor ./vendor
 COPY . .
 EXPOSE 80
@@ -136,6 +145,8 @@ RUN if [ -f "mvnw" ]; then ./mvnw package -DskipTests; \
     fi
 
 FROM eclipse-temurin:21-jre-alpine
+RUN adduser -D -u 1000 appuser
+USER appuser
 COPY --from=builder /app/target/*.jar /app.jar
 EXPOSE 8080
 CMD ["java", "-jar", "/app.jar"]
@@ -148,6 +159,8 @@ RUN dotnet publish -c Release -o /publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine
 WORKDIR /app
+RUN useradd -m -u 1000 appuser
+USER appuser
 COPY --from=builder /publish .
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "app.dll"]
@@ -159,6 +172,8 @@ COPY Gemfile Gemfile.lock ./
 RUN bundle install --without development test
 
 FROM ruby:3.3-alpine
+RUN adduser -D -u 1000 appuser
+USER appuser
 WORKDIR /app
 COPY --from=builder /usr/local/bundle /usr/local/bundle
 COPY . .
@@ -179,6 +194,7 @@ server {
 EOF
 EXPOSE 80
 `,
+	// nginx-alpine base image has its own non-root user (nginx) — no explicit USER needed
 }
 
 // GetDockerfileTemplate returns the Dockerfile template for a project type.

@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -104,6 +107,12 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verify the certificate domain matches domain_id (UPLOAD-001)
+	if err := validateCertDomain([]byte(req.CertPEM), req.DomainID); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	// Extract certificate info
 	leaf := cert.Leaf
 	issuer := "custom"
@@ -149,3 +158,72 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		"status":    "active",
 	})
 }
+
+// validateCertDomain checks that the certificate's domains (SAN + CN) cover
+// the domain_id being registered. This prevents uploading a certificate for
+// a domain the user doesn't own (e.g., uploading an evil.com cert for
+// example.com). Wildcard certs (*.example.com) are accepted if the
+// domain_id is a subdomain of the wildcard pattern.
+func validateCertDomain(certPEM []byte, domainID string) error {
+	if domainID == "" {
+		return nil
+	}
+
+	block, _ := pem.Decode(certPEM)
+	if block == nil {
+		return &validationError{msg: "certificate is not valid PEM"}
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return &validationError{msg: "failed to parse certificate: " + err.Error()}
+	}
+
+	if len(cert.DNSNames) == 0 && cert.Subject.CommonName == "" {
+		return &validationError{msg: "certificate has no DNS names (SAN or CN)"}
+	}
+
+	if !certMatchesDomain(cert, domainID) {
+		return &validationError{msg: "certificate does not match domain: " + domainID}
+	}
+	return nil
+}
+
+// certMatchesDomain returns true if the certificate covers the given domain.
+// It checks SANs first, then CN as a fallback. Wildcard certs (*.example.com)
+// match any subdomain of example.com.
+func certMatchesDomain(cert *x509.Certificate, domain string) bool {
+	domain = strings.ToLower(domain)
+
+	// Check SANs (most reliable)
+	for _, san := range cert.DNSNames {
+		san = strings.ToLower(san)
+		if san == domain {
+			return true
+		}
+		if strings.HasPrefix(san, "*.") {
+			pattern := san[2:]
+			if strings.HasSuffix(domain, pattern) && domain != pattern {
+				return true
+			}
+		}
+	}
+
+	// Fallback: check CommonName
+	if cert.Subject.CommonName != "" {
+		cn := strings.ToLower(cert.Subject.CommonName)
+		if cn == domain {
+			return true
+		}
+		if strings.HasPrefix(cn, "*.") {
+			pattern := cn[2:]
+			if strings.HasSuffix(domain, pattern) && domain != pattern {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// validationError is already declared in branding.go

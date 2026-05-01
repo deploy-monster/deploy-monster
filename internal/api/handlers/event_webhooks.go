@@ -4,7 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -49,6 +53,67 @@ func checkSecret(provided, storedHash string) bool {
 // webhookListKey returns the BBolt bucket key for a tenant's webhook list.
 func webhookListKey(tenantID string) string {
 	return "tenant:" + tenantID
+}
+
+// validateWebhookURL validates that a webhook URL is safe to call.
+// It blocks localhost, private/internal IPs, non-HTTPS schemes, and cloud metadata endpoints.
+func validateWebhookURL(rawURL string) error {
+	if rawURL == "" {
+		return fmt.Errorf("webhook URL is required")
+	}
+
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid webhook URL: %w", err)
+	}
+
+	// Only allow HTTPS URLs
+	if u.Scheme != "https" {
+		return fmt.Errorf("webhook URL must use HTTPS scheme")
+	}
+
+	hostname := u.Hostname()
+	if hostname == "" {
+		return fmt.Errorf("webhook URL must have a hostname")
+	}
+
+	// Block localhost variants
+	localhostVariants := []string{"localhost", "127.0.0.1", "::1", "0.0.0.0", "[::1]"}
+	for _, variant := range localhostVariants {
+		if strings.EqualFold(hostname, variant) {
+			return fmt.Errorf("webhook URL cannot point to localhost")
+		}
+	}
+
+	// Block private, loopback, link-local, multicast IPs
+	ip := net.ParseIP(hostname)
+	if ip != nil {
+		if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+			ip.IsLinkLocalMulticast() || ip.IsMulticast() {
+			return fmt.Errorf("webhook URL cannot point to internal IP addresses")
+		}
+		// Block cloud metadata endpoints
+		if ip.String() == "169.254.169.254" || ip.String() == "169.254.169.253" {
+			return fmt.Errorf("webhook URL cannot point to cloud metadata endpoints")
+		}
+	}
+
+	// Block common internal hostnames
+	internalHostnames := []string{
+		"metadata.google.internal",
+		"metadata",
+		"metadata.ec2.internal",
+		"kubernetes.default",
+		"kubernetes.default.svc",
+		"kubernetes.default.svc.cluster.local",
+	}
+	for _, internal := range internalHostnames {
+		if strings.EqualFold(hostname, internal) || strings.HasSuffix(strings.ToLower(hostname), "."+strings.ToLower(internal)) {
+			return fmt.Errorf("webhook URL cannot point to internal hostnames")
+		}
+	}
+
+	return nil
 }
 
 // eventWebhookList wraps the persisted list of outbound webhook configs.
@@ -109,6 +174,12 @@ func (h *EventWebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.Events) > 50 {
 		writeError(w, http.StatusBadRequest, "events list must have 50 entries or less")
+		return
+	}
+
+	// Validate webhook URL — block private IPs, localhost, and non-HTTPS
+	if err := validateWebhookURL(req.URL); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

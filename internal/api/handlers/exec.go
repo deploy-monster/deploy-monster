@@ -14,27 +14,145 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// Command validation - dangerous patterns that should be blocked.
-var blockedPatterns = []string{
-	"rm -rf /",
-	"rm -rf /*",
-	":(){ :|:& };:",   // Fork bomb
-	"mkfs",            // Format filesystem
-	"dd if=/dev/zero", // Disk wipe
-	"> /dev/sd",       // Direct disk write
-	"chmod -R 777 /",  // Dangerous permission change
-	"chown -R",        // Mass ownership change (often abused)
-	"curl | sh",       // Remote code execution pattern
-	"wget | sh",       // Remote code execution pattern
-	"curl | bash",     // Remote code execution pattern
-	"wget | bash",     // Remote code execution pattern
+// Allowed commands for container exec. These are passed as exec arguments
+// (no shell interpretation), so the allowlist is a defense-in-depth measure.
+var allowedCommands = map[string]struct{}{
+	// File and directory operations
+	"ls":      {},
+	"ll":      {},
+	"la":      {},
+	"dir":     {},
+	"find":    {},
+	"stat":    {},
+	"cat":     {},
+	"head":    {},
+	"tail":    {},
+	"grep":    {},
+	"egrep":   {},
+	"awk":     {},
+	"sed":     {},
+	"cut":     {},
+	"sort":    {},
+	"uniq":    {},
+	"wc":      {},
+	"tr":      {},
+	"base64":  {},
+
+	// Navigation and info
+	"pwd":     {},
+	"cd":      {},
+	"echo":    {},
+	"printf":  {},
+	"env":     {},
+	"printenv": {},
+	"id":      {},
+	"whoami":  {},
+	"hostname": {},
+	"uname":   {},
+	"uptime":  {},
+	"date":    {},
+
+	// Process and system info
+	"ps":      {},
+	"top":     {},
+	"htop":    {},
+	"kill":    {},
+	"pkill":   {},
+	"killall": {},
+	"sleep":   {},
+	"watch":   {},
+
+	// Network utilities
+	"ping":    {},
+	"ping6":   {},
+	"curl":    {},
+	"wget":    {},
+	"nc":      {},
+	"netcat":  {},
+	"ssh":     {},
+	"scp":     {},
+	"rsync":   {},
+	"dig":     {},
+	"nslookup": {},
+	"host":    {},
+
+	// Disk and filesystem
+	"df":      {},
+	"du":      {},
+	"mount":   {},
+	"umount":  {},
+	"ln":      {},
+	"mkdir":   {},
+	"touch":   {},
+	"file":    {},
+	"tar":     {},
+	"gzip":    {},
+	"gunzip":  {},
+	"zip":     {},
+	"unzip":   {},
+
+	// Package managers (read-only introspection)
+	"apt":     {},
+	"apt-get": {},
+	"yum":     {},
+	"dnf":     {},
+	"apk":     {},
+	"pacman":  {},
+
+	// Interpreter/shell (pass through to user)
+	"sh":      {},
+	"bash":    {},
+	"zsh":     {},
+	"fish":    {},
+	"python":  {},
+	"python3": {},
+	"node":    {},
+	"ruby":    {},
+	"perl":    {},
+	"php":     {},
+	"lua":     {},
+
+	// Text editors (interactive - but allowed as exec)
+	"vi":      {},
+	"vim":     {},
+	"nano":    {},
+	"emacs":   {},
+	"ed":      {},
+
+	// Utility commands (commonly used in scripts and testing)
+	"true":    {},  // Returns exit code 0
+	"false":   {},  // Returns exit code 1 (used in testing)
+	"yes":     {},  // Print continuous output
+	"seq":     {},  // Generate sequences
+	"expr":    {},  // Evaluate expressions
+	"test":    {},  // Shell built-in test command
 }
 
-// isCommandSafe checks if a command is safe to execute.
+// isCommandSafe validates the primary command against the allowlist.
+// splitCommand already provides shell-injection protection by passing tokens
+// as exec arguments (no shell interpretation). This function is an additional
+// defense-in-depth layer.
 func isCommandSafe(cmd string) bool {
+	tokens := splitCommand(cmd)
+	if len(tokens) == 0 {
+		return false
+	}
+	// Extract the base command name (strip any leading path)
+	base := tokens[0]
+	if idx := strings.LastIndex(base, "/"); idx >= 0 {
+		base = base[idx+1:]
+	}
+	if _, ok := allowedCommands[strings.ToLower(base)]; !ok {
+		return false
+	}
+	// Block patterns that might appear as arguments even with allowlist
 	cmdLower := strings.ToLower(cmd)
-	for _, pattern := range blockedPatterns {
-		if strings.Contains(cmdLower, strings.ToLower(pattern)) {
+	blockedSuffixes := []string{
+		"&&", "||", "|", ";",
+		"$(", "`",
+	}
+	for _, suffix := range blockedSuffixes {
+		if strings.Contains(cmdLower, suffix) {
 			return false
 		}
 	}

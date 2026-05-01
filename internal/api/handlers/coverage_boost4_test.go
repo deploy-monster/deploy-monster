@@ -1643,7 +1643,7 @@ func TestCertificateHandler_Upload_ValidCert(t *testing.T) {
 	bolt := newMockBoltStore()
 	h := NewCertificateHandler(newMockStore(), bolt)
 
-	body := `{"domain_id":"d1","cert_pem":"` + escapeJSON(cert) + `","key_pem":"` + escapeJSON(key) + `"}`
+	body := `{"domain_id":"test.example.com","cert_pem":"` + escapeJSON(cert) + `","key_pem":"` + escapeJSON(key) + `"}`
 	req := httptest.NewRequest("POST", "/api/v1/certificates", strings.NewReader(body))
 	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
 		TenantID: "test-tenant",

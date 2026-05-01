@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/mail"
@@ -49,8 +51,9 @@ func isSecureRequest(r *http.Request) bool {
 // setTokenCookies sets httpOnly cookies for both access and refresh tokens.
 func setTokenCookies(w http.ResponseWriter, r *http.Request, tokens *internalAuth.TokenPair) {
 	secure := isSecureRequest(r)
-	// SECURITY FIX: Always use SameSite=Lax to reduce CSRF surface area
-	sameSite := http.SameSiteLaxMode
+	// SameSite=Strict provides stronger CSRF protection than Lax.
+	// All API calls go to the same origin, so this won't break legitimate usage.
+	sameSite := http.SameSiteStrictMode
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieAccess,
 		Value:    tokens.AccessToken,
@@ -74,6 +77,7 @@ func setTokenCookies(w http.ResponseWriter, r *http.Request, tokens *internalAut
 // clearTokenCookies removes both token cookies (all known paths for migration).
 func clearTokenCookies(w http.ResponseWriter, r *http.Request) {
 	secure := isSecureRequest(r)
+	sameSite := http.SameSiteStrictMode
 	paths := []string{"/", "/api", "/api/v1/auth"}
 	for _, p := range paths {
 		http.SetCookie(w, &http.Cookie{
@@ -83,7 +87,7 @@ func clearTokenCookies(w http.ResponseWriter, r *http.Request) {
 			MaxAge:   -1,
 			HttpOnly: true,
 			Secure:   secure,
-			SameSite: http.SameSiteLaxMode,
+			SameSite: sameSite,
 		})
 		http.SetCookie(w, &http.Cookie{
 			Name:     cookieRefresh,
@@ -92,7 +96,7 @@ func clearTokenCookies(w http.ResponseWriter, r *http.Request) {
 			MaxAge:   -1,
 			HttpOnly: true,
 			Secure:   secure,
-			SameSite: http.SameSiteLaxMode,
+			SameSite: sameSite,
 		})
 	}
 }
@@ -157,8 +161,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Per-account rate limit check before verifying password
+	if h.loginRateLimitCheck(w, r, req.Email) != 0 {
+		return
+	}
+
 	// Verify password
 	if err := internalAuth.VerifyPassword(user.PasswordHash, req.Password); err != nil {
+		// Per-account rate limiting: track failed attempts per email to prevent
+		// credential stuffing. A attacker cycling through many accounts from a
+		// single IP is more dangerous than one trying many passwords on one account.
+		h.incrementPerAccountRateLimit(r.Context(), req.Email)
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -544,4 +557,72 @@ func generateSlug(name string) string {
 		slug = core.GenerateID()[:8]
 	}
 	return slug
+}
+
+// Per-account rate limiting: track failed login attempts per email address.
+// After 5 failed attempts, the account is temporarily locked for 15 minutes.
+// This is independent of per-IP limiting and prevents credential stuffing
+// where an attacker tries many passwords against a single account.
+const maxFailedAttempts = 5
+const accountLockoutWindow = 15 * time.Minute
+
+type accountRateLimitEntry struct {
+	FailedCount int   `json:"f"`
+	LockedUntil int64 `json:"l"` // 0 = not locked
+}
+
+func (h *AuthHandler) checkPerAccountRateLimit(email string) (bool, int64) {
+	if h.bolt == nil {
+		return false, 0
+	}
+	var entry accountRateLimitEntry
+	err := h.bolt.Get("account_rl", email, &entry)
+	if err != nil || entry.LockedUntil == 0 {
+		return false, 0
+	}
+	now := time.Now().Unix()
+	if now < entry.LockedUntil {
+		return true, entry.LockedUntil
+	}
+	return false, 0
+}
+
+func (h *AuthHandler) incrementPerAccountRateLimit(ctx context.Context, email string) {
+	if h.bolt == nil {
+		return
+	}
+	var entry accountRateLimitEntry
+	err := h.bolt.Get("account_rl", email, &entry)
+	now := time.Now().Unix()
+
+	if err != nil || entry.LockedUntil > 0 {
+		return // already locked or error — don't double-penalize
+	}
+
+	entry.FailedCount++
+	resetAt := now + int64(accountLockoutWindow.Seconds())
+	if entry.FailedCount >= maxFailedAttempts {
+		entry.LockedUntil = resetAt
+	}
+
+	ttl := int64(accountLockoutWindow.Seconds())
+	_ = h.bolt.Set("account_rl", email, entry, ttl)
+}
+
+// loginRateLimitCheck returns the locked-until timestamp if the account is locked,
+// or 0 if not locked. Call this after email lookup but before password verification.
+func (h *AuthHandler) loginRateLimitCheck(w http.ResponseWriter, r *http.Request, email string) int64 {
+	if h.bolt == nil {
+		return 0
+	}
+	locked, until := h.checkPerAccountRateLimit(email)
+	if locked {
+		retryAfter := until - time.Now().Unix()
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", retryAfter))
+		w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", maxFailedAttempts))
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		writeError(w, http.StatusTooManyRequests, "account temporarily locked due to too many failed attempts")
+		return until
+	}
+	return 0
 }

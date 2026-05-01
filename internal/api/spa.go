@@ -1,7 +1,9 @@
 package api
 
 import (
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -41,15 +43,22 @@ func newSPAHandler() http.Handler {
 // assetPrefixes is the set of URL prefixes that must map 1:1 to a file
 // in the embedded filesystem. A miss here is a real 404 (stale bundle,
 // missing chunk, wrong hash) and must NOT fall back to index.html —
-// otherwise the browser receives HTML with a 200, fails the dynamic
-// import silently, and the React Suspense boundary hangs on its
-// fallback spinner forever. That exact failure mode took down the
-// entire Playwright suite in CI on Tier 102: the vite config moved
-// lazy-page chunks from /assets/ to /chunks/ but the SPA fallback
-// masked the resulting misses as "loading…" indefinitely.
 var assetPrefixes = []string{
 	"/assets/",
 	"/chunks/",
+}
+
+// cspNoncePlaceholder is the placeholder string replaced with the
+// per-request nonce in the index.html served to clients.
+const cspNoncePlaceholder = "DEPLOYMONSTER"
+
+// generateCSPNonce returns a URL-safe 16-byte random nonce encoded in base64url.
+func generateCSPNonce() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "DEPLOYMONSTER-FALLBACK"
+	}
+	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(b)
 }
 
 func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -66,9 +75,7 @@ func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Known asset paths must not silently fall back to index.html —
-	// surface the miss as a real 404 so the browser/console can report
-	// it instead of the SPA spinning on a loading fallback.
+	// Known asset paths must not silently fall back to index.html
 	for _, prefix := range assetPrefixes {
 		if strings.HasPrefix(r.URL.Path, prefix) {
 			http.NotFound(w, r)
@@ -78,5 +85,37 @@ func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// SPA fallback: serve index.html for all non-file routes
 	r.URL.Path = "/"
-	h.fileServer.ServeHTTP(w, r)
+
+	// Serve index.html with a per-request CSP nonce injected.
+	// This replaces the placeholder nonce in the meta tag CSP and in
+	// the module script tag, making 'unsafe-inline' unnecessary.
+	nonce := generateCSPNonce()
+	h.serveIndexHTMLWithNonce(w, r, nonce)
+}
+
+// serveIndexHTMLWithNonce serves index.html with a CSP nonce injected.
+func (h *spaHandler) serveIndexHTMLWithNonce(w http.ResponseWriter, r *http.Request, nonce string) {
+	data, err := fs.ReadFile(h.fsys, "index.html")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	body := string(data)
+
+	// Inject nonce into CSP meta tag: 'nonce-DEPLOYMONSTER' → 'nonce-{actual}'
+	body = strings.ReplaceAll(body, "nonce-"+cspNoncePlaceholder, "nonce-"+nonce)
+
+	// Inject nonce into module script tag if present:
+	// <script type="module" crossorigin src="..."> → <script type="module" crossorigin nonce="..." src="...">
+	body = strings.Replace(body,
+		`<script type="module" crossorigin src=`,
+		`<script type="module" crossorigin nonce="`+nonce+`" src=`,
+		1,
+	)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Security-Policy",
+		"default-src 'self'; script-src 'self' 'strict-dynamic' 'nonce-"+nonce+"'; style-src 'self' 'nonce-"+nonce+"'; img-src 'self' data: https:; connect-src 'self' https: wss:; frame-ancestors 'none'; base-uri 'self';")
+	_, _ = w.Write([]byte(body))
 }

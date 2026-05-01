@@ -63,9 +63,13 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 	// Collect original statuses before making any changes.
 	// This enables rollback if a later operation fails.
 	appOriginalStatus := make(map[string]string)
+	appTenantMap := make(map[string]string) // track per-app tenant for error reporting
 	for _, appID := range req.AppIDs {
-		if app, err := h.store.GetApp(r.Context(), appID); err == nil && app.TenantID == claims.TenantID {
-			appOriginalStatus[appID] = app.Status
+		if app, err := h.store.GetApp(r.Context(), appID); err == nil {
+			appTenantMap[appID] = app.TenantID
+			if app.TenantID == claims.TenantID {
+				appOriginalStatus[appID] = app.Status
+			}
 		}
 	}
 
@@ -73,6 +77,18 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 
 	for i, appID := range req.AppIDs {
 		results[i] = bulkResult{AppID: appID}
+
+		// Check if app exists and belongs to tenant
+		if _, exists := appTenantMap[appID]; !exists {
+			results[i].Status = "error"
+			results[i].Error = "app not found"
+			continue
+		}
+		if appTenantMap[appID] != claims.TenantID {
+			results[i].Status = "error"
+			results[i].Error = "access denied"
+			continue
+		}
 
 		switch req.Action {
 		case "start":

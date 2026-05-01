@@ -82,9 +82,20 @@ func (s *SMTPProvider) Validate() error {
 		return fmt.Errorf("smtp username set but password is empty")
 	}
 
-	// SECURITY WARNING: InsecureSkipVerify disables TLS certificate verification
-	// This should only be used in development environments or with trusted internal relays
+	// InsecureSkipVerify is only allowed for localhost or .local hostnames.
+	// Production SMTP servers must use valid TLS certificates.
 	if s.InsecureSkipVerify {
+		allowedHosts := []string{"localhost", "127.0.0.1", "[::1]"}
+		isLocalhost := false
+		for _, h := range allowedHosts {
+			if s.Host == h || strings.HasSuffix(s.Host, ".local") {
+				isLocalhost = true
+				break
+			}
+		}
+		if !isLocalhost {
+			return fmt.Errorf("SMTP InsecureSkipVerify is only allowed for localhost; use valid TLS certificates in production")
+		}
 		if s.logger != nil {
 			s.logger.Warn("SMTP InsecureSkipVerify is enabled – TLS certificate verification disabled",
 				"host", s.Host,

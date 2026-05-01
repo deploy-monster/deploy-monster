@@ -15,6 +15,8 @@ import (
 
 func TestBulkExecute_Start(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1"})
+	store.addApp(&core.Application{ID: "app2", TenantID: "tenant1"})
 	events := core.NewEventBus(nil)
 	handler := NewBulkHandler(store, nil, events)
 
@@ -68,6 +70,7 @@ func TestBulkExecute_Start(t *testing.T) {
 
 func TestBulkExecute_Stop(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1"})
 	events := core.NewEventBus(nil)
 	handler := NewBulkHandler(store, nil, events)
 
@@ -101,6 +104,7 @@ func TestBulkExecute_Stop(t *testing.T) {
 
 func TestBulkExecute_Restart(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1"})
 	events := core.NewEventBus(nil)
 	handler := NewBulkHandler(store, nil, events)
 
@@ -130,6 +134,7 @@ func TestBulkExecute_Restart(t *testing.T) {
 
 func TestBulkExecute_Delete(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1"})
 	events := core.NewEventBus(nil)
 	handler := NewBulkHandler(store, nil, events)
 
@@ -163,6 +168,7 @@ func TestBulkExecute_Delete(t *testing.T) {
 
 func TestBulkExecute_UnknownAction(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1"})
 	events := core.NewEventBus(nil)
 	handler := NewBulkHandler(store, nil, events)
 

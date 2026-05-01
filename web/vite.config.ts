@@ -29,7 +29,7 @@ export default defineConfig({
             if (id.includes('@tanstack/react-query')) {
               return 'vendor-query'
             }
-            if (id.includes('@xyflow') || id.includes('dagre')) {
+            if (id.includes('@xyflow') || id.includes('@dagrejs')) {
               return 'vendor-graph'
             }
             if (id.includes('lucide-react')) {

@@ -79,24 +79,29 @@ func (h *DeployApprovalHandler) Approve(w http.ResponseWriter, r *http.Request) 
 
 	h.mu.Lock()
 	req, exists := h.pending[approvalID]
-	if exists && req.Status == "pending" {
-		// Tenant isolation: only the owning tenant can approve its own deploys
-		if req.TenantID != claims.TenantID {
-			h.mu.Unlock()
-			writeError(w, http.StatusForbidden, "not authorized to approve this request")
-			return
-		}
-		now := time.Now()
-		req.Status = "approved"
-		req.ReviewedBy = claims.UserID
-		req.ReviewedAt = &now
-	}
 	h.mu.Unlock()
 
 	if !exists {
 		writeError(w, http.StatusNotFound, "approval request not found")
 		return
 	}
+	if req.Status != "pending" {
+		writeError(w, http.StatusConflict, "approval already processed")
+		return
+	}
+
+	// Tenant isolation: only the owning tenant can approve its own deploys
+	if req.TenantID != claims.TenantID {
+		writeError(w, http.StatusForbidden, "not authorized to approve this request")
+		return
+	}
+
+	h.mu.Lock()
+	now := time.Now()
+	req.Status = "approved"
+	req.ReviewedBy = claims.UserID
+	req.ReviewedAt = &now
+	h.mu.Unlock()
 
 	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.approved", "api",
 		map[string]string{"approval_id": approvalID, "approved_by": claims.UserID}))
@@ -128,25 +133,30 @@ func (h *DeployApprovalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 
 	h.mu.Lock()
 	req, exists := h.pending[approvalID]
-	if exists && req.Status == "pending" {
-		// Tenant isolation: only the owning tenant can reject its own deploys
-		if req.TenantID != claims.TenantID {
-			h.mu.Unlock()
-			writeError(w, http.StatusForbidden, "not authorized to reject this request")
-			return
-		}
-		now := time.Now()
-		req.Status = "rejected"
-		req.Reason = body.Reason
-		req.ReviewedBy = claims.UserID
-		req.ReviewedAt = &now
-	}
 	h.mu.Unlock()
 
 	if !exists {
 		writeError(w, http.StatusNotFound, "approval request not found")
 		return
 	}
+	if req.Status != "pending" {
+		writeError(w, http.StatusConflict, "approval already processed")
+		return
+	}
+
+	// Tenant isolation: only the owning tenant can reject its own deploys
+	if req.TenantID != claims.TenantID {
+		writeError(w, http.StatusForbidden, "not authorized to reject this request")
+		return
+	}
+
+	h.mu.Lock()
+	now := time.Now()
+	req.Status = "rejected"
+	req.Reason = body.Reason
+	req.ReviewedBy = claims.UserID
+	req.ReviewedAt = &now
+	h.mu.Unlock()
 
 	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.rejected", "api",
 		map[string]string{"approval_id": approvalID, "reason": body.Reason}))

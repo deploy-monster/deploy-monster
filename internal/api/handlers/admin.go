@@ -5,17 +5,25 @@ import (
 	"net/http"
 	"runtime"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // AdminHandler serves system administration endpoints.
 type AdminHandler struct {
-	core  *core.Core
-	store core.Store
+	core    *core.Core
+	store   core.Store
+	authMod *auth.Module
 }
 
-func NewAdminHandler(c *core.Core, store core.Store) *AdminHandler {
-	return &AdminHandler{core: c, store: store}
+// NewAdminHandler creates an AdminHandler. authMod may be nil in tests
+// that don't exercise key revocation — RevokeAllKeys checks before use.
+func NewAdminHandler(c *core.Core, store core.Store, authMod ...*auth.Module) *AdminHandler {
+	var mod *auth.Module
+	if len(authMod) > 0 {
+		mod = authMod[0]
+	}
+	return &AdminHandler{core: c, store: store, authMod: mod}
 }
 
 // SystemInfo handles GET /api/v1/admin/system
@@ -86,4 +94,21 @@ func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writePaginatedJSON(w, tenants, total, pg)
+}
+
+// RevokeAllKeys handles POST /api/v1/admin/keys/revoke-all
+// Super admin only — immediately revokes all previous JWT rotation keys.
+// This is an emergency endpoint: all tokens signed with old keys are
+// rejected instantly (not just after RotationGracePeriod).
+// Use when a key compromise is suspected.
+func (h *AdminHandler) RevokeAllKeys(w http.ResponseWriter, r *http.Request) {
+	if h.authMod == nil || h.authMod.JWT() == nil {
+		writeError(w, http.StatusServiceUnavailable, "auth service unavailable")
+		return
+	}
+	n := h.authMod.JWT().RevokeAllPreviousKeys()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":       "ok",
+		"revoked_keys": n,
+	})
 }

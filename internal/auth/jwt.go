@@ -100,6 +100,18 @@ func (j *JWTService) AddPreviousKey(secret string) {
 	j.purgeExpiredPreviousKeys()
 }
 
+// RevokeAllPreviousKeys immediately invalidates all rotated keys.
+// Use this in a security emergency when a key may be compromised.
+// All tokens signed with previous keys will be rejected instantly,
+// not just after RotationGracePeriod expires.
+// Returns the number of keys that were revoked.
+func (j *JWTService) RevokeAllPreviousKeys() int {
+	count := len(j.previousKeys)
+	j.previousKeys = nil
+	j.previousAdded = nil
+	return count
+}
+
 // purgeExpiredPreviousKeys removes keys older than RotationGracePeriod.
 // Called before every validation and after key additions.
 func (j *JWTService) purgeExpiredPreviousKeys() {
@@ -144,15 +156,20 @@ func (j *JWTService) GenerateTokenPair(userID, tenantID, roleID, email string) (
 		return nil, err
 	}
 
-	// Refresh token
-	refreshClaims := jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(now.Add(j.refreshExpiry)),
-		IssuedAt:  jwt.NewNumericDate(now),
-		Subject:   userID,
-		ID:        generateTokenID(),
-		Issuer:    tokenIssuer,
-		Audience:  jwt.ClaimStrings{tokenAudience},
+	// Refresh token — uses refreshTokenWithSession to carry FirstIssuedAt
+	// for absolute session enforcement (MaxAbsoluteSessionSeconds = 30 days).
+	refreshClaims := refreshTokenWithSession{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(j.refreshExpiry)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			Subject:   userID,
+			ID:        generateTokenID(),
+			Issuer:    tokenIssuer,
+			Audience:  jwt.ClaimStrings{tokenAudience},
+		},
+		FirstIssuedAt: now.Unix(),
 	}
+
 	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString(j.secretKey)
 	if err != nil {
 		return nil, err
@@ -244,14 +261,28 @@ type RefreshTokenClaims struct {
 // RefreshTokenTTLSeconds is the refresh token lifetime used for revocation entry TTL.
 const RefreshTokenTTLSeconds = 7 * 24 * 60 * 60 // 7 days
 
+// MaxAbsoluteSessionSeconds is the maximum lifetime of a refresh token chain.
+// After this time, even an unexpired refresh token is rejected, preventing
+// stolen tokens from being rotated indefinitely (VULN-020).
+const MaxAbsoluteSessionSeconds = 30 * 24 * 60 * 60 // 30 days
+
+// refreshTokenWithSession is a custom claim type that embeds RegisteredClaims
+// and adds a first-issued-at timestamp for absolute session tracking.
+// Using a custom struct (rather than RegisteredClaims + map) ensures proper
+// JSON serialization and lets us use jwt.WithValidMethods properly.
+type refreshTokenWithSession struct {
+	jwt.RegisteredClaims
+	FirstIssuedAt int64 `json:"fia"`
+}
+
 // ValidateRefreshToken parses and validates a refresh token.
 // Returns the user ID (Subject) and the token ID (JTI) for revocation tracking.
 // Tries the active key first, then falls back to previous keys for graceful rotation.
+// SECURITY: Rejects tokens older than MaxAbsoluteSessionSeconds (30 days) to prevent
+// stolen tokens from being used indefinitely via rotation.
 func (j *JWTService) ValidateRefreshToken(tokenStr string) (*RefreshTokenClaims, error) {
 	for _, key := range j.allKeys() {
-		// WithValidMethods rejects the token before the keyfunc runs if
-		// the alg header is not HS256 — mirrors ValidateAccessToken.
-		token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
+		token, err := jwt.ParseWithClaims(tokenStr, &refreshTokenWithSession{}, func(t *jwt.Token) (any, error) {
 			return key, nil
 		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
 			jwt.WithIssuer(tokenIssuer),
@@ -259,13 +290,22 @@ func (j *JWTService) ValidateRefreshToken(tokenStr string) (*RefreshTokenClaims,
 		if err != nil {
 			continue
 		}
-		claims, ok := token.Claims.(*jwt.RegisteredClaims)
+		claims, ok := token.Claims.(*refreshTokenWithSession)
 		if !ok || !token.Valid {
 			continue
 		}
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, jwt.ErrTokenSignatureInvalid
 		}
+
+		// Check absolute session timeout: reject if token chain is older than 30 days.
+		if claims.FirstIssuedAt > 0 {
+			elapsed := time.Now().Unix() - claims.FirstIssuedAt
+			if elapsed > MaxAbsoluteSessionSeconds {
+				return nil, fmt.Errorf("session expired (absolute timeout exceeded)")
+			}
+		}
+
 		return &RefreshTokenClaims{
 			UserID: claims.Subject,
 			JTI:    claims.ID,

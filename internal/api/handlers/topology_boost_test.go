@@ -17,6 +17,9 @@ func TestTopologyHandler_Load_NotFound(t *testing.T) {
 	c := &core.Core{DB: &core.Database{Bolt: bolt}}
 	h := NewTopologyHandler(store, c)
 
+	// Seed a project for the tenant (so project check passes, but no topology exists)
+	store.projectsByID["proj-1"] = &core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"}
+
 	req := httptest.NewRequest("GET", "/api/v1/topology/proj-1/production", nil)
 	req.SetPathValue("projectId", "proj-1")
 	req.SetPathValue("environment", "production")
@@ -45,6 +48,9 @@ func TestTopologyHandler_Load_Found(t *testing.T) {
 	bolt := newMockBoltStore()
 	c := &core.Core{DB: &core.Database{Bolt: bolt}}
 	h := NewTopologyHandler(store, c)
+
+	// Seed a project for the tenant
+	store.projectsByID["proj-1"] = &core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"}
 
 	// Seed a saved topology
 	key := "topology:tenant-1:proj-1:production"
