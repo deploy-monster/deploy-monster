@@ -155,6 +155,7 @@ jobs:
           MONSTER_PORT: 8443
           MONSTER_SECRET: ci-e2e-secret-key-with-at-least-32-characters
           MONSTER_DB_PATH: ${{ runner.temp }}/deploymonster-e2e.db
+          MONSTER_RATE_LIMIT_PER_MINUTE: 0
           MONSTER_ADMIN_EMAIL: admin@deploymonster.test
           MONSTER_ADMIN_PASSWORD: TestPassword123!
 
