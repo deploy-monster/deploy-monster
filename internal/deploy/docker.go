@@ -9,12 +9,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/api/types/volume"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/client"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -44,7 +41,7 @@ func NewDockerManager(host string) (*DockerManager, error) {
 	}
 
 	// Verify connection
-	if _, err := cli.Ping(context.Background()); err != nil {
+	if _, err := cli.Ping(context.Background(), client.PingOptions{NegotiateAPIVersion: true}); err != nil {
 		_ = cli.Close()
 		return nil, fmt.Errorf("docker ping: %w", err)
 	}
@@ -61,7 +58,7 @@ func (d *DockerManager) SetResourceDefaults(cpuQuota, memoryMB int64) {
 
 // Ping verifies the Docker connection.
 func (d *DockerManager) Ping() error {
-	_, err := d.cli.Ping(context.Background())
+	_, err := d.cli.Ping(context.Background(), client.PingOptions{NegotiateAPIVersion: true})
 	return err
 }
 
@@ -84,7 +81,7 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 	// Pull image with 5-minute timeout to prevent hanging daemon from blocking API
 	pullCtx, pullCancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer pullCancel()
-	reader, err := d.cli.ImagePull(pullCtx, opts.Image, image.PullOptions{})
+	reader, err := d.cli.ImagePull(pullCtx, opts.Image, client.ImagePullOptions{})
 	if err != nil {
 		return "", fmt.Errorf("pull image %s: %w", opts.Image, err)
 	}
@@ -144,13 +141,18 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 	}
 
 	// Create container
-	resp, err := d.cli.ContainerCreate(ctx, containerCfg, hostCfg, networkCfg, nil, opts.Name)
+	resp, err := d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config:           containerCfg,
+		HostConfig:       hostCfg,
+		NetworkingConfig: networkCfg,
+		Name:             opts.Name,
+	})
 	if err != nil {
 		return "", fmt.Errorf("create container: %w", err)
 	}
 
 	// Start container
-	if err := d.cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+	if _, err := d.cli.ContainerStart(ctx, resp.ID, client.ContainerStartOptions{}); err != nil {
 		return "", fmt.Errorf("start container: %w", err)
 	}
 
@@ -161,25 +163,28 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 func (d *DockerManager) Stop(ctx context.Context, containerID string, timeoutSec int) error {
 	stopCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second+30*time.Second)
 	defer cancel()
-	return d.cli.ContainerStop(stopCtx, containerID, container.StopOptions{Timeout: &timeoutSec})
+	_, err := d.cli.ContainerStop(stopCtx, containerID, client.ContainerStopOptions{Timeout: &timeoutSec})
+	return err
 }
 
 // Remove implements core.ContainerRuntime.
 func (d *DockerManager) Remove(ctx context.Context, containerID string, force bool) error {
 	removeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	return d.cli.ContainerRemove(removeCtx, containerID, container.RemoveOptions{Force: force})
+	_, err := d.cli.ContainerRemove(removeCtx, containerID, client.ContainerRemoveOptions{Force: force})
+	return err
 }
 
 // Restart implements core.ContainerRuntime.
 func (d *DockerManager) Restart(ctx context.Context, containerID string) error {
 	timeout := 10
-	return d.cli.ContainerRestart(ctx, containerID, container.StopOptions{Timeout: &timeout})
+	_, err := d.cli.ContainerRestart(ctx, containerID, client.ContainerRestartOptions{Timeout: &timeout})
+	return err
 }
 
 // Logs implements core.ContainerRuntime.
 func (d *DockerManager) Logs(ctx context.Context, containerID string, tail string, follow bool) (io.ReadCloser, error) {
-	return d.cli.ContainerLogs(ctx, containerID, container.LogsOptions{
+	return d.cli.ContainerLogs(ctx, containerID, client.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     follow,
@@ -189,18 +194,18 @@ func (d *DockerManager) Logs(ctx context.Context, containerID string, tail strin
 
 // ListByLabels implements core.ContainerRuntime.
 func (d *DockerManager) ListByLabels(ctx context.Context, labelFilters map[string]string) ([]core.ContainerInfo, error) {
-	f := filters.NewArgs()
+	f := make(client.Filters)
 	for k, v := range labelFilters {
 		f.Add("label", k+"="+v)
 	}
 
-	containers, err := d.cli.ContainerList(ctx, container.ListOptions{All: true, Filters: f})
+	containers, err := d.cli.ContainerList(ctx, client.ContainerListOptions{All: true, Filters: f})
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]core.ContainerInfo, len(containers))
-	for i, c := range containers {
+	result := make([]core.ContainerInfo, len(containers.Items))
+	for i, c := range containers.Items {
 		name := ""
 		if len(c.Names) > 0 {
 			name = c.Names[0]
@@ -210,7 +215,7 @@ func (d *DockerManager) ListByLabels(ctx context.Context, labelFilters map[strin
 			Name:    name,
 			Image:   c.Image,
 			Status:  c.Status,
-			State:   c.State,
+			State:   string(c.State),
 			Labels:  c.Labels,
 			Created: c.Created,
 		}
@@ -220,27 +225,27 @@ func (d *DockerManager) ListByLabels(ctx context.Context, labelFilters map[strin
 
 // InspectContainer returns detailed container info (Docker-specific, not in interface).
 func (d *DockerManager) InspectContainer(ctx context.Context, containerID string) (*container.InspectResponse, error) {
-	resp, err := d.cli.ContainerInspect(ctx, containerID)
+	resp, err := d.cli.ContainerInspect(ctx, containerID, client.ContainerInspectOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("inspect container %s: %w", containerID, err)
 	}
-	return &resp, nil
+	return &resp.Container, nil
 }
 
 // Exec runs a command inside a running container and returns the output.
 func (d *DockerManager) Exec(ctx context.Context, containerID string, cmd []string) (string, error) {
-	execCfg := container.ExecOptions{
+	execCfg := client.ExecCreateOptions{
 		Cmd:          cmd,
 		AttachStdout: true,
 		AttachStderr: true,
 	}
 
-	execResp, err := d.cli.ContainerExecCreate(ctx, containerID, execCfg)
+	execResp, err := d.cli.ExecCreate(ctx, containerID, execCfg)
 	if err != nil {
 		return "", fmt.Errorf("exec create: %w", err)
 	}
 
-	attachResp, err := d.cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
+	attachResp, err := d.cli.ExecAttach(ctx, execResp.ID, client.ExecAttachOptions{})
 	if err != nil {
 		return "", fmt.Errorf("exec attach: %w", err)
 	}
@@ -256,7 +261,9 @@ func (d *DockerManager) Exec(ctx context.Context, containerID string, cmd []stri
 
 // Stats returns real-time resource usage statistics for a container.
 func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.ContainerStats, error) {
-	resp, err := d.cli.ContainerStats(ctx, containerID, false)
+	resp, err := d.cli.ContainerStats(ctx, containerID, client.ContainerStatsOptions{
+		IncludePreviousSample: true,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("container stats: %w", err)
 	}
@@ -311,11 +318,11 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 	// Get container health and running status via inspect
 	health := ""
 	running := false
-	inspect, err := d.cli.ContainerInspect(ctx, containerID)
+	inspect, err := d.cli.ContainerInspect(ctx, containerID, client.ContainerInspectOptions{})
 	if err == nil {
-		running = inspect.State != nil && inspect.State.Running
-		if inspect.State != nil && inspect.State.Health != nil {
-			health = inspect.State.Health.Status
+		running = inspect.Container.State != nil && inspect.Container.State.Running
+		if inspect.Container.State != nil && inspect.Container.State.Health != nil {
+			health = string(inspect.Container.State.Health.Status)
 		}
 	}
 
@@ -338,7 +345,7 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 func (d *DockerManager) ImagePull(ctx context.Context, img string) error {
 	pullCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	reader, err := d.cli.ImagePull(pullCtx, img, image.PullOptions{})
+	reader, err := d.cli.ImagePull(pullCtx, img, client.ImagePullOptions{})
 	if err != nil {
 		return fmt.Errorf("pull image %s: %w", img, err)
 	}
@@ -349,13 +356,13 @@ func (d *DockerManager) ImagePull(ctx context.Context, img string) error {
 
 // ImageList returns all images in the Docker host.
 func (d *DockerManager) ImageList(ctx context.Context) ([]core.ImageInfo, error) {
-	images, err := d.cli.ImageList(ctx, image.ListOptions{All: true})
+	images, err := d.cli.ImageList(ctx, client.ImageListOptions{All: true})
 	if err != nil {
 		return nil, fmt.Errorf("list images: %w", err)
 	}
 
-	result := make([]core.ImageInfo, len(images))
-	for i, img := range images {
+	result := make([]core.ImageInfo, len(images.Items))
+	for i, img := range images.Items {
 		result[i] = core.ImageInfo{
 			ID:      img.ID,
 			Tags:    img.RepoTags,
@@ -368,7 +375,7 @@ func (d *DockerManager) ImageList(ctx context.Context) ([]core.ImageInfo, error)
 
 // ImageRemove removes an image from the Docker host.
 func (d *DockerManager) ImageRemove(ctx context.Context, imageID string) error {
-	_, err := d.cli.ImageRemove(ctx, imageID, image.RemoveOptions{Force: false, PruneChildren: true})
+	_, err := d.cli.ImageRemove(ctx, imageID, client.ImageRemoveOptions{Force: false, PruneChildren: true})
 	if err != nil {
 		return fmt.Errorf("remove image %s: %w", imageID, err)
 	}
@@ -377,13 +384,13 @@ func (d *DockerManager) ImageRemove(ctx context.Context, imageID string) error {
 
 // NetworkList returns all networks configured in the Docker host.
 func (d *DockerManager) NetworkList(ctx context.Context) ([]core.NetworkInfo, error) {
-	networks, err := d.cli.NetworkList(ctx, network.ListOptions{})
+	networks, err := d.cli.NetworkList(ctx, client.NetworkListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("list networks: %w", err)
 	}
 
-	result := make([]core.NetworkInfo, len(networks))
-	for i, n := range networks {
+	result := make([]core.NetworkInfo, len(networks.Items))
+	for i, n := range networks.Items {
 		result[i] = core.NetworkInfo{
 			ID:     n.ID,
 			Name:   n.Name,
@@ -396,13 +403,13 @@ func (d *DockerManager) NetworkList(ctx context.Context) ([]core.NetworkInfo, er
 
 // VolumeList returns all volumes configured in the Docker host.
 func (d *DockerManager) VolumeList(ctx context.Context) ([]core.VolumeInfo, error) {
-	resp, err := d.cli.VolumeList(ctx, volume.ListOptions{})
+	resp, err := d.cli.VolumeList(ctx, client.VolumeListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("list volumes: %w", err)
 	}
 
-	result := make([]core.VolumeInfo, len(resp.Volumes))
-	for i, v := range resp.Volumes {
+	result := make([]core.VolumeInfo, len(resp.Items))
+	for i, v := range resp.Items {
 		result[i] = core.VolumeInfo{
 			Name:       v.Name,
 			Driver:     v.Driver,
@@ -415,20 +422,20 @@ func (d *DockerManager) VolumeList(ctx context.Context) ([]core.VolumeInfo, erro
 
 // EnsureNetwork creates a bridge network if it doesn't exist.
 func (d *DockerManager) EnsureNetwork(ctx context.Context, name string) error {
-	networks, err := d.cli.NetworkList(ctx, network.ListOptions{
-		Filters: filters.NewArgs(filters.Arg("name", name)),
+	networks, err := d.cli.NetworkList(ctx, client.NetworkListOptions{
+		Filters: make(client.Filters).Add("name", name),
 	})
 	if err != nil {
 		return fmt.Errorf("list networks: %w", err)
 	}
 
-	for _, n := range networks {
+	for _, n := range networks.Items {
 		if n.Name == name {
 			return nil
 		}
 	}
 
-	_, err = d.cli.NetworkCreate(ctx, name, network.CreateOptions{
+	_, err = d.cli.NetworkCreate(ctx, name, client.NetworkCreateOptions{
 		Driver: "bridge",
 		Labels: map[string]string{
 			"monster.managed": "true",

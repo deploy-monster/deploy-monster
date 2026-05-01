@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/moby/moby/client"
 )
 
 // requireDocker creates a real DockerManager or skips the test.
@@ -213,7 +214,7 @@ func TestDockerIntegration_NetworkLifecycle(t *testing.T) {
 	}
 
 	// Cleanup
-	defer dm.cli.NetworkRemove(ctx, networkName)
+	defer func() { _, _ = dm.cli.NetworkRemove(ctx, networkName, client.NetworkRemoveOptions{}) }()
 
 	// List networks and verify
 	networks, err := dm.NetworkList(ctx)
@@ -250,7 +251,7 @@ func TestDockerIntegration_ContainerWithNetwork(t *testing.T) {
 	if err := dm.EnsureNetwork(ctx, networkName); err != nil {
 		t.Fatalf("EnsureNetwork: %v", err)
 	}
-	defer dm.cli.NetworkRemove(ctx, networkName)
+	defer func() { _, _ = dm.cli.NetworkRemove(ctx, networkName, client.NetworkRemoveOptions{}) }()
 
 	containerName := "dm-net-container-" + core.GenerateID()[:8]
 	containerID, err := dm.CreateAndStart(ctx, core.ContainerOpts{

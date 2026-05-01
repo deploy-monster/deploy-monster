@@ -12,11 +12,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/api/types/volume"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/api/types/volume"
+	"github.com/moby/moby/client"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -652,15 +652,13 @@ func TestDockerManager_InspectContainer_Success(t *testing.T) {
 	h.mux.HandleFunc("/_ping", defaultPingHandler())
 	h.mux.HandleFunc("/v1.45/containers/ctr-inspect-1/json", func(w http.ResponseWriter, r *http.Request) {
 		resp := container.InspectResponse{
-			ContainerJSONBase: &container.ContainerJSONBase{
-				ID:    "ctr-inspect-1",
-				Name:  "/my-inspected-container",
-				Image: "sha256:abc123",
-				State: &container.State{
-					Status:  "running",
-					Running: true,
-					Pid:     12345,
-				},
+			ID:    "ctr-inspect-1",
+			Name:  "/my-inspected-container",
+			Image: "sha256:abc123",
+			State: &container.State{
+				Status:  "running",
+				Running: true,
+				Pid:     12345,
 			},
 			Config: &container.Config{
 				Image: "nginx:latest",
@@ -1429,18 +1427,22 @@ func TestDockerManager_NetworkList_Success(t *testing.T) {
 	h.mux.HandleFunc("/_ping", defaultPingHandler())
 	h.mux.HandleFunc("/v1.45/networks", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			nets := []network.Inspect{
+			nets := []network.Summary{
 				{
-					ID:     "net-1",
-					Name:   "bridge",
-					Driver: "bridge",
-					Scope:  "local",
+					Network: network.Network{
+						ID:     "net-1",
+						Name:   "bridge",
+						Driver: "bridge",
+						Scope:  "local",
+					},
 				},
 				{
-					ID:     "net-2",
-					Name:   "monster-network",
-					Driver: "bridge",
-					Scope:  "local",
+					Network: network.Network{
+						ID:     "net-2",
+						Name:   "monster-network",
+						Driver: "bridge",
+						Scope:  "local",
+					},
 				},
 			}
 			jsonResponse(w, http.StatusOK, nets)
@@ -1500,7 +1502,7 @@ func TestDockerManager_VolumeList_Success(t *testing.T) {
 	h.mux.HandleFunc("/_ping", defaultPingHandler())
 	h.mux.HandleFunc("/v1.45/volumes", func(w http.ResponseWriter, r *http.Request) {
 		resp := volume.ListResponse{
-			Volumes: []*volume.Volume{
+			Volumes: []volume.Volume{
 				{
 					Name:       "vol-data",
 					Driver:     "local",
@@ -1547,7 +1549,7 @@ func TestDockerManager_VolumeList_Empty(t *testing.T) {
 	h.mux.HandleFunc("/_ping", defaultPingHandler())
 	h.mux.HandleFunc("/v1.45/volumes", func(w http.ResponseWriter, r *http.Request) {
 		resp := volume.ListResponse{
-			Volumes: []*volume.Volume{},
+			Volumes: []volume.Volume{},
 		}
 		jsonResponse(w, http.StatusOK, resp)
 	})
@@ -1595,12 +1597,14 @@ func TestDockerManager_EnsureNetwork_AlreadyExists(t *testing.T) {
 	var createCalled bool
 	h.mux.HandleFunc("/v1.45/networks", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			nets := []network.Inspect{
+			nets := []network.Summary{
 				{
-					ID:     "existing-net-id",
-					Name:   "monster-network",
-					Driver: "bridge",
-					Scope:  "local",
+					Network: network.Network{
+						ID:     "existing-net-id",
+						Name:   "monster-network",
+						Driver: "bridge",
+						Scope:  "local",
+					},
 				},
 			}
 			jsonResponse(w, http.StatusOK, nets)
@@ -1631,7 +1635,7 @@ func TestDockerManager_EnsureNetwork_DoesNotExist(t *testing.T) {
 	h.mux.HandleFunc("/v1.45/networks", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			// Return empty list — network does not exist
-			jsonResponse(w, http.StatusOK, []network.Inspect{})
+			jsonResponse(w, http.StatusOK, []network.Summary{})
 		}
 	})
 	h.mux.HandleFunc("/v1.45/networks/create", func(w http.ResponseWriter, r *http.Request) {
@@ -1659,11 +1663,13 @@ func TestDockerManager_EnsureNetwork_NameMismatch(t *testing.T) {
 	h.mux.HandleFunc("/v1.45/networks", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			// Return a network with a different name (Docker filter is prefix-based)
-			nets := []network.Inspect{
+			nets := []network.Summary{
 				{
-					ID:     "other-net-id",
-					Name:   "monster-network-old",
-					Driver: "bridge",
+					Network: network.Network{
+						ID:     "other-net-id",
+						Name:   "monster-network-old",
+						Driver: "bridge",
+					},
 				},
 			}
 			jsonResponse(w, http.StatusOK, nets)
@@ -1711,7 +1717,7 @@ func TestDockerManager_EnsureNetwork_CreateError(t *testing.T) {
 	h.mux.HandleFunc("/_ping", defaultPingHandler())
 	h.mux.HandleFunc("/v1.45/networks", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			jsonResponse(w, http.StatusOK, []network.Inspect{})
+			jsonResponse(w, http.StatusOK, []network.Summary{})
 		}
 	})
 	h.mux.HandleFunc("/v1.45/networks/create", func(w http.ResponseWriter, r *http.Request) {
