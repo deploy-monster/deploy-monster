@@ -75,9 +75,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
-          version: 10
+          package_json_file: web/package.json
 
       - uses: actions/setup-node@v6
         with:
@@ -122,9 +122,9 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
-          version: 10
+          package_json_file: web/package.json
 
       - uses: actions/setup-node@v6
         with:
@@ -148,8 +148,8 @@ jobs:
 
       - name: Start server
         run: |
-          ./bin/deploymonster serve &
-          sleep 3
+          ./bin/deploymonster serve > "${RUNNER_TEMP}/deploymonster-e2e.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/deploymonster-e2e.pid"
         env:
           MONSTER_HOST: 127.0.0.1
           MONSTER_PORT: 8443
@@ -164,11 +164,14 @@ jobs:
           for i in $(seq 1 30); do
             if curl -sf http://localhost:8443/health > /dev/null 2>&1; then
               echo "Server ready"
-              break
+              exit 0
             fi
             echo "Waiting for server... ($i)"
             sleep 1
           done
+          echo "::error::Server never became ready on :8443"
+          cat "${RUNNER_TEMP}/deploymonster-e2e.log" || true
+          exit 1
 
       - name: Install Playwright browsers
         working-directory: web
@@ -186,6 +189,22 @@ jobs:
         with:
           name: playwright-report
           path: web/e2e-report/
+          retention-days: 7
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f "${RUNNER_TEMP}/deploymonster-e2e.pid" ]; then
+            kill "$(cat "${RUNNER_TEMP}/deploymonster-e2e.pid")" 2>/dev/null || true
+          fi
+
+      - name: Upload server log
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: e2e-server-log
+          path: ${{ runner.temp }}/deploymonster-e2e.log
+          if-no-files-found: ignore
           retention-days: 7
 
   secrets:
@@ -385,9 +404,9 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
-          version: 10
+          package_json_file: web/package.json
 
       - uses: actions/setup-node@v6
         with:
