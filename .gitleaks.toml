@@ -79,6 +79,11 @@ regexes = [
     '''sk_live_abc123''',
     '''sk_live_\.\.\.''',
 
+    # CI-only JWT signing placeholder used to boot the Playwright test
+    # server in .github/workflows/ci.yml. It is deliberately human-readable
+    # and scoped to the workflow's ephemeral SQLite database.
+    '''ci-e2e-secret-key-with-at-least-32-characters''',
+
     # Test-fixture secrets. Gitleaks' default generic-API-key heuristic
     # flags any high-entropy 32+ char string assigned to a `secret` /
     # `password` / `key` field, which catches every test JWT signing key
