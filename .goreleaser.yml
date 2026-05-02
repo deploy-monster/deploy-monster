@@ -65,7 +65,7 @@ dockers_v2:
       - "ghcr.io/deploy-monster/deploy-monster"
     tags:
       - "{{ .Version }}"
-      - "latest"
+      - "{{ if not .Prerelease }}latest{{ end }}"
     dockerfile: Dockerfile
     platforms:
       - linux/amd64
@@ -90,6 +90,7 @@ release:
     name: deploy-monster
   draft: false
   prerelease: auto
+  make_latest: "{{ if .Prerelease }}false{{ else }}true{{ end }}"
   name_template: "DeployMonster v{{.Version}}"
   header: |
     ## DeployMonster v{{.Version}}
