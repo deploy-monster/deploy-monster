@@ -6,22 +6,21 @@ name: Load Test (Nightly)
 # time without having to restart the process manually on a dev box.
 #
 # Why nightly (not on PR)?
-#   - The run takes ~30s of wall-clock at concurrency=20. On the 2-vCPU
+#   - The measured run takes 60s of wall-clock at concurrency=50. On the 2-vCPU
 #     ubuntu-latest runner the numbers jitter enough that a per-PR gate
 #     would be noisier than useful.
 #   - Perf regressions are rarely a "this PR broke it" problem; they
 #     creep in across many PRs. A nightly series over 30 days makes the
 #     drift visible; a per-PR check wouldn't.
 #
-# Why the measured run only gates on HTTP errors for now:
-#   - The committed baseline in tests/loadtest/baselines/http.json was
-#     captured on a Ryzen-class dev box (p95 ≈ 20-30 ms, 1657 req/s).
-#     GH runners land 3-5× slower, so passing `-baseline` here fails
-#     every run until a runner-class baseline is captured via a one-off
-#     workflow_dispatch. Until then we skip the -baseline flag, but
-#     still fail if any endpoint returns HTTP/transport errors.
-#   - Add `-baseline tests/loadtest/baselines/http-ghrunner.json` in
-#     the same commit that lands a clean runner-class baseline file.
+# Why this uses a runner-specific baseline:
+#   - The canonical tests/loadtest/baselines/http.json baseline was
+#     captured on a dev box. GitHub-hosted runners have different CPU
+#     shape and noisier neighbors, so nightly CI compares against the
+#     committed runner-class baseline instead.
+#   - Refresh tests/loadtest/baselines/http-ghrunner.json only via
+#     workflow_dispatch capture_baseline=true, after reviewing the
+#     resulting artifact for zero errors and expected endpoint coverage.
 #
 # workflow_dispatch lets an engineer kick off a run after a known
 # perf-sensitive change (new middleware, hot-path refactor) without
@@ -119,23 +118,24 @@ jobs:
             -concurrency 5 \
             -out /dev/null
 
-      # Measured run. No -baseline until a runner-class baseline is
-      # captured, but fail immediately if any endpoint returns errors.
+      # Measured run. Keep duration/concurrency in lockstep with the
+      # runner-class baseline capture step below; the regression gate is
+      # only meaningful when the workload shape is identical.
       - name: Run load test
         run: |
           go run ./tests/loadtest \
             -url http://localhost:8443 \
-            -duration 30s \
-            -concurrency 20 \
+            -duration 60s \
+            -concurrency 50 \
             -fail-on-errors \
+            -baseline tests/loadtest/baselines/http-ghrunner.json \
             -out loadtest-results.json
 
       # One-off baseline capture via workflow_dispatch input. Writes to
       # a distinct runner-class baseline file that does NOT overwrite
       # the dev-box baseline used by `make loadtest-check`. A follow-up
       # PR is expected to move the file into
-      # tests/loadtest/baselines/http-ghrunner.json and flip
-      # `continue-on-error` off on the measured-run step above.
+      # tests/loadtest/baselines/http-ghrunner.json.
       - name: Capture runner-class baseline (dispatch only)
         if: ${{ inputs.capture_baseline == 'true' }}
         run: |

@@ -18,6 +18,9 @@ per endpoint.
   `GET /login`). Regenerate when the production-shaped config
   changes, hardware changes, or after a deliberate perf win you want
   to lock in.
+- `http-ghrunner.json` — GitHub-hosted `ubuntu-latest` runner baseline
+  for the nightly load-test workflow. Captured with the same endpoint
+  mix at 60s duration and concurrency 50.
 
 ## How to regenerate a baseline
 
@@ -98,7 +101,7 @@ they are new surface area the baseline has not yet seen.
 A baseline is only meaningful against the hardware that produced it.
 Comparing a number captured on an M2 MacBook to a run on a
 Hetzner CPX21 is noise. The CI workflow pins baselines to a specific
-runner class (see `.github/workflows/loadtest.yml`) and regenerating
+runner class (see `.github/workflows/loadtest-nightly.yml`) and regenerating
 on a new runner class is one of the explicit triggers for a fresh
 baseline commit.
 
@@ -119,3 +122,9 @@ noise, so the 10% default threshold may flap there. On a dedicated
 CI runner (or a production-shaped VM with CPU pinning) that variance
 typically drops to under 5% and the 10% gate becomes a reliable
 indicator of real regressions.
+
+`http-ghrunner.json` was captured on GitHub-hosted `ubuntu-latest`
+via Load Test (Nightly) workflow run `25247342590` using Go 1.26,
+Node 22, duration 60s, concurrency 50, and zero HTTP/transport
+errors. It is intentionally separate from `http.json` so local/dev
+baselines and runner-class baselines do not drift together.

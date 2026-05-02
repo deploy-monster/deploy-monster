@@ -1,0 +1,55 @@
+{
+  "duration_seconds": 60,
+  "concurrency": 50,
+  "total_requests": 220216,
+  "successful": 220216,
+  "errors": 0,
+  "requests_per_second": 3670.266666666667,
+  "endpoints": {
+    "GET /api/v1/health": {
+      "total": 44054,
+      "successful": 44054,
+      "errors": 0,
+      "requests_per_second": 734.2333333333333,
+      "p50_us": 13635,
+      "p95_us": 33598,
+      "p99_us": 45280
+    },
+    "GET /api/v1/marketplace": {
+      "total": 44045,
+      "successful": 44045,
+      "errors": 0,
+      "requests_per_second": 734.0833333333334,
+      "p50_us": 10888,
+      "p95_us": 29515,
+      "p99_us": 40317
+    },
+    "GET /api/v1/openapi.json": {
+      "total": 44031,
+      "successful": 44031,
+      "errors": 0,
+      "requests_per_second": 733.85,
+      "p50_us": 9237,
+      "p95_us": 24897,
+      "p99_us": 35045
+    },
+    "GET /health": {
+      "total": 44066,
+      "successful": 44066,
+      "errors": 0,
+      "requests_per_second": 734.4333333333333,
+      "p50_us": 13379,
+      "p95_us": 32149,
+      "p99_us": 44023
+    },
+    "GET /login": {
+      "total": 44020,
+      "successful": 44020,
+      "errors": 0,
+      "requests_per_second": 733.6666666666666,
+      "p50_us": 8827,
+      "p95_us": 24028,
+      "p99_us": 34064
+    }
+  }
+}
