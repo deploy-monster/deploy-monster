@@ -69,6 +69,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Smoke release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          archive="$(find dist -maxdepth 1 -name 'deploymonster_*_linux_amd64.tar.gz' | sort | head -n1)"
+          if [[ -z "$archive" ]]; then
+            echo "linux amd64 release archive not found"
+            exit 1
+          fi
+
+          grep " $(basename "$archive")$" dist/checksums.txt | (cd dist && sha256sum --check -)
+
+          tmp="$(mktemp -d)"
+          tar -xzf "$archive" -C "$tmp"
+          test -x "$tmp/deploymonster"
+          test -s "$tmp/LICENSE"
+          test -s "$tmp/README.md"
+          test -s "$tmp/monster.example.yaml"
+
+          version_output="$("$tmp/deploymonster" version)"
+          echo "$version_output"
+          "$tmp/deploymonster" help >/dev/null
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            expected="${GITHUB_REF_NAME#v}"
+            grep -F "DeployMonster $expected" <<< "$version_output"
+          fi
+
       - name: Derive release image tag
         if: github.event_name != 'workflow_dispatch'
         run: echo "RELEASE_IMAGE_TAG=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
