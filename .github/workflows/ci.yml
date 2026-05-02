@@ -114,6 +114,7 @@ jobs:
     name: E2E Tests
     needs: [test, test-react]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
 
