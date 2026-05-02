@@ -48,6 +48,7 @@ func main() {
 	outPath := flag.String("out", "loadtest-results.json", "Write per-run results to this path")
 	baselinePath := flag.String("baseline", "", "Compare results against baseline JSON and exit non-zero on regression")
 	saveBaseline := flag.String("save-baseline", "", "Write current results to this baseline path (overwrites)")
+	failOnErrors := flag.Bool("fail-on-errors", false, "Exit non-zero if the run records any HTTP or transport errors")
 	threshold := flag.Float64("regression-threshold", 0.10, "Fractional regression threshold (0.10 = 10%)")
 	flag.Parse()
 
@@ -213,6 +214,13 @@ func main() {
 	// numbers. Used when intentionally capturing a new baseline after
 	// config changes or hardware upgrades.
 	if *saveBaseline != "" {
+		if errs := reportErrors(&report); len(errs) > 0 {
+			fmt.Fprintf(os.Stderr, "refusing to save baseline with errors:\n")
+			for _, e := range errs {
+				fmt.Fprintf(os.Stderr, "  %s\n", e)
+			}
+			os.Exit(1)
+		}
 		if err := writeReport(*saveBaseline, &report); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to save baseline %s: %v\n", *saveBaseline, err)
 			os.Exit(1)
@@ -231,6 +239,13 @@ func main() {
 			fmt.Fprintf(os.Stderr, "failed to read baseline %s: %v\n", *baselinePath, err)
 			os.Exit(1)
 		}
+		if errs := reportErrors(&report); len(errs) > 0 {
+			fmt.Printf("\nBaseline check FAILED: current run returned errors:\n")
+			for _, e := range errs {
+				fmt.Printf("  %s\n", e)
+			}
+			os.Exit(2)
+		}
 		regs := compareReports(baseline, &report, *threshold)
 		if len(regs) == 0 {
 			fmt.Printf("\nBaseline check PASSED (threshold %.0f%%)\n", *threshold*100)
@@ -241,6 +256,16 @@ func main() {
 			fmt.Printf("  %-30s %s\n", r.Endpoint, r.Reason)
 		}
 		os.Exit(2)
+	}
+
+	if *failOnErrors {
+		if errs := reportErrors(&report); len(errs) > 0 {
+			fmt.Printf("\nLoad test FAILED: run returned errors:\n")
+			for _, e := range errs {
+				fmt.Printf("  %s\n", e)
+			}
+			os.Exit(2)
+		}
 	}
 }
 
@@ -287,6 +312,32 @@ func readReport(path string) (*loadtestReport, error) {
 		return nil, err
 	}
 	return &r, nil
+}
+
+func reportErrors(r *loadtestReport) []string {
+	var errs []string
+	if r.TotalRequests == 0 {
+		errs = append(errs, "run produced zero requests")
+	}
+	if r.Errors > 0 {
+		errs = append(errs, fmt.Sprintf("total errors=%d", r.Errors))
+	}
+
+	keys := make([]string, 0, len(r.Endpoints))
+	for key := range r.Endpoints {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		ep := r.Endpoints[key]
+		if ep.Total == 0 {
+			errs = append(errs, fmt.Sprintf("%s total=0", key))
+		}
+		if ep.Errors > 0 {
+			errs = append(errs, fmt.Sprintf("%s errors=%d", key, ep.Errors))
+		}
+	}
+	return errs
 }
 
 // compareReports returns one regression per endpoint that exceeded the

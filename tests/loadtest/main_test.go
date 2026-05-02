@@ -172,6 +172,37 @@ func TestReadWriteReport_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestReportErrors_CatchesEndpointErrors(t *testing.T) {
+	r := &loadtestReport{
+		TotalRequests: 10,
+		Successful:    8,
+		Errors:        2,
+		Endpoints: map[string]endpointStats{
+			"GET /health": {Total: 8, Successful: 8},
+			"GET /login":  {Total: 2, Errors: 2},
+		},
+	}
+	errs := reportErrors(r)
+	if len(errs) != 2 {
+		t.Fatalf("expected total + endpoint errors, got %+v", errs)
+	}
+}
+
+func TestReportErrors_CatchesZeroRequestEndpoint(t *testing.T) {
+	r := &loadtestReport{
+		TotalRequests: 1,
+		Successful:    1,
+		Endpoints: map[string]endpointStats{
+			"GET /health": {Total: 1, Successful: 1},
+			"GET /login":  {},
+		},
+	}
+	errs := reportErrors(r)
+	if len(errs) != 1 || errs[0] != "GET /login total=0" {
+		t.Fatalf("expected zero-request endpoint error, got %+v", errs)
+	}
+}
+
 func TestReport_JSON_Stable(t *testing.T) {
 	// Lock the on-disk schema. Baseline files are committed to the repo
 	// so an accidental field rename would silently break every historical

@@ -13,15 +13,15 @@ name: Load Test (Nightly)
 #     creep in across many PRs. A nightly series over 30 days makes the
 #     drift visible; a per-PR check wouldn't.
 #
-# Why continue-on-error: true?
+# Why the measured run only gates on HTTP errors for now:
 #   - The committed baseline in tests/loadtest/baselines/http.json was
 #     captured on a Ryzen-class dev box (p95 ≈ 20-30 ms, 1657 req/s).
 #     GH runners land 3-5× slower, so passing `-baseline` here fails
 #     every run until a runner-class baseline is captured via a one-off
-#     workflow_dispatch. Until then we skip the -baseline flag entirely
-#     and publish the run purely for trend data.
-#   - Flip this off (and add -baseline) in the same commit that lands
-#     a GH-runner-class baseline file.
+#     workflow_dispatch. Until then we skip the -baseline flag, but
+#     still fail if any endpoint returns HTTP/transport errors.
+#   - Add `-baseline tests/loadtest/baselines/http-ghrunner.json` in
+#     the same commit that lands a clean runner-class baseline file.
 #
 # workflow_dispatch lets an engineer kick off a run after a known
 # perf-sensitive change (new middleware, hot-path refactor) without
@@ -35,7 +35,7 @@ on:
   workflow_dispatch:
     inputs:
       capture_baseline:
-        description: 'Capture a fresh runner-class baseline (OVERWRITES tests/loadtest/baselines/http.json) — only use when you know why the baseline should move'
+        description: 'Capture a fresh runner-class baseline artifact — only use when you know why the baseline should move'
         required: false
         default: 'false'
 
@@ -120,15 +120,14 @@ jobs:
             -out /dev/null
 
       # Measured run. No -baseline until a runner-class baseline is
-      # captured — this run only publishes results as an artifact for
-      # trend analysis.
+      # captured, but fail immediately if any endpoint returns errors.
       - name: Run load test
-        continue-on-error: true
         run: |
           go run ./tests/loadtest \
             -url http://localhost:8443 \
             -duration 30s \
             -concurrency 20 \
+            -fail-on-errors \
             -out loadtest-results.json
 
       # One-off baseline capture via workflow_dispatch input. Writes to
