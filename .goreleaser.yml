@@ -57,26 +57,32 @@ changelog:
       - "^chore:"
       - "Merge pull request"
 
-dockers:
-  - image_templates:
-      - "ghcr.io/deploy-monster/deploy-monster:{{ .Version }}"
-      - "ghcr.io/deploy-monster/deploy-monster:latest"
+dockers_v2:
+  - id: deploymonster
+    ids:
+      - deploymonster
+    images:
+      - "ghcr.io/deploy-monster/deploy-monster"
+    tags:
+      - "{{ .Version }}"
+      - "latest"
     dockerfile: Dockerfile
-    build_flag_templates:
-      - "--pull"
-      - "--platform=linux/amd64"
-      - "--build-arg=VERSION={{.Version}}"
-      - "--build-arg=COMMIT={{.ShortCommit}}"
-      - "--build-arg=DATE={{.Date}}"
-      - "--label=org.opencontainers.image.title=DeployMonster"
-      - "--label=org.opencontainers.image.description=Self-hosted PaaS — single binary, modular monolith, event-driven"
-      - "--label=org.opencontainers.image.url=https://deploy.monster"
-      - "--label=org.opencontainers.image.source=https://github.com/deploy-monster/deploy-monster"
-      - "--label=org.opencontainers.image.vendor=ECOSTACK TECHNOLOGY OÜ"
-      - "--label=org.opencontainers.image.licenses=AGPL-3.0"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.created={{.Date}}"
+    platforms:
+      - linux/amd64
+    sbom: false
+    labels:
+      org.opencontainers.image.title: DeployMonster
+      org.opencontainers.image.description: Self-hosted PaaS — single binary, modular monolith, event-driven
+      org.opencontainers.image.url: https://deploy.monster
+      org.opencontainers.image.source: https://github.com/deploy-monster/deploy-monster
+      org.opencontainers.image.vendor: ECOSTACK TECHNOLOGY OÜ
+      org.opencontainers.image.licenses: AGPL-3.0
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+    flags:
+      - "--pull=true"
+      - "--provenance=false"
 
 release:
   github:

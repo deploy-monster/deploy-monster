@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 #
-# Release Dockerfile — consumed by goreleaser `dockers:` on tag push.
+# Release Dockerfile — consumed by goreleaser `dockers_v2:` on tag push.
 # The deploymonster binary (with embedded React SPA) is provided by goreleaser
 # in the build context. This Dockerfile only prepares the minimal scratch
 # runtime: CA certs, tzdata, and a pre-chowned data directory.
@@ -17,13 +17,14 @@ RUN apk add --no-cache ca-certificates tzdata \
 
 # ─── Stage 2: Minimal scratch runtime ────────────────────────────────────────
 FROM scratch
+ARG TARGETPLATFORM
 
 COPY --from=rootfs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=rootfs /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=rootfs /rootfs/ /
 
-# The binary is placed in context by goreleaser; UI is already embedded.
-COPY deploymonster /deploymonster
+# The binary is placed in a platform-specific context path by goreleaser; UI is already embedded.
+COPY ${TARGETPLATFORM}/deploymonster /deploymonster
 
 VOLUME ["/var/lib/deploymonster"]
 EXPOSE 8443 80 443

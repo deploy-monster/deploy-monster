@@ -174,7 +174,8 @@ clean:
 docker:
 	@echo "Building Docker image..."
 	docker build -t deploymonster:$(VERSION) -t deploymonster:latest \
-		--build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) .
+		--build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) \
+		-f deployments/Dockerfile .
 
 ## docker-compose: Start with docker-compose
 docker-compose:
