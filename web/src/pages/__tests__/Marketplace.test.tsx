@@ -43,6 +43,15 @@ vi.mock('react-router', async () => {
   };
 });
 
+const toastSuccessMock = vi.fn();
+const toastErrorMock = vi.fn();
+vi.mock('@/stores/toastStore', () => ({
+  toast: {
+    success: (msg: string) => toastSuccessMock(msg),
+    error: (msg: string) => toastErrorMock(msg),
+  },
+}));
+
 import { Marketplace } from '../Marketplace';
 
 function renderMarketplace() {
@@ -99,6 +108,12 @@ describe('Marketplace page', () => {
     useApiState.loading = true;
     deployMock.mockReset().mockResolvedValue({ app_id: 'app-123' });
     navigateMock.mockReset();
+    toastSuccessMock.mockReset();
+    toastErrorMock.mockReset();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
   });
 
   it('renders the hero, template count and one card per template', () => {
@@ -205,7 +220,10 @@ describe('Marketplace page', () => {
   it('shows generated credentials before navigating to the app', async () => {
     deployMock.mockResolvedValueOnce({
       app_id: 'app-generated',
-      generated_secrets: { DB_PASSWORD: 'generated-secret' },
+      generated_secrets: {
+        REDIS_PASSWORD: 'redis-secret',
+        DB_PASSWORD: 'generated-secret',
+      },
     });
     useApiState.data = {
       data: [fakeTemplate({ slug: 'wp', name: 'WordPress' })],
@@ -224,9 +242,18 @@ describe('Marketplace page', () => {
     fireEvent.click(dialogDeploy!);
 
     expect(await screen.findByText('Generated Credentials')).toBeInTheDocument();
+    expect(screen.getByText(/shown once/i)).toBeInTheDocument();
     expect(screen.getByText('DB_PASSWORD')).toBeInTheDocument();
     expect(screen.getByText('generated-secret')).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /copy credentials/i }));
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        'DB_PASSWORD=generated-secret\nREDIS_PASSWORD=redis-secret'
+      );
+    });
+    expect(toastSuccessMock).toHaveBeenCalledWith('Credentials copied');
 
     fireEvent.click(screen.getByRole('button', { name: /open app/i }));
     expect(navigateMock).toHaveBeenCalledWith('/apps/app-generated');

@@ -25,6 +25,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks';
 import { type Template } from '@/api/marketplace';
 import { marketplaceAPI } from '@/api/marketplace';
+import { generatedSecretEntries, formatGeneratedSecrets } from '@/lib/generatedSecrets';
+import { toast } from '@/stores/toastStore';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -205,11 +207,13 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
     }
   };
 
-  const copyGeneratedSecrets = () => {
-    const text = Object.entries(generatedSecrets)
-      .map(([key, value]) => `${key}=${value}`)
-      .join('\n');
-    navigator.clipboard.writeText(text);
+  const copyGeneratedSecrets = async () => {
+    try {
+      await navigator.clipboard.writeText(formatGeneratedSecrets(generatedSecrets));
+      toast.success('Credentials copied');
+    } catch {
+      toast.error('Failed to copy credentials');
+    }
   };
 
   if (Object.keys(generatedSecrets).length > 0) {
@@ -217,8 +221,11 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
       <div className="space-y-4">
         <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
           <Label className="text-sm font-medium">Generated Credentials</Label>
+          <p className="text-xs text-muted-foreground">
+            These generated values are shown once. Save them before opening the app.
+          </p>
           <div className="space-y-2">
-            {Object.entries(generatedSecrets).map(([key, value]) => (
+            {generatedSecretEntries(generatedSecrets).map(([key, value]) => (
               <div key={key} className="grid gap-1 rounded-md border bg-background px-3 py-2">
                 <span className="text-xs font-medium text-muted-foreground">{key}</span>
                 <code className="break-all text-sm">{value}</code>
