@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 )
 
 func TestSessionHandler_GetUserSessions(t *testing.T) {
@@ -59,6 +62,37 @@ func TestSessionHandler_revokeAllUserSessions(t *testing.T) {
 	keys, _ := bolt.List("user_sessions")
 	if len(keys) != 0 {
 		t.Errorf("expected 0 sessions, got %d", len(keys))
+	}
+}
+
+type testAuthServicesWithTOTP struct {
+	jwt  *auth.JWTService
+	totp *auth.TOTPService
+}
+
+func (s *testAuthServicesWithTOTP) JWT() *auth.JWTService {
+	return s.jwt
+}
+
+func (s *testAuthServicesWithTOTP) TOTP() *auth.TOTPService {
+	return s.totp
+}
+
+func TestSessionHandler_EnableTOTPRejectsMalformedJSON(t *testing.T) {
+	store := newMockStore()
+	h := NewSessionHandler(store, nil, &testAuthServicesWithTOTP{
+		jwt:  testJWT(),
+		totp: auth.NewTOTPService(store),
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/totp/enroll", strings.NewReader("{"))
+	req = withClaims(req, "user-1", "tenant-1", "role_admin", "admin@example.com")
+	rr := httptest.NewRecorder()
+
+	h.EnableTOTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for malformed JSON, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
 

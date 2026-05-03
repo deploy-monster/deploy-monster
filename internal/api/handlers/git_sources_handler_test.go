@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -48,6 +50,13 @@ func (m *mockGitProvider) DeleteWebhook(_ context.Context, _, _ string) error {
 	return nil
 }
 
+type gitSourceTestVault struct{}
+
+func (gitSourceTestVault) Encrypt(plaintext string) (string, error) { return "enc:" + plaintext, nil }
+func (gitSourceTestVault) Decrypt(ciphertext string) (string, error) {
+	return strings.TrimPrefix(ciphertext, "enc:"), nil
+}
+
 // ─── List Providers ──────────────────────────────────────────────────────────
 
 func TestGitSourceListProviders_Success(t *testing.T) {
@@ -55,7 +64,7 @@ func TestGitSourceListProviders_Success(t *testing.T) {
 	services.RegisterGitProvider("github", &mockGitProvider{})
 	services.RegisterGitProvider("gitlab", &mockGitProvider{})
 
-	handler := NewGitSourceHandler(services)
+	handler := NewGitSourceHandler(services, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/git/providers", nil)
 	rr := httptest.NewRecorder()
@@ -80,7 +89,7 @@ func TestGitSourceListProviders_Success(t *testing.T) {
 
 func TestGitSourceListProviders_Empty(t *testing.T) {
 	services := core.NewServices()
-	handler := NewGitSourceHandler(services)
+	handler := NewGitSourceHandler(services, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/git/providers", nil)
 	rr := httptest.NewRecorder()
@@ -100,6 +109,63 @@ func TestGitSourceListProviders_Empty(t *testing.T) {
 	}
 }
 
+func TestGitSourceConnectAndDisconnect(t *testing.T) {
+	services := core.NewServices()
+	services.RegisterGitProvider("github", &mockGitProvider{})
+	bolt := newMockBoltStore()
+	handler := NewGitSourceHandler(services, bolt, gitSourceTestVault{})
+
+	body := []byte(`{"type":"github","token":"ghp_test","url":"https://github.com"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/git/providers", bytes.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_owner", "owner@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Connect(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var created map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &created); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if created["token"] != nil || created["token_enc"] != nil {
+		t.Fatal("connect response must not expose token material")
+	}
+	if created["connected"] != true {
+		t.Fatalf("expected connected provider, got %#v", created["connected"])
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/git/providers", nil)
+	listReq = withClaims(listReq, "u1", "t1", "role_owner", "owner@example.com")
+	listRR := httptest.NewRecorder()
+	handler.ListProviders(listRR, listReq)
+
+	if listRR.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", listRR.Code, listRR.Body.String())
+	}
+	var listed struct {
+		Data []gitProviderView `json:"data"`
+	}
+	if err := json.Unmarshal(listRR.Body.Bytes(), &listed); err != nil {
+		t.Fatalf("unmarshal list response: %v", err)
+	}
+	if len(listed.Data) != 1 || !listed.Data[0].Connected {
+		t.Fatalf("expected connected provider in list, got %#v", listed.Data)
+	}
+
+	delReq := httptest.NewRequest(http.MethodDelete, "/api/v1/git/providers/github", nil)
+	delReq.SetPathValue("id", "github")
+	delReq = withClaims(delReq, "u1", "t1", "role_owner", "owner@example.com")
+	delRR := httptest.NewRecorder()
+	handler.Disconnect(delRR, delReq)
+
+	if delRR.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", delRR.Code, delRR.Body.String())
+	}
+}
+
 // ─── List Repos ──────────────────────────────────────────────────────────────
 
 func TestGitSourceListRepos_Success(t *testing.T) {
@@ -111,7 +177,7 @@ func TestGitSourceListRepos_Success(t *testing.T) {
 		},
 	})
 
-	handler := NewGitSourceHandler(services)
+	handler := NewGitSourceHandler(services, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/git/github/repos", nil)
 	req.SetPathValue("provider", "github")
@@ -143,7 +209,7 @@ func TestGitSourceListRepos_Pagination(t *testing.T) {
 		repos: []core.GitRepo{{FullName: "user/repo1"}},
 	})
 
-	handler := NewGitSourceHandler(services)
+	handler := NewGitSourceHandler(services, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/git/github/repos?page=3", nil)
 	req.SetPathValue("provider", "github")
@@ -166,7 +232,7 @@ func TestGitSourceListRepos_Pagination(t *testing.T) {
 
 func TestGitSourceListRepos_ProviderNotFound(t *testing.T) {
 	services := core.NewServices()
-	handler := NewGitSourceHandler(services)
+	handler := NewGitSourceHandler(services, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/git/bitbucket/repos", nil)
 	req.SetPathValue("provider", "bitbucket")
@@ -186,7 +252,7 @@ func TestGitSourceListRepos_ProviderError(t *testing.T) {
 		errRepos: errors.New("API rate limited"),
 	})
 
-	handler := NewGitSourceHandler(services)
+	handler := NewGitSourceHandler(services, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/git/github/repos", nil)
 	req.SetPathValue("provider", "github")
@@ -207,7 +273,7 @@ func TestGitSourceListBranches_Success(t *testing.T) {
 		branches: []string{"main", "develop", "feature/auth"},
 	})
 
-	handler := NewGitSourceHandler(services)
+	handler := NewGitSourceHandler(services, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/git/github/repos/user-repo/branches", nil)
 	req.SetPathValue("provider", "github")
@@ -231,7 +297,7 @@ func TestGitSourceListBranches_Success(t *testing.T) {
 
 func TestGitSourceListBranches_ProviderNotFound(t *testing.T) {
 	services := core.NewServices()
-	handler := NewGitSourceHandler(services)
+	handler := NewGitSourceHandler(services, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/git/bitbucket/repos/user-repo/branches", nil)
 	req.SetPathValue("provider", "bitbucket")
@@ -252,7 +318,7 @@ func TestGitSourceListBranches_ProviderError(t *testing.T) {
 		errBranch: errors.New("repo not found"),
 	})
 
-	handler := NewGitSourceHandler(services)
+	handler := NewGitSourceHandler(services, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/git/github/repos/user-repo/branches", nil)
 	req.SetPathValue("provider", "github")

@@ -3,6 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -26,6 +28,70 @@ type createDBRequest struct {
 	Version string `json:"version"`
 }
 
+type databaseInstanceView struct {
+	ID               string    `json:"id"`
+	Name             string    `json:"name"`
+	Engine           string    `json:"engine"`
+	Version          string    `json:"version"`
+	Status           string    `json:"status"`
+	ConnectionString string    `json:"connection_string"`
+	SizeMB           int       `json:"size_mb"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+// List handles GET /api/v1/databases.
+func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if h.runtime == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"data": []databaseInstanceView{}, "total": 0})
+		return
+	}
+
+	containers, err := h.runtime.ListByLabels(r.Context(), map[string]string{
+		"monster.managed": "database",
+		"monster.tenant":  claims.TenantID,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list databases")
+		return
+	}
+
+	instances := make([]databaseInstanceView, 0, len(containers))
+	for _, c := range containers {
+		name := c.Labels["monster.db.name"]
+		if name == "" {
+			name = c.Name
+		}
+
+		status := c.State
+		if status == "" {
+			status = c.Status
+		}
+		if strings.EqualFold(status, "running") {
+			status = "running"
+		}
+		if status == "" {
+			status = "unknown"
+		}
+
+		instances = append(instances, databaseInstanceView{
+			ID:        c.ID,
+			Name:      name,
+			Engine:    c.Labels["monster.db.engine"],
+			Version:   imageTag(c.Image),
+			Status:    status,
+			CreatedAt: time.Unix(c.Created, 0).UTC(),
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": instances, "total": len(instances)})
+}
+
 // ListEngines handles GET /api/v1/databases/engines
 func (h *DatabaseHandler) ListEngines(w http.ResponseWriter, _ *http.Request) {
 	result := make([]map[string]any, 0)
@@ -38,6 +104,14 @@ func (h *DatabaseHandler) ListEngines(w http.ResponseWriter, _ *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+}
+
+func imageTag(image string) string {
+	i := strings.LastIndex(image, ":")
+	if i < 0 || strings.Contains(image[i+1:], "/") {
+		return ""
+	}
+	return image[i+1:]
 }
 
 // Create handles POST /api/v1/databases

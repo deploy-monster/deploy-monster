@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -273,6 +274,7 @@ type totpStatusResponse struct {
 type totpEnrollResponse struct {
 	ProvisioningURI string `json:"provisioning_uri"`
 	Secret          string `json:"secret,omitempty"` // Only returned once during enrollment
+	Status          string `json:"status,omitempty"`
 }
 
 // EnableTOTP handles POST /api/v1/auth/totp/enroll
@@ -289,6 +291,25 @@ func (h *SessionHandler) EnableTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req struct {
+		Code string `json:"code"`
+	}
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+	}
+
+	if req.Code != "" {
+		if err := h.authMod.TOTP().ConfirmEnrollment(r.Context(), claims.UserID, req.Code); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, totpEnrollResponse{Status: "enabled"})
+		return
+	}
+
 	uri, err := h.authMod.TOTP().Enroll(r.Context(), claims.UserID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -297,6 +318,7 @@ func (h *SessionHandler) EnableTOTP(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, totpEnrollResponse{
 		ProvisioningURI: uri,
+		Status:          "pending",
 	})
 }
 

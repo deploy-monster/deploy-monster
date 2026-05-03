@@ -81,7 +81,7 @@ pnpm test:e2e           # Playwright (needs server on :8443)
 | OpenAPI drift | Fails on un-allowlisted drift | — |
 | Secrets scan | gitleaks on PR diff or full history | — |
 
-Playwright E2E is **continue-on-error** in CI (drifted from current UI).
+Playwright E2E is blocking in CI.
 
 ## Architecture Gotchas
 

@@ -51,7 +51,9 @@ describe('useApi', () => {
 
     expect(result.current.data).toEqual(mockData)
     expect(result.current.error).toBeNull()
-    expect(mockedApi.get).toHaveBeenCalledWith('/apps')
+    expect(mockedApi.get).toHaveBeenCalledWith('/apps', expect.objectContaining({
+      signal: expect.any(AbortSignal),
+    }))
   })
 
   it('returns error on failed fetch', async () => {
@@ -120,6 +122,20 @@ describe('useApi', () => {
     expect(mockedApi.get).toHaveBeenCalledTimes(2)
 
     vi.useRealTimers()
+  })
+
+  it('aborts the in-flight request on unmount', async () => {
+    mockedApi.get.mockReturnValue(new Promise(() => {}))
+
+    const { unmount } = renderHook(() => useApi('/apps'))
+
+    await waitFor(() => expect(mockedApi.get).toHaveBeenCalled())
+    const opts = mockedApi.get.mock.calls[0][1] as { signal: AbortSignal }
+    expect(opts.signal.aborted).toBe(false)
+
+    unmount()
+
+    expect(opts.signal.aborted).toBe(true)
   })
 })
 

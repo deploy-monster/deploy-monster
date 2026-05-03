@@ -55,6 +55,23 @@ const statsFixture = {
   events: { published: 256, errors: 0 },
 };
 
+const appFixture = {
+  id: 'app-1',
+  name: 'api',
+  type: 'service',
+  source_type: 'git',
+  status: 'running',
+  updated_at: new Date().toISOString(),
+};
+
+const activityFixture = {
+  id: 'evt-1',
+  action: 'deploy',
+  resource_type: 'application',
+  resource_id: 'api',
+  created_at: new Date().toISOString(),
+};
+
 describe('Dashboard page', () => {
   beforeEach(() => {
     clearApi();
@@ -127,6 +144,18 @@ describe('Dashboard page', () => {
     expect(
       screen.getByText(/expect a short outage between 02:00-02:30 UTC/i)
     ).toBeInTheDocument();
+  });
+
+  it('renders recent apps and activity when the API client unwraps list responses to arrays', () => {
+    setApi('/dashboard/stats', statsFixture);
+    setApi('/apps?page=1&per_page=5', [appFixture]);
+    setApi('/activity?limit=10', [activityFixture]);
+    setApi('/announcements', []);
+
+    renderDashboard();
+
+    expect(screen.getByRole('link', { name: /^api$/i })).toBeInTheDocument();
+    expect(screen.getByText('application')).toBeInTheDocument();
   });
 
   it('does not render the announcement banner when the list is empty', () => {

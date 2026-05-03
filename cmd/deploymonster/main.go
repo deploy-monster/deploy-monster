@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -63,6 +64,8 @@ func main() {
 		runVersion()
 	case "config":
 		runConfigCheck()
+	case "health":
+		runHealthCheck()
 	case "init":
 		runInit()
 	case "rotate-keys":
@@ -76,6 +79,38 @@ func main() {
 		printUsage()
 		os.Exit(1)
 	}
+}
+
+func runHealthCheck() {
+	cfg, err := core.LoadConfig("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+		os.Exit(1)
+	}
+
+	host := cfg.Server.Host
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://%s:%d/health", host, cfg.Server.Port), nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "health request error: %v\n", err)
+		os.Exit(1)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "health check failed: %v\n", err)
+		os.Exit(1)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		fmt.Fprintf(os.Stderr, "health check returned %s\n", resp.Status)
+		os.Exit(1)
+	}
+	fmt.Println("ok")
 }
 
 func runServe() {
@@ -536,6 +571,7 @@ Commands:
   serve        Start the DeployMonster server (default)
   version      Print version information
   config       Validate and display current configuration
+  health       Probe the local HTTP health endpoint
   setup        Interactive setup wizard (domain, SSL, admin credentials)
   rotate-keys  Re-encrypt all secrets with a new encryption key
   help         Show this help
@@ -552,6 +588,7 @@ Examples:
   deploymonster serve --agent --master=host:8443 --token=xxx  Start as agent
   deploymonster version                                  Show version
   deploymonster config                                   Check configuration
+  deploymonster health                                   Check local server health
 
 Documentation: https://github.com/deploy-monster/deploy-monster/tree/master/docs
 `, version)

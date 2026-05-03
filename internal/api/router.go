@@ -376,6 +376,9 @@ func (r *Router) registerRoutes() {
 	statsH := handlers.NewStatsHandler(r.core.Services.Container, r.store)
 	r.mux.Handle("GET /api/v1/apps/{id}/stats", protected(http.HandlerFunc(statsH.AppStats)))
 	r.mux.Handle("GET /api/v1/servers/stats", protected(http.HandlerFunc(statsH.ServerStats)))
+	monitoringH := handlers.NewMonitoringHandler(r.core, r.startedAt)
+	r.mux.Handle("GET /api/v1/metrics/server", protected(http.HandlerFunc(monitoringH.Metrics)))
+	r.mux.Handle("GET /api/v1/alerts", protected(http.HandlerFunc(monitoringH.Alerts)))
 	scaleH := handlers.NewScaleHandler(r.store, r.core.Events)
 	r.mux.Handle("POST /api/v1/apps/{id}/scale", protected(http.HandlerFunc(scaleH.Scale)))
 
@@ -483,6 +486,8 @@ func (r *Router) registerRoutes() {
 
 	// ── Team ───────────────────────────────────────────
 	teamH := handlers.NewTeamHandler(r.store, r.core.Events)
+	r.mux.Handle("GET /api/v1/team/members", protected(http.HandlerFunc(teamH.ListMembers)))
+	r.mux.Handle("DELETE /api/v1/team/members/{id}", protectedPerm(auth.PermMemberRemove, teamH.RemoveMember))
 	r.mux.Handle("GET /api/v1/team/roles", protected(http.HandlerFunc(teamH.ListRoles)))
 	inviteH := handlers.NewInviteHandler(r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/team/invites", protected(http.HandlerFunc(inviteH.List)))
@@ -491,6 +496,7 @@ func (r *Router) registerRoutes() {
 
 	// ── Databases ─────────────────────────────────────
 	dbH := handlers.NewDatabaseHandler(r.store, r.core.Services.Container, r.core.Events)
+	r.mux.Handle("GET /api/v1/databases", protected(http.HandlerFunc(dbH.List)))
 	r.mux.HandleFunc("GET /api/v1/databases/engines", dbH.ListEngines)
 	r.mux.Handle("POST /api/v1/databases", protectedPerm(auth.PermDatabaseManage, dbH.Create))
 
@@ -499,10 +505,13 @@ func (r *Router) registerRoutes() {
 	backupH := handlers.NewBackupHandler(r.store, backupStorage, r.core.Events)
 	r.mux.Handle("GET /api/v1/backups", protected(http.HandlerFunc(backupH.List)))
 	r.mux.Handle("POST /api/v1/backups", protected(http.HandlerFunc(backupH.Create)))
+	r.mux.Handle("POST /api/v1/backups/{key}/restore", protected(http.HandlerFunc(backupH.Restore)))
 	r.mux.Handle("GET /api/v1/backups/{key}/download", protected(http.HandlerFunc(backupH.Download)))
 
 	// ── Servers / VPS ─────────────────────────────────
 	serverH := handlers.NewServerHandler(r.store, r.core.Services, r.core.Events)
+	r.mux.Handle("GET /api/v1/servers", protected(http.HandlerFunc(serverH.List)))
+	r.mux.Handle("POST /api/v1/servers", protected(http.HandlerFunc(serverH.Create)))
 	r.mux.Handle("GET /api/v1/servers/providers", protected(http.HandlerFunc(serverH.ListProviders)))
 	r.mux.Handle("GET /api/v1/servers/providers/{provider}/regions", protected(http.HandlerFunc(serverH.ListRegions)))
 	r.mux.Handle("GET /api/v1/servers/providers/{provider}/sizes", protected(http.HandlerFunc(serverH.ListSizes)))
@@ -524,19 +533,6 @@ func (r *Router) registerRoutes() {
 	storageH := handlers.NewStorageHandler(r.store, r.core.Services.Container, r.core.DB.Bolt)
 	r.mux.Handle("GET /api/v1/storage/usage", protected(http.HandlerFunc(storageH.Usage)))
 
-	// ── Git Sources ───────────────────────────────────
-	gitH := handlers.NewGitSourceHandler(r.core.Services)
-	r.mux.Handle("GET /api/v1/git/providers", protected(http.HandlerFunc(gitH.ListProviders)))
-	r.mux.Handle("GET /api/v1/git/{provider}/repos", protected(http.HandlerFunc(gitH.ListRepos)))
-	r.mux.Handle("GET /api/v1/git/{provider}/repos/{repo}/branches", protected(http.HandlerFunc(gitH.ListBranches)))
-
-	// ── Compose Stacks ────────────────────────────────
-	composeH := handlers.NewComposeHandler(r.store, r.core.Services.Container, r.core.Events)
-	composeH.SetServerContext(r.serverCtx)
-	r.mux.Handle("POST /api/v1/stacks", protectedPerm(auth.PermAppCreate, composeH.Deploy))
-	r.mux.Handle("POST /api/v1/stacks/validate", protected(http.HandlerFunc(composeH.Validate)))
-
-	// ── Secrets ───────────────────────────────────────
 	var vault interface {
 		Encrypt(string) (string, error)
 		Decrypt(string) (string, error)
@@ -553,9 +549,26 @@ func (r *Router) registerRoutes() {
 			vault = vp.Vault()
 		}
 	}
+
+	// ── Git Sources ───────────────────────────────────
+	gitH := handlers.NewGitSourceHandler(r.core.Services, r.core.DB.Bolt, vault)
+	r.mux.Handle("GET /api/v1/git/providers", protected(http.HandlerFunc(gitH.ListProviders)))
+	r.mux.Handle("POST /api/v1/git/providers", protected(http.HandlerFunc(gitH.Connect)))
+	r.mux.Handle("DELETE /api/v1/git/providers/{id}", protected(http.HandlerFunc(gitH.Disconnect)))
+	r.mux.Handle("GET /api/v1/git/{provider}/repos", protected(http.HandlerFunc(gitH.ListRepos)))
+	r.mux.Handle("GET /api/v1/git/{provider}/repos/{repo}/branches", protected(http.HandlerFunc(gitH.ListBranches)))
+
+	// ── Compose Stacks ────────────────────────────────
+	composeH := handlers.NewComposeHandler(r.store, r.core.Services.Container, r.core.Events)
+	composeH.SetServerContext(r.serverCtx)
+	r.mux.Handle("POST /api/v1/stacks", protectedPerm(auth.PermAppCreate, composeH.Deploy))
+	r.mux.Handle("POST /api/v1/stacks/validate", protected(http.HandlerFunc(composeH.Validate)))
+
+	// ── Secrets ───────────────────────────────────────
 	secretH := handlers.NewSecretHandler(r.store, vault, r.core.Events)
 	r.mux.Handle("GET /api/v1/secrets", protected(http.HandlerFunc(secretH.List)))
 	r.mux.Handle("POST /api/v1/secrets", protectedPerm(auth.PermSecretCreate, secretH.Create))
+	r.mux.Handle("DELETE /api/v1/secrets/{id}", protectedPerm(auth.PermSecretDelete, secretH.Delete))
 
 	// ── Billing ───────────────────────────────────────
 	billingH := handlers.NewBillingHandler(r.store)
@@ -665,7 +678,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/topology/deploy/{projectId}/progress", protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		projectID := r.PathValue("projectId")
 		if projectID == "" {
-			http.Error(w, "project ID required", http.StatusBadRequest)
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "project ID required"})
 			return
 		}
 		ws.GetDeployHub().ServeWS(w, r, projectID)

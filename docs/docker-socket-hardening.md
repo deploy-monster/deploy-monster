@@ -90,7 +90,7 @@ services:
     # only on the internal bridge network.
 
   deploymonster:
-    image: ghcr.io/deploy-monster/deploymonster:latest
+    image: ghcr.io/deploy-monster/deploy-monster:latest
     container_name: deploymonster
     restart: unless-stopped
     depends_on:

@@ -37,6 +37,7 @@ var (
 	bucketWebhooks      = []byte("webhooks")
 	bucketRevokedTokens = []byte("revoked_tokens")
 	bucketVault         = []byte("vault")
+	bucketGitProviders  = []byte("git_provider_connections")
 )
 
 // BoltStore wraps a BBolt database for key-value operations with TTL support.
@@ -60,7 +61,7 @@ func NewBoltStore(path string) (*BoltStore, error) {
 			bucketApproval, bucketMaintenance, bucketMiddleware, bucketMetrics,
 			bucketAnnouncements, bucketCertificates, bucketSSHKeys,
 			bucketLogRetention, bucketEventWebhooks, bucketWebhookLogs, bucketWebhooks,
-			bucketRevokedTokens, bucketVault,
+			bucketRevokedTokens, bucketVault, bucketGitProviders,
 		} {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
 				return err

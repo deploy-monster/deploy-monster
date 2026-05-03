@@ -21,15 +21,25 @@ export function useApi<T>(path: string, options: UseApiOptions = {}) {
     loading: immediate,
   });
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetch = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const response = await api.get<T>(path);
+      const response = await api.get<T>(path, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       setState({ data: response, error: null, loading: false });
     } catch (err) {
+      if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : 'Request failed';
       setState(prev => ({ ...prev, error: message, loading: false }));
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
     }
   }, [path]);
 
@@ -45,6 +55,10 @@ export function useApi<T>(path: string, options: UseApiOptions = {}) {
       return () => clearInterval(intervalRef.current);
     }
   }, [fetch, refreshInterval]);
+
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
 
   return { ...state, refetch: fetch };
 }
@@ -77,4 +91,3 @@ export function useMutation<TInput = unknown, TOutput = unknown>(
 
   return { ...state, mutate };
 }
-

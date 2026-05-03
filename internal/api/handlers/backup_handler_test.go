@@ -198,3 +198,29 @@ func TestBackupCreate_InvalidJSON(t *testing.T) {
 	}
 	assertErrorMessage(t, rr, "invalid request body")
 }
+
+func TestBackupRestore_Success(t *testing.T) {
+	store := newMockStore()
+	storage := &mockBackupStorage{fileData: "backup-data"}
+	events := core.NewEventBus(slog.Default())
+	handler := NewBackupHandler(store, storage, events)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/backups/backup-001.tar.gz/restore", nil)
+	req.SetPathValue("key", "backup-001.tar.gz")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Restore(rr, req)
+
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp["status"] != "queued" {
+		t.Errorf("expected status 'queued', got %q", resp["status"])
+	}
+}

@@ -36,7 +36,7 @@ docker run -d --name deploymonster \
   -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  ghcr.io/deploy-monster/deploymonster:v0.1.8
+  ghcr.io/deploy-monster/deploy-monster:v0.1.8
 ```
 
 Open `http://<host>:8443`. First-run admin credentials are printed to
@@ -72,9 +72,8 @@ tenant checks at one layer.
   categories (WordPress, Ghost, n8n, Grafana, Ollama, …).
 
 ### Platform
-- **205 REST API routes** (90 currently in `docs/openapi.yaml`; the
-  remaining 115 are tracked in `docs/openapi-drift-allowlist.txt` and
-  being added incrementally).
+- **234 REST API routes**, all tracked in `docs/openapi.yaml`; CI
+  (`openapi-gen`) fails on code/spec drift.
 - **Custom reverse proxy** — no Traefik/Nginx dependency, automatic
   Let's Encrypt via `autocert`. Five LB strategies (round-robin,
   least-conn, IP-hash, random, weighted + canary).
@@ -115,7 +114,7 @@ tenant checks at one layer.
 │                DeployMonster single binary (~24 MB)             │
 ├─────────┬─────────┬─────────┬──────────┬─────────┬──────────────┤
 │ Web UI  │  REST   │  SSE    │ Webhooks │ Ingress │  MCP server  │
-│ shadcn  │ 205 rt  │ Stream  │  In+Out  │ :80/443 │  9 AI tools  │
+│ shadcn  │ 234 rt  │ Stream  │  In+Out  │ :80/443 │  9 AI tools  │
 ├─────────┴─────────┴─────────┴──────────┴─────────┴──────────────┤
 │                20 auto-registered modules                       │
 │  auth │ deploy │ build │ ingress │ dns │ secrets │ billing │   │
@@ -203,7 +202,7 @@ bundle-size budget).
 ## Project stats
 
 - **~188 K** total LOC (~50 K Go source, ~117 K Go tests, ~22 K React/TS/CSS)
-- **205** registered HTTP routes
+- **234** registered HTTP routes
 - **20** auto-registered modules
 - **91** marketplace templates
 - **17** fuzz targets (input parsing, webhook HMAC, JWT validate, secret resolver, cross-tenant router)
@@ -237,10 +236,8 @@ Things we are explicitly *not* pretending to be ready:
   cost; deferred until a paying customer asks for it.
 - **Route53 DNS** is deferred for the same reason. Cloudflare is
   the only DNS provider that ships today.
-- **OpenAPI coverage is partial** — 197 of 207 routes are documented
-  in the spec. CI (`openapi-gen`) fails if undocumented routes are
-  added; 10 routes are allowlisted as ongoing gaps (admin routes).
-  Handlers are authoritative; the spec is catching up.
+- **OpenAPI coverage is enforced** — registered routes and
+  `docs/openapi.yaml` must match, with an empty drift allowlist.
 - **E2E Playwright suite** is blocking (no `continue-on-error`),
   green on master. Retries enabled for flakiness resilience.
 - **Distributed tracing** is stubbed (OpenTelemetry SDK pulled in

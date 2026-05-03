@@ -42,6 +42,7 @@ import {
 import { useAuthStore } from '../../stores/auth';
 import { useThemeStore } from '../../stores/theme';
 import { useApi } from '../../hooks';
+import type { PaginatedResponse } from '@/api/client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,18 +123,24 @@ const themes: { key: ThemeKey; icon: React.ElementType; label: string }[] = [
 // Badge count hook — fetches app & domain totals
 // ---------------------------------------------------------------------------
 
+function listCount<T>(response: PaginatedResponse<T> | T[] | null | undefined): number | undefined {
+  if (!response) return undefined;
+  if (Array.isArray(response)) return response.length;
+  return response.total ?? response.data?.length;
+}
+
 function useBadgeCounts(): Record<string, number | undefined> {
-  const { data: appsData } = useApi<{ data: unknown[]; total?: number }>(
+  const { data: appsData } = useApi<PaginatedResponse<unknown> | unknown[]>(
     '/apps?page=1&per_page=1',
     { refreshInterval: 60000 },
   );
-  const { data: domainsData } = useApi<unknown[]>('/domains', {
+  const { data: domainsData } = useApi<PaginatedResponse<unknown> | unknown[]>('/domains', {
     refreshInterval: 60000,
   });
 
   return {
-    apps: appsData?.total ?? appsData?.data?.length,
-    domains: Array.isArray(domainsData) ? domainsData.length : undefined,
+    apps: listCount(appsData),
+    domains: listCount(domainsData),
   };
 }
 

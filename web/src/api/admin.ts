@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, type PaginatedResponse } from './client';
 
 export interface SystemInfo {
   version: string;
@@ -29,9 +29,26 @@ export interface AdminSettings {
   backup_retention_days: number;
 }
 
+export interface APIKey {
+  prefix: string;
+  type: string;
+  created_by: string;
+  created_at: string;
+  expires_at?: string;
+}
+
+export interface GenerateAPIKeyResponse {
+  key: string;
+  prefix: string;
+  type: string;
+  message: string;
+}
+
 export const adminAPI = {
   system: () => api.get<SystemInfo>('/admin/system'),
-  tenants: () => api.get<Tenant[]>('/admin/tenants'),
-  saveSettings: (data: AdminSettings) => api.put('/admin/settings', data),
-  generateApiKey: () => api.post<{ key: string }>('/admin/api-keys'),
+  tenants: () => api.get<PaginatedResponse<Tenant>>('/admin/tenants'),
+  saveSettings: (data: AdminSettings) => api.patch('/admin/settings', data),
+  apiKeys: () => api.get<APIKey[]>('/admin/api-keys'),
+  generateApiKey: () => api.post<GenerateAPIKeyResponse>('/admin/api-keys'),
+  revokeApiKey: (prefix: string) => api.delete(`/admin/api-keys/${encodeURIComponent(prefix)}`),
 };

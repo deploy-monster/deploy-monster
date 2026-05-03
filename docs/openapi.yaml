@@ -1155,6 +1155,20 @@ paths:
       responses:
         "201":
           description: Secret created
+  /api/v1/secrets/{id}:
+    delete:
+      operationId: deleteSecret
+      tags: [Secrets]
+      summary: Delete a secret
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Secret deleted
 
   # ── Billing ───────────────────────────────────────────
   /api/v1/billing/plans:
@@ -1433,9 +1447,19 @@ paths:
       operationId: enrollTOTP
       tags: [Auth]
       summary: Enroll current user in TOTP MFA
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: Code from the authenticator app to confirm a pending enrollment
       responses:
         "200":
-          description: TOTP provisioning URI generated
+          description: TOTP provisioning URI generated or enrollment confirmed
           content:
             application/json:
               schema:
@@ -1446,6 +1470,9 @@ paths:
                   secret:
                     type: string
                     description: Returned only during enrollment when available
+                  status:
+                    type: string
+                    enum: [pending, enabled]
         "400":
           description: TOTP enrollment failed
         "401":
@@ -1529,6 +1556,13 @@ paths:
                       $ref: "#/components/schemas/DatabaseEngine"
 
   /api/v1/databases:
+    get:
+      operationId: listDatabases
+      tags: [Databases]
+      summary: List managed database instances
+      responses:
+        "200":
+          description: Database instance list
     post:
       operationId: createDatabase
       tags: [Databases]
@@ -1596,6 +1630,21 @@ paths:
       responses:
         "202":
           description: Backup started
+
+  /api/v1/backups/{key}/restore:
+    post:
+      operationId: restoreBackup
+      tags: [Backups]
+      summary: Restore a backup archive
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Restore started
 
   /api/v1/backups/{key}/download:
     get:
@@ -1734,6 +1783,44 @@ paths:
       responses:
         "200":
           description: Git provider list
+    post:
+      operationId: connectGitProvider
+      tags: [Git]
+      summary: Connect a git provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, token]
+              properties:
+                type:
+                  type: string
+                  enum: [github, gitlab, gitea, bitbucket]
+                token:
+                  type: string
+                  format: password
+                url:
+                  type: string
+      responses:
+        "201":
+          description: Connected git provider
+
+  /api/v1/git/providers/{id}:
+    delete:
+      operationId: disconnectGitProvider
+      tags: [Git]
+      summary: Disconnect a git provider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Git provider disconnected
 
   /api/v1/git/{provider}/repos:
     get:
@@ -2208,6 +2295,214 @@ paths:
       responses:
         "200":
           description: License activated
+
+  /api/v1/admin/keys/revoke-all:
+    post:
+      operationId: revokeAllJwtKeys
+      tags: [Admin]
+      summary: Revoke all previous JWT signing keys
+      responses:
+        "200":
+          description: Previous keys revoked
+
+  /api/v1/admin/db/status:
+    get:
+      operationId: getDatabaseBackupStatus
+      tags: [Admin]
+      summary: Get database backup status
+      responses:
+        "200":
+          description: Database backup status
+
+  /api/v1/admin/db/migrations:
+    get:
+      operationId: getDatabaseMigrationStatus
+      tags: [Admin]
+      summary: Get database migration status
+      responses:
+        "200":
+          description: Migration status
+
+  /api/v1/admin/disk:
+    get:
+      operationId: getAdminDiskUsage
+      tags: [Admin]
+      summary: Get platform disk usage
+      responses:
+        "200":
+          description: Disk usage summary
+
+  /api/v1/admin/tenants/{id}/ratelimit:
+    get:
+      operationId: getTenantRateLimit
+      tags: [Admin]
+      summary: Get tenant rate limit settings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tenant rate limit settings
+    put:
+      operationId: updateTenantRateLimit
+      tags: [Admin]
+      summary: Update tenant rate limit settings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Tenant rate limit settings updated
+
+  /api/v1/admin/updates:
+    get:
+      operationId: checkAdminUpdates
+      tags: [Admin]
+      summary: Check for available platform updates
+      responses:
+        "200":
+          description: Update status
+
+  /api/v1/announcements:
+    get:
+      operationId: listAnnouncements
+      tags: [Admin]
+      summary: List active platform announcements
+      responses:
+        "200":
+          description: Active announcement list
+
+  /api/v1/admin/announcements:
+    post:
+      operationId: createAnnouncement
+      tags: [Admin]
+      summary: Create a platform announcement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Announcement created
+
+  /api/v1/admin/announcements/{id}:
+    delete:
+      operationId: dismissAnnouncement
+      tags: [Admin]
+      summary: Dismiss a platform announcement
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Announcement dismissed
+
+  /api/v1/branding:
+    get:
+      operationId: getBranding
+      tags: [Admin]
+      summary: Get public branding settings
+      responses:
+        "200":
+          description: Branding settings
+
+  /api/v1/admin/branding:
+    patch:
+      operationId: updateBranding
+      tags: [Admin]
+      summary: Update platform branding settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Branding settings updated
+
+  # ── Monitoring ──────────────────────────────────────
+  /api/v1/metrics/server:
+    get:
+      operationId: getServerMetricsSummary
+      tags: [Monitoring]
+      summary: Get current server metrics summary
+      responses:
+        "200":
+          description: Server metrics summary
+
+  /api/v1/alerts:
+    get:
+      operationId: listAlerts
+      tags: [Monitoring]
+      summary: List platform alert states
+      responses:
+        "200":
+          description: Alert list
+
+  # ── Servers ─────────────────────────────────────────
+  /api/v1/servers:
+    get:
+      operationId: listServers
+      tags: [Servers]
+      summary: List server nodes
+      responses:
+        "200":
+          description: Server node list
+    post:
+      operationId: createServer
+      tags: [Servers]
+      summary: Register or provision a server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Server provisioning started
+
+  # ── Team ────────────────────────────────────────────
+  /api/v1/team/members:
+    get:
+      operationId: listTeamMembers
+      tags: [Team]
+      summary: List tenant team members
+      responses:
+        "200":
+          description: Team member list
+  /api/v1/team/members/{id}:
+    delete:
+      operationId: removeTeamMember
+      tags: [Team]
+      summary: Remove a team member
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Team member removed
 
   # ── Events & Search ──────────────────────────────────
   /api/v1/events/stream:

@@ -45,6 +45,8 @@ func TestListDomains_All(t *testing.T) {
 
 func TestListDomains_ByApp(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1"})
+	store.addApp(&core.Application{ID: "app2", TenantID: "tenant1"})
 	store.addDomain(&core.Domain{ID: "d1", AppID: "app1", FQDN: "example.com", Type: "custom"})
 	store.addDomain(&core.Domain{ID: "d2", AppID: "app2", FQDN: "other.com", Type: "custom"})
 
@@ -70,6 +72,25 @@ func TestListDomains_ByApp(t *testing.T) {
 	}
 }
 
+func TestListDomains_ByAppRejectsForeignTenant(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant2"})
+	store.addDomain(&core.Domain{ID: "d1", AppID: "app1", FQDN: "foreign.example.com", Type: "custom"})
+
+	events := core.NewEventBus(nil)
+	handler := NewDomainHandler(store, events)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/domains?app_id=app1", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.List(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestListDomains_NoClaims(t *testing.T) {
 	store := newMockStore()
 	events := core.NewEventBus(nil)
@@ -87,7 +108,7 @@ func TestListDomains_NoClaims(t *testing.T) {
 
 func TestListDomains_StoreError(t *testing.T) {
 	store := newMockStore()
-	store.errListAllDomains = errors.New("db error")
+	store.errListAppsByTenant = errors.New("db error")
 
 	events := core.NewEventBus(nil)
 	handler := NewDomainHandler(store, events)
@@ -105,6 +126,7 @@ func TestListDomains_StoreError(t *testing.T) {
 
 func TestListDomains_ByApp_StoreError(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1"})
 	store.errListDomainsByApp = errors.New("db error")
 
 	events := core.NewEventBus(nil)

@@ -21,9 +21,10 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/theme';
+import { useApi } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { api } from '@/api/client';
-import { adminAPI } from '@/api/admin';
+import { adminAPI, type APIKey } from '@/api/admin';
 import { toast } from '@/stores/toastStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,13 +85,28 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
+function formatDate(date: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(date));
+}
+
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 
 export function Settings() {
   const user = useAuthStore((s) => s.user);
+  const updateUser = useAuthStore((s) => s.updateUser);
   const { theme, setTheme } = useThemeStore();
+  const canManageAPIKeys = user?.role === 'role_super_admin';
+  const { data: totpStatus, refetch: refetchTOTPStatus } =
+    useApi<{ enabled: boolean }>('/auth/totp/status');
+  const { data: apiKeys, refetch: refetchAPIKeys } = useApi<APIKey[]>('/admin/api-keys', {
+    immediate: canManageAPIKeys,
+  });
 
   // Profile
   const [editName, setEditName] = useState(user?.name || '');
@@ -101,12 +117,17 @@ export function Settings() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
-  const [twoFA, setTwoFA] = useState(false);
+  const [totpOverride, setTOTPOverride] = useState<boolean | null>(null);
+  const [totpURI, setTOTPURI] = useState('');
+  const [totpCode, setTOTPCode] = useState('');
+  const [updatingTOTP, setUpdatingTOTP] = useState(false);
 
   // API Key
   const [generatedKey, setGeneratedKey] = useState('');
+  const [generatedKeyPrefix, setGeneratedKeyPrefix] = useState('');
   const [copied, setCopied] = useState(false);
   const [generatingKey, setGeneratingKey] = useState(false);
+  const [revokingKey, setRevokingKey] = useState('');
 
   // Notifications
   const [notifications, setNotifications] = useState({
@@ -121,11 +142,15 @@ export function Settings() {
     { id: 'dark' as const, label: 'Dark', icon: Moon },
     { id: 'system' as const, label: 'System', icon: Monitor },
   ];
+  const twoFAEnabled = totpOverride ?? totpStatus?.enabled ?? false;
+  const totpSetupPending = Boolean(totpURI);
+  const activeAPIKeys = apiKeys || [];
 
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      await api.patch('/auth/me', { name: editName });
+      const updatedUser = await api.patch<{ name?: string }>('/auth/me', { name: editName });
+      updateUser({ name: updatedUser?.name || editName });
       toast.success('Profile updated');
     } catch {
       toast.error('Failed to update profile');
@@ -152,11 +177,58 @@ export function Settings() {
     }
   };
 
+  const handleToggleTOTP = async (enabled: boolean) => {
+    setUpdatingTOTP(true);
+    try {
+      if (enabled) {
+        const result = await api.post<{ provisioning_uri?: string }>('/auth/totp/enroll', {});
+        setTOTPURI(result?.provisioning_uri || '');
+        setTOTPOverride(null);
+        toast.success('Two-factor authentication setup started');
+      } else {
+        if (totpSetupPending && !twoFAEnabled) {
+          setTOTPURI('');
+          setTOTPCode('');
+          return;
+        }
+        await api.post('/auth/totp/disable', { code: totpCode });
+        setTOTPURI('');
+        setTOTPCode('');
+        setTOTPOverride(false);
+        toast.success('Two-factor authentication disabled');
+      }
+      refetchTOTPStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update two-factor authentication');
+    } finally {
+      setUpdatingTOTP(false);
+    }
+  };
+
+  const handleConfirmTOTP = async () => {
+    if (!totpCode) return;
+    setUpdatingTOTP(true);
+    try {
+      await api.post('/auth/totp/enroll', { code: totpCode });
+      setTOTPURI('');
+      setTOTPCode('');
+      setTOTPOverride(true);
+      refetchTOTPStatus();
+      toast.success('Two-factor authentication enabled');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to confirm two-factor authentication');
+    } finally {
+      setUpdatingTOTP(false);
+    }
+  };
+
   const handleGenerateKey = async () => {
     setGeneratingKey(true);
     try {
       const result = await adminAPI.generateApiKey();
       setGeneratedKey(result.key);
+      setGeneratedKeyPrefix(result.prefix);
+      refetchAPIKeys();
       toast.success('API key generated -- save it now!');
     } catch {
       toast.error('Failed to generate API key');
@@ -165,9 +237,26 @@ export function Settings() {
     }
   };
 
-  const handleRevokeKey = () => {
-    setGeneratedKey('');
-    toast.success('API key revoked');
+  const handleRevokeKey = async (prefix: string) => {
+    if (!prefix) {
+      setGeneratedKey('');
+      setGeneratedKeyPrefix('');
+      return;
+    }
+    setRevokingKey(prefix);
+    try {
+      await adminAPI.revokeApiKey(prefix);
+      if (generatedKeyPrefix === prefix) {
+        setGeneratedKey('');
+        setGeneratedKeyPrefix('');
+      }
+      refetchAPIKeys();
+      toast.success('API key revoked');
+    } catch {
+      toast.error('Failed to revoke API key');
+    } finally {
+      setRevokingKey('');
+    }
   };
 
   const handleCopy = () => {
@@ -459,86 +548,195 @@ export function Settings() {
                 </div>
                 <Switch
                   aria-label="Enable 2FA"
-                  checked={twoFA}
-                  onCheckedChange={setTwoFA}
+                  checked={twoFAEnabled || totpSetupPending}
+                  onCheckedChange={handleToggleTOTP}
+                  disabled={updatingTOTP}
                 />
               </div>
-              {twoFA && (
-                <div className="flex items-center gap-2 mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5 max-w-md">
-                  <Check className="size-4 text-emerald-500 shrink-0" />
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                    Two-factor authentication is enabled for your account.
-                  </p>
+              {totpSetupPending && (
+                <div className="mt-3 space-y-3 max-w-md">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="totp-uri">Enrollment URI</Label>
+                    <Input
+                      id="totp-uri"
+                      value={totpURI}
+                      readOnly
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      aria-label="Authentication code"
+                      value={totpCode}
+                      onChange={(e) => setTOTPCode(e.target.value)}
+                      placeholder="Authentication code"
+                      className="font-mono"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={handleConfirmTOTP}
+                      disabled={updatingTOTP || !totpCode}
+                    >
+                      Verify
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {twoFAEnabled && !totpSetupPending && (
+                <div className="mt-3 space-y-3 max-w-md">
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
+                    <Check className="size-4 text-emerald-500 shrink-0" />
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                      Two-factor authentication is enabled for your account.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      aria-label="Authentication code"
+                      value={totpCode}
+                      onChange={(e) => setTOTPCode(e.target.value)}
+                      placeholder="Authentication code"
+                      className="font-mono"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => handleToggleTOTP(false)}
+                      disabled={updatingTOTP || !totpCode}
+                    >
+                      Disable
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
           {/* API Keys */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Key className="size-4 text-primary" />
-                    API Keys
-                  </CardTitle>
-                  <CardDescription>Generate keys for programmatic access to the API.</CardDescription>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGenerateKey}
-                  disabled={generatingKey}
-                >
-                  {generatingKey ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Key className="size-3.5" />
-                  )}
-                  Generate New Key
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {generatedKey ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
-                    <AlertCircle className="size-4 text-amber-500 shrink-0" />
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      Save this key now. It will not be shown again after you leave this page.
-                    </p>
+          {canManageAPIKeys && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Key className="size-4 text-primary" />
+                      API Keys
+                    </CardTitle>
+                    <CardDescription>Generate keys for programmatic access to the API.</CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 truncate rounded-lg border bg-muted/50 px-3 py-2.5 font-mono text-sm">
-                      {generatedKey}
-                    </code>
-                    <Button variant="outline" size="icon" onClick={handleCopy} className="shrink-0">
-                      {copied ? (
-                        <Check className="size-4 text-emerald-500" />
-                      ) : (
-                        <Copy className="size-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <Button variant="destructive" size="sm" onClick={handleRevokeKey}>
-                    <Trash2 className="size-3.5" />
-                    Revoke Key
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateKey}
+                    disabled={generatingKey}
+                  >
+                    {generatingKey ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Key className="size-3.5" />
+                    )}
+                    Generate New Key
                   </Button>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center py-8 text-center">
-                  <div className="rounded-full bg-muted p-4 mb-3">
-                    <Key className="size-6 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {generatedKey ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
+                      <AlertCircle className="size-4 text-amber-500 shrink-0" />
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Save this key now. It will not be shown again after you leave this page.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 truncate rounded-lg border bg-muted/50 px-3 py-2.5 font-mono text-sm">
+                        {generatedKey}
+                      </code>
+                      <Button variant="outline" size="icon" onClick={handleCopy} className="shrink-0">
+                        {copied ? (
+                          <Check className="size-4 text-emerald-500" />
+                        ) : (
+                          <Copy className="size-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleRevokeKey(generatedKeyPrefix)}
+                      disabled={revokingKey === generatedKeyPrefix}
+                    >
+                      <Trash2 className="size-3.5" />
+                      Revoke Key
+                    </Button>
+                    {activeAPIKeys.length > 0 && <Separator />}
+                    {activeAPIKeys.length > 0 && (
+                      <div className="space-y-2">
+                        {activeAPIKeys.map((key) => (
+                          <div key={key.prefix} className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+                            <div>
+                              <p className="font-mono text-sm text-foreground">{key.prefix}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {key.type} . Created {formatDate(key.created_at)}
+                              </p>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRevokeKey(key.prefix)}
+                              disabled={revokingKey === key.prefix}
+                            >
+                              {revokingKey === key.prefix ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="size-3.5" />
+                              )}
+                              Revoke
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-sm font-medium text-foreground mb-1">No API keys</p>
-                  <p className="text-xs text-muted-foreground max-w-xs">
-                    Generate an API key to access the DeployMonster API programmatically from scripts and integrations.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                ) : activeAPIKeys.length > 0 ? (
+                  <div className="space-y-2">
+                    {activeAPIKeys.map((key) => (
+                      <div key={key.prefix} className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+                        <div>
+                          <p className="font-mono text-sm text-foreground">{key.prefix}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {key.type} . Created {formatDate(key.created_at)}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRevokeKey(key.prefix)}
+                          disabled={revokingKey === key.prefix}
+                        >
+                          {revokingKey === key.prefix ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-3.5" />
+                          )}
+                          Revoke
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center py-8 text-center">
+                    <div className="rounded-full bg-muted p-4 mb-3">
+                      <Key className="size-6 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm font-medium text-foreground mb-1">No API keys</p>
+                    <p className="text-xs text-muted-foreground max-w-xs">
+                      Generate an API key to access the DeployMonster API programmatically from scripts and integrations.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

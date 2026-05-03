@@ -4,7 +4,7 @@ version: "3.8"
 
 services:
   deploymonster:
-    image: deploymonster/deploymonster:latest
+    image: ghcr.io/deploy-monster/deploy-monster:latest
     container_name: deploymonster
     restart: unless-stopped
     ports:
@@ -25,7 +25,7 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "curl", "-f", "-k", "https://localhost:8443/api/v1/health"]
+      test: ["CMD", "/deploymonster", "health"]
       interval: 30s
       timeout: 5s
       retries: 3

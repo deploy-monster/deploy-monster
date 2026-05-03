@@ -165,7 +165,7 @@ function CardSkeleton() {
 export function Servers() {
   const { data: servers, loading, refetch } = useApi<ServerNode[]>('/servers');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [provider, setProvider] = useState('hetzner');
+  const [provider, setProvider] = useState('custom');
   const [hostname, setHostname] = useState('');
   const [region, setRegion] = useState('');
   const [size, setSize] = useState('small');
@@ -202,8 +202,8 @@ export function Servers() {
     }
   };
 
-  const list = servers || [];
-  const activeCount = list.filter((s) => s.status === 'active' || s.status === 'running').length;
+  const remoteServers = (servers || []).filter((s) => s.id !== 'local' && s.provider !== 'local');
+  const activeCount = remoteServers.filter((s) => s.status === 'active' || s.status === 'running').length;
 
   return (
     <div className="space-y-8">
@@ -214,8 +214,8 @@ export function Servers() {
             <div className="flex items-center gap-2 mb-2">
               <Server className="size-5 text-primary" />
               <Badge variant="secondary" className="text-xs font-normal">
-                {list.length + 1} server{list.length !== 0 ? 's' : ''}
-                {activeCount > 0 && ` \u00b7 ${activeCount + 1} active`}
+                {remoteServers.length + 1} server{remoteServers.length !== 0 ? 's' : ''}
+                {' \u00b7 '}{activeCount + 1} active
               </Badge>
             </div>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
@@ -351,7 +351,7 @@ export function Servers() {
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={adding}>
               Cancel
             </Button>
-            <Button onClick={handleAdd} disabled={!hostname || adding}>
+            <Button onClick={handleAdd} disabled={!hostname || (isCustom && !ipAddress) || adding}>
               {adding ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
@@ -413,7 +413,7 @@ export function Servers() {
           </Card>
 
           {/* Remote servers */}
-          {list.map((s) => {
+          {remoteServers.map((s) => {
             const providerCfg = getProviderConfig(s.provider);
             const isActive = s.status === 'active' || s.status === 'running';
 

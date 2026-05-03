@@ -42,7 +42,7 @@ interface DeployTemplateRequest {
   config?: Record<string, string>;
 }
 
-export interface DeployTemplateResponse {
+interface DeployTemplateResponse {
   app_id: string;
   name?: string;
   template?: string;

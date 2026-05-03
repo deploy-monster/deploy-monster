@@ -73,6 +73,48 @@ func (s *SQLiteDB) GetUserMembership(ctx context.Context, userID string) (*core.
 	return tm, err
 }
 
+// ListTeamMembers returns active members for a tenant.
+func (s *SQLiteDB) ListTeamMembers(ctx context.Context, tenantID string) ([]core.TeamMember, error) {
+	rows, err := s.QueryContext(ctx,
+		`SELECT id, tenant_id, user_id, role_id, status, created_at
+		 FROM team_members WHERE tenant_id = ? AND status = 'active'
+		 ORDER BY created_at ASC LIMIT 500`, tenantID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var members []core.TeamMember
+	for rows.Next() {
+		var tm core.TeamMember
+		if err := rows.Scan(&tm.ID, &tm.TenantID, &tm.UserID, &tm.RoleID, &tm.Status, &tm.CreatedAt); err != nil {
+			return nil, err
+		}
+		members = append(members, tm)
+	}
+	return members, rows.Err()
+}
+
+// RemoveTeamMember marks an active team member as removed.
+func (s *SQLiteDB) RemoveTeamMember(ctx context.Context, tenantID, memberID string) error {
+	res, err := s.ExecContext(ctx,
+		`UPDATE team_members SET status = 'removed' WHERE id = ? AND tenant_id = ? AND status = 'active'`,
+		memberID, tenantID,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return core.ErrNotFound
+	}
+	return nil
+}
+
 // GetRole retrieves a role by ID.
 func (s *SQLiteDB) GetRole(ctx context.Context, roleID string) (*core.Role, error) {
 	r := &core.Role{}

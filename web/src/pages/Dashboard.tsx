@@ -41,6 +41,13 @@ import {
 import type { App } from '../api/apps';
 import type { DashboardStats, ActivityEntry } from '../api/dashboard';
 
+interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -229,14 +236,14 @@ function StatusBadge({ status }: { status: string }) {
 
 export function Dashboard() {
   const { data: stats, loading: statsLoading } = useApi<DashboardStats>('/dashboard/stats', { refreshInterval: 30000 });
-  const { data: appsData } = useApi<{ data: App[] }>('/apps?page=1&per_page=5');
-  const { data: activityData } = useApi<{ data: ActivityEntry[] }>('/activity?limit=10');
-  const { data: announcementsData } = useApi<{ data: Array<{ id: string; title: string; body: string; type: string }> }>('/announcements');
+  const { data: appsData } = useApi<App[] | { data: App[] }>('/apps?page=1&per_page=5');
+  const { data: activityData } = useApi<ActivityEntry[] | { data: ActivityEntry[] }>('/activity?limit=10');
+  const { data: announcementsData } = useApi<Announcement[] | { data: Announcement[] }>('/announcements');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const apps = appsData?.data || [];
-  const activity = activityData?.data || [];
-  const announcements = announcementsData?.data || [];
+  const apps = Array.isArray(appsData) ? appsData : appsData?.data || [];
+  const activity = Array.isArray(activityData) ? activityData : activityData?.data || [];
+  const announcements = Array.isArray(announcementsData) ? announcementsData : announcementsData?.data || [];
 
   const greeting = useMemo(() => getGreeting(), []);
 

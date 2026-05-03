@@ -33,7 +33,7 @@ docker run -d \
   -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  ghcr.io/deploy-monster/deploymonster:latest
+  ghcr.io/deploy-monster/deploy-monster:latest
 ```
 
 ### Option 4: Build from Source

@@ -39,10 +39,15 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	apps, _, err := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 10000, 0)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
 	var results []SearchResult
 
 	// Search apps
-	apps, _, _ := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 100, 0)
 	for _, app := range apps {
 		if strings.Contains(strings.ToLower(app.Name), query) {
 			results = append(results, SearchResult{
@@ -51,18 +56,28 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Search domains
-	domains, _ := h.store.ListAllDomains(r.Context())
-	for _, d := range domains {
-		if strings.Contains(strings.ToLower(d.FQDN), query) {
-			results = append(results, SearchResult{
-				Type: "domain", ID: d.ID, Name: d.FQDN, Info: d.Type,
-			})
+	// Search domains for the current tenant's applications only.
+	for _, app := range apps {
+		domains, err := h.store.ListDomainsByApp(r.Context(), app.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		for _, d := range domains {
+			if strings.Contains(strings.ToLower(d.FQDN), query) {
+				results = append(results, SearchResult{
+					Type: "domain", ID: d.ID, Name: d.FQDN, Info: d.Type,
+				})
+			}
 		}
 	}
 
 	// Search projects
-	projects, _ := h.store.ListProjectsByTenant(r.Context(), claims.TenantID)
+	projects, err := h.store.ListProjectsByTenant(r.Context(), claims.TenantID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
 	for _, p := range projects {
 		if strings.Contains(strings.ToLower(p.Name), query) {
 			results = append(results, SearchResult{

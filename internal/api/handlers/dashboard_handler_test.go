@@ -22,6 +22,7 @@ func TestDashboardStats_Success(t *testing.T) {
 
 	store.addDomain(&core.Domain{ID: "d1", AppID: "app1", FQDN: "app1.example.com"})
 	store.addDomain(&core.Domain{ID: "d2", AppID: "app2", FQDN: "app2.example.com"})
+	store.addDomain(&core.Domain{ID: "d3", AppID: "foreign-app", FQDN: "foreign.example.com"})
 
 	store.addProject("tenant1", core.Project{ID: "proj1", TenantID: "tenant1", Name: "Project One"})
 

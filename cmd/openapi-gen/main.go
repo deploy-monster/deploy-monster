@@ -1,5 +1,5 @@
 // Command openapi-gen audits docs/openapi.yaml against the routes
-// registered in internal/api/router.go and fails on drift.
+// registered in internal/api/*.go and fails on drift.
 //
 // It does not emit a full spec — that is a much larger job that would
 // have to introspect handler types, request/response schemas, and
@@ -10,7 +10,7 @@
 // Usage:
 //
 //	go run ./cmd/openapi-gen
-//	go run ./cmd/openapi-gen -router=internal/api/router.go -spec=docs/openapi.yaml
+//	go run ./cmd/openapi-gen -router=internal/api -spec=docs/openapi.yaml
 //	go run ./cmd/openapi-gen -bootstrap         # rewrite the allowlist with the current gap
 //
 // Exit codes:
@@ -77,7 +77,7 @@ func (s routeSet) keys() []string {
 }
 
 func main() {
-	routerPath := flag.String("router", "internal/api/router.go", "path to router.go")
+	routerPath := flag.String("router", "internal/api", "path to router.go or an API package directory")
 	specPath := flag.String("spec", "docs/openapi.yaml", "path to openapi.yaml")
 	allowlistPath := flag.String("allowlist", defaultAllowlistPath, "path to drift-allowlist file")
 	bootstrap := flag.Bool("bootstrap", false, "rewrite the allowlist from the current gap (do not run in CI)")
@@ -188,13 +188,47 @@ func main() {
 	)
 }
 
-// parseRouter extracts every routeMethod+path registered in router.go.
+// parseRouter extracts every routeMethod+path registered in the router source.
 func parseRouter(path string) (routeSet, error) {
-	data, err := os.ReadFile(path)
+	stat, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
+
 	set := routeSet{}
+	if !stat.IsDir() {
+		if err := parseRouterFile(path, set); err != nil {
+			return nil, err
+		}
+		return set, nil
+	}
+
+	err = filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(p, ".go") && !strings.HasSuffix(p, "_test.go") {
+			return parseRouterFile(p, set)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return set, nil
+}
+
+func parseRouterFile(path string, set routeSet) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
 	for _, m := range routeRegex.FindAllSubmatch(data, -1) {
 		method := string(m[1])
 		p := string(m[2])
@@ -206,7 +240,7 @@ func parseRouter(path string) (routeSet, error) {
 		}
 		set.add(route{Method: method, Path: p})
 	}
-	return set, nil
+	return nil
 }
 
 // parseSpec extracts every path+method pair from the OpenAPI document.

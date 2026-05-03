@@ -58,6 +58,7 @@ const FILTER_TABS = [
 ] as const;
 
 type FilterKey = (typeof FILTER_TABS)[number]['key'];
+type AppsResponse = App[] | { data: App[]; total?: number };
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -143,12 +144,15 @@ function AppCardSkeleton() {
 /* ------------------------------------------------------------------ */
 
 export function Apps() {
-  const { data: appsResponse, loading, refetch } = useApi<{ data: App[]; total: number }>(
+  const { data: appsResponse, loading, refetch } = useApi<AppsResponse>(
     '/apps?page=1&per_page=50',
     { refreshInterval: 10000 }
   );
-  const allApps = useMemo(() => appsResponse?.data || [], [appsResponse?.data]);
-  const total = appsResponse?.total || 0;
+  const allApps = useMemo(
+    () => (Array.isArray(appsResponse) ? appsResponse : appsResponse?.data || []),
+    [appsResponse]
+  );
+  const total = Array.isArray(appsResponse) ? allApps.length : appsResponse?.total || allApps.length;
 
   const [filter, setFilter] = useState<FilterKey>('all');
   const [search, setSearch] = useState('');

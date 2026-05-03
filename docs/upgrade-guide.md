@@ -157,8 +157,8 @@ Look for:
 sudo systemctl stop deploymonster
 
 # Copy the database file and the secrets vault
-sudo cp /var/lib/deploymonster/deploymonster.db /var/lib/deploymonster/deploymonster.db.bak
-sudo cp /var/lib/deploymonster/deploymonster.bolt /var/lib/deploymonster/deploymonster.bolt.bak
+sudo cp /var/lib/deploy-monster/deploy-monster.db /var/lib/deploy-monster/deploy-monster.db.bak
+sudo cp /var/lib/deploy-monster/deploy-monster.bolt /var/lib/deploy-monster/deploy-monster.bolt.bak
 
 # (Optional) keep a copy offsite
 tar czf deploymonster-backup-$(date +%F).tar.gz \
@@ -235,7 +235,7 @@ history, domain list.
 
 ```bash
 # Pull the new tag
-docker pull ghcr.io/deploy-monster/deploymonster:vX.Y.Z
+docker pull ghcr.io/deploy-monster/deploy-monster:vX.Y.Z
 
 # Stop the running container (volume data persists)
 docker stop deploymonster
@@ -247,14 +247,14 @@ docker run -d \
   -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  ghcr.io/deploy-monster/deploymonster:vX.Y.Z
+  ghcr.io/deploy-monster/deploy-monster:vX.Y.Z
 ```
 
 Or with `docker-compose.prod.yml`:
 
 ```bash
 # Pin the new version
-sed -i 's|ghcr.io/deploy-monster/deploymonster:.*|ghcr.io/deploy-monster/deploymonster:vX.Y.Z|' \
+sed -i 's|ghcr.io/deploy-monster/deploy-monster:.*|ghcr.io/deploy-monster/deploy-monster:vX.Y.Z|' \
   docker-compose.prod.yml
 
 docker compose -f docker-compose.prod.yml pull
@@ -272,8 +272,8 @@ the previous binary.
 sudo systemctl stop deploymonster
 
 # Restore the database from your step-2 backup
-sudo cp /var/lib/deploymonster/deploymonster.db.bak /var/lib/deploymonster/deploymonster.db
-sudo cp /var/lib/deploymonster/deploymonster.bolt.bak /var/lib/deploymonster/deploymonster.bolt
+sudo cp /var/lib/deploy-monster/deploy-monster.db.bak /var/lib/deploy-monster/deploy-monster.db
+sudo cp /var/lib/deploy-monster/deploy-monster.bolt.bak /var/lib/deploy-monster/deploy-monster.bolt
 
 # Put the old binary back
 sudo mv /usr/local/bin/deploymonster.previous /usr/local/bin/deploymonster
@@ -292,7 +292,7 @@ docker run -d --name deploymonster \
   -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  ghcr.io/deploy-monster/deploymonster:<PREVIOUS_VERSION>
+  ghcr.io/deploy-monster/deploy-monster:<PREVIOUS_VERSION>
 ```
 
 Volume data from the failed upgrade stays in place. If the new version

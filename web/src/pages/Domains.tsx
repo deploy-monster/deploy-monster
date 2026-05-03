@@ -15,6 +15,7 @@ import {
   Search,
 } from 'lucide-react';
 import type { Domain } from '@/api/domains';
+import type { PaginatedResponse } from '@/api/client';
 import { api } from '@/api/client';
 import { useApi } from '@/hooks';
 import { Button } from '@/components/ui/button';
@@ -76,7 +77,7 @@ function TableSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function Domains() {
-  const { data: domains, loading, refetch } = useApi<Domain[]>('/domains');
+  const { data: domains, loading, refetch } = useApi<PaginatedResponse<Domain> | Domain[]>('/domains');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newFQDN, setNewFQDN] = useState('');
   const [newAppID, setNewAppID] = useState('');
@@ -87,8 +88,7 @@ export function Domains() {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery);
   const [deleteDomainId, setDeleteDomainId] = useState<string | null>(null);
-  // Defensive: ensure domains is always an array (handles API response edge cases)
-  const domainList: Domain[] = Array.isArray(domains) ? domains : [];
+  const domainList = Array.isArray(domains) ? domains : domains?.data || [];
   const pendingDeleteDomain = domainList.find((d) => d.id === deleteDomainId);
 
   const handleAdd = async () => {

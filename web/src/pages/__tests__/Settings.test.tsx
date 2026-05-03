@@ -10,11 +10,12 @@ const fakeUser = {
   id: 'u1',
   email: 'alice@example.com',
   name: 'Alice',
-  role: 'role_admin',
+  role: 'role_super_admin',
 };
+const updateUserMock = vi.fn();
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: (selector: (s: { user: typeof fakeUser }) => unknown) =>
-    selector({ user: fakeUser }),
+  useAuthStore: (selector: (s: { user: typeof fakeUser; updateUser: typeof updateUserMock }) => unknown) =>
+    selector({ user: fakeUser, updateUser: updateUserMock }),
 }));
 
 // Theme store — called as `useThemeStore()` returning { theme, setTheme }.
@@ -32,22 +33,25 @@ vi.mock('@/stores/theme', () => ({
   }),
 }));
 
-// API client — Settings calls api.patch('/auth/me', ...) and
-// api.post('/auth/change-password', ...).
+// API client — Settings calls profile, password and TOTP endpoints.
+const apiGetMock = vi.fn();
 const apiPatchMock = vi.fn();
 const apiPostMock = vi.fn();
 vi.mock('@/api/client', () => ({
   api: {
+    get: (path: string) => apiGetMock(path),
     patch: (path: string, body: unknown) => apiPatchMock(path, body),
     post: (path: string, body: unknown) => apiPostMock(path, body),
   },
 }));
 
-// adminAPI.generateApiKey is the only admin call.
+// Admin API helpers for key generation/revocation.
 const generateApiKeyMock = vi.fn();
+const revokeApiKeyMock = vi.fn();
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     generateApiKey: () => generateApiKeyMock(),
+    revokeApiKey: (prefix: string) => revokeApiKeyMock(prefix),
   },
 }));
 
@@ -74,10 +78,18 @@ function renderSettings() {
 describe('Settings page', () => {
   beforeEach(() => {
     themeValue = 'system';
+    fakeUser.role = 'role_super_admin';
     setThemeMock.mockReset();
+    updateUserMock.mockReset();
+    apiGetMock.mockReset().mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      if (path === '/admin/api-keys') return Promise.resolve([]);
+      return Promise.resolve(null);
+    });
     apiPatchMock.mockReset().mockResolvedValue(undefined);
     apiPostMock.mockReset().mockResolvedValue(undefined);
     generateApiKeyMock.mockReset();
+    revokeApiKeyMock.mockReset().mockResolvedValue(undefined);
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
   });
@@ -116,6 +128,7 @@ describe('Settings page', () => {
     await waitFor(() =>
       expect(toastSuccessMock).toHaveBeenCalledWith('Profile updated')
     );
+    expect(updateUserMock).toHaveBeenCalledWith({ name: 'Alice Zhang' });
   });
 
   it('surfaces a toast.error when the profile save rejects', async () => {
@@ -215,7 +228,10 @@ describe('Settings page', () => {
     );
   });
 
-  it('shows a 2FA confirmation banner after flipping the Enable 2FA switch', () => {
+  it('starts 2FA enrollment and confirms it with an authentication code', async () => {
+    apiPostMock.mockResolvedValueOnce({
+      provisioning_uri: 'otpauth://totp/DeployMonster:alice@example.com?secret=abc',
+    }).mockResolvedValueOnce({ status: 'enabled' });
     renderSettings();
     fireEvent.click(screen.getByRole('tab', { name: /security/i }));
 
@@ -227,13 +243,44 @@ describe('Settings page', () => {
     // There's exactly one switch on the Security tab (Enable 2FA).
     fireEvent.click(screen.getByRole('switch'));
 
-    expect(
-      screen.getByText(/two-factor authentication is enabled/i)
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(apiPostMock).toHaveBeenCalledWith('/auth/totp/enroll', {})
+    );
+    expect(screen.getByDisplayValue(/otpauth:\/\/totp/i)).toBeInTheDocument();
+    expect(toastSuccessMock).toHaveBeenCalledWith('Two-factor authentication setup started');
+
+    fireEvent.change(screen.getByLabelText(/authentication code/i), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^verify$/i }));
+
+    await waitFor(() =>
+      expect(apiPostMock).toHaveBeenCalledWith('/auth/totp/enroll', { code: '123456' })
+    );
+    expect(await screen.findByText(/two-factor authentication is enabled/i)).toBeInTheDocument();
+    expect(toastSuccessMock).toHaveBeenCalledWith('Two-factor authentication enabled');
+  });
+
+  it('disables 2FA through the API when an authentication code is supplied', async () => {
+    apiGetMock.mockResolvedValue({ enabled: true });
+    renderSettings();
+    fireEvent.click(screen.getByRole('tab', { name: /security/i }));
+
+    expect(await screen.findByText(/two-factor authentication is enabled/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/authentication code/i), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^disable$/i }));
+
+    await waitFor(() =>
+      expect(apiPostMock).toHaveBeenCalledWith('/auth/totp/disable', { code: '123456' })
+    );
+    expect(toastSuccessMock).toHaveBeenCalledWith('Two-factor authentication disabled');
   });
 
   it('reveals the generated key after adminAPI.generateApiKey resolves', async () => {
-    generateApiKeyMock.mockResolvedValueOnce({ key: 'dm_test_abc123' });
+    generateApiKeyMock.mockResolvedValueOnce({ key: 'dm_test_abc123', prefix: 'dm_test' });
     renderSettings();
     fireEvent.click(screen.getByRole('tab', { name: /security/i }));
 
@@ -243,8 +290,17 @@ describe('Settings page', () => {
     expect(toastSuccessMock).toHaveBeenCalledWith('API key generated -- save it now!');
   });
 
-  it('revokes the generated key and restores the empty state', async () => {
-    generateApiKeyMock.mockResolvedValueOnce({ key: 'dm_test_xyz789' });
+  it('hides API keys for non-super-admin users and skips the admin endpoint', () => {
+    fakeUser.role = 'role_admin';
+    renderSettings();
+    fireEvent.click(screen.getByRole('tab', { name: /security/i }));
+
+    expect(screen.queryByRole('button', { name: /generate new key/i })).not.toBeInTheDocument();
+    expect(apiGetMock).not.toHaveBeenCalledWith('/admin/api-keys');
+  });
+
+  it('revokes the generated key through the API and restores the empty state', async () => {
+    generateApiKeyMock.mockResolvedValueOnce({ key: 'dm_test_xyz789', prefix: 'dm_test' });
     renderSettings();
     fireEvent.click(screen.getByRole('tab', { name: /security/i }));
     fireEvent.click(screen.getByRole('button', { name: /generate new key/i }));
@@ -253,9 +309,35 @@ describe('Settings page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /revoke key/i }));
 
-    expect(screen.queryByText('dm_test_xyz789')).not.toBeInTheDocument();
+    await waitFor(() => expect(revokeApiKeyMock).toHaveBeenCalledWith('dm_test'));
+    await waitFor(() => expect(screen.queryByText('dm_test_xyz789')).not.toBeInTheDocument());
     // Empty state header
     expect(screen.getByText(/no api keys/i)).toBeInTheDocument();
+  });
+
+  it('lists existing API key prefixes and revokes them through the API', async () => {
+    apiGetMock.mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      if (path === '/admin/api-keys') {
+        return Promise.resolve([
+          {
+            prefix: 'dm_live_abcd',
+            type: 'platform',
+            created_by: 'u1',
+            created_at: '2026-01-02T03:04:05Z',
+          },
+        ]);
+      }
+      return Promise.resolve(null);
+    });
+    renderSettings();
+    fireEvent.click(screen.getByRole('tab', { name: /security/i }));
+
+    expect(await screen.findByText('dm_live_abcd')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^revoke$/i }));
+
+    await waitFor(() => expect(revokeApiKeyMock).toHaveBeenCalledWith('dm_live_abcd'));
+    expect(toastSuccessMock).toHaveBeenCalledWith('API key revoked');
   });
 
   it('falls back to a generic error toast when key generation rejects', async () => {

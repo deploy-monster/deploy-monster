@@ -72,6 +72,45 @@ func TestAdminAPIKeys_Generate_Success(t *testing.T) {
 	}
 }
 
+func TestAdminAPIKeys_List_DoesNotExposeHashes(t *testing.T) {
+	bolt := newMockBoltStore()
+	handler := NewAdminAPIKeyHandler(newMockStore(), bolt)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys", nil)
+	req = withClaims(req, "user1", "tenant1", "role_super_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+	handler.Generate(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("generate expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/api-keys", nil)
+	rr = httptest.NewRecorder()
+	handler.List(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("list expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	data, ok := resp["data"].([]any)
+	if !ok || len(data) != 1 {
+		t.Fatalf("expected one key, got %#v", resp["data"])
+	}
+	item, ok := data[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected object key item, got %#v", data[0])
+	}
+	if _, ok := item["hash"]; ok {
+		t.Fatal("list response must not expose API key hashes")
+	}
+	if item["prefix"] == "" || item["type"] != "platform" || item["created_by"] != "user1" {
+		t.Fatalf("unexpected key item: %#v", item)
+	}
+}
+
 // ─── Revoke API Key ──────────────────────────────────────────────────────────
 
 func TestAdminAPIKeys_Revoke_Success(t *testing.T) {

@@ -19,6 +19,7 @@ interface AuthState {
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
   initialize: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 let initPromise: Promise<void> | null = null;
@@ -76,6 +77,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     // POST to logout endpoint (clears server-side cookies)
     api.post('/auth/logout', {}).catch(() => {});
     set({ user: null, isAuthenticated: false });
+  },
+
+  updateUser: (updates) => {
+    set((state) => ({
+      user: state.user ? { ...state.user, ...updates } : state.user,
+    }));
   },
 
   initialize: async () => {

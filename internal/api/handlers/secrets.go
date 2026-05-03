@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -34,6 +35,10 @@ type createSecretRequest struct {
 	AppID       string `json:"app_id,omitempty"`
 }
 
+type secretDeleteStore interface {
+	DeleteSecret(ctx context.Context, tenantID, secretID string) error
+}
+
 // Create handles POST /api/v1/secrets
 func (h *SecretHandler) Create(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
@@ -56,6 +61,42 @@ func (h *SecretHandler) Create(w http.ResponseWriter, r *http.Request) {
 	scope := req.Scope
 	if scope == "" {
 		scope = "tenant"
+	}
+	switch scope {
+	case "global", "tenant", "project", "app":
+	default:
+		writeError(w, http.StatusBadRequest, "scope must be one of: global, tenant, project, app")
+		return
+	}
+	if scope == "app" && req.AppID == "" {
+		writeError(w, http.StatusBadRequest, "app_id is required for app-scoped secrets")
+		return
+	}
+	if req.AppID != "" {
+		app, err := h.store.GetApp(r.Context(), req.AppID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "application not found")
+			return
+		}
+		if app.TenantID != claims.TenantID {
+			writeError(w, http.StatusForbidden, "access denied")
+			return
+		}
+	}
+	if scope == "project" && req.ProjectID == "" {
+		writeError(w, http.StatusBadRequest, "project_id is required for project-scoped secrets")
+		return
+	}
+	if req.ProjectID != "" {
+		project, err := h.store.GetProject(r.Context(), req.ProjectID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "project not found")
+			return
+		}
+		if project.TenantID != claims.TenantID {
+			writeError(w, http.StatusForbidden, "access denied")
+			return
+		}
 	}
 
 	// Encrypt the value
@@ -109,6 +150,38 @@ func (h *SecretHandler) Create(w http.ResponseWriter, r *http.Request) {
 		"encrypted":   len(encrypted) > 0,
 		"reference":   "${SECRET:" + req.Name + "}",
 	})
+}
+
+// Delete handles DELETE /api/v1/secrets/{id}.
+func (h *SecretHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "secret id is required")
+		return
+	}
+
+	store, ok := h.store.(secretDeleteStore)
+	if !ok {
+		writeError(w, http.StatusNotImplemented, "secret deletion is not supported by this store")
+		return
+	}
+
+	if err := store.DeleteSecret(r.Context(), claims.TenantID, id); err != nil {
+		if err == core.ErrNotFound {
+			writeError(w, http.StatusNotFound, "secret not found")
+		} else {
+			writeError(w, http.StatusInternalServerError, "failed to delete secret")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // List handles GET /api/v1/secrets

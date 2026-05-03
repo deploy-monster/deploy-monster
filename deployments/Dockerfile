@@ -27,7 +27,8 @@ RUN apk add --no-cache ca-certificates tzdata curl \
     && addgroup -S monster \
     && adduser -S monster -G monster
 
-COPY --from=go-builder /deploymonster /usr/local/bin/deploymonster
+COPY --from=go-builder /deploymonster /deploymonster
+RUN ln -s /deploymonster /usr/local/bin/deploymonster
 
 # Create data directory
 RUN mkdir -p /var/lib/deploymonster && chown monster:monster /var/lib/deploymonster
@@ -37,7 +38,7 @@ USER monster
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8443/health || exit 1
+    CMD /deploymonster health
 
 EXPOSE 8443 80 443
 VOLUME ["/var/lib/deploymonster"]

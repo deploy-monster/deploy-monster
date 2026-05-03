@@ -28,15 +28,20 @@ func (h *DashboardHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// App counts
-	_, totalApps, err := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 1, 0)
+	tenantApps, totalApps, err := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 10000, 0)
 	if err != nil {
 		slog.Warn("dashboard: failed to list apps", "error", err)
 	}
 
-	// Domain count
-	domains, err := h.store.ListAllDomains(r.Context())
-	if err != nil {
-		slog.Warn("dashboard: failed to list domains", "error", err)
+	// Domain count, scoped through the current tenant's applications.
+	domainCount := 0
+	for _, app := range tenantApps {
+		domains, err := h.store.ListDomainsByApp(r.Context(), app.ID)
+		if err != nil {
+			slog.Warn("dashboard: failed to list domains", "app_id", app.ID, "error", err)
+			continue
+		}
+		domainCount += len(domains)
 	}
 
 	// Project count
@@ -74,7 +79,7 @@ func (h *DashboardHandler) Stats(w http.ResponseWriter, r *http.Request) {
 			"stopped": stopped,
 			"total":   running + stopped,
 		},
-		"domains":  len(domains),
+		"domains":  domainCount,
 		"projects": len(projects),
 		"events": map[string]any{
 			"published": eventStats.PublishCount,

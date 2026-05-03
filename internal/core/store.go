@@ -52,9 +52,9 @@ type UserStore interface {
 	UpdateLastLogin(ctx context.Context, userID string) error
 	CountUsers(ctx context.Context) (int, error)
 	CreateUserWithMembership(ctx context.Context, email, passwordHash, name, status, tenantID, roleID string) (string, error)
-	// UpdateTOTPEnabled enables or disables TOTP for a user.
-	// When enabling, the totp_secret_enc should be a bcrypt hash of the TOTP secret.
-	// When disabling, totp_secret_enc should be empty.
+	// UpdateTOTPEnabled enables/disables TOTP and stores the encrypted TOTP secret.
+	// During enrollment, enabled may be false while totpSecretEnc contains a pending secret.
+	// When disabling, totpSecretEnc should be empty.
 	UpdateTOTPEnabled(ctx context.Context, userID string, enabled bool, totpSecretEnc string) error
 }
 

@@ -33,6 +33,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
 import { AlertDialog } from '@/components/ui/alert-dialog';
+import type { PaginatedResponse } from '@/api/client';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -147,7 +148,7 @@ function AuditSkeleton() {
 
 export function Team() {
   const { data: members, loading: membersLoading, refetch: refetchMembers } = useApi<TeamMember[]>('/team/members');
-  const { data: auditLog, loading: auditLoading } = useApi<AuditEntry[]>('/team/audit-log');
+  const { data: auditLog, loading: auditLoading } = useApi<PaginatedResponse<AuditEntry> | AuditEntry[]>('/team/audit-log');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('role_developer');
@@ -170,7 +171,7 @@ export function Team() {
   };
 
   const memberList = members || [];
-  const auditList = auditLog || [];
+  const auditList = Array.isArray(auditLog) ? auditLog : auditLog?.data || [];
   const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
   const pendingRemoveMember = memberList.find((m) => m.id === removeMemberId);
 

@@ -93,7 +93,7 @@ func TestListProviders_Success(t *testing.T) {
 	}
 }
 
-func TestListProviders_Empty(t *testing.T) {
+func TestListProviders_IncludesCustomFallback(t *testing.T) {
 	services := core.NewServices()
 	store := newMockStore()
 	events := core.NewEventBus(nil)
@@ -112,8 +112,12 @@ func TestListProviders_Empty(t *testing.T) {
 	json.Unmarshal(rr.Body.Bytes(), &resp)
 
 	data := resp["data"].([]any)
-	if len(data) != 0 {
-		t.Errorf("expected 0 providers, got %d", len(data))
+	if len(data) != 1 {
+		t.Fatalf("expected 1 provider, got %d", len(data))
+	}
+	provider := data[0].(map[string]any)
+	if provider["id"] != "custom" {
+		t.Errorf("expected custom provider fallback, got %v", provider["id"])
 	}
 }
 
@@ -428,6 +432,39 @@ func TestProvision_UnknownProvider(t *testing.T) {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 	assertErrorMessage(t, rr, "unknown provider: unknown")
+}
+
+func TestProvision_CustomProviderFallback(t *testing.T) {
+	services := core.NewServices()
+	store := newMockStore()
+	events := core.NewEventBus(nil)
+	handler := NewServerHandler(store, services, events)
+
+	body, _ := json.Marshal(provisionRequest{
+		Provider:  "custom",
+		Hostname:  "web-01",
+		IPAddress: "203.0.113.10",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp core.VPSInstance
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.IPAddress != "203.0.113.10" {
+		t.Errorf("expected request IP copied to response, got %q", resp.IPAddress)
+	}
+	if resp.Region != "custom" {
+		t.Errorf("expected custom region, got %q", resp.Region)
+	}
 }
 
 func TestProvision_ProviderError(t *testing.T) {

@@ -66,6 +66,41 @@ func (h *BackupHandler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Restore handles POST /api/v1/backups/{key}/restore
+func (h *BackupHandler) Restore(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	key, ok := requirePathParam(w, r, "key")
+	if !ok {
+		return
+	}
+	if h.storage == nil {
+		writeError(w, http.StatusServiceUnavailable, "backup storage not configured")
+		return
+	}
+
+	reader, err := h.storage.Download(r.Context(), key)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "backup not found")
+		return
+	}
+	reader.Close()
+
+	h.events.Publish(r.Context(), core.NewTenantEvent(
+		"backup.restore_started", "api", claims.TenantID, claims.UserID,
+		map[string]string{"key": key},
+	))
+
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"status":  "queued",
+		"message": "restore job has been queued",
+	})
+}
+
 // Download handles GET /api/v1/backups/{key}/download
 func (h *BackupHandler) Download(w http.ResponseWriter, r *http.Request) {
 	key, ok := requirePathParam(w, r, "key")

@@ -29,6 +29,14 @@ type apiKeyRecord struct {
 	ExpiresAt *time.Time `json:"expires_at,omitempty"` // nil = no expiry
 }
 
+type apiKeyListItem struct {
+	Prefix    string     `json:"prefix"`
+	Type      string     `json:"type"`
+	CreatedBy string     `json:"created_by"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+}
+
 // apiKeyIndex maintains the list of all active API key prefixes.
 type apiKeyIndex struct {
 	Prefixes []string `json:"prefixes"`
@@ -42,11 +50,17 @@ func (h *AdminAPIKeyHandler) List(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	keys := make([]apiKeyRecord, 0, len(idx.Prefixes))
+	keys := make([]apiKeyListItem, 0, len(idx.Prefixes))
 	for _, prefix := range idx.Prefixes {
 		var rec apiKeyRecord
 		if err := h.bolt.Get("api_keys", prefix, &rec); err == nil {
-			keys = append(keys, rec)
+			keys = append(keys, apiKeyListItem{
+				Prefix:    rec.Prefix,
+				Type:      rec.Type,
+				CreatedBy: rec.CreatedBy,
+				CreatedAt: rec.CreatedAt,
+				ExpiresAt: rec.ExpiresAt,
+			})
 		}
 	}
 

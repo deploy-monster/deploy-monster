@@ -38,7 +38,7 @@ services:
       - no-new-privileges:true
 
   deploymonster:
-    image: ghcr.io/deploy-monster/deploymonster:latest
+    image: ghcr.io/deploy-monster/deploy-monster:latest
     container_name: deploymonster
     restart: unless-stopped
     depends_on:
@@ -58,7 +58,7 @@ services:
       - dm-internal
       - default
     healthcheck:
-      test: ["CMD", "curl", "-f", "-k", "https://localhost:8443/api/v1/health"]
+      test: ["CMD", "/deploymonster", "health"]
       interval: 30s
       timeout: 5s
       retries: 3

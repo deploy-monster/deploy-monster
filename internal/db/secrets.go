@@ -77,6 +77,26 @@ func (s *SQLiteDB) ListSecretsByTenant(ctx context.Context, tenantID string) ([]
 	return secrets, rows.Err()
 }
 
+// DeleteSecret deletes one tenant-owned secret. Secret versions are removed by
+// the database's ON DELETE CASCADE constraint.
+func (s *SQLiteDB) DeleteSecret(ctx context.Context, tenantID, secretID string) error {
+	res, err := s.ExecContext(ctx,
+		`DELETE FROM secrets WHERE id = ? AND tenant_id = ?`,
+		secretID, tenantID,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return core.ErrNotFound
+	}
+	return nil
+}
+
 // GetSecretByScopeAndName returns a secret by its scope and name.
 func (s *SQLiteDB) GetSecretByScopeAndName(ctx context.Context, scope, name string) (*core.Secret, error) {
 	var secret core.Secret

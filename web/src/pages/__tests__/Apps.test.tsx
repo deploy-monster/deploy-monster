@@ -167,6 +167,19 @@ describe('Apps page', () => {
     expect(within(gammaCard).getByText('Deploying')).toBeInTheDocument();
   });
 
+  it('renders apps when the API client unwraps a paginated response to an array', () => {
+    useApiState.data = [
+      fakeApp({ id: 'a1', name: 'alpha', status: 'running', source_type: 'git' }),
+      fakeApp({ id: 'a2', name: 'beta', status: 'stopped', source_type: 'docker' }),
+    ];
+    useApiState.loading = false;
+    renderApps();
+
+    expect(screen.getByText('alpha')).toBeInTheDocument();
+    expect(screen.getByText('beta')).toBeInTheDocument();
+    expect(screen.getByText('2 applications deployed')).toBeInTheDocument();
+  });
+
   it('filters by status when a segment tab is clicked', () => {
     useApiState.data = {
       data: [

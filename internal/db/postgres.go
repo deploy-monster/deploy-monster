@@ -820,6 +820,46 @@ func (p *PostgresDB) GetUserMembership(ctx context.Context, userID string) (*cor
 	return tm, err
 }
 
+func (p *PostgresDB) ListTeamMembers(ctx context.Context, tenantID string) ([]core.TeamMember, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, tenant_id, user_id, role_id, status, created_at
+		 FROM team_members WHERE tenant_id = $1 AND status = 'active'
+		 ORDER BY created_at ASC LIMIT 500`, tenantID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var members []core.TeamMember
+	for rows.Next() {
+		var tm core.TeamMember
+		if err := rows.Scan(&tm.ID, &tm.TenantID, &tm.UserID, &tm.RoleID, &tm.Status, &tm.CreatedAt); err != nil {
+			return nil, err
+		}
+		members = append(members, tm)
+	}
+	return members, rows.Err()
+}
+
+func (p *PostgresDB) RemoveTeamMember(ctx context.Context, tenantID, memberID string) error {
+	res, err := p.db.ExecContext(ctx,
+		`UPDATE team_members SET status = 'removed' WHERE id = $1 AND tenant_id = $2 AND status = 'active'`,
+		memberID, tenantID,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return core.ErrNotFound
+	}
+	return nil
+}
+
 func (p *PostgresDB) ListRoles(ctx context.Context, tenantID string) ([]core.Role, error) {
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, COALESCE(tenant_id,''), name, description, permissions_json, is_builtin, created_at
@@ -940,6 +980,24 @@ func (p *PostgresDB) ListSecretsByTenant(ctx context.Context, tenantID string) (
 		secrets = append(secrets, s)
 	}
 	return secrets, rows.Err()
+}
+
+func (p *PostgresDB) DeleteSecret(ctx context.Context, tenantID, secretID string) error {
+	res, err := p.db.ExecContext(ctx,
+		`DELETE FROM secrets WHERE id = $1 AND tenant_id = $2`,
+		secretID, tenantID,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return core.ErrNotFound
+	}
+	return nil
 }
 
 // =====================================================

@@ -52,6 +52,10 @@ func TestSearch_MatchesApps(t *testing.T) {
 
 func TestSearch_MatchesDomains(t *testing.T) {
 	store := newMockStore()
+	store.appList = []core.Application{
+		{ID: "app1", TenantID: "tenant1", Name: "App One"},
+		{ID: "app2", TenantID: "tenant1", Name: "App Two"},
+	}
 	store.addDomain(&core.Domain{ID: "d1", FQDN: "example.com", Type: "primary", AppID: "app1"})
 	store.addDomain(&core.Domain{ID: "d2", FQDN: "api.example.com", Type: "alias", AppID: "app1"})
 	store.addDomain(&core.Domain{ID: "d3", FQDN: "other.org", Type: "primary", AppID: "app2"})
@@ -74,6 +78,40 @@ func TestSearch_MatchesDomains(t *testing.T) {
 	results := resp["results"].([]any)
 	if len(results) != 2 {
 		t.Errorf("expected 2 domain results for 'example', got %d", len(results))
+	}
+}
+
+func TestSearch_DomainsAreTenantScoped(t *testing.T) {
+	store := newMockStore()
+	store.appList = []core.Application{
+		{ID: "app1", TenantID: "tenant1", Name: "Tenant App"},
+	}
+	store.addDomain(&core.Domain{ID: "d1", FQDN: "shared.example.com", Type: "primary", AppID: "app1"})
+	store.addDomain(&core.Domain{ID: "d2", FQDN: "foreign.example.com", Type: "primary", AppID: "foreign-app"})
+
+	handler := NewSearchHandler(store)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/search?q=example", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Search(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]any
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+
+	results := resp["results"].([]any)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 tenant-scoped domain result, got %d", len(results))
+	}
+
+	result := results[0].(map[string]any)
+	if result["name"] != "shared.example.com" {
+		t.Fatalf("expected tenant domain only, got %v", result["name"])
 	}
 }
 

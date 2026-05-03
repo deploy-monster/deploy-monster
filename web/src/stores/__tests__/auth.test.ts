@@ -113,6 +113,25 @@ describe('authStore', () => {
     });
   });
 
+  describe('updateUser', () => {
+    it('merges updates into the current user', () => {
+      useAuthStore.setState({
+        user: { id: 'u1', email: 'a@b.com', name: 'A', role: 'admin', tenant_id: 't1' },
+        isAuthenticated: true,
+      });
+
+      useAuthStore.getState().updateUser({ name: 'Alice Zhang' });
+
+      expect(useAuthStore.getState().user).toMatchObject({
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'Alice Zhang',
+        role: 'admin',
+        tenant_id: 't1',
+      });
+    });
+  });
+
   describe('initialize', () => {
     it('sets user when /auth/me succeeds', async () => {
       // /auth/me returns a wrapped MeResponse ({user, membership, role_id,

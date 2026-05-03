@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { adminAPI, type SystemInfo, type Tenant, type AdminSettings } from '@/api/admin';
+import type { PaginatedResponse } from '@/api/client';
 import { useApi } from '@/hooks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -180,7 +181,7 @@ function timeAgo(dateStr: string): string {
 
 export function Admin() {
   const { data: system, loading: systemLoading, refetch: refresh } = useApi<SystemInfo>('/admin/system');
-  const { data: tenants, loading: tenantsLoading } = useApi<Tenant[]>('/admin/tenants');
+  const { data: tenants, loading: tenantsLoading } = useApi<PaginatedResponse<Tenant> | Tenant[]>('/admin/tenants');
   const [settings, setSettings] = useState<AdminSettings>({
     registration_mode: 'open',
     auto_ssl: true,
@@ -201,7 +202,7 @@ export function Admin() {
     }
   };
 
-  const tenantList = tenants || [];
+  const tenantList = Array.isArray(tenants) ? tenants : tenants?.data || [];
 
   return (
     <div className="space-y-8">

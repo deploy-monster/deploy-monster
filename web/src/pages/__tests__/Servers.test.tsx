@@ -104,6 +104,27 @@ describe('Servers page', () => {
     expect(screen.getByText(/master node/i)).toBeInTheDocument();
   });
 
+  it('does not duplicate the built-in localhost card if the API returns local server metadata', () => {
+    useApiState.data = [
+      fakeServer({
+        id: 'local',
+        hostname: 'localhost',
+        provider: 'local',
+        region: 'local',
+        size: 'local',
+        role: 'master',
+        status: 'active',
+        ip_address: '127.0.0.1',
+      }),
+    ];
+    useApiState.loading = false;
+    renderServers();
+
+    expect(screen.getAllByText('localhost')).toHaveLength(1);
+    expect(screen.getByText(/1 server/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 active/i)).toBeInTheDocument();
+  });
+
   it('renders a card per remote server with provider badge', () => {
     useApiState.data = [
       fakeServer({ id: 'srv-a', hostname: 'web-01', provider: 'hetzner', status: 'active' }),
@@ -135,6 +156,7 @@ describe('Servers page', () => {
     renderServers();
 
     fireEvent.click(screen.getByRole('button', { name: /add server/i }));
+    fireEvent.click(screen.getByRole('button', { name: /hetzner cloud/i }));
 
     fireEvent.change(screen.getByLabelText(/hostname/i), {
       target: { value: 'my-new-server' },
@@ -212,6 +234,7 @@ describe('Servers page', () => {
     renderServers();
 
     fireEvent.click(screen.getByRole('button', { name: /add server/i }));
+    fireEvent.click(screen.getByRole('button', { name: /hetzner cloud/i }));
     fireEvent.change(screen.getByLabelText(/hostname/i), {
       target: { value: 'boom' },
     });
@@ -223,18 +246,23 @@ describe('Servers page', () => {
     expect(await screen.findByText('provider down')).toBeInTheDocument();
   });
 
-  it('keeps Provision button disabled until a hostname is entered', () => {
+  it('keeps Connect button disabled until hostname and IP are entered', () => {
     useApiState.data = [];
     useApiState.loading = false;
     renderServers();
 
     fireEvent.click(screen.getByRole('button', { name: /add server/i }));
 
-    const btn = screen.getByRole('button', { name: /^provision$/i });
+    const btn = screen.getByRole('button', { name: /^connect$/i });
     expect(btn).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/hostname/i), {
       target: { value: 'x' },
+    });
+    expect(btn).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/ip address/i), {
+      target: { value: '203.0.113.10' },
     });
     expect(btn).not.toBeDisabled();
   });

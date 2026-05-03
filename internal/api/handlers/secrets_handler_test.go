@@ -107,6 +107,73 @@ func TestCreateSecret_WithScope(t *testing.T) {
 	}
 }
 
+func TestCreateSecret_AppScopeRequiresTenantApp(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "foreign-app", TenantID: "tenant2"})
+	vault := &testVault{}
+	events := core.NewEventBus(nil)
+	handler := NewSecretHandler(store, vault, events)
+
+	body, _ := json.Marshal(createSecretRequest{
+		Name:  "APP_SECRET",
+		Value: "value",
+		Scope: "app",
+		AppID: "foreign-app",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/secrets", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestCreateSecret_ProjectScopeRequiresTenantProject(t *testing.T) {
+	store := newMockStore()
+	store.addProjectByID(&core.Project{ID: "foreign-project", TenantID: "tenant2", Name: "Foreign"})
+	vault := &testVault{}
+	events := core.NewEventBus(nil)
+	handler := NewSecretHandler(store, vault, events)
+
+	body, _ := json.Marshal(createSecretRequest{
+		Name:      "PROJECT_SECRET",
+		Value:     "value",
+		Scope:     "project",
+		ProjectID: "foreign-project",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/secrets", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestCreateSecret_AppScopeRequiresAppID(t *testing.T) {
+	store := newMockStore()
+	vault := &testVault{}
+	events := core.NewEventBus(nil)
+	handler := NewSecretHandler(store, vault, events)
+
+	body, _ := json.Marshal(createSecretRequest{Name: "APP_SECRET", Value: "value", Scope: "app"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/secrets", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertErrorMessage(t, rr, "app_id is required for app-scoped secrets")
+}
+
 func TestCreateSecret_NilVault(t *testing.T) {
 	store := newMockStore()
 	events := core.NewEventBus(nil)
