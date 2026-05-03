@@ -48,6 +48,8 @@ var (
 	date    = "unknown"
 )
 
+const systemdAdminEnvFile = "/etc/deploymonster/deploymonster.env"
+
 func main() {
 	if len(os.Args) < 2 {
 		runServe()
@@ -353,6 +355,43 @@ func promptBool(r *bufio.Reader, label string, def bool) bool {
 	return s == "y" || s == "yes"
 }
 
+func writeSystemdAdminEnvFile(adminEmail, adminPassword string) error {
+	if err := os.MkdirAll("/etc/deploymonster", 0700); err != nil {
+		return fmt.Errorf("create /etc/deploymonster: %w", err)
+	}
+	content := strings.Join([]string{
+		"MONSTER_ADMIN_EMAIL=" + strconv.Quote(adminEmail),
+		"MONSTER_ADMIN_PASSWORD=" + strconv.Quote(adminPassword),
+		"",
+	}, "\n")
+	if err := os.WriteFile(systemdAdminEnvFile, []byte(content), 0600); err != nil {
+		return fmt.Errorf("write %s: %w", systemdAdminEnvFile, err)
+	}
+	return nil
+}
+
+func injectSystemdEnvironmentFile(content string) (string, error) {
+	lines := strings.Split(content, "\n")
+	out := make([]string, 0, len(lines)+1)
+	inserted := false
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Environment=MONSTER_ADMIN_EMAIL=") ||
+			strings.HasPrefix(line, "Environment=MONSTER_ADMIN_PASSWORD=") ||
+			strings.HasPrefix(line, "EnvironmentFile=-"+systemdAdminEnvFile) {
+			continue
+		}
+		out = append(out, line)
+		if line == "[Service]" {
+			out = append(out, "EnvironmentFile=-"+systemdAdminEnvFile)
+			inserted = true
+		}
+	}
+	if !inserted {
+		return "", fmt.Errorf("systemd unit missing [Service] section")
+	}
+	return strings.Join(out, "\n"), nil
+}
+
 func runSetup() {
 	cfg, err := core.LoadConfig("")
 	if err != nil {
@@ -451,29 +490,22 @@ func runSetup() {
 	// Update systemd unit env vars if the unit exists
 	unitUpdated := false
 	if _, err := os.Stat("/etc/systemd/system/deploymonster.service"); err == nil {
-		content, _ := os.ReadFile("/etc/systemd/system/deploymonster.service")
+		content, err := os.ReadFile("/etc/systemd/system/deploymonster.service")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading systemd unit: %v\n", err)
+			os.Exit(1)
+		}
 		if strings.Contains(string(content), "ExecStart=") {
-			lines := strings.Split(string(content), "\n")
-			var out []string
-			for _, line := range lines {
-				if strings.HasPrefix(line, "Environment=MONSTER_ADMIN_EMAIL=") ||
-					strings.HasPrefix(line, "Environment=MONSTER_ADMIN_PASSWORD=") {
-					continue
-				}
-				out = append(out, line)
+			if err := writeSystemdAdminEnvFile(adminEmail, adminPassword); err != nil {
+				fmt.Fprintf(os.Stderr, "error writing systemd env file: %v\n", err)
+				os.Exit(1)
 			}
-			// Re-insert env vars before [Install]
-			var final []string
-			for _, line := range out {
-				final = append(final, line)
-				if strings.HasPrefix(line, "[Install]") {
-					final = final[:len(final)-1]
-					final = append(final, fmt.Sprintf("Environment=MONSTER_ADMIN_EMAIL=%s", adminEmail))
-					final = append(final, fmt.Sprintf("Environment=MONSTER_ADMIN_PASSWORD=%s", adminPassword))
-					final = append(final, "[Install]")
-				}
+			final, err := injectSystemdEnvironmentFile(string(content))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error updating systemd unit: %v\n", err)
+				os.Exit(1)
 			}
-			if err := os.WriteFile("/etc/systemd/system/deploymonster.service", []byte(strings.Join(final, "\n")), 0600); err != nil {
+			if err := os.WriteFile("/etc/systemd/system/deploymonster.service", []byte(final), 0644); err != nil {
 				fmt.Fprintf(os.Stderr, "error updating systemd unit: %v\n", err)
 				os.Exit(1)
 			}

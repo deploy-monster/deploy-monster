@@ -229,7 +229,7 @@ func TestBuilder_Build_CustomImageTag(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestGitClone_WithToken(t *testing.T) {
-	// Test that injectToken is called when token is provided.
+	// Test that token auth setup is attempted when token is provided.
 	// Use a short timeout so we don't hang on DNS resolution.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -264,28 +264,26 @@ func TestGitClone_CancelledContext(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// injectToken — additional cases
+// setupGitAskpass — additional cases
 // ═══════════════════════════════════════════════════════════════════════════════
 
-func TestInjectToken_EmptyURL(t *testing.T) {
-	got := injectToken("", "token")
-	if got != "" {
-		t.Errorf("expected empty string, got %q", got)
+func TestSetupGitAskpass_EmptyTokenURL(t *testing.T) {
+	if _, _, err := setupGitAskpass(t.TempDir(), "", "token"); err == nil {
+		t.Fatal("expected empty URL to fail token auth setup")
 	}
 }
 
-func TestInjectToken_ExactlyHttps(t *testing.T) {
-	// "https://" is exactly 8 chars, but the check is `len(url) > 8`, so it's unchanged
-	got := injectToken("https://", "tok")
-	if got != "https://" {
-		t.Errorf("expected 'https://' (unchanged, len<=8), got %q", got)
+func TestSetupGitAskpass_ExactlyHTTPS(t *testing.T) {
+	if _, _, err := setupGitAskpass(t.TempDir(), "https://", "tok"); err == nil {
+		t.Fatal("expected URL without host to fail validation before clone")
 	}
 }
 
-func TestInjectToken_HttpsWithHost(t *testing.T) {
-	got := injectToken("https://h", "tok")
-	if got != "https://tok@h" {
-		t.Errorf("expected 'https://tok@h', got %q", got)
+func TestSetupGitAskpass_HttpsWithHost(t *testing.T) {
+	if _, cleanup, err := setupGitAskpass(t.TempDir(), "https://h", "tok"); err != nil {
+		t.Fatalf("setupGitAskpass returned error: %v", err)
+	} else {
+		cleanup()
 	}
 }
 

@@ -41,49 +41,30 @@ func TestNewBuilder_NilEvents(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// injectToken
+// setupGitAskpass
 // ---------------------------------------------------------------------------
 
-func TestInjectToken(t *testing.T) {
-	tests := []struct {
-		name     string
-		url      string
-		token    string
-		expected string
-	}{
-		{
-			name:     "https URL",
-			url:      "https://github.com/user/repo.git",
-			token:    "ghp_abc123",
-			expected: "https://ghp_abc123@github.com/user/repo.git",
-		},
-		{
-			name:     "ssh URL unchanged",
-			url:      "git@github.com:user/repo.git",
-			token:    "ghp_abc123",
-			expected: "git@github.com:user/repo.git",
-		},
-		{
-			name:     "http URL unchanged (not https)",
-			url:      "http://github.com/user/repo.git",
-			token:    "ghp_abc123",
-			expected: "http://github.com/user/repo.git",
-		},
-		{
-			name:     "short URL unchanged",
-			url:      "short",
-			token:    "tok",
-			expected: "short",
-		},
+func TestSetupGitAskpass(t *testing.T) {
+	const token = "ghp_abc123"
+	env, cleanup, err := setupGitAskpass(t.TempDir(), "https://github.com/user/repo.git", token)
+	if err != nil {
+		t.Fatalf("setupGitAskpass: %v", err)
 	}
+	defer cleanup()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := injectToken(tt.url, tt.token)
-			if got != tt.expected {
-				t.Errorf("injectToken(%q, %q) = %q, want %q", tt.url, tt.token, got, tt.expected)
-			}
-		})
+	joined := strings.Join(env, "\n")
+	if strings.Contains(joined, token) {
+		t.Fatal("token must not be exposed in git environment values")
+	}
+	if !strings.Contains(joined, "GIT_ASKPASS=") || !strings.Contains(joined, "GIT_TERMINAL_PROMPT=0") {
+		t.Fatalf("missing expected git auth env vars: %v", env)
+	}
+}
+
+func TestSetupGitAskpass_RejectsNonHTTPS(t *testing.T) {
+	_, _, err := setupGitAskpass(t.TempDir(), "git@github.com:user/repo.git", "tok")
+	if err == nil {
+		t.Fatal("expected non-HTTPS token auth to be rejected")
 	}
 }
 

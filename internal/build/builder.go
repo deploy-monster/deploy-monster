@@ -46,6 +46,25 @@ type Builder struct {
 	workDir string
 }
 
+type redactingWriter struct {
+	dst     io.Writer
+	secrets []string
+}
+
+func (w redactingWriter) Write(p []byte) (int, error) {
+	if len(w.secrets) == 0 {
+		return w.dst.Write(p)
+	}
+	out := string(p)
+	for _, secret := range w.secrets {
+		if secret != "" {
+			out = strings.ReplaceAll(out, secret, "[redacted]")
+		}
+	}
+	_, err := w.dst.Write([]byte(out))
+	return len(p), err
+}
+
 // NewBuilder creates a new builder.
 func NewBuilder(runtime core.ContainerRuntime, events *core.EventBus) *Builder {
 	return &Builder{
@@ -330,9 +349,14 @@ func gitClone(ctx context.Context, repoURL, branch, token, dir string, logWriter
 		return "", fmt.Errorf("git URL resolved to blocked range: %w", err)
 	}
 
-	// Inject token into HTTPS URL if provided
+	var env []string
 	if token != "" {
-		repoURL = injectToken(repoURL, token)
+		authEnv, cleanup, err := setupGitAskpass(dir, repoURL, token)
+		if err != nil {
+			return "", err
+		}
+		defer cleanup()
+		env = authEnv
 	}
 
 	args := []string{"clone", "--depth=1", "-q"} // -q suppresses URL output that could leak token
@@ -342,8 +366,12 @@ func gitClone(ctx context.Context, repoURL, branch, token, dir string, logWriter
 	args = append(args, repoURL, dir)
 
 	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Stdout = logWriter
-	cmd.Stderr = logWriter
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
+	safeLogWriter := redactingWriter{dst: logWriter, secrets: []string{token}}
+	cmd.Stdout = safeLogWriter
+	cmd.Stderr = safeLogWriter
 
 	if err := cmd.Run(); err != nil {
 		return "", err
@@ -363,12 +391,47 @@ func gitClone(ctx context.Context, repoURL, branch, token, dir string, logWriter
 	return sha, nil
 }
 
-// injectToken adds an auth token to an HTTPS git URL.
-func injectToken(gitURL, token string) string {
-	if len(gitURL) > 8 && gitURL[:8] == "https://" {
-		return "https://" + token + "@" + gitURL[8:]
+func setupGitAskpass(dir, repoURL, token string) ([]string, func(), error) {
+	parsed, err := url.Parse(repoURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse git URL for auth: %w", err)
 	}
-	return gitURL
+	if parsed.Scheme != "https" {
+		return nil, nil, fmt.Errorf("git token authentication requires an HTTPS repository URL")
+	}
+	if parsed.Host == "" {
+		return nil, nil, fmt.Errorf("git token authentication requires a repository URL host")
+	}
+
+	authDir, err := os.MkdirTemp(filepath.Dir(dir), ".monster-git-auth-")
+	if err != nil {
+		return nil, nil, fmt.Errorf("create git auth dir: %w", err)
+	}
+
+	tokenPath := filepath.Join(authDir, "token")
+	if err := os.WriteFile(tokenPath, []byte(token+"\n"), 0600); err != nil {
+		return nil, nil, fmt.Errorf("write git token file: %w", err)
+	}
+
+	askpassPath := filepath.Join(authDir, "askpass.sh")
+	askpass := `#!/bin/sh
+case "$1" in
+*Username*|*username*) printf '%s\n' 'x-access-token' ;;
+*Password*|*password*) cat "$MONSTER_GIT_TOKEN_FILE" ;;
+*) exit 1 ;;
+esac
+`
+	if err := os.WriteFile(askpassPath, []byte(askpass), 0700); err != nil {
+		_ = os.RemoveAll(authDir)
+		return nil, nil, fmt.Errorf("write git askpass helper: %w", err)
+	}
+
+	env := []string{
+		"GIT_ASKPASS=" + askpassPath,
+		"GIT_TERMINAL_PROMPT=0",
+		"MONSTER_GIT_TOKEN_FILE=" + tokenPath,
+	}
+	return env, func() { _ = os.RemoveAll(authDir) }, nil
 }
 
 func redactURL(raw string) string {

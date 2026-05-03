@@ -1,46 +1,16 @@
 package build
 
-import (
-	"testing"
-)
+import "testing"
 
 // =============================================================================
-// gitClone — token injection into HTTPS URL (line 146-148)
+// setupGitAskpass — token authentication stays out of clone URL
 // =============================================================================
 
-func TestInjectToken_HTTPS(t *testing.T) {
-	tests := []struct {
-		url   string
-		token string
-		want  string
-	}{
-		{
-			url:   "https://github.com/user/repo.git",
-			token: "ghp_abc123",
-			want:  "https://ghp_abc123@github.com/user/repo.git",
-		},
-		{
-			url:   "git@github.com:user/repo.git",
-			token: "ghp_abc123",
-			want:  "git@github.com:user/repo.git", // SSH URL, no injection
-		},
-		{
-			url:   "http://example.com/repo.git",
-			token: "tok123",
-			want:  "http://example.com/repo.git", // Only HTTPS, not HTTP
-		},
-		{
-			url:   "https://gitlab.com/group/project.git",
-			token: "glpat-xyz",
-			want:  "https://glpat-xyz@gitlab.com/group/project.git",
-		},
-	}
-
-	for _, tt := range tests {
-		got := injectToken(tt.url, tt.token)
-		if got != tt.want {
-			t.Errorf("injectToken(%q, %q) = %q, want %q", tt.url, tt.token, got, tt.want)
-		}
+func TestSetupGitAskpass_HTTPS(t *testing.T) {
+	if _, cleanup, err := setupGitAskpass(t.TempDir(), "https://github.com/user/repo.git", "ghp_abc123"); err != nil {
+		t.Fatalf("setupGitAskpass returned error: %v", err)
+	} else {
+		cleanup()
 	}
 }
 
@@ -60,17 +30,14 @@ func TestExists_NotFound(t *testing.T) {
 // but we can test the helper functions it calls.
 // =============================================================================
 
-func TestInjectToken_Short(t *testing.T) {
-	// URL shorter than 8 chars — no injection
-	got := injectToken("short", "tok")
-	if got != "short" {
-		t.Errorf("injectToken short URL = %q, want %q", got, "short")
+func TestSetupGitAskpass_ShortURL(t *testing.T) {
+	if _, _, err := setupGitAskpass(t.TempDir(), "short", "tok"); err == nil {
+		t.Fatal("expected malformed URL error")
 	}
 }
 
-func TestFinal_InjectToken_EmptyURL(t *testing.T) {
-	got := injectToken("", "tok")
-	if got != "" {
-		t.Errorf("injectToken empty URL = %q, want empty", got)
+func TestSetupGitAskpass_EmptyURL(t *testing.T) {
+	if _, _, err := setupGitAskpass(t.TempDir(), "", "tok"); err == nil {
+		t.Fatal("expected empty URL error")
 	}
 }

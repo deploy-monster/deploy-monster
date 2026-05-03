@@ -28,6 +28,8 @@ INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="deploymonster"
 DATA_DIR="/var/lib/deploymonster"
 SERVICE_FILE="/etc/systemd/system/deploymonster.service"
+ENV_DIR="/etc/deploymonster"
+ENV_FILE="${ENV_DIR}/deploymonster.env"
 
 MODE="install"
 VERSION=""
@@ -56,6 +58,10 @@ info()  { printf '%s[INFO]%s %s\n'  "${GREEN}"  "${NC}" "$*"; }
 warn()  { printf '%s[WARN]%s %s\n'  "${YELLOW}" "${NC}" "$*"; }
 error() { printf '%s[ERROR]%s %s\n' "${RED}"    "${NC}" "$*" >&2; exit 1; }
 step()  { printf '%s[ %s ]%s %s\n'  "${BLUE}"   "$1" "${NC}" "$2"; }
+
+systemd_quote() {
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
 
 # ─── Arg parsing ────────────────────────────────────────────────────────────
 parse_args() {
@@ -318,7 +324,17 @@ generate_config() {
     local server_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")
 
     local sudo_cmd=""
-    [ ! -w "$DATA_DIR" ] && sudo_cmd="sudo"
+    if [ ! -d "$DATA_DIR" ]; then
+        if [ ! -w "$(dirname "$DATA_DIR")" ]; then
+            require_cmd sudo
+            sudo_cmd="sudo"
+        fi
+        $sudo_cmd mkdir -p "$DATA_DIR"
+        $sudo_cmd chmod 750 "$DATA_DIR"
+    elif [ ! -w "$DATA_DIR" ]; then
+        require_cmd sudo
+        sudo_cmd="sudo"
+    fi
 
     $sudo_cmd tee "$config_path" > /dev/null <<EOF
 server:
@@ -365,11 +381,25 @@ limits:
   max_concurrent_builds: 5
 EOF
 
-    $sudo_cmd chmod 640 "$config_path"
+    $sudo_cmd chmod 600 "$config_path"
     info "Config written to ${config_path}"
 
     GENERATED_ADMIN_EMAIL="$admin_email"
     GENERATED_ADMIN_PASSWORD="$admin_password"
+}
+
+write_admin_env_file() {
+    local sudo_cmd="sudo"
+    require_cmd sudo
+
+    $sudo_cmd mkdir -p "$ENV_DIR"
+    $sudo_cmd chmod 700 "$ENV_DIR"
+    {
+        printf 'MONSTER_ADMIN_EMAIL=%s\n' "$(systemd_quote "${GENERATED_ADMIN_EMAIL:-admin@local.host}")"
+        printf 'MONSTER_ADMIN_PASSWORD=%s\n' "$(systemd_quote "${GENERATED_ADMIN_PASSWORD:-}")"
+    } | $sudo_cmd tee "$ENV_FILE" > /dev/null
+    $sudo_cmd chmod 600 "$ENV_FILE"
+    info "Admin bootstrap credentials written to ${ENV_FILE}"
 }
 
 # ─── Data dir + systemd unit ────────────────────────────────────────────────
@@ -391,7 +421,9 @@ setup_service() {
 
     require_cmd sudo
 
-    # Build unit file dynamically so we can inject admin credentials
+    write_admin_env_file
+
+    # Build unit file dynamically.
     local unit_content=""
     unit_content="[Unit]
 Description=DeployMonster PaaS
@@ -402,19 +434,11 @@ Wants=network-online.target docker.service
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/deploymonster serve
+EnvironmentFile=-${ENV_FILE}
 Restart=always
 RestartSec=5
 WorkingDirectory=/var/lib/deploymonster
 LimitNOFILE=65536"
-
-    if [ -n "${GENERATED_ADMIN_EMAIL:-}" ]; then
-        unit_content="${unit_content}
-Environment=MONSTER_ADMIN_EMAIL=${GENERATED_ADMIN_EMAIL}"
-    fi
-    if [ -n "${GENERATED_ADMIN_PASSWORD:-}" ]; then
-        unit_content="${unit_content}
-Environment=MONSTER_ADMIN_PASSWORD=${GENERATED_ADMIN_PASSWORD}"
-    fi
 
     unit_content="${unit_content}
 # Do not set User= — the daemon needs access to /var/run/docker.sock and
@@ -426,6 +450,7 @@ Environment=MONSTER_ADMIN_PASSWORD=${GENERATED_ADMIN_PASSWORD}"
 WantedBy=multi-user.target"
 
     printf '%s\n' "$unit_content" | sudo tee "$SERVICE_FILE" > /dev/null
+    sudo chmod 644 "$SERVICE_FILE"
     sudo systemctl daemon-reload
     sudo systemctl enable deploymonster.service >/dev/null
     info "Systemd unit installed and enabled"
@@ -478,12 +503,12 @@ main() {
     else
         warn "Docker not found — DeployMonster needs it to deploy applications."
         warn "Install Docker first: https://docs.docker.com/engine/install/"
-    fi
+	fi
 
-    get_latest_version
-    install_binary
-    setup_service
-    generate_config
+	get_latest_version
+	install_binary
+	generate_config
+	setup_service
 
     # Reload systemd unit with the freshly generated config if service exists
     if [ "$OS" = "linux" ] && command -v systemctl >/dev/null 2>&1; then
