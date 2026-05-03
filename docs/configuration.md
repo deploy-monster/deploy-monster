@@ -160,6 +160,12 @@ marketplace:
   community_sync: false      # Sync community templates
 ```
 
+Marketplace templates can auto-generate missing sensitive config values, such
+as database passwords, during deploy. Generated values are returned only in the
+deploy response under `generated_secrets`; they are not persisted in plaintext
+or retrievable later. Save them in your password manager or secret-management
+process before leaving the deployment confirmation screen.
+
 ### registration
 
 ```yaml

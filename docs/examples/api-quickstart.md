@@ -61,11 +61,15 @@ curl /api/v1/marketplace \
   -H "Authorization: Bearer $TOKEN"
 
 # Deploy a template
-curl -X POST /api/v1/marketplace/wordpress/deploy \
+curl -X POST /api/v1/marketplace/deploy \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name": "my-blog"}'
+  -d '{"slug": "wordpress", "name": "my-blog"}'
 ```
+
+If the template generates missing sensitive values, the response includes a
+one-time `generated_secrets` object. Save those values before closing the
+response; they are not retrievable later.
 
 ## Manage Apps
 

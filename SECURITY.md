@@ -41,6 +41,9 @@ When using DeployMonster:
 - Configure firewall rules properly
 - Keep Docker updated
 - Regularly rotate API keys and secrets
+- Save marketplace-generated credentials immediately. Sensitive template
+  defaults are generated per deployment and returned only once in the deploy
+  response.
 
 ---
 

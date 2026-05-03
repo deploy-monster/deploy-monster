@@ -129,6 +129,12 @@ Authentication: `Authorization: Bearer <access_token>` or `X-API-Key: dm_xxxxx`
 | GET | `/marketplace/{slug}` | None | Get template |
 | POST | `/marketplace/deploy` | JWT | Deploy template |
 
+Marketplace templates may generate missing sensitive values such as database
+passwords during deployment. When that happens, the `202 Accepted` response
+includes a `generated_secrets` object. These values are shown only in that
+response and are not recoverable from the API later, so clients should display
+or store them before navigating away.
+
 ## Billing
 
 | Method | Endpoint | Auth | Description |
