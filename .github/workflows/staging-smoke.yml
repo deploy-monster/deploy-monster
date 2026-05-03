@@ -29,6 +29,28 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Validate staging smoke inputs
+        shell: bash
+        env:
+          STAGING_BASE_URL: ${{ inputs.base_url || vars.STAGING_BASE_URL }}
+          DM_SMOKE_PUBLIC_ONLY: ${{ inputs.public_only && '1' || '0' }}
+          DM_SMOKE_EMAIL: ${{ secrets.STAGING_SMOKE_EMAIL }}
+          DM_SMOKE_PASSWORD: ${{ secrets.STAGING_SMOKE_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${STAGING_BASE_URL:-}" ]]; then
+            echo "::error::Set workflow input base_url or repository variable STAGING_BASE_URL."
+            exit 2
+          fi
+
+          if [[ "${DM_SMOKE_PUBLIC_ONLY:-0}" != "1" ]]; then
+            if [[ -z "${DM_SMOKE_EMAIL:-}" || -z "${DM_SMOKE_PASSWORD:-}" ]]; then
+              echo "::error::Set STAGING_SMOKE_EMAIL and STAGING_SMOKE_PASSWORD secrets, or rerun with public_only=true."
+              exit 2
+            fi
+          fi
+
       - name: Run staging smoke
         env:
           STAGING_BASE_URL: ${{ inputs.base_url || vars.STAGING_BASE_URL }}
