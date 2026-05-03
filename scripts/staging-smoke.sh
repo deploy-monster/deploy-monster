@@ -10,6 +10,12 @@ set -euo pipefail
 # Optional:
 #   STAGING_BASE_URL=http://staging.example.com
 #   DM_SMOKE_INSECURE_TLS=1
+#   DM_SMOKE_REQUIRE_BASE_URL=1
+
+if [ "${DM_SMOKE_REQUIRE_BASE_URL:-0}" = "1" ] && [ -z "${STAGING_BASE_URL:-}" ] && [ -z "${1:-}" ]; then
+  echo "STAGING_BASE_URL or first argument is required when DM_SMOKE_REQUIRE_BASE_URL=1" >&2
+  exit 2
+fi
 
 BASE_URL="${STAGING_BASE_URL:-${1:-http://localhost:8443}}"
 BASE_URL="${BASE_URL%/}"

@@ -34,6 +34,7 @@ jobs:
           STAGING_BASE_URL: ${{ inputs.base_url || vars.STAGING_BASE_URL }}
           DM_SMOKE_PUBLIC_ONLY: ${{ inputs.public_only && '1' || '0' }}
           DM_SMOKE_INSECURE_TLS: ${{ inputs.insecure_tls && '1' || '0' }}
+          DM_SMOKE_REQUIRE_BASE_URL: '1'
           DM_SMOKE_EMAIL: ${{ secrets.STAGING_SMOKE_EMAIL }}
           DM_SMOKE_PASSWORD: ${{ secrets.STAGING_SMOKE_PASSWORD }}
         run: scripts/staging-smoke.sh
