@@ -160,6 +160,13 @@ func resolveEnv(env any) map[string]string {
 // The same generated value is reused for every occurrence of the same
 // variable name so that e.g. DB_PASSWORD stays consistent across services.
 func Interpolate(data []byte, vars map[string]string) []byte {
+	result, _ := InterpolateWithGenerated(data, vars)
+	return result
+}
+
+// InterpolateWithGenerated behaves like Interpolate and also returns any
+// sensitive values generated because the caller did not provide them.
+func InterpolateWithGenerated(data []byte, vars map[string]string) ([]byte, map[string]string) {
 	generated := make(map[string]string) // track auto-generated secrets per key
 	re := regexp.MustCompile(`\$\{([^}]+)\}`)
 	result := re.ReplaceAllFunc(data, func(match []byte) []byte {
@@ -188,7 +195,7 @@ func Interpolate(data []byte, vars map[string]string) []byte {
 
 		return match // Leave as-is if not found
 	})
-	return result
+	return result, generated
 }
 
 func generatedSecret(generated map[string]string, key string) string {

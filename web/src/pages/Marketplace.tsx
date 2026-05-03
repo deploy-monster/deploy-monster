@@ -15,6 +15,7 @@ import {
   Filter,
   Eye,
   EyeOff,
+  Copy,
 } from 'lucide-react';
 import { marketplaceAPI, type Template, type MarketplaceResponse } from '@/api/marketplace';
 import { useApi } from '../hooks';
@@ -172,6 +173,8 @@ export function Marketplace() {
   const [deployConfig, setDeployConfig] = useState<Record<string, string>>({});
   const [deployLoading, setDeployLoading] = useState(false);
   const [deployError, setDeployError] = useState('');
+  const [generatedSecrets, setGeneratedSecrets] = useState<Record<string, string>>({});
+  const [deployedAppId, setDeployedAppId] = useState('');
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
@@ -226,8 +229,14 @@ export function Marketplace() {
         name: deployName,
         config: deployConfig,
       });
-      setDeploying(null);
-      navigate(`/apps/${result.app_id}`);
+      const secrets = result.generated_secrets || {};
+      if (Object.keys(secrets).length > 0) {
+        setGeneratedSecrets(secrets);
+        setDeployedAppId(result.app_id);
+      } else {
+        setDeploying(null);
+        navigate(`/apps/${result.app_id}`);
+      }
     } catch (err) {
       setDeployError(err instanceof Error ? err.message : 'Deployment failed. Please try again.');
     } finally {
@@ -247,12 +256,23 @@ export function Marketplace() {
     }
     setDeployConfig(defaults);
     setDeployError('');
+    setGeneratedSecrets({});
+    setDeployedAppId('');
   };
 
   const closeDeploy = () => {
     setDeploying(null);
     setDeployError('');
     setDeployLoading(false);
+    setGeneratedSecrets({});
+    setDeployedAppId('');
+  };
+
+  const copyGeneratedSecrets = () => {
+    const text = Object.entries(generatedSecrets)
+      .map(([key, value]) => `${key}=${value}`)
+      .join('\n');
+    navigator.clipboard.writeText(text);
   };
 
   return (
@@ -417,6 +437,20 @@ export function Marketplace() {
 
           <SheetBody>
             <div className="space-y-4">
+              {Object.keys(generatedSecrets).length > 0 ? (
+                <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+                  <Label className="text-sm font-medium">Generated Credentials</Label>
+                  <div className="space-y-2">
+                    {Object.entries(generatedSecrets).map(([key, value]) => (
+                      <div key={key} className="grid gap-1 rounded-md border bg-background px-3 py-2">
+                        <span className="text-xs font-medium text-muted-foreground">{key}</span>
+                        <code className="break-all text-sm">{value}</code>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+              <>
               {/* Stack name */}
               <div className="space-y-1.5">
                 <Label htmlFor="deploy-name">Stack Name</Label>
@@ -488,6 +522,8 @@ export function Marketplace() {
                   </p>
                 </div>
               )}
+              </>
+              )}
 
               {/* Error */}
               {deployError && (
@@ -500,22 +536,36 @@ export function Marketplace() {
           </SheetBody>
 
           <SheetFooter>
-            <Button variant="outline" onClick={closeDeploy} disabled={deployLoading}>
-              Cancel
-            </Button>
-            <Button onClick={handleDeploy} disabled={deployLoading || !deployName}>
-              {deployLoading ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Deploying...
-                </>
-              ) : (
-                <>
-                  <Rocket className="size-4" />
-                  Deploy
-                </>
-              )}
-            </Button>
+            {Object.keys(generatedSecrets).length > 0 ? (
+              <>
+                <Button variant="outline" onClick={copyGeneratedSecrets}>
+                  <Copy className="size-4" />
+                  Copy Credentials
+                </Button>
+                <Button onClick={() => navigate(`/apps/${deployedAppId}`)}>
+                  Open App
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={closeDeploy} disabled={deployLoading}>
+                  Cancel
+                </Button>
+                <Button onClick={handleDeploy} disabled={deployLoading || !deployName}>
+                  {deployLoading ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Deploying...
+                    </>
+                  ) : (
+                    <>
+                      <Rocket className="size-4" />
+                      Deploy
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </SheetFooter>
         </SheetContent>
       </Sheet>

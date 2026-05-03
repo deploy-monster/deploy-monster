@@ -42,7 +42,16 @@ interface DeployTemplateRequest {
   config?: Record<string, string>;
 }
 
+export interface DeployTemplateResponse {
+  app_id: string;
+  name?: string;
+  template?: string;
+  status?: string;
+  services?: number;
+  generated_secrets?: Record<string, string>;
+}
+
 export const marketplaceAPI = {
   list: (params?: string) => api.get<MarketplaceResponse>(`/marketplace${params ? `?${params}` : ''}`),
-  deploy: (data: DeployTemplateRequest) => api.post<{ app_id: string }>('/marketplace/deploy', data),
+  deploy: (data: DeployTemplateRequest) => api.post<DeployTemplateResponse>('/marketplace/deploy', data),
 };

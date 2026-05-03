@@ -105,6 +105,27 @@ func TestInterpolate_GeneratesBareSensitiveVars(t *testing.T) {
 	}
 }
 
+func TestInterpolateWithGenerated_ReturnsGeneratedSecrets(t *testing.T) {
+	result, generated := InterpolateWithGenerated([]byte("${DB_PASSWORD:-changeme}:${DB_PASSWORD:-changeme}:${TAG:-latest}"), nil)
+
+	if len(generated) != 1 {
+		t.Fatalf("generated count = %d, want 1 (%v)", len(generated), generated)
+	}
+	if generated["DB_PASSWORD"] == "" {
+		t.Fatalf("expected generated DB_PASSWORD, got %v", generated)
+	}
+	parts := strings.Split(string(result), ":")
+	if len(parts) != 3 {
+		t.Fatalf("unexpected interpolation result %q", result)
+	}
+	if parts[0] != generated["DB_PASSWORD"] || parts[1] != generated["DB_PASSWORD"] {
+		t.Fatalf("generated DB_PASSWORD not reused consistently: result=%q generated=%v", result, generated)
+	}
+	if parts[2] != "latest" {
+		t.Fatalf("non-sensitive default changed: result=%q", result)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Dependency ordering (depends_on)
 // ---------------------------------------------------------------------------

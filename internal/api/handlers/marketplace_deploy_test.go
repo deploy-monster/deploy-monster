@@ -338,3 +338,35 @@ func TestMarketplaceDeploy_ConfigInterpolation(t *testing.T) {
 	}
 	WaitForBackground()
 }
+
+func TestMarketplaceDeploy_ReturnsGeneratedSecrets(t *testing.T) {
+	store := newMockStore()
+	h := newDeployHandler(store)
+	h.SetServerContext(context.Background())
+
+	req := newDeployRequest(t, map[string]any{
+		"slug": "wordpress",
+		"name": "generated-secret-test",
+	}, "tenant-1", "user-1")
+	rr := httptest.NewRecorder()
+
+	h.Deploy(rr, req)
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("status: got %d, want 202: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	generated, ok := resp["generated_secrets"].(map[string]any)
+	if !ok {
+		t.Fatalf("generated_secrets missing or wrong type: %#v", resp["generated_secrets"])
+	}
+	if generated["DB_PASSWORD"] == "" {
+		t.Fatalf("expected generated DB_PASSWORD, got %#v", generated)
+	}
+	if generated["DB_PASSWORD"] == "changeme" {
+		t.Fatal("generated DB_PASSWORD must not use weak fallback")
+	}
+	WaitForBackground()
+}

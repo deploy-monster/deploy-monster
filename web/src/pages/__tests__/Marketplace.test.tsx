@@ -202,6 +202,36 @@ describe('Marketplace page', () => {
     });
   });
 
+  it('shows generated credentials before navigating to the app', async () => {
+    deployMock.mockResolvedValueOnce({
+      app_id: 'app-generated',
+      generated_secrets: { DB_PASSWORD: 'generated-secret' },
+    });
+    useApiState.data = {
+      data: [fakeTemplate({ slug: 'wp', name: 'WordPress' })],
+      categories: ['cms'],
+    };
+    useApiState.loading = false;
+    renderMarketplace();
+
+    const card = findCardByTitle('WordPress');
+    const cardDeployBtn = within(card).getByRole('button', { name: /deploy/i });
+    fireEvent.click(cardDeployBtn);
+
+    const dialogDeploy = screen
+      .getAllByRole('button', { name: /deploy/i })
+      .find((btn) => btn !== cardDeployBtn);
+    fireEvent.click(dialogDeploy!);
+
+    expect(await screen.findByText('Generated Credentials')).toBeInTheDocument();
+    expect(screen.getByText('DB_PASSWORD')).toBeInTheDocument();
+    expect(screen.getByText('generated-secret')).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /open app/i }));
+    expect(navigateMock).toHaveBeenCalledWith('/apps/app-generated');
+  });
+
   it('shows an error in the dialog when the deploy API rejects', async () => {
     deployMock.mockRejectedValueOnce(new Error('quota exceeded'));
     useApiState.data = {

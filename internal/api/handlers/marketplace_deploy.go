@@ -64,8 +64,10 @@ func (h *MarketplaceDeployHandler) Deploy(w http.ResponseWriter, r *http.Request
 		appName = tmpl.Slug
 	}
 
-	// Interpolate config vars into compose YAML
-	yamlData := compose.Interpolate([]byte(tmpl.ComposeYAML), req.Config)
+	// Interpolate config vars into compose YAML. Sensitive missing values
+	// are generated and returned once in the response so operators can save
+	// app bootstrap credentials.
+	yamlData, generatedSecrets := compose.InterpolateWithGenerated([]byte(tmpl.ComposeYAML), req.Config)
 
 	// Parse the compose file
 	cf, err := compose.Parse(yamlData)
@@ -124,11 +126,16 @@ func (h *MarketplaceDeployHandler) Deploy(w http.ResponseWriter, r *http.Request
 		core.AppEventData{AppID: app.ID, AppName: appName, Status: "deploying"},
 	))
 
-	writeJSON(w, http.StatusAccepted, map[string]any{
+	resp := map[string]any{
 		"app_id":   app.ID,
 		"name":     appName,
 		"template": tmpl.Slug,
 		"status":   "deploying",
 		"services": len(cf.Services),
-	})
+	}
+	if len(generatedSecrets) > 0 {
+		resp["generated_secrets"] = generatedSecrets
+	}
+
+	writeJSON(w, http.StatusAccepted, resp)
 }

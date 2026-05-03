@@ -159,6 +159,8 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [generatedSecrets, setGeneratedSecrets] = useState<Record<string, string>>({});
+  const [deployedAppId, setDeployedAppId] = useState('');
 
   const configFields = useMemo(() => {
     if (!template.config_schema?.properties) return [];
@@ -189,13 +191,53 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
     setError('');
     try {
       const result = await marketplaceAPI.deploy({ slug: template.slug, name, config });
-      onDeployed(result.app_id);
+      const secrets = result.generated_secrets || {};
+      if (Object.keys(secrets).length > 0) {
+        setGeneratedSecrets(secrets);
+        setDeployedAppId(result.app_id);
+      } else {
+        onDeployed(result.app_id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Deployment failed');
     } finally {
       setLoading(false);
     }
   };
+
+  const copyGeneratedSecrets = () => {
+    const text = Object.entries(generatedSecrets)
+      .map(([key, value]) => `${key}=${value}`)
+      .join('\n');
+    navigator.clipboard.writeText(text);
+  };
+
+  if (Object.keys(generatedSecrets).length > 0) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+          <Label className="text-sm font-medium">Generated Credentials</Label>
+          <div className="space-y-2">
+            {Object.entries(generatedSecrets).map(([key, value]) => (
+              <div key={key} className="grid gap-1 rounded-md border bg-background px-3 py-2">
+                <span className="text-xs font-medium text-muted-foreground">{key}</span>
+                <code className="break-all text-sm">{value}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Button variant="outline" onClick={copyGeneratedSecrets}>
+            <Copy className="size-4" />
+            Copy Credentials
+          </Button>
+          <Button onClick={() => onDeployed(deployedAppId)}>
+            Open App
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

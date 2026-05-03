@@ -1825,13 +1825,33 @@ paths:
                   type: string
                 name:
                   type: string
-                env:
+                config:
                   type: object
                   additionalProperties:
                     type: string
       responses:
         "202":
           description: Deployment started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  app_id:
+                    type: string
+                  name:
+                    type: string
+                  template:
+                    type: string
+                  status:
+                    type: string
+                  services:
+                    type: integer
+                  generated_secrets:
+                    type: object
+                    description: One-time generated sensitive values for missing marketplace config.
+                    additionalProperties:
+                      type: string
 
   # ── Topology ─────────────────────────────────────────
   /api/v1/topology:
