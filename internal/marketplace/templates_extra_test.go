@@ -43,6 +43,24 @@ func TestAllBuiltinTemplates_RequiredFields(t *testing.T) {
 	}
 }
 
+func TestBuiltinTemplates_NoWeakSecretFallbacks(t *testing.T) {
+	r := NewTemplateRegistry()
+	r.LoadBuiltins()
+	for _, tmpl := range GetMoreTemplates100() {
+		r.Add(tmpl)
+	}
+	for _, tmpl := range r.List("") {
+		for _, match := range composeDefaultExpr.FindAllStringSubmatch(tmpl.ComposeYAML, -1) {
+			if len(match) != 3 {
+				continue
+			}
+			if isSensitiveTemplateEnvKey(match[1]) && isWeakTemplateSecretDefault(match[2]) {
+				t.Fatalf("template %s contains weak secret fallback %q", tmpl.Slug, match[0])
+			}
+		}
+	}
+}
+
 // TestAllBuiltinTemplates_ComposeContainsImage ensures every compose YAML
 // contains an "image:" directive, meaning it references a container image.
 func TestAllBuiltinTemplates_ComposeContainsImage(t *testing.T) {

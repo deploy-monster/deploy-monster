@@ -220,7 +220,8 @@ var dockerImageRef = regexp.MustCompile(`^[\w.\-/:]+$`)
 
 // ValidateGitURL checks that a git repository URL is safe to pass to git clone.
 // It rejects shell metacharacters, non-standard schemes, and private/internal IPs.
-// Local absolute paths (e.g. /home/user/repo) are allowed for development use.
+// Local absolute paths are rejected by default and only allowed when
+// MONSTER_ALLOW_LOCAL_GIT_PATHS=true for explicit development use.
 // Docker image references (e.g., nginx:latest) are accepted without git validation.
 func ValidateGitURL(raw string) error {
 	if raw == "" {
@@ -233,14 +234,17 @@ func ValidateGitURL(raw string) error {
 		return fmt.Errorf("git URL must not start with a dash")
 	}
 
-	// Docker image references (source_type=image) — not git URLs, skip validation
-	if dockerImageRef.MatchString(raw) && !strings.Contains(raw, "://") {
-		return nil
-	}
-
 	// Local absolute path (Unix: /path, Windows: C:\path or C:/path)
 	// git clone supports bare paths as local repos.
 	if isAbsPath(raw) {
+		if os.Getenv("MONSTER_ALLOW_LOCAL_GIT_PATHS") != "true" {
+			return fmt.Errorf("local git paths are disabled (set MONSTER_ALLOW_LOCAL_GIT_PATHS=true for development)")
+		}
+		return nil
+	}
+
+	// Docker image references (source_type=image) — not git URLs, skip validation
+	if dockerImageRef.MatchString(raw) && !strings.Contains(raw, "://") {
 		return nil
 	}
 

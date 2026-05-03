@@ -155,8 +155,8 @@ func resolveEnv(env any) map[string]string {
 }
 
 // Interpolate replaces ${VAR} and ${VAR:-default} in the compose YAML.
-// When a variable's default is the insecure placeholder "changeme" and
-// no user-supplied value exists, a crypto-random password is generated.
+// When a sensitive variable is missing and has no default, or has a known
+// weak placeholder default, a crypto-random password is generated.
 // The same generated value is reused for every occurrence of the same
 // variable name so that e.g. DB_PASSWORD stays consistent across services.
 func Interpolate(data []byte, vars map[string]string) []byte {
@@ -172,14 +172,8 @@ func Interpolate(data []byte, vars map[string]string) []byte {
 			if val, ok := vars[key]; ok && val != "" {
 				return []byte(val)
 			}
-			// Replace insecure placeholder defaults with crypto-random values
-			if defaultVal == "changeme" {
-				if pw, ok := generated[key]; ok {
-					return []byte(pw)
-				}
-				pw := core.GeneratePassword(24)
-				generated[key] = pw
-				return []byte(pw)
+			if isSensitiveEnvKey(key) && isWeakSecretDefault(defaultVal) {
+				return []byte(generatedSecret(generated, key))
 			}
 			return []byte(defaultVal)
 		}
@@ -188,10 +182,48 @@ func Interpolate(data []byte, vars map[string]string) []byte {
 		if val, ok := vars[expr]; ok {
 			return []byte(val)
 		}
+		if isSensitiveEnvKey(expr) {
+			return []byte(generatedSecret(generated, expr))
+		}
 
 		return match // Leave as-is if not found
 	})
 	return result
+}
+
+func generatedSecret(generated map[string]string, key string) string {
+	if pw, ok := generated[key]; ok {
+		return pw
+	}
+	pw := core.GeneratePassword(24)
+	generated[key] = pw
+	return pw
+}
+
+func isSensitiveEnvKey(key string) bool {
+	upper := strings.ToUpper(key)
+	for _, marker := range []string{"PASSWORD", "PASS", "PWD", "SECRET", "TOKEN", "KEY", "SALT"} {
+		if strings.Contains(upper, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func isWeakSecretDefault(value string) bool {
+	v := strings.ToLower(strings.TrimSpace(value))
+	if v == "" {
+		return false
+	}
+	switch v {
+	case "admin", "authentik", "baserow", "bookstack", "change-this", "change-this-key",
+		"change-this-secret", "change-this-too", "changeme", "huginn", "immich",
+		"keycloak", "masterkey123", "matomo", "minioadmin", "paperless",
+		"please-change-me", "rootpass", "seafile", "wiki":
+		return true
+	default:
+		return false
+	}
 }
 
 // DependencyOrder returns service names in startup order (respecting depends_on).

@@ -2,6 +2,9 @@ package auth
 
 import (
 	"context"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -124,5 +127,27 @@ func TestModule_Stop(t *testing.T) {
 	// Stop should return nil regardless of state
 	if err := m.Stop(context.TODO()); err != nil {
 		t.Errorf("Stop() = %v, want nil", err)
+	}
+}
+
+func TestCleanupBootstrapAdminCredentials(t *testing.T) {
+	oldPath := bootstrapAdminEnvFile
+	bootstrapAdminEnvFile = filepath.Join(t.TempDir(), "deploymonster.env")
+	t.Cleanup(func() { bootstrapAdminEnvFile = oldPath })
+
+	t.Setenv("MONSTER_ADMIN_EMAIL", "admin@example.com")
+	t.Setenv("MONSTER_ADMIN_PASSWORD", "secret")
+	if err := os.WriteFile(bootstrapAdminEnvFile, []byte("MONSTER_ADMIN_PASSWORD='secret'\n"), 0600); err != nil {
+		t.Fatalf("write env file: %v", err)
+	}
+
+	m := &Module{logger: slog.Default()}
+	m.cleanupBootstrapAdminCredentials()
+
+	if _, err := os.Stat(bootstrapAdminEnvFile); !os.IsNotExist(err) {
+		t.Fatalf("bootstrap env file still exists or stat failed: %v", err)
+	}
+	if os.Getenv("MONSTER_ADMIN_EMAIL") != "" || os.Getenv("MONSTER_ADMIN_PASSWORD") != "" {
+		t.Fatal("bootstrap admin env vars were not unset")
 	}
 }

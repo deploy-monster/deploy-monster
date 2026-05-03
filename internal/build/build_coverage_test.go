@@ -22,6 +22,7 @@ import (
 // so we can test Build without network access.
 func createLocalGitRepo(t *testing.T, files map[string]string) string {
 	t.Helper()
+	t.Setenv("MONSTER_ALLOW_LOCAL_GIT_PATHS", "true")
 	dir := t.TempDir()
 
 	// git init
@@ -304,8 +305,8 @@ func TestValidateGitURL(t *testing.T) {
 		{"ssh shorthand", "git@github.com:org/repo.git", false},
 		{"https no .git", "https://github.com/org/repo", false},
 		{"file scheme", "file:///home/user/repo", true}, // file:// is now rejected due to SSRF risk
-		{"local abs unix", "/home/user/repo", false},
-		{"local abs windows", "C:/Users/dev/repo", false},
+		{"local abs unix", "/home/user/repo", true},
+		{"local abs windows", "C:/Users/dev/repo", true},
 		{"docker image ref", "nginx:latest", false}, // Docker image refs skip git validation
 		{"docker image with registry", "registry.example.com/app:v1", false},
 
@@ -335,6 +336,14 @@ func TestValidateGitURL(t *testing.T) {
 				t.Errorf("ValidateGitURL(%q) error = %v, wantErr %v", tt.url, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestValidateGitURL_LocalPathOptIn(t *testing.T) {
+	t.Setenv("MONSTER_ALLOW_LOCAL_GIT_PATHS", "true")
+
+	if err := ValidateGitURL("/home/user/repo"); err != nil {
+		t.Fatalf("ValidateGitURL local path with opt-in: %v", err)
 	}
 }
 

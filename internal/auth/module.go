@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+var bootstrapAdminEnvFile = "/etc/deploymonster/deploymonster.env"
 
 func init() {
 	core.RegisterModule(func() core.Module { return New() })
@@ -119,6 +122,7 @@ func (m *Module) firstRunSetup(ctx context.Context) error {
 		return fmt.Errorf("count users: %w", err)
 	}
 	if count > 0 {
+		m.cleanupBootstrapAdminCredentials()
 		return nil
 	}
 
@@ -157,6 +161,28 @@ func (m *Module) firstRunSetup(ctx context.Context) error {
 	if generatedPassword {
 		m.logger.Warn("generated first-run admin password; save this value now", "email", email, "password", password)
 	}
+	m.cleanupBootstrapAdminCredentials()
 
 	return nil
+}
+
+func (m *Module) cleanupBootstrapAdminCredentials() {
+	os.Unsetenv("MONSTER_ADMIN_EMAIL")
+	os.Unsetenv("MONSTER_ADMIN_PASSWORD")
+
+	data, err := os.ReadFile(bootstrapAdminEnvFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			m.logger.Warn("could not inspect bootstrap admin env file", "path", bootstrapAdminEnvFile, "error", err)
+		}
+		return
+	}
+	if !bytes.Contains(data, []byte("MONSTER_ADMIN_PASSWORD=")) {
+		return
+	}
+	if err := os.Remove(bootstrapAdminEnvFile); err != nil {
+		m.logger.Warn("could not remove bootstrap admin env file", "path", bootstrapAdminEnvFile, "error", err)
+		return
+	}
+	m.logger.Info("removed bootstrap admin env file", "path", bootstrapAdminEnvFile)
 }

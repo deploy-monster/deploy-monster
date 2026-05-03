@@ -33,6 +33,14 @@ docker:
   host: unix:///var/run/docker.sock
   # api_version: ""             # Docker API version (auto-negotiated)
 
+git_sources:
+  # Local filesystem repository paths are disabled by default.
+  # Set MONSTER_ALLOW_LOCAL_GIT_PATHS=true only for local development.
+  github_client_id: ""
+  github_client_secret: ""
+  gitlab_client_id: ""
+  gitlab_client_secret: ""
+
 backup:
   schedule: "02:00"             # Daily backup time (HH:MM)
   retention_days: 30

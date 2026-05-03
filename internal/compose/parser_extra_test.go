@@ -70,6 +70,41 @@ func TestInterpolate_DefaultValues(t *testing.T) {
 	}
 }
 
+func TestInterpolate_GeneratesWeakSecretDefaults(t *testing.T) {
+	input := []byte(`
+services:
+  app:
+    environment:
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_URL: postgres://user:${DB_PASSWORD:-changeme}@db/app
+      ROOT_PASSWORD: ${ROOT_PASSWORD:-rootpass}
+      TAG: ${TAG:-latest}
+`)
+
+	result := string(Interpolate(input, map[string]string{}))
+
+	if strings.Contains(result, "changeme") || strings.Contains(result, "rootpass") {
+		t.Fatalf("weak secret default leaked into interpolation result:\n%s", result)
+	}
+	if strings.Contains(result, "${DB_PASSWORD}") || strings.Contains(result, "${ROOT_PASSWORD}") {
+		t.Fatalf("sensitive placeholders were not resolved:\n%s", result)
+	}
+	if !strings.Contains(result, "TAG: latest") {
+		t.Fatalf("non-sensitive default should be preserved:\n%s", result)
+	}
+}
+
+func TestInterpolate_GeneratesBareSensitiveVars(t *testing.T) {
+	result := string(Interpolate([]byte("password: ${ADMIN_PASSWORD}\nurl: ${APP_URL}"), nil))
+
+	if strings.Contains(result, "${ADMIN_PASSWORD}") {
+		t.Fatalf("sensitive placeholder was not generated: %q", result)
+	}
+	if !strings.Contains(result, "url: ${APP_URL}") {
+		t.Fatalf("non-sensitive placeholder should remain unchanged: %q", result)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Dependency ordering (depends_on)
 // ---------------------------------------------------------------------------

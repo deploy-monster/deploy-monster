@@ -1,6 +1,7 @@
 package marketplace
 
 import (
+	"regexp"
 	"strings"
 	"sync"
 )
@@ -42,9 +43,12 @@ func NewTemplateRegistry() *TemplateRegistry {
 
 // Add registers a template.
 func (r *TemplateRegistry) Add(t *Template) {
+	if t == nil {
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.templates[t.Slug] = t
+	r.templates[t.Slug] = sanitizeTemplate(t)
 }
 
 // Get returns a template by slug.
@@ -115,4 +119,53 @@ func containsTag(tags []string, query string) bool {
 		}
 	}
 	return false
+}
+
+var composeDefaultExpr = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*):-([^}]*)\}`)
+
+func sanitizeTemplate(t *Template) *Template {
+	if t == nil {
+		return nil
+	}
+	cp := *t
+	if len(t.Tags) > 0 {
+		cp.Tags = append([]string(nil), t.Tags...)
+	}
+	cp.ComposeYAML = composeDefaultExpr.ReplaceAllStringFunc(t.ComposeYAML, func(match string) string {
+		parts := composeDefaultExpr.FindStringSubmatch(match)
+		if len(parts) != 3 {
+			return match
+		}
+		if isSensitiveTemplateEnvKey(parts[1]) && isWeakTemplateSecretDefault(parts[2]) {
+			return "${" + parts[1] + "}"
+		}
+		return match
+	})
+	return &cp
+}
+
+func isSensitiveTemplateEnvKey(key string) bool {
+	upper := strings.ToUpper(key)
+	for _, marker := range []string{"PASSWORD", "PASS", "PWD", "SECRET", "TOKEN", "KEY", "SALT"} {
+		if strings.Contains(upper, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func isWeakTemplateSecretDefault(value string) bool {
+	v := strings.ToLower(strings.TrimSpace(value))
+	if v == "" {
+		return false
+	}
+	switch v {
+	case "admin", "authentik", "baserow", "bookstack", "change-this", "change-this-key",
+		"change-this-secret", "change-this-too", "changeme", "huginn", "immich",
+		"keycloak", "masterkey123", "matomo", "minioadmin", "paperless",
+		"please-change-me", "rootpass", "seafile", "wiki":
+		return true
+	default:
+		return false
+	}
 }
