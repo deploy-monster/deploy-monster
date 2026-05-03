@@ -163,6 +163,7 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
   const [error, setError] = useState('');
   const [generatedSecrets, setGeneratedSecrets] = useState<Record<string, string>>({});
   const [deployedAppId, setDeployedAppId] = useState('');
+  const [credentialsReadyToLeave, setCredentialsReadyToLeave] = useState(false);
 
   const configFields = useMemo(() => {
     if (!template.config_schema?.properties) return [];
@@ -197,6 +198,7 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
       if (Object.keys(secrets).length > 0) {
         setGeneratedSecrets(secrets);
         setDeployedAppId(result.app_id);
+        setCredentialsReadyToLeave(false);
       } else {
         onDeployed(result.app_id);
       }
@@ -210,8 +212,10 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
   const copyGeneratedSecrets = async () => {
     try {
       await navigator.clipboard.writeText(formatGeneratedSecrets(generatedSecrets));
+      setCredentialsReadyToLeave(true);
       toast.success('Credentials copied');
     } catch {
+      setCredentialsReadyToLeave(true);
       toast.error('Failed to copy credentials');
     }
   };
@@ -222,7 +226,7 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
         <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
           <Label className="text-sm font-medium">Generated Credentials</Label>
           <p className="text-xs text-muted-foreground">
-            These generated values are shown once. Save them before opening the app.
+            These generated values are shown once. Copy or save them before opening the app.
           </p>
           <div className="space-y-2">
             {generatedSecretEntries(generatedSecrets).map(([key, value]) => (
@@ -238,7 +242,7 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
             <Copy className="size-4" />
             Copy Credentials
           </Button>
-          <Button onClick={() => onDeployed(deployedAppId)}>
+          <Button onClick={() => onDeployed(deployedAppId)} disabled={!credentialsReadyToLeave}>
             Open App
           </Button>
         </div>

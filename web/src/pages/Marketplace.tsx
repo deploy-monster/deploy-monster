@@ -177,6 +177,7 @@ export function Marketplace() {
   const [deployError, setDeployError] = useState('');
   const [generatedSecrets, setGeneratedSecrets] = useState<Record<string, string>>({});
   const [deployedAppId, setDeployedAppId] = useState('');
+  const [credentialsReadyToLeave, setCredentialsReadyToLeave] = useState(false);
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
@@ -235,6 +236,7 @@ export function Marketplace() {
       if (Object.keys(secrets).length > 0) {
         setGeneratedSecrets(secrets);
         setDeployedAppId(result.app_id);
+        setCredentialsReadyToLeave(false);
       } else {
         setDeploying(null);
         navigate(`/apps/${result.app_id}`);
@@ -260,6 +262,7 @@ export function Marketplace() {
     setDeployError('');
     setGeneratedSecrets({});
     setDeployedAppId('');
+    setCredentialsReadyToLeave(false);
   };
 
   const closeDeploy = () => {
@@ -268,13 +271,16 @@ export function Marketplace() {
     setDeployLoading(false);
     setGeneratedSecrets({});
     setDeployedAppId('');
+    setCredentialsReadyToLeave(false);
   };
 
   const copyGeneratedSecrets = async () => {
     try {
       await navigator.clipboard.writeText(formatGeneratedSecrets(generatedSecrets));
+      setCredentialsReadyToLeave(true);
       toast.success('Credentials copied');
     } catch {
+      setCredentialsReadyToLeave(true);
       toast.error('Failed to copy credentials');
     }
   };
@@ -445,7 +451,7 @@ export function Marketplace() {
                 <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
                   <Label className="text-sm font-medium">Generated Credentials</Label>
                   <p className="text-xs text-muted-foreground">
-                    These generated values are shown once. Save them before opening the app.
+                    These generated values are shown once. Copy or save them before opening the app.
                   </p>
                   <div className="space-y-2">
                     {generatedSecretEntries(generatedSecrets).map(([key, value]) => (
@@ -549,7 +555,10 @@ export function Marketplace() {
                   <Copy className="size-4" />
                   Copy Credentials
                 </Button>
-                <Button onClick={() => navigate(`/apps/${deployedAppId}`)}>
+                <Button
+                  onClick={() => navigate(`/apps/${deployedAppId}`)}
+                  disabled={!credentialsReadyToLeave}
+                >
                   Open App
                 </Button>
               </>

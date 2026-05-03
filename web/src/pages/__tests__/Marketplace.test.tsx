@@ -247,6 +247,9 @@ describe('Marketplace page', () => {
     expect(screen.getByText('generated-secret')).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
 
+    const openAppButton = screen.getByRole('button', { name: /open app/i });
+    expect(openAppButton).toBeDisabled();
+
     fireEvent.click(screen.getByRole('button', { name: /copy credentials/i }));
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
@@ -254,8 +257,9 @@ describe('Marketplace page', () => {
       );
     });
     expect(toastSuccessMock).toHaveBeenCalledWith('Credentials copied');
+    expect(openAppButton).not.toBeDisabled();
 
-    fireEvent.click(screen.getByRole('button', { name: /open app/i }));
+    fireEvent.click(openAppButton);
     expect(navigateMock).toHaveBeenCalledWith('/apps/app-generated');
   });
 
