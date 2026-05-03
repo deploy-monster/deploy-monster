@@ -240,7 +240,7 @@ limits:
   max_apps_per_tenant: 100
   max_concurrent_builds: 5
 `
-	if err := os.WriteFile("monster.yaml", []byte(content), 0644); err != nil {
+	if err := os.WriteFile("monster.yaml", []byte(content), 0600); err != nil {
 		fmt.Fprintf(os.Stderr, "error writing monster.yaml: %v\n", err)
 		os.Exit(1)
 	}
@@ -441,7 +441,7 @@ func runSetup() {
 		fmt.Fprintf(os.Stderr, "failed to create data dir: %v\n", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(configPath, data, 0640); err != nil {
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		fmt.Fprintf(os.Stderr, "error writing config: %v\n", err)
 		os.Exit(1)
 	}
@@ -473,7 +473,10 @@ func runSetup() {
 					final = append(final, "[Install]")
 				}
 			}
-			_ = os.WriteFile("/etc/systemd/system/deploymonster.service", []byte(strings.Join(final, "\n")), 0644)
+			if err := os.WriteFile("/etc/systemd/system/deploymonster.service", []byte(strings.Join(final, "\n")), 0600); err != nil {
+				fmt.Fprintf(os.Stderr, "error updating systemd unit: %v\n", err)
+				os.Exit(1)
+			}
 			unitUpdated = true
 		}
 	}

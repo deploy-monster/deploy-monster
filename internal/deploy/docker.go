@@ -28,14 +28,12 @@ type DockerManager struct {
 
 // NewDockerManager creates a new Docker manager with API version negotiation.
 func NewDockerManager(host string) (*DockerManager, error) {
-	opts := []client.Opt{
-		client.WithAPIVersionNegotiation(),
-	}
+	var opts []client.Opt
 	if host != "" && host != "unix:///var/run/docker.sock" {
 		opts = append(opts, client.WithHost(host))
 	}
 
-	cli, err := client.NewClientWithOpts(opts...)
+	cli, err := client.New(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
 	}
@@ -58,7 +56,12 @@ func (d *DockerManager) SetResourceDefaults(cpuQuota, memoryMB int64) {
 
 // Ping verifies the Docker connection.
 func (d *DockerManager) Ping() error {
-	_, err := d.cli.Ping(context.Background(), client.PingOptions{NegotiateAPIVersion: true})
+	return d.PingContext(context.Background())
+}
+
+// PingContext verifies the Docker connection using a caller-provided context.
+func (d *DockerManager) PingContext(ctx context.Context) error {
+	_, err := d.cli.Ping(ctx, client.PingOptions{NegotiateAPIVersion: true})
 	return err
 }
 

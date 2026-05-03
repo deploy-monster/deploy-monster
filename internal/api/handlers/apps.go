@@ -188,14 +188,17 @@ func (h *AppHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cascade: delete associated domains
-	h.store.DeleteDomainsByApp(r.Context(), app.ID)
+	if _, err := h.store.DeleteDomainsByApp(r.Context(), app.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete application domains")
+		return
+	}
 
 	if err := h.store.DeleteApp(r.Context(), app.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete application")
 		return
 	}
 
-	h.core.Events.Publish(r.Context(), core.Event{
+	_ = h.core.Events.Publish(r.Context(), core.Event{
 		Type:   core.EventAppDeleted,
 		Source: "api",
 		Data:   map[string]string{"id": app.ID},

@@ -1,11 +1,13 @@
 package auth
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha1"
+	"crypto/subtle"
 	"encoding/base32"
 	"encoding/binary"
 	"fmt"
-	"hash"
 	"net/url"
 	"strings"
 	"time"
@@ -81,7 +83,7 @@ func ValidateTOTP(token string, secret string) bool {
 
 	// Check current and adjacent periods
 	for offset := -window; offset <= window; offset++ {
-		expected := generateTOTP(secretBytes, now, period, 6)
+		expected := generateTOTP(secretBytes, now+int64(offset*period), period, len(token))
 		if constantTimeCompare(token, expected) {
 			return true
 		}
@@ -103,8 +105,11 @@ func generateTOTP(secret []byte, counter int64, period int, digits int) string {
 	offset := mac[len(mac)-1] & 0x0F
 	truncated := binary.BigEndian.Uint32(mac[offset:offset+4]) & 0x7FFFFFFF
 
-	// Modulo 10^digits
-	code := truncated % 1000000
+	mod := uint32(1)
+	for range digits {
+		mod *= 10
+	}
+	code := truncated % mod
 
 	// Pad with leading zeros
 	result := fmt.Sprintf("%0*d", digits, code)
@@ -113,10 +118,9 @@ func generateTOTP(secret []byte, counter int64, period int, digits int) string {
 
 // hmacSHA1 computes HMAC-SHA1.
 func hmacSHA1(key, message []byte) []byte {
-	var h hash.Hash
-	h.Write(key)
-	h.Write(message)
-	return h.Sum(nil)
+	mac := hmac.New(sha1.New, key)
+	_, _ = mac.Write(message)
+	return mac.Sum(nil)
 }
 
 // constantTimeCompare compares two strings in constant time to prevent timing attacks.
@@ -124,11 +128,7 @@ func constantTimeCompare(a, b string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	var result byte
-	for i := 0; i < len(a); i++ {
-		result |= a[i] ^ b[i]
-	}
-	return result == 0
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
 // GenerateBackupCodes generates a set of backup codes for account recovery.

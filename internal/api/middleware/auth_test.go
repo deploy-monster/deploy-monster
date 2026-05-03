@@ -255,11 +255,11 @@ func TestRequireAuth_ValidAPIKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to hash test API key: %v", err)
 	}
-	bolt.apiKeys["dm_test_"] = &models.APIKey{
+	bolt.apiKeys[testKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-key-user",
 		TenantID:  "api-key-tenant",
-		KeyPrefix: "dm_test_",
+		KeyPrefix: testKey[:auth.APIKeyPrefixLength],
 		KeyHash:   keyHash,
 		CreatedAt: time.Now(),
 	}
@@ -336,11 +336,12 @@ func TestRequireAuth_ExpiredAPIKey(t *testing.T) {
 	jwtSvc := testJWT()
 	bolt := newMockBoltStore()
 	expiredTime := time.Now().Add(-1 * time.Hour)
-	bolt.apiKeys["dm_test_"] = &models.APIKey{
+	expiredKey := "dm_test_expired_auth_key"
+	bolt.apiKeys[expiredKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-user",
 		TenantID:  "api-tenant",
-		KeyPrefix: "dm_test_",
+		KeyPrefix: expiredKey[:auth.APIKeyPrefixLength],
 		KeyHash:   "dm_test_expired_auth_key",
 		ExpiresAt: &expiredTime,
 	}
@@ -350,7 +351,7 @@ func TestRequireAuth_ExpiredAPIKey(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
-	req.Header.Set("X-API-Key", "dm_test_expired_auth_key")
+	req.Header.Set("X-API-Key", expiredKey)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -397,11 +398,12 @@ func TestRequireAuth_APIKeyNotFoundInStore(t *testing.T) {
 func TestRequireAuth_APIKeyMismatch(t *testing.T) {
 	jwtSvc := testJWT()
 	bolt := newMockBoltStore()
-	bolt.apiKeys["dm_test_"] = &models.APIKey{
+	wrongKey := "dm_test_wrong_hash_value"
+	bolt.apiKeys[wrongKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-user",
 		TenantID:  "api-tenant",
-		KeyPrefix: "dm_test_",
+		KeyPrefix: wrongKey[:auth.APIKeyPrefixLength],
 		KeyHash:   "dm_test_correct_hash_value",
 		CreatedAt: time.Now(),
 	}
@@ -411,7 +413,7 @@ func TestRequireAuth_APIKeyMismatch(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
-	req.Header.Set("X-API-Key", "dm_test_wrong_hash_value")
+	req.Header.Set("X-API-Key", wrongKey)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -448,7 +450,7 @@ func TestRequireAuth_APIKeyNotExpired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to hash test API key: %v", err)
 	}
-	bolt.apiKeys["dm_test_"] = &models.APIKey{
+	bolt.apiKeys[testKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-user",
 		TenantID:  "api-tenant",

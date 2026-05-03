@@ -235,8 +235,8 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer, store core.Store
 					return
 				}
 
-				// Extract prefix (first 8 chars) for lookup
-				if len(apiKey) < 12 {
+				// Extract the stable prefix for lookup.
+				if len(apiKey) < auth.APIKeyPrefixLength {
 					writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
 					return
 				}
@@ -247,7 +247,7 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer, store core.Store
 					return
 				}
 
-				keyPrefix := apiKey[:8]
+				keyPrefix := apiKey[:auth.APIKeyPrefixLength]
 
 				// Lookup API key by prefix using BoltStorer
 				storedKey, err := bolt.GetAPIKeyByPrefix(r.Context(), keyPrefix)
@@ -279,6 +279,9 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer, store core.Store
 				if store != nil {
 					if membership, err := store.GetUserMembership(r.Context(), storedKey.UserID); err == nil && membership != nil {
 						claims.RoleID = membership.RoleID
+						if claims.TenantID == "" {
+							claims.TenantID = membership.TenantID
+						}
 					}
 				}
 

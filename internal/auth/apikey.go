@@ -10,6 +10,9 @@ import (
 
 const apiKeyPrefix = "dm_"
 
+// APIKeyPrefixLength is the stable lookup prefix length stored with API keys.
+const APIKeyPrefixLength = len(apiKeyPrefix) + 12
+
 // apiKeyBcryptCost mirrors the password-hashing cost (13) so API keys and
 // passwords have the same offline-attack economics — an attacker who dumps
 // the DB should not find API keys cheaper to crack than user passwords.
@@ -37,7 +40,7 @@ func GenerateAPIKey() (*APIKeyPair, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hash api key: %w", err)
 	}
-	prefix := key[:len(apiKeyPrefix)+12]
+	prefix := key[:APIKeyPrefixLength]
 
 	return &APIKeyPair{
 		Key:    key,

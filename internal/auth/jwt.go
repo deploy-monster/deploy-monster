@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -55,6 +56,7 @@ type TokenPair struct {
 
 // JWTService handles JWT token generation and validation.
 type JWTService struct {
+	mu            sync.Mutex
 	secretKey     []byte
 	previousKeys  [][]byte    // ordered list of old keys
 	previousAdded []time.Time // wall-clock when each key was added
@@ -99,9 +101,11 @@ func (j *JWTService) AddPreviousKey(secret string) {
 	if secret == "" {
 		return
 	}
+	j.mu.Lock()
+	defer j.mu.Unlock()
 	j.previousKeys = append(j.previousKeys, []byte(secret))
 	j.previousAdded = append(j.previousAdded, time.Now())
-	j.purgeExpiredPreviousKeys()
+	j.purgeExpiredPreviousKeysLocked()
 }
 
 // RevokeAllPreviousKeys immediately invalidates all rotated keys.
@@ -110,6 +114,8 @@ func (j *JWTService) AddPreviousKey(secret string) {
 // not just after RotationGracePeriod expires.
 // Returns the number of keys that were revoked.
 func (j *JWTService) RevokeAllPreviousKeys() int {
+	j.mu.Lock()
+	defer j.mu.Unlock()
 	count := len(j.previousKeys)
 	j.previousKeys = nil
 	j.previousAdded = nil
@@ -117,8 +123,16 @@ func (j *JWTService) RevokeAllPreviousKeys() int {
 }
 
 // purgeExpiredPreviousKeys removes keys older than RotationGracePeriod.
-// Called before every validation and after key additions.
+// Called by rotation tests to exercise cleanup deterministically.
+//
+//nolint:unused // Exercised from package tests; production callers use allKeys/AddPreviousKey.
 func (j *JWTService) purgeExpiredPreviousKeys() {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.purgeExpiredPreviousKeysLocked()
+}
+
+func (j *JWTService) purgeExpiredPreviousKeysLocked() {
 	cutoff := time.Now().Add(-RotationGracePeriod)
 	validIdx := 0
 	for i, t := range j.previousAdded {
@@ -321,10 +335,15 @@ func (j *JWTService) ValidateRefreshToken(tokenStr string) (*RefreshTokenClaims,
 // allKeys returns the active key followed by previous keys that are still
 // within RotationGracePeriod. Expired keys are purged before returning.
 func (j *JWTService) allKeys() [][]byte {
-	j.purgeExpiredPreviousKeys()
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.purgeExpiredPreviousKeysLocked()
 	keys := make([][]byte, 0, 1+len(j.previousKeys))
-	keys = append(keys, j.secretKey)
+	keys = append(keys, append([]byte(nil), j.secretKey...))
 	keys = append(keys, j.previousKeys...)
+	for i := 1; i < len(keys); i++ {
+		keys[i] = append([]byte(nil), keys[i]...)
+	}
 	return keys
 }
 

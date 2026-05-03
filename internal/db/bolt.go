@@ -211,10 +211,12 @@ func (b *BoltStore) Close() error {
 	return b.db.Close()
 }
 
-// GetAPIKeyByPrefix retrieves an API key by its key prefix (first 8 chars).
+// GetAPIKeyByPrefix retrieves an API key by its stored key prefix.
 // Used for API key validation in middleware.
 func (b *BoltStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*models.APIKey, error) {
-	_ = ctx // context not used directly but kept for interface consistency
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var key models.APIKey
 	err := b.db.View(func(tx *bolt.Tx) error {
 		bkt := tx.Bucket(bucketAPIKeys)
@@ -225,12 +227,12 @@ func (b *BoltStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*mode
 		// Iterate to find key with matching prefix
 		c := bkt.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var apiKey models.APIKey
-			if err := json.Unmarshal(v, &apiKey); err != nil {
+			apiKey, err := decodeAPIKeyRecord(v)
+			if err != nil {
 				continue
 			}
 			if apiKey.KeyPrefix == prefix {
-				key = apiKey
+				key = *apiKey
 				return nil
 			}
 		}
@@ -240,6 +242,70 @@ func (b *BoltStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*mode
 		return nil, err
 	}
 	return &key, nil
+}
+
+type apiKeyBoltRecord struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	TenantID  string     `json:"tenant_id"`
+	Name      string     `json:"name"`
+	KeyHash   string     `json:"key_hash"`
+	KeyPrefix string     `json:"key_prefix"`
+	Scopes    string     `json:"scopes_json"`
+	Prefix    string     `json:"prefix"`
+	Hash      string     `json:"hash"`
+	CreatedBy string     `json:"created_by"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+func decodeAPIKeyRecord(raw []byte) (*models.APIKey, error) {
+	var entry boltEntry
+	if err := json.Unmarshal(raw, &entry); err == nil && len(entry.Data) > 0 {
+		raw = entry.Data
+	}
+
+	var rec apiKeyBoltRecord
+	if err := json.Unmarshal(raw, &rec); err != nil {
+		return nil, err
+	}
+
+	keyHash := rec.KeyHash
+	if keyHash == "" {
+		keyHash = rec.Hash
+	}
+	keyPrefix := rec.KeyPrefix
+	if keyPrefix == "" {
+		keyPrefix = rec.Prefix
+	}
+	userID := rec.UserID
+	if userID == "" {
+		userID = rec.CreatedBy
+	}
+	if keyPrefix == "" || userID == "" {
+		return nil, fmt.Errorf("invalid api key record")
+	}
+
+	id := rec.ID
+	if id == "" {
+		id = keyPrefix
+	}
+	name := rec.Name
+	if name == "" {
+		name = keyPrefix
+	}
+
+	return &models.APIKey{
+		ID:         id,
+		UserID:     userID,
+		TenantID:   rec.TenantID,
+		Name:       name,
+		KeyHash:    keyHash,
+		KeyPrefix:  keyPrefix,
+		ScopesJSON: rec.Scopes,
+		ExpiresAt:  rec.ExpiresAt,
+		CreatedAt:  rec.CreatedAt,
+	}, nil
 }
 
 // GetWebhookSecret retrieves the webhook secret hash for signature verification.

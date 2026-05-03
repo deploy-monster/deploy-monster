@@ -23,7 +23,7 @@ type TOTPService struct {
 
 // NewTOTPService creates a new TOTP service.
 func NewTOTPService(store core.Store) *TOTPService {
-	return &TOTPService{store: store}
+	return &TOTPService{store: store, logger: slog.Default()}
 }
 
 // SetVault sets the encryption vault for TOTP secrets.
@@ -80,11 +80,16 @@ func (s *TOTPService) Enroll(ctx context.Context, userID string) (provisioningUR
 // The stored secret is encrypted using the secrets vault; we decrypt it
 // and then generate the expected TOTP code for comparison.
 func (s *TOTPService) Validate(userID, code string) bool {
+	return s.ValidateContext(context.Background(), userID, code)
+}
+
+// ValidateContext validates a TOTP code using the caller's context for store I/O.
+func (s *TOTPService) ValidateContext(ctx context.Context, userID, code string) bool {
 	if s.vault == nil {
 		return false
 	}
 
-	user, err := s.store.GetUser(context.Background(), userID)
+	user, err := s.store.GetUser(ctx, userID)
 	if err != nil || !user.TOTPEnabled || user.TOTPSecret == "" {
 		return false
 	}
@@ -112,7 +117,7 @@ func (s *TOTPService) Disable(ctx context.Context, userID, code string) error {
 	}
 
 	// Validate the TOTP code before disabling
-	if !s.Validate(userID, code) {
+	if !s.ValidateContext(ctx, userID, code) {
 		return fmt.Errorf("invalid TOTP code")
 	}
 
@@ -128,7 +133,12 @@ func (s *TOTPService) Disable(ctx context.Context, userID, code string) error {
 
 // Status returns whether TOTP is enabled for a user.
 func (s *TOTPService) Status(userID string) (enabled bool, err error) {
-	user, err := s.store.GetUser(context.Background(), userID)
+	return s.StatusContext(context.Background(), userID)
+}
+
+// StatusContext returns whether TOTP is enabled for a user using the caller's context.
+func (s *TOTPService) StatusContext(ctx context.Context, userID string) (enabled bool, err error) {
+	user, err := s.store.GetUser(ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("get user: %w", err)
 	}

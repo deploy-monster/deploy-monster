@@ -25,7 +25,10 @@ func (h *LabelsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	var labels map[string]string
 	if app.LabelsJSON != "" && app.LabelsJSON != "{}" {
-		json.Unmarshal([]byte(app.LabelsJSON), &labels)
+		if err := json.Unmarshal([]byte(app.LabelsJSON), &labels); err != nil {
+			writeError(w, http.StatusInternalServerError, "stored labels are invalid")
+			return
+		}
 	}
 	if labels == nil {
 		labels = map[string]string{}

@@ -55,16 +55,15 @@ func (h *DetailedHealthHandler) DetailedHealth(w http.ResponseWriter, r *http.Re
 	}
 	checks["database"] = map[string]any{"healthy": dbOK, "driver": h.core.Config.Database.Driver}
 
-	// Docker connectivity (with timeout — Ping() has no context param)
+	// Docker connectivity.
 	dockerOK := false
 	if h.core.Services.Container != nil {
-		pingDone := make(chan error, 1)
-		go func() { pingDone <- h.core.Services.Container.Ping() }()
-		select {
-		case err := <-pingDone:
-			dockerOK = err == nil
-		case <-time.After(3 * time.Second):
-			// Ping hung — treat as unhealthy
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		if rt, ok := h.core.Services.Container.(interface{ PingContext(context.Context) error }); ok {
+			dockerOK = rt.PingContext(ctx) == nil
+		} else {
+			dockerOK = h.core.Services.Container.Ping() == nil
 		}
 	}
 	checks["docker"] = map[string]any{"healthy": dockerOK}

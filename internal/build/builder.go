@@ -95,7 +95,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	_, _ = fmt.Fprintf(logWriter, "==> Build started for %s\n", opts.AppName)
 
 	// 2. Clone repository
-	_, _ = fmt.Fprintf(logWriter, "==> Cloning %s (branch: %s)\n", opts.SourceURL, opts.Branch)
+	_, _ = fmt.Fprintf(logWriter, "==> Cloning %s (branch: %s)\n", redactURL(opts.SourceURL), opts.Branch)
 	commitSHA, err := gitClone(ctx, opts.SourceURL, opts.Branch, opts.Token, buildDir, logWriter)
 	if err != nil {
 		b.emitFailed(ctx, opts.AppID, err)
@@ -369,6 +369,15 @@ func injectToken(gitURL, token string) string {
 		return "https://" + token + "@" + gitURL[8:]
 	}
 	return gitURL
+}
+
+func redactURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.User == nil {
+		return raw
+	}
+	u.User = url.UserPassword("redacted", "redacted")
+	return u.String()
 }
 
 // dockerBuild runs `docker build` as a subprocess. --force-rm ensures

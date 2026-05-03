@@ -33,13 +33,23 @@ func (h *SuspendHandler) Suspend(w http.ResponseWriter, r *http.Request) {
 
 	// Stop container but keep it (don't remove)
 	if h.runtime != nil {
-		containers, _ := h.runtime.ListByLabels(r.Context(), map[string]string{"monster.app.id": appID})
+		containers, err := h.runtime.ListByLabels(r.Context(), map[string]string{"monster.app.id": appID})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to list app containers")
+			return
+		}
 		for _, c := range containers {
-			h.runtime.Stop(r.Context(), c.ID, 30)
+			if err := h.runtime.Stop(r.Context(), c.ID, 30); err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to stop app container")
+				return
+			}
 		}
 	}
 
-	h.store.UpdateAppStatus(r.Context(), appID, "suspended")
+	if err := h.store.UpdateAppStatus(r.Context(), appID, "suspended"); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update app status")
+		return
+	}
 
 	h.events.PublishAsync(r.Context(), core.NewEvent(core.EventAppStopped, "api",
 		core.AppEventData{AppID: appID, AppName: app.Name, Status: "suspended"}))
@@ -63,13 +73,23 @@ func (h *SuspendHandler) Resume(w http.ResponseWriter, r *http.Request) {
 
 	// Restart existing container
 	if h.runtime != nil {
-		containers, _ := h.runtime.ListByLabels(r.Context(), map[string]string{"monster.app.id": appID})
+		containers, err := h.runtime.ListByLabels(r.Context(), map[string]string{"monster.app.id": appID})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to list app containers")
+			return
+		}
 		for _, c := range containers {
-			h.runtime.Restart(r.Context(), c.ID)
+			if err := h.runtime.Restart(r.Context(), c.ID); err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to restart app container")
+				return
+			}
 		}
 	}
 
-	h.store.UpdateAppStatus(r.Context(), appID, "running")
+	if err := h.store.UpdateAppStatus(r.Context(), appID, "running"); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update app status")
+		return
+	}
 
 	h.events.PublishAsync(r.Context(), core.NewEvent(core.EventAppStarted, "api",
 		core.AppEventData{AppID: appID, AppName: app.Name, Status: "running"}))

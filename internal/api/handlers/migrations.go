@@ -40,8 +40,15 @@ func (h *MigrationHandler) Status(w http.ResponseWriter, r *http.Request) {
 	var migrations []migration
 	for rows.Next() {
 		var m migration
-		rows.Scan(&m.Version, &m.Name, &m.AppliedAt)
+		if err := rows.Scan(&m.Version, &m.Name, &m.AppliedAt); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to read migration row")
+			return
+		}
 		migrations = append(migrations, m)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to read migrations")
+		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
