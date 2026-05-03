@@ -74,6 +74,15 @@ skip() {
     SKIPPED=$((SKIPPED + 1))
 }
 
+playwright_chromium_installed() {
+    (cd web && node - <<'NODE'
+const fs = require('fs');
+const { chromium } = require('@playwright/test');
+process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1);
+NODE
+    )
+}
+
 # ============================================
 # 1. Go Formatting
 # ============================================
@@ -275,6 +284,8 @@ if [[ "$QUICK" == "true" ]]; then
 else
     if [ ! -f "web/playwright.config.ts" ]; then
         skip "No Playwright config found"
+    elif ! playwright_chromium_installed >/dev/null 2>&1; then
+        skip "Playwright E2E tests (Chromium browser not installed; run 'cd web && pnpm exec playwright install chromium')"
     else
         # Check if server is running
         if curl -s http://localhost:8443/health >/dev/null 2>&1; then
