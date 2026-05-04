@@ -215,7 +215,7 @@ bundle-size budget).
   including those harnesses is 86.1 %. Hot packages run well above
   target: `webhooks` 99.0 %, `mcp` 98.9 %, `api` 93.8 %,
   `notifications` 93.9 %, `marketplace` 95.3 %, `deploy` 91.5 %,
-  `auth` 90.6 %, `compose` 100 %. The CI gate enforces the
+  `auth` 91.1 %, `compose` 100 %. The CI gate enforces the
   filtered-85 % threshold (see `.github/workflows/ci.yml`).
 
 ---
