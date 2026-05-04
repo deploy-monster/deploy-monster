@@ -37,7 +37,7 @@ export interface APIKey {
   expires_at?: string;
 }
 
-export interface GenerateAPIKeyResponse {
+interface GenerateAPIKeyResponse {
   key: string;
   prefix: string;
   type: string;

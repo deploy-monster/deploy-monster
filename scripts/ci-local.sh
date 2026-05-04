@@ -369,18 +369,19 @@ fi
 # ============================================
 section "10. Large Files Check"
 
-# Check for files > 500KB
-large_files=$(find . -type f -size +500k \
-    -not -path "./.git/*" \
-    -not -path "./bin/*" \
-    -not -path "./coverage/*" \
-    -not -path "./web/node_modules/*" \
-    -not -path "./web/dist/*" \
-    -not -path "./internal/api/static/*" \
-    -not -path "*.db" \
-    -not -path "*.db-shm" \
-    -not -path "*.db-wal" \
-    2>/dev/null | head -5)
+# Check tracked and unignored files > 500KB.
+large_files=$(
+    count=0
+    while IFS= read -r -d '' file; do
+        if [ -f "$file" ] && [ "$(wc -c < "$file")" -gt 512000 ]; then
+            printf './%s\n' "$file"
+            count=$((count + 1))
+            if [ "$count" -ge 5 ]; then
+                break
+            fi
+        fi
+    done < <(git ls-files -z --cached --others --exclude-standard 2>/dev/null)
+)
 
 if [ -n "$large_files" ]; then
     echo -e "  ${YELLOW}Large files found (>500KB):${NC}"
