@@ -364,6 +364,7 @@ export function Backups() {
                         variant="ghost"
                         size="icon"
                         title="Download backup"
+                        aria-label="Download backup"
                         className="size-8 opacity-0 group-hover/row:opacity-100 transition-opacity"
                       >
                         <Download className="size-4" />
@@ -373,6 +374,7 @@ export function Backups() {
                         size="icon"
                         onClick={() => setRestoreDialog(b.key)}
                         title="Restore backup"
+                        aria-label="Restore backup"
                         className="size-8 opacity-0 group-hover/row:opacity-100 transition-opacity"
                       >
                         <RotateCcw className="size-4" />

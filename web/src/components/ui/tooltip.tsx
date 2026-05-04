@@ -31,6 +31,26 @@ function Tooltip({
     setVisible(false)
   }, [])
 
+  // Promote string tooltips to an accessible name on the wrapped element
+  // (typically an icon-only button). Skips any child that already exposes
+  // its own aria-label or aria-labelledby.
+  let accessibleChild: React.ReactNode = children
+  if (
+    typeof content === "string" &&
+    React.isValidElement(children)
+  ) {
+    const existingProps = (children as React.ReactElement<{
+      "aria-label"?: string
+      "aria-labelledby"?: string
+    }>).props
+    if (!existingProps["aria-label"] && !existingProps["aria-labelledby"]) {
+      accessibleChild = React.cloneElement(
+        children as React.ReactElement<{ "aria-label"?: string }>,
+        { "aria-label": content }
+      )
+    }
+  }
+
   return (
     <div
       className="relative inline-flex"
@@ -39,7 +59,7 @@ function Tooltip({
       onFocus={show}
       onBlur={hide}
     >
-      {children}
+      {accessibleChild}
       {visible && (
         <div
           className={cn(

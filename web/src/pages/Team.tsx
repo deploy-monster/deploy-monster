@@ -357,6 +357,7 @@ export function Team() {
                           onClick={() => handleRemove(m.id)}
                           className="opacity-0 group-hover/row:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                           title="Remove member"
+                          aria-label="Remove member"
                         >
                           <Trash2 className="size-4" />
                         </Button>

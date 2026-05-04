@@ -417,6 +417,7 @@ export function Databases() {
                           className="shrink-0 size-8"
                           onClick={() => handleCopy(db.id, db.connection_string)}
                           title="Copy connection string"
+                          aria-label="Copy connection string"
                         >
                           {copiedId === db.id ? (
                             <Check className="size-3.5 text-emerald-500" />

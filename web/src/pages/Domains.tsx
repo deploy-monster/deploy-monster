@@ -409,6 +409,7 @@ export function Domains() {
                           size="icon"
                           onClick={() => handleVerify(d.id)}
                           title="Verify domain"
+                          aria-label="Verify domain"
                           disabled={verifyingId === d.id}
                           className="size-8"
                         >
@@ -421,7 +422,7 @@ export function Domains() {
                       )}
                       {d.app_id && (
                         <a href={`/apps/${d.app_id}`}>
-                          <Button variant="ghost" size="icon" title="Open application" className="size-8">
+                          <Button variant="ghost" size="icon" title="Open application" aria-label="Open application" className="size-8">
                             <ExternalLink className="size-4" />
                           </Button>
                         </a>
@@ -432,6 +433,7 @@ export function Domains() {
                         onClick={() => handleDelete(d.id)}
                         className="size-8 text-muted-foreground hover:text-destructive transition-colors"
                         title="Delete domain"
+                        aria-label="Delete domain"
                       >
                         <Trash2 className="size-4" />
                       </Button>

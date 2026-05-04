@@ -651,7 +651,7 @@ export function Settings() {
                       <code className="flex-1 truncate rounded-lg border bg-muted/50 px-3 py-2.5 font-mono text-sm">
                         {generatedKey}
                       </code>
-                      <Button variant="outline" size="icon" onClick={handleCopy} className="shrink-0">
+                      <Button variant="outline" size="icon" onClick={handleCopy} aria-label={copied ? "Copied" : "Copy generated key"} className="shrink-0">
                         {copied ? (
                           <Check className="size-4 text-emerald-500" />
                         ) : (

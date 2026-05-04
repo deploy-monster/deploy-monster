@@ -407,6 +407,7 @@ export function Secrets() {
                         size="icon"
                         onClick={() => handleCopyRef(s.name, s.id)}
                         title="Copy reference"
+                        aria-label="Copy reference"
                         className="size-8"
                       >
                         {copiedId === s.id ? (
@@ -421,6 +422,7 @@ export function Secrets() {
                         onClick={() => handleDelete(s.id)}
                         className="size-8 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover/row:opacity-100"
                         title="Delete secret"
+                        aria-label="Delete secret"
                       >
                         <Trash2 className="size-3.5" />
                       </Button>

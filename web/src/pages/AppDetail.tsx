@@ -194,7 +194,7 @@ export function AppDetail() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <Link to="/apps">
-            <Button variant="ghost" size="icon" className="mt-1 cursor-pointer">
+            <Button variant="ghost" size="icon" aria-label="Back to applications" className="mt-1 cursor-pointer">
               <ArrowLeft className="size-4" />
             </Button>
           </Link>
@@ -761,6 +761,7 @@ export function AppDetail() {
                     <Button
                       variant="outline"
                       size="icon"
+                      aria-label="Copy application ID"
                       className="cursor-pointer"
                       onClick={() => navigator.clipboard.writeText(app.id)}
                     >
