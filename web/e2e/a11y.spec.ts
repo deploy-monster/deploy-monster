@@ -23,6 +23,9 @@ const AUTHED_ROUTES: { path: string; name: string; waitFor: string }[] = [
   { path: '/marketplace', name: 'marketplace', waitFor: '[data-testid="dashboard-shell"]' },
   { path: '/domains', name: 'domains', waitFor: '[data-testid="dashboard-shell"]' },
   { path: '/databases', name: 'databases', waitFor: '[data-testid="dashboard-shell"]' },
+  { path: '/secrets', name: 'secrets', waitFor: '[data-testid="dashboard-shell"]' },
+  { path: '/backups', name: 'backups', waitFor: '[data-testid="dashboard-shell"]' },
+  { path: '/team', name: 'team', waitFor: '[data-testid="dashboard-shell"]' },
   { path: '/settings', name: 'settings', waitFor: '[data-testid="dashboard-shell"]' },
 ];
 
