@@ -356,18 +356,20 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
             <div className="flex items-center gap-2">
               <Input
                 placeholder="KEY"
+                aria-label="Environment variable name"
                 value={newEnvKey}
                 onChange={(e) => setNewEnvKey(e.target.value)}
                 className="flex-1 font-mono text-xs"
               />
               <Input
                 placeholder="value or ${db.DATABASE_URL}"
+                aria-label="Environment variable value"
                 value={newEnvValue}
                 onChange={(e) => setNewEnvValue(e.target.value)}
                 className="flex-1 font-mono text-xs"
               />
-              <Button variant="ghost" size="icon" onClick={handleAddEnvVar}>
-                <Plus className="h-4 w-4" />
+              <Button variant="ghost" size="icon" onClick={handleAddEnvVar} aria-label="Add environment variable">
+                <Plus className="h-4 w-4" aria-hidden="true" />
               </Button>
             </div>
           </div>
@@ -503,10 +505,11 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
           <div className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
             <div>
               <Label htmlFor="sslEnabled" className="font-normal">Enable SSL</Label>
-              <p className="text-xs text-muted-foreground">Automatic Let's Encrypt certificate</p>
+              <p id="sslEnabled-desc" className="text-xs text-muted-foreground">Automatic Let's Encrypt certificate</p>
             </div>
             <Switch
               id="sslEnabled"
+              aria-describedby="sslEnabled-desc"
               checked={data.sslEnabled ?? true}
               onCheckedChange={(v) => handleChange('sslEnabled', v)}
             />

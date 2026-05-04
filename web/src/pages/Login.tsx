@@ -78,7 +78,7 @@ export function Login() {
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-b from-slate-900 via-emerald-950 to-slate-900">
         {/* Grid pattern overlay */}
         <div className="absolute inset-0">
-          <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+          <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
               <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
                 <path

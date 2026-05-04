@@ -232,9 +232,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
       {/* ---- Navigation ---- */}
       <ScrollArea className="flex-1 py-4">
-        <nav className="px-3 space-y-1">
+        <nav className="px-3 space-y-1" aria-label="Primary">
           {navGroups.map((group) => {
             const isCollapsed = collapsed[group.id] ?? false;
+            const groupPanelId = `nav-group-${group.id}`;
 
             return (
               <div key={group.id} className="mb-1">
@@ -242,6 +243,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.id)}
+                  aria-expanded={!isCollapsed}
+                  aria-controls={groupPanelId}
                   className={cn(
                     'flex items-center justify-between w-full px-3 py-2',
                     'text-[11px] font-semibold uppercase tracking-widest',
@@ -251,6 +254,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 >
                   {group.label}
                   <ChevronDown
+                    aria-hidden="true"
                     className={cn(
                       'h-3.5 w-3.5 transition-transform duration-200',
                       isCollapsed && '-rotate-90',
@@ -260,6 +264,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
                 {/* Group items */}
                 <div
+                  id={groupPanelId}
                   className={cn(
                     'space-y-0.5 overflow-hidden transition-all duration-200',
                     isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100',
