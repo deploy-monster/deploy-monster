@@ -208,14 +208,18 @@ bundle-size budget).
 - **17** fuzz targets (input parsing, webhook HMAC, JWT validate, secret resolver, cross-tenant router)
 - **44** benchmarks
 - **~24 MB** single binary with embedded UI
-- **Coverage:** package-weighted **85.9 %** after excluding the
+- **Coverage:** statement-weighted **87.4 %** after stripping the
   `tests/loadtest` and `tests/soak` harness packages from the
-  denominator (their `*_test.go` files are one-line smoke tests
-  that exist only so the binaries compile under `go test`). Raw
-  coverage including those harnesses is 84.2 %. Hot packages are
-  well above target: `auth` 93.1 %, `db` 88.7 %, `marketplace`
-  96.0 %. The CI gate enforces the filtered-85 % threshold (see
-  `.github/workflows/ci.yml`).
+  profile (their `*_test.go` files are one-line smoke tests that
+  exist only so the binaries compile under `go test`). Raw coverage
+  including those harnesses is 85.8 %. Hot packages run well above
+  target: `webhooks` 99.0 %, `mcp` 98.9 %, `api` 93.8 %,
+  `notifications` 93.9 %, `marketplace` 95.3 %, `deploy` 91.5 %,
+  `compose` 100 %. `auth` currently sits at 75.0 % — the gap is
+  the newer `totp_service.go` (`Validate`, `Disable`, `Status`
+  paths uncovered) plus `RevokeAllPreviousKeys` and `GenerateBackupCodes`,
+  tracked as a coverage follow-up. The CI gate enforces the
+  filtered-85 % threshold (see `.github/workflows/ci.yml`).
 
 ---
 
