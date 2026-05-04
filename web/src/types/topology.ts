@@ -56,7 +56,7 @@ export interface WorkerNodeData {
 }
 
 // Union type for all node data
-type TopologyNodeData = AppNodeData | DatabaseNodeData | DomainNodeData | VolumeNodeData | WorkerNodeData;
+export type TopologyNodeData = AppNodeData | DatabaseNodeData | DomainNodeData | VolumeNodeData | WorkerNodeData;
 
 // Node types
 export type TopologyNodeType = 'app' | 'database' | 'domain' | 'volume' | 'worker';

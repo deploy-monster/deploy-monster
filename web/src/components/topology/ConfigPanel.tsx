@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useTopologyStore } from '@/stores/topologyStore';
-import type { AppNodeData, DatabaseNodeData, DomainNodeData, VolumeNodeData, WorkerNodeData, TopologyNode, TopologyNodeType, VolumeMount } from '@/types/topology';
+import type { AppNodeData, DatabaseNodeData, DomainNodeData, VolumeNodeData, WorkerNodeData, TopologyNode, TopologyNodeData, TopologyNodeType, VolumeMount } from '@/types/topology';
 
 interface ConfigPanelProps {
   selectedNode: TopologyNode | null;
@@ -83,11 +83,11 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
     );
   }
 
-  const config = NODE_CONFIG[selectedNode.type as TopologyNodeType];
-  const nodeData = selectedNode.data as { name?: string };
+  const config = NODE_CONFIG[selectedNode.type];
+  const nodeData = selectedNode.data;
 
   const handleChange = (field: string, value: unknown) => {
-    updateNode(selectedNode.id, { [field]: value } as Partial<AppNodeData>);
+    updateNode(selectedNode.id, { [field]: value } as Partial<TopologyNodeData>);
   };
 
   const handleAddEnvVar = () => {
@@ -121,8 +121,7 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
   };
 
   // Generate connection string for database
-  const getConnectionString = () => {
-    const data = selectedNode.data as Partial<DatabaseNodeData>;
+  const getConnectionString = (data: DatabaseNodeData) => {
     const name = nodeData?.name?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'db';
     switch (data.engine) {
       case 'postgres':
@@ -141,12 +140,11 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
   };
 
 
-  const renderAppConfig = () => {
-    const data = selectedNode.data as Partial<AppNodeData>;
-    const envVars = (data.envVars as Record<string, string>) || {};
+  const renderAppConfig = (data: AppNodeData) => {
+    const envVars = data.envVars || {};
 
     // Get volume mounts for this container
-    const volumeMounts = (data.volumeMounts as VolumeMount[]) || [];
+    const volumeMounts = data.volumeMounts || [];
     const mountedVolumeIds = volumeMounts.map((vm) => vm.volumeId);
 
     // Available volumes = all volumes not currently mounted to this container
@@ -397,9 +395,8 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
     );
   };
 
-  const renderDatabaseConfig = () => {
-    const data = selectedNode.data as Partial<DatabaseNodeData>;
-    const connectionString = getConnectionString();
+  const renderDatabaseConfig = (data: DatabaseNodeData) => {
+    const connectionString = getConnectionString(data);
 
     return (
       <>
@@ -483,9 +480,7 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
     );
   };
 
-  const renderDomainConfig = () => {
-    const data = selectedNode.data as Partial<DomainNodeData>;
-
+  const renderDomainConfig = (data: DomainNodeData) => {
     return (
       <>
         {/* Inputs Section */}
@@ -537,9 +532,7 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
     );
   };
 
-  const renderVolumeConfig = () => {
-    const data = selectedNode.data as Partial<VolumeNodeData>;
-
+  const renderVolumeConfig = (data: VolumeNodeData) => {
     return (
       <>
         {/* Inputs Section */}
@@ -591,9 +584,7 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
     );
   };
 
-  const renderWorkerConfig = () => {
-    const data = selectedNode.data as Partial<WorkerNodeData>;
-
+  const renderWorkerConfig = (data: WorkerNodeData) => {
     return (
       <>
         {/* Inputs Section */}
@@ -663,12 +654,19 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
     );
   };
 
-  const configRenderers: Record<string, () => ReactNode> = {
-    app: renderAppConfig,
-    database: renderDatabaseConfig,
-    domain: renderDomainConfig,
-    volume: renderVolumeConfig,
-    worker: renderWorkerConfig,
+  const renderConfig = (): ReactNode => {
+    switch (selectedNode.type) {
+      case 'app':
+        return renderAppConfig(selectedNode.data);
+      case 'database':
+        return renderDatabaseConfig(selectedNode.data);
+      case 'domain':
+        return renderDomainConfig(selectedNode.data);
+      case 'volume':
+        return renderVolumeConfig(selectedNode.data);
+      case 'worker':
+        return renderWorkerConfig(selectedNode.data);
+    }
   };
 
   return (
@@ -705,7 +703,7 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
           />
         </div>
 
-        {configRenderers[selectedNode.type]?.()}
+        {renderConfig()}
       </div>
 
       {/* Footer */}
