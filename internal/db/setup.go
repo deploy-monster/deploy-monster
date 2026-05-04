@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -16,7 +17,7 @@ func (s *SQLiteDB) CreateTenantWithDefaults(ctx context.Context, name, slug stri
 			tenantID, name, slug,
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("insert tenant: %w", err)
 		}
 
 		// Create default project
@@ -26,7 +27,10 @@ func (s *SQLiteDB) CreateTenantWithDefaults(ctx context.Context, name, slug stri
 			 VALUES (?, ?, 'Default', 'Default project', 'production')`,
 			projectID, tenantID,
 		)
-		return err
+		if err != nil {
+			return fmt.Errorf("insert default project: %w", err)
+		}
+		return nil
 	})
 }
 
@@ -39,7 +43,7 @@ func (s *SQLiteDB) CreateUserWithMembership(ctx context.Context, email, password
 			userID, email, passwordHash, name, status,
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("insert user: %w", err)
 		}
 
 		memberID := core.GenerateID()
@@ -48,7 +52,7 @@ func (s *SQLiteDB) CreateUserWithMembership(ctx context.Context, email, password
 			memberID, tenantID, userID, roleID,
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("insert team member: %w", err)
 		}
 
 		// Update tenant owner
@@ -56,7 +60,10 @@ func (s *SQLiteDB) CreateUserWithMembership(ctx context.Context, email, password
 			`UPDATE tenants SET owner_id = ? WHERE id = ?`,
 			userID, tenantID,
 		)
-		return err
+		if err != nil {
+			return fmt.Errorf("set tenant owner: %w", err)
+		}
+		return nil
 	})
 }
 

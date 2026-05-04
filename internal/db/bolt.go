@@ -64,7 +64,7 @@ func NewBoltStore(path string) (*BoltStore, error) {
 			bucketRevokedTokens, bucketVault, bucketGitProviders,
 		} {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
-				return err
+				return fmt.Errorf("create bucket %s: %w", string(b), err)
 			}
 		}
 		return nil
@@ -138,7 +138,7 @@ func (b *BoltStore) BatchSet(items []core.BoltBatchItem) error {
 			}
 
 			if err := bkt.Put([]byte(item.Key), raw); err != nil {
-				return err
+				return fmt.Errorf("put %s/%s: %w", item.Bucket, item.Key, err)
 			}
 		}
 		return nil

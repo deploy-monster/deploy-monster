@@ -297,7 +297,7 @@ func (p *PostgresDB) CreateUserWithMembership(ctx context.Context, email, passwo
 		userID, email, passwordHash, name, status,
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("insert user: %w", err)
 	}
 
 	memberID := core.GenerateID()
@@ -306,7 +306,7 @@ func (p *PostgresDB) CreateUserWithMembership(ctx context.Context, email, passwo
 		memberID, tenantID, userID, roleID,
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("insert team member: %w", err)
 	}
 
 	_, err = tx.ExecContext(ctx,
@@ -314,7 +314,7 @@ func (p *PostgresDB) CreateUserWithMembership(ctx context.Context, email, passwo
 		userID, tenantID,
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("set tenant owner: %w", err)
 	}
 
 	return userID, tx.Commit()
@@ -568,14 +568,14 @@ func (p *PostgresDB) AtomicNextDeployVersion(ctx context.Context, appID string) 
 	// Use a transaction with advisory lock
 	tx, err := p.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("begin serializable tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	// Acquire advisory lock (exclusive)
 	_, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, lockID)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("acquire advisory lock: %w", err)
 	}
 	// Lock is automatically released at transaction end
 
@@ -584,7 +584,7 @@ func (p *PostgresDB) AtomicNextDeployVersion(ctx context.Context, appID string) 
 		`SELECT MAX(version) FROM deployments WHERE app_id = $1`, appID,
 	).Scan(&maxVersion)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("query max deployment version: %w", err)
 	}
 
 	nextVersion := 1
@@ -593,7 +593,7 @@ func (p *PostgresDB) AtomicNextDeployVersion(ctx context.Context, appID string) 
 	}
 
 	if err := tx.Commit(); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("commit version increment: %w", err)
 	}
 
 	return nextVersion, nil
@@ -776,7 +776,7 @@ func (p *PostgresDB) CreateTenantWithDefaults(ctx context.Context, name, slug st
 		tenantID, name, slug,
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("insert tenant: %w", err)
 	}
 
 	projectID := core.GenerateID()
@@ -786,10 +786,13 @@ func (p *PostgresDB) CreateTenantWithDefaults(ctx context.Context, name, slug st
 		projectID, tenantID,
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("insert default project: %w", err)
 	}
 
-	return tenantID, tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("commit tenant defaults: %w", err)
+	}
+	return tenantID, nil
 }
 
 // =====================================================

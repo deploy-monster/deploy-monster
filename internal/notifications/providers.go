@@ -109,7 +109,7 @@ func (s *SlackProvider) Send(ctx context.Context, recipient, subject, body, form
 	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.WebhookURL, bytes.NewReader(payload))
 		if err != nil {
-			return err
+			return fmt.Errorf("build slack request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
 
@@ -165,7 +165,7 @@ func (d *DiscordProvider) Send(ctx context.Context, recipient, subject, body, fo
 	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.WebhookURL, bytes.NewReader(payload))
 		if err != nil {
-			return err
+			return fmt.Errorf("build discord request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
 
@@ -235,7 +235,7 @@ func (t *TelegramProvider) Send(ctx context.Context, recipient, subject, body, f
 	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 		if err != nil {
-			return err
+			return fmt.Errorf("build telegram request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
 

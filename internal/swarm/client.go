@@ -252,7 +252,7 @@ func (c *AgentClient) handleContainerStop(ctx context.Context, msg core.AgentMes
 		TimeoutSec  int    `json:"timeout_sec"`
 	}
 	if err := decodeInto(msg.Payload, &p); err != nil {
-		return err
+		return fmt.Errorf("decode container stop payload: %w", err)
 	}
 	return c.runtime.Stop(ctx, p.ContainerID, p.TimeoutSec)
 }
@@ -263,7 +263,7 @@ func (c *AgentClient) handleContainerRemove(ctx context.Context, msg core.AgentM
 		Force       bool   `json:"force"`
 	}
 	if err := decodeInto(msg.Payload, &p); err != nil {
-		return err
+		return fmt.Errorf("decode container remove payload: %w", err)
 	}
 	return c.runtime.Remove(ctx, p.ContainerID, p.Force)
 }
@@ -273,7 +273,7 @@ func (c *AgentClient) handleContainerRestart(ctx context.Context, msg core.Agent
 		ContainerID string `json:"container_id"`
 	}
 	if err := decodeInto(msg.Payload, &p); err != nil {
-		return err
+		return fmt.Errorf("decode container restart payload: %w", err)
 	}
 	return c.runtime.Restart(ctx, p.ContainerID)
 }
@@ -283,7 +283,7 @@ func (c *AgentClient) handleContainerList(ctx context.Context, msg core.AgentMes
 		Labels map[string]string `json:"labels"`
 	}
 	if err := decodeInto(msg.Payload, &p); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode container list payload: %w", err)
 	}
 	return c.runtime.ListByLabels(ctx, p.Labels)
 }
@@ -294,12 +294,12 @@ func (c *AgentClient) handleContainerLogs(ctx context.Context, msg core.AgentMes
 		Tail        string `json:"tail"`
 	}
 	if err := decodeInto(msg.Payload, &p); err != nil {
-		return "", err
+		return "", fmt.Errorf("decode container logs payload: %w", err)
 	}
 
 	reader, err := c.runtime.Logs(ctx, p.ContainerID, p.Tail, false)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("fetch logs for %s: %w", p.ContainerID, err)
 	}
 	defer func() { _ = reader.Close() }()
 
@@ -314,7 +314,7 @@ func (c *AgentClient) handleContainerExec(ctx context.Context, msg core.AgentMes
 		Cmd         []string `json:"cmd"`
 	}
 	if err := decodeInto(msg.Payload, &p); err != nil {
-		return "", err
+		return "", fmt.Errorf("decode container exec payload: %w", err)
 	}
 	return c.runtime.Exec(ctx, p.ContainerID, p.Cmd)
 }
@@ -324,7 +324,7 @@ func (c *AgentClient) handleImagePull(ctx context.Context, msg core.AgentMessage
 		Image string `json:"image"`
 	}
 	if err := decodeInto(msg.Payload, &p); err != nil {
-		return err
+		return fmt.Errorf("decode image pull payload: %w", err)
 	}
 	return c.runtime.ImagePull(ctx, p.Image)
 }

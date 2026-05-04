@@ -85,11 +85,11 @@ func (s *SQLiteDB) DeleteSecret(ctx context.Context, tenantID, secretID string) 
 		secretID, tenantID,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("delete secret: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("delete secret rows affected: %w", err)
 	}
 	if n == 0 {
 		return core.ErrNotFound

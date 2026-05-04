@@ -37,7 +37,7 @@ func (c *Cloudflare) Name() string { return "cloudflare" }
 func (c *Cloudflare) CreateRecord(ctx context.Context, record core.DNSRecord) error {
 	zoneID, err := c.findZone(ctx, record.Name)
 	if err != nil {
-		return err
+		return fmt.Errorf("cloudflare create record: %w", err)
 	}
 
 	payload := map[string]any{
@@ -48,14 +48,16 @@ func (c *Cloudflare) CreateRecord(ctx context.Context, record core.DNSRecord) er
 		"proxied": record.Proxied,
 	}
 
-	_, err = c.do(ctx, http.MethodPost, fmt.Sprintf("/zones/%s/dns_records", zoneID), payload)
-	return err
+	if _, err := c.do(ctx, http.MethodPost, fmt.Sprintf("/zones/%s/dns_records", zoneID), payload); err != nil {
+		return fmt.Errorf("cloudflare create record %s %s: %w", record.Type, record.Name, err)
+	}
+	return nil
 }
 
 func (c *Cloudflare) UpdateRecord(ctx context.Context, record core.DNSRecord) error {
 	zoneID, err := c.findZone(ctx, record.Name)
 	if err != nil {
-		return err
+		return fmt.Errorf("cloudflare update record: %w", err)
 	}
 
 	payload := map[string]any{
@@ -66,17 +68,21 @@ func (c *Cloudflare) UpdateRecord(ctx context.Context, record core.DNSRecord) er
 		"proxied": record.Proxied,
 	}
 
-	_, err = c.do(ctx, http.MethodPut, fmt.Sprintf("/zones/%s/dns_records/%s", zoneID, record.ID), payload)
-	return err
+	if _, err := c.do(ctx, http.MethodPut, fmt.Sprintf("/zones/%s/dns_records/%s", zoneID, record.ID), payload); err != nil {
+		return fmt.Errorf("cloudflare update record %s: %w", record.ID, err)
+	}
+	return nil
 }
 
 func (c *Cloudflare) DeleteRecord(ctx context.Context, record core.DNSRecord) error {
 	zoneID, err := c.findZone(ctx, record.Name)
 	if err != nil {
-		return err
+		return fmt.Errorf("cloudflare delete record: %w", err)
 	}
-	_, err = c.do(ctx, http.MethodDelete, fmt.Sprintf("/zones/%s/dns_records/%s", zoneID, record.ID), nil)
-	return err
+	if _, err := c.do(ctx, http.MethodDelete, fmt.Sprintf("/zones/%s/dns_records/%s", zoneID, record.ID), nil); err != nil {
+		return fmt.Errorf("cloudflare delete record %s: %w", record.ID, err)
+	}
+	return nil
 }
 
 func (c *Cloudflare) Verify(ctx context.Context, fqdn string) (bool, error) {
@@ -93,7 +99,7 @@ func (c *Cloudflare) findZone(ctx context.Context, name string) (string, error) 
 	// Extract root domain from FQDN
 	body, err := c.do(ctx, http.MethodGet, "/zones?per_page=50", nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("list zones: %w", err)
 	}
 
 	var resp struct {
@@ -127,7 +133,7 @@ func (c *Cloudflare) do(ctx context.Context, method, path string, payload any) (
 
 		req, err := http.NewRequestWithContext(ctx, method, cfAPI+path, body)
 		if err != nil {
-			return err
+			return fmt.Errorf("build %s %s: %w", method, path, err)
 		}
 		req.Header.Set("Authorization", "Bearer "+c.token)
 		req.Header.Set("Content-Type", "application/json")
