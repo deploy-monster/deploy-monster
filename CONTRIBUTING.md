@@ -166,7 +166,7 @@ for traceability.
 
 ## Architecture pointers
 
-- **`.project/`** — the source of truth for product direction:
+- **`docs/archive/`** — historical product-direction artefacts (frozen, kept for context):
   - `ANALYSIS.md` — honest feature/security/quality snapshot
   - `ROADMAP.md` — sprint plan, closed/open items
   - `SPECIFICATION.md` — product spec

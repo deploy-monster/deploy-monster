@@ -11,7 +11,7 @@ Turn any VPS with Docker into a multi-tenant deployment platform.
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/v0.1.8-release-brightgreen)](./)
 
-[📚 Docs](docs/) · [🏗 ADRs](docs/adr/) · [🛣 Roadmap](.project/ROADMAP.md)
+[📚 Docs](docs/) · [🏗 ADRs](docs/adr/) · [🛣 Roadmap](docs/archive/ROADMAP.md)
 
 </div>
 

@@ -6,13 +6,13 @@
 **Owner:** Ersin / ECOSTACK TECHNOLOGY OÜ
 
 This file is an executive pointer. The **authoritative** readiness review
-lives at `.project/PRODUCTIONREADY.md` — it is rewritten against HEAD at
-each sprint close. The `.project/` triad is the source of truth:
+lives at `docs/archive/PRODUCTIONREADY.md` — it is rewritten against HEAD at
+each sprint close. The `docs/archive/` triad is the source of truth:
 
-- `.project/ANALYSIS.md` — brutally honest feature / security /
+- `docs/archive/ANALYSIS.md` — brutally honest feature / security /
   code-quality snapshot
-- `.project/ROADMAP.md` — three-path decision framework and sprint plan
-- `.project/PRODUCTIONREADY.md` — go / no-go verdict with blocker list
+- `docs/archive/ROADMAP.md` — three-path decision framework and sprint plan
+- `docs/archive/PRODUCTIONREADY.md` — go / no-go verdict with blocker list
 
 ---
 
@@ -37,7 +37,7 @@ Sprint 1 (this release, v0.1.7) shipped:
   `SESS-001`). Report was stale, not the code.
 
 Remaining blockers for multi-tenant SaaS (tracked in
-`.project/ROADMAP.md`):
+`docs/archive/ROADMAP.md`):
 
 - Feature-prune decision on MongoDB / Route53 / Linode / AWS adapters
   (implement or move to "Beyond 1.0").
@@ -62,22 +62,22 @@ Remaining blockers for multi-tenant SaaS (tracked in
 Earlier revisions asserted **Production Readiness Score: 100/100** after
 closing a 13-finding security audit. That claim was accurate for the
 scope of that audit but **did not survive contact** with the follow-up
-audit recorded in `.project/ANALYSIS.md`: four tests were red, a CORS
+audit recorded in `docs/archive/ANALYSIS.md`: four tests were red, a CORS
 regression had silently disabled the allowlist, JWT alg-pinning was only
 post-parse, and the security report's file line numbers no longer
 matched HEAD (fixes had already landed in `7d69c5e` but the report was
 never re-generated).
 
 The 100/100 framing is retired. This file now tracks the conditional-go
-state honestly, and defers the long-form numbers to `.project/`.
+state honestly, and defers the long-form numbers to `docs/archive/`.
 
 ---
 
 ## References
 
 - **Current sprint log:** `CHANGELOG.md` (the v0.1.7 entry)
-- **Honest feature/security audit:** `.project/ANALYSIS.md`
-- **Go/no-go with blocker list:** `.project/PRODUCTIONREADY.md`
-- **Roadmap + sprint plan:** `.project/ROADMAP.md`
+- **Honest feature/security audit:** `docs/archive/ANALYSIS.md`
+- **Go/no-go with blocker list:** `docs/archive/PRODUCTIONREADY.md`
+- **Roadmap + sprint plan:** `docs/archive/ROADMAP.md`
 - **Upgrade guide:** `docs/upgrade-guide.md`
 - **Security audit (historical):** `docs/security-audit.md`

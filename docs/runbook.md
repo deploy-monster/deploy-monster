@@ -159,4 +159,4 @@ After any P0 or P1 event, capture:
   have is the most expensive kind of documentation debt.
 - Any permanent mitigation that should land in the codebase (new
   alert, new test, new migration, new gate). Add to
-  `.project/ROADMAP.md` so it gets sized and scheduled.
+  `docs/archive/ROADMAP.md` so it gets sized and scheduled.

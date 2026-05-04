@@ -111,9 +111,9 @@ YAML file `monster.yaml` + environment variable overrides (`MONSTER_*` prefix). 
 - React: shadcn/ui components, `cn()` utility, `@/` path aliases, `useApi` hook
 
 ## Project Documentation
-- `.project/SPECIFICATION.md` — Full product specification
-- `.project/IMPLEMENTATION.md` — Implementation patterns and code examples
-- `.project/TASKS.md` — Ordered task checklist (251 tasks, 15 phases, 100% complete)
+- `docs/archive/SPECIFICATION.md` — Full product specification (archived design-intent)
+- `docs/archive/IMPLEMENTATION.md` — Implementation patterns and code examples (archived)
+- `docs/archive/TASKS.md` — Ordered task checklist (251 tasks, 15 phases, 100% complete — retired)
 - `docs/openapi.yaml` — OpenAPI 3.0.3 specification
 - `docs/examples/api-quickstart.md` — API usage examples with curl
 
