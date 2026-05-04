@@ -91,9 +91,7 @@ export default function TopologyPage() {
 
   const selectedNode = useMemo(() => {
     if (!selectedNodeId) return null;
-    const node = nodes.find(n => n.id === selectedNodeId);
-    if (!node) return null;
-    return { id: node.id, type: node.type, data: node.data as Record<string, unknown> };
+    return nodes.find(n => n.id === selectedNodeId) ?? null;
   }, [nodes, selectedNodeId]);
 
   const handleSave = useCallback(async () => {

@@ -8,10 +8,10 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useTopologyStore } from '@/stores/topologyStore';
-import type { AppNodeData, DatabaseNodeData, DomainNodeData, VolumeNodeData, WorkerNodeData, TopologyNodeType, VolumeMount } from '@/types/topology';
+import type { AppNodeData, DatabaseNodeData, DomainNodeData, VolumeNodeData, WorkerNodeData, TopologyNode, TopologyNodeType, VolumeMount } from '@/types/topology';
 
 interface ConfigPanelProps {
-  selectedNode: { id: string; type: string; data: Record<string, unknown> } | null;
+  selectedNode: TopologyNode | null;
   onClose: () => void;
 }
 
