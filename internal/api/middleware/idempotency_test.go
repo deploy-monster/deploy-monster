@@ -1,11 +1,15 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -41,11 +45,11 @@ func (m *idempBoltStore) Get(bucket, key string, dest any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.data[bucket] == nil {
-		return errors.New("not found")
+		return fmt.Errorf("bucket %q: %w", bucket, core.ErrBoltNotFound)
 	}
 	b, ok := m.data[bucket][key]
 	if !ok {
-		return errors.New("not found")
+		return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
 	}
 	return json.Unmarshal(b, dest)
 }
@@ -231,5 +235,71 @@ func TestIdempotency_DifferentPaths_DifferentKeys(t *testing.T) {
 
 	if callCount != 2 {
 		t.Errorf("expected 2 calls (different paths), got %d", callCount)
+	}
+}
+
+// idempCorruptedStore returns a non-NotFound error from Get to provoke
+// the new sentinel-aware Warn branch in IdempotencyMiddleware.
+type idempCorruptedStore struct{ idempBoltStore }
+
+func (s *idempCorruptedStore) Get(_, _ string, _ any) error {
+	return errors.New("idempotency: bolt unmarshal failed (corrupted entry)")
+}
+
+// idempNotFoundStore returns a wrapped NotFound — the expected first-
+// request path. Mirrors the pattern in ratelimit_observability_test.
+type idempNotFoundStore struct{ idempBoltStore }
+
+func (s *idempNotFoundStore) Get(bucket, key string, _ any) error {
+	return fmt.Errorf("key %q in bucket %q: %w", key, bucket, core.ErrBoltNotFound)
+}
+
+func TestIdempotency_CorruptedReadEmitsWarn(t *testing.T) {
+	var buf bytes.Buffer
+	original := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(original) })
+
+	store := &idempCorruptedStore{idempBoltStore: idempBoltStore{data: make(map[string]map[string][]byte)}}
+	called := 0
+	handler := IdempotencyMiddleware(store)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(http.StatusCreated)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
+	req.Header.Set("Idempotency-Key", "key-corrupted")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if called != 1 {
+		t.Fatalf("expected request to fall through to handler on corrupted cache, called=%d", called)
+	}
+	if rr.Code != http.StatusCreated {
+		t.Errorf("expected 201, got %d", rr.Code)
+	}
+	if !strings.Contains(buf.String(), "idempotency cache read failed") {
+		t.Errorf("expected Warn log, got: %q", buf.String())
+	}
+}
+
+func TestIdempotency_NotFoundDoesNotWarn(t *testing.T) {
+	var buf bytes.Buffer
+	original := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(original) })
+
+	store := &idempNotFoundStore{idempBoltStore: idempBoltStore{data: make(map[string]map[string][]byte)}}
+	handler := IdempotencyMiddleware(store)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
+	req.Header.Set("Idempotency-Key", "key-fresh")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if strings.Contains(buf.String(), "idempotency cache read failed") {
+		t.Fatalf("NotFound path must not warn, got: %q", buf.String())
 	}
 }

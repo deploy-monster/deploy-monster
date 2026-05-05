@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -31,7 +32,11 @@ var inFlightMu sync.Mutex
 // Keys are stored in BoltDB with a 24-hour TTL.
 // SECURITY FIX (RACE-003): Added mutex locking to prevent race conditions.
 func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler {
-	var logger *slog.Logger
+	// Previously declared as `var logger *slog.Logger` and never
+	// assigned, which made the cache-write Error log on line 102 dead
+	// code. Default to slog.Default() so production sees write
+	// failures.
+	logger := slog.Default()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Only intercept state-changing methods
@@ -69,7 +74,8 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 
 			// Check for cached response
 			var cached idempotencyEntry
-			if err := bolt.Get(idempotencyBucket, scopedKey, &cached); err == nil {
+			err := bolt.Get(idempotencyBucket, scopedKey, &cached)
+			if err == nil {
 				// Replay cached response
 				for k, v := range cached.Headers {
 					w.Header().Set(k, v)
@@ -78,6 +84,16 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 				w.WriteHeader(cached.StatusCode)
 				_, _ = w.Write(cached.Body)
 				return
+			}
+			if !errors.Is(err, core.ErrBoltNotFound) {
+				// A non-NotFound failure (corrupted entry, unmarshal
+				// error) triggers a re-execute, same as a cache miss.
+				// The request will still flow through and a fresh
+				// response will be cached at the end — log it so a
+				// corrupted cache surfaces in operator logs instead
+				// of silently slipping past.
+				logger.Warn("idempotency cache read failed; falling through to handler",
+					"key", scopedKey, "error", err)
 			}
 
 			// Capture the response while writing through
@@ -98,7 +114,7 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 					Headers:    headers,
 					Body:       rec.body.Bytes(),
 				}
-				if err := bolt.Set(idempotencyBucket, scopedKey, entry, idempotencyTTLSecs); err != nil && logger != nil {
+				if err := bolt.Set(idempotencyBucket, scopedKey, entry, idempotencyTTLSecs); err != nil {
 					logger.Error("idempotency cache write failed", "key", scopedKey, "error", err)
 				}
 			}
