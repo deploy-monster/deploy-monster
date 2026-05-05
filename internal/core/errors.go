@@ -17,6 +17,14 @@ var (
 	ErrInvalidInput  = errors.New("invalid input")
 	ErrExpired       = errors.New("expired")
 	ErrInvalidToken  = errors.New("invalid token")
+
+	// ErrBoltNotFound is returned by BoltStorer.Get when the key or
+	// bucket is missing. Distinct from ErrNotFound (which the SQL/PG
+	// store layer uses) so callers can tell "row missing" from
+	// "KV missing" — handlers that intentionally treat a missing KV
+	// entry as a fresh state can match this sentinel via errors.Is
+	// without false-positive matching every store-level miss.
+	ErrBoltNotFound = errors.New("bolt: key or bucket not found")
 )
 
 // AppError is a structured application error with an HTTP status code.

@@ -146,17 +146,20 @@ func (b *BoltStore) BatchSet(items []core.BoltBatchItem) error {
 }
 
 // Get retrieves a value from the given bucket and unmarshals it into dest.
-// Returns an error if the key is not found or has expired.
+// Returns core.ErrBoltNotFound (wrapped) when the bucket or key is missing,
+// or when the entry has expired — callers can match the sentinel via
+// errors.Is to distinguish "no record yet" from a real read failure
+// (corrupted entry, json error). All other failures bubble unwrapped.
 func (b *BoltStore) Get(bucket, key string, dest any) error {
 	return b.db.View(func(tx *bolt.Tx) error {
 		bkt := tx.Bucket([]byte(bucket))
 		if bkt == nil {
-			return fmt.Errorf("bucket %q not found", bucket)
+			return fmt.Errorf("bucket %q: %w", bucket, core.ErrBoltNotFound)
 		}
 
 		raw := bkt.Get([]byte(key))
 		if raw == nil {
-			return fmt.Errorf("key not found")
+			return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
 		}
 
 		var entry boltEntry
@@ -165,7 +168,7 @@ func (b *BoltStore) Get(bucket, key string, dest any) error {
 		}
 
 		if entry.ExpiresAt > 0 && time.Now().Unix() >= entry.ExpiresAt {
-			return fmt.Errorf("expired")
+			return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
 		}
 
 		return json.Unmarshal(entry.Data, dest)

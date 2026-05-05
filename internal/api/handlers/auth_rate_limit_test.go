@@ -3,10 +3,29 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+// boltStub lets a test inject a non-NotFound Get error so we can pin
+// the "real failure -> skip write" branch added to
+// incrementPerAccountRateLimit alongside the ErrBoltNotFound sentinel.
+type boltStub struct {
+	*mockBoltStore
+	getErr error
+}
+
+func (b *boltStub) Get(bucket, key string, dest any) error {
+	if b.getErr != nil {
+		return b.getErr
+	}
+	return b.mockBoltStore.Get(bucket, key, dest)
+}
 
 // ---------------------------------------------------------------------------
 // validateTOTP
@@ -111,6 +130,38 @@ func TestAuthHandler_IncrementPerAccountRateLimit_RecordsFirstAttempt(t *testing
 	}
 	if entry.LockedUntil != 0 {
 		t.Fatalf("LockedUntil = %d, want 0 below threshold", entry.LockedUntil)
+	}
+}
+
+func TestAuthHandler_IncrementPerAccountRateLimit_NonNotFoundErrorSkipsWrite(t *testing.T) {
+	// A Get error that is not core.ErrBoltNotFound (corrupted entry,
+	// missing bucket on the production path) must skip the write path
+	// rather than reset the counter to FailedCount=1. The sentinel
+	// distinction lets the handler treat "no record yet" and
+	// "untrusted state" differently — see the comment on the
+	// production code.
+	stub := &boltStub{
+		mockBoltStore: newMockBoltStore(),
+		getErr:        errors.New("bolt: corrupted entry"),
+	}
+	// Pre-seed via the inner store so we can detect the absence of a
+	// post-call write via List on the underlying data.
+	h := &AuthHandler{bolt: stub}
+
+	h.incrementPerAccountRateLimit(context.Background(), "a@example.com")
+
+	if _, ok := stub.mockBoltStore.data["account_rl"]; ok {
+		t.Fatal("non-NotFound Get error must not produce a fresh write")
+	}
+
+	// Sanity check the sentinel matcher itself: a wrapped ErrBoltNotFound
+	// must still allow the increment path to run, even via fmt.Errorf
+	// chaining. This guards against a future refactor that bypasses
+	// errors.Is checks.
+	stub.getErr = fmt.Errorf("wrapped: %w", core.ErrBoltNotFound)
+	h.incrementPerAccountRateLimit(context.Background(), "b@example.com")
+	if _, ok := stub.mockBoltStore.data["account_rl"]; !ok {
+		t.Fatal("wrapped ErrBoltNotFound must be treated as a fresh state")
 	}
 }
 

@@ -1037,11 +1037,11 @@ func (m *mockBoltStore) Get(bucket, key string, dest any) error {
 	defer m.mu.Unlock()
 	bkt, ok := m.data[bucket]
 	if !ok {
-		return fmt.Errorf("key not found")
+		return fmt.Errorf("bucket %q: %w", bucket, core.ErrBoltNotFound)
 	}
 	raw, ok := bkt[key]
 	if !ok {
-		return fmt.Errorf("key not found")
+		return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
 	}
 	return json.Unmarshal(raw, dest)
 }
