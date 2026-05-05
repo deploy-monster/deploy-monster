@@ -1,11 +1,15 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -162,6 +166,66 @@ func TestAuthHandler_IncrementPerAccountRateLimit_NonNotFoundErrorSkipsWrite(t *
 	h.incrementPerAccountRateLimit(context.Background(), "b@example.com")
 	if _, ok := stub.mockBoltStore.data["account_rl"]; !ok {
 		t.Fatal("wrapped ErrBoltNotFound must be treated as a fresh state")
+	}
+}
+
+func TestAuthHandler_RateLimit_CorruptedEntryEmitsWarn(t *testing.T) {
+	// Both checkPerAccountRateLimit and incrementPerAccountRateLimit
+	// must surface a non-NotFound bolt failure to operator logs so a
+	// corrupted entry doesn't silently stop counting until its TTL
+	// elapses. Capture slog output by swapping the default handler
+	// for the duration of the test.
+	t.Cleanup(func() { slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil))) })
+
+	for _, fn := range []struct {
+		name string
+		call func(h *AuthHandler)
+	}{
+		{
+			name: "check",
+			call: func(h *AuthHandler) { _, _ = h.checkPerAccountRateLimit("a@example.com") },
+		},
+		{
+			name: "increment",
+			call: func(h *AuthHandler) {
+				h.incrementPerAccountRateLimit(context.Background(), "a@example.com")
+			},
+		},
+	} {
+		t.Run(fn.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+
+			stub := &boltStub{
+				mockBoltStore: newMockBoltStore(),
+				getErr:        errors.New("corrupted entry: invalid character at byte 0"),
+			}
+			h := &AuthHandler{bolt: stub}
+			fn.call(h)
+
+			if !strings.Contains(buf.String(), "account rate-limit read failed") {
+				t.Fatalf("%s: expected Warn log on corrupted entry, got: %q", fn.name, buf.String())
+			}
+		})
+	}
+}
+
+func TestAuthHandler_RateLimit_NotFoundDoesNotWarn(t *testing.T) {
+	// The NotFound sentinel is the expected first-attempt path and
+	// must not emit a warning.
+	var buf bytes.Buffer
+	original := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(original) })
+
+	bolt := newMockBoltStore() // mockBoltStore.Get returns wrapped ErrBoltNotFound
+	h := &AuthHandler{bolt: bolt}
+
+	_, _ = h.checkPerAccountRateLimit("fresh@example.com")
+	h.incrementPerAccountRateLimit(context.Background(), "fresh@example.com")
+
+	if strings.Contains(buf.String(), "account rate-limit read failed") {
+		t.Fatalf("NotFound path must not warn, got: %q", buf.String())
 	}
 }
 

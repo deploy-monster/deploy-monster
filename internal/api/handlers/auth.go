@@ -619,7 +619,16 @@ func (h *AuthHandler) checkPerAccountRateLimit(email string) (bool, int64) {
 	}
 	var entry accountRateLimitEntry
 	err := h.bolt.Get("account_rl", email, &entry)
-	if err != nil || entry.LockedUntil == 0 {
+	if err != nil {
+		if !errors.Is(err, core.ErrBoltNotFound) {
+			// Corrupted entry or unexpected bolt failure: fail open
+			// (treat as not locked) to avoid wedging legitimate
+			// logins, but surface it so operators notice.
+			slog.Warn("account rate-limit read failed", "email", email, "error", err)
+		}
+		return false, 0
+	}
+	if entry.LockedUntil == 0 {
 		return false, 0
 	}
 	now := time.Now().Unix()
@@ -642,6 +651,12 @@ func (h *AuthHandler) incrementPerAccountRateLimit(ctx context.Context, email st
 	// possibly-already-counted state to FailedCount=1.
 	err := h.bolt.Get("account_rl", email, &entry)
 	if err != nil && !errors.Is(err, core.ErrBoltNotFound) {
+		// Corrupted entry or unexpected bolt failure: skip the write
+		// rather than reset a possibly-already-counted state, but
+		// surface it so the entry doesn't silently stop counting
+		// until its 15-minute TTL elapses.
+		slog.Warn("account rate-limit read failed; increment skipped",
+			"email", email, "error", err)
 		return
 	}
 	now := time.Now().Unix()
