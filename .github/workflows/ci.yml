@@ -51,6 +51,15 @@ jobs:
             exit 1
           fi
 
+      # The README's "Project stats > Coverage" line is hand-maintained
+      # against the same statement-weighted total this gate computes. A
+      # fresh PR that bumps real coverage but forgets to update README
+      # quietly drifts the published number; this gate catches that.
+      # Tolerance is ±0.5 pp so day-to-day rounding doesn't churn the
+      # README on every coverage-touching merge.
+      - name: Check README coverage claim drift
+        run: COVERAGE_PROFILE=coverage.out ./scripts/check-readme-coverage.sh
+
       - name: Upload coverage
         uses: actions/upload-artifact@v7
         with:

@@ -1,4 +1,4 @@
-.PHONY: build dev test lint clean docker docker-compose fmt vet tidy bench coverage release install help test-e2e openapi-check openapi-bootstrap db-gate db-gate-baseline
+.PHONY: build dev test lint clean docker docker-compose fmt vet tidy bench coverage release install help test-e2e openapi-check openapi-bootstrap db-gate db-gate-baseline readme-coverage-check
 
 # Variables
 BINARY_NAME := deploymonster
@@ -58,6 +58,10 @@ test-short:
 test-cover:
 	@echo "Running tests with coverage..."
 	$(GOTEST) -cover ./... | sort -t':' -k2 -n
+
+## readme-coverage-check: Fail when README's coverage claim drifts >0.5pp from actual
+readme-coverage-check:
+	@./scripts/check-readme-coverage.sh
 
 ## test-integration: Run integration tests (requires Docker)
 test-integration:
