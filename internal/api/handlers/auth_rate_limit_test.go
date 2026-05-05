@@ -92,19 +92,47 @@ func TestAuthHandler_IncrementPerAccountRateLimit_NilBoltIsNoop(t *testing.T) {
 	h.incrementPerAccountRateLimit(context.Background(), "a@example.com")
 }
 
-func TestAuthHandler_IncrementPerAccountRateLimit_NoEntryIsNoop(t *testing.T) {
-	// The current implementation treats a missing entry the same as
-	// an "already locked or unknown error" Get failure — it returns
-	// without writing anything. Pin that behavior so a future change
-	// to seed-on-miss has to also update this test.
+func TestAuthHandler_IncrementPerAccountRateLimit_RecordsFirstAttempt(t *testing.T) {
+	// The first failed attempt against an account with no prior
+	// rate-limit record must record FailedCount=1. The earlier
+	// implementation silently dropped this case, which neutered the
+	// lockout for any attacker starting from a clean slate.
 	bolt := newMockBoltStore()
 	h := &AuthHandler{bolt: bolt}
 
 	h.incrementPerAccountRateLimit(context.Background(), "a@example.com")
 
 	var entry accountRateLimitEntry
-	if err := bolt.Get("account_rl", "a@example.com", &entry); err == nil {
-		t.Fatalf("expected key still absent after first increment, got entry=%+v", entry)
+	if err := bolt.Get("account_rl", "a@example.com", &entry); err != nil {
+		t.Fatalf("expected entry seeded after first increment, got err=%v", err)
+	}
+	if entry.FailedCount != 1 {
+		t.Fatalf("FailedCount = %d, want 1", entry.FailedCount)
+	}
+	if entry.LockedUntil != 0 {
+		t.Fatalf("LockedUntil = %d, want 0 below threshold", entry.LockedUntil)
+	}
+}
+
+func TestAuthHandler_IncrementPerAccountRateLimit_LocksFromFreshAccount(t *testing.T) {
+	// Walk the full lockout sequence from a fresh account to confirm
+	// the fix lets a clean-slate attacker actually trigger the lock.
+	bolt := newMockBoltStore()
+	h := &AuthHandler{bolt: bolt}
+
+	for i := 0; i < maxFailedAttempts; i++ {
+		h.incrementPerAccountRateLimit(context.Background(), "a@example.com")
+	}
+
+	var entry accountRateLimitEntry
+	if err := bolt.Get("account_rl", "a@example.com", &entry); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if entry.FailedCount != maxFailedAttempts {
+		t.Fatalf("FailedCount = %d, want %d", entry.FailedCount, maxFailedAttempts)
+	}
+	if entry.LockedUntil == 0 {
+		t.Fatal("LockedUntil must be set once threshold is reached from a fresh account")
 	}
 }
 

@@ -634,11 +634,18 @@ func (h *AuthHandler) incrementPerAccountRateLimit(ctx context.Context, email st
 		return
 	}
 	var entry accountRateLimitEntry
-	err := h.bolt.Get("account_rl", email, &entry)
+	// On Get error (most commonly "key not found" for the first failed
+	// attempt against a fresh account, less commonly a corrupted entry
+	// or missing bucket) keep the zero-value entry and fall through to
+	// the increment path. The previous "if err != nil { return }" guard
+	// silently dropped the first failed attempt against any account
+	// that had no prior rate-limit record, which neutered the lockout
+	// for credential-stuffing attackers starting from a clean slate.
+	_ = h.bolt.Get("account_rl", email, &entry)
 	now := time.Now().Unix()
 
-	if err != nil || entry.LockedUntil > 0 {
-		return // already locked or error — don't double-penalize
+	if entry.LockedUntil > 0 {
+		return // already locked — don't double-penalize
 	}
 
 	entry.FailedCount++
