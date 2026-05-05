@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -32,6 +33,20 @@ func NewAuthRateLimiter(bolt core.BoltStorer, rate int, window time.Duration, pr
 		rate:   rate,
 		window: window,
 		prefix: prefix,
+		// Default to the package-level logger so the existing
+		// .logger.Error / .logger.Warn calls fire in production.
+		// The field was silently never assigned, which made the
+		// bolt.Set failure logs dead code.
+		logger: slog.Default(),
+	}
+}
+
+// SetLogger overrides the logger used for ratelimit telemetry. Tests
+// inject a capturing logger here; production wiring can leave the
+// default in place.
+func (rl *AuthRateLimiter) SetLogger(logger *slog.Logger) {
+	if logger != nil {
+		rl.logger = logger
 	}
 }
 
@@ -116,13 +131,22 @@ func (rl *AuthRateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 		now := time.Now().Unix()
 
 		err := rl.bolt.Get("ratelimit", key, &entry)
+		if err != nil && !errors.Is(err, core.ErrBoltNotFound) {
+			// A non-NotFound failure (corrupted entry, unexpected
+			// bolt error) drops us into the same fresh-window path
+			// as a real miss, which silently resets the counter to
+			// 1. Surface it so a corruption issue does not stay
+			// invisible until somebody notices spikes in 429s.
+			rl.logger.Warn("auth ratelimit read failed; resetting window",
+				"key", key, "error", err)
+		}
 		if err != nil || now >= entry.ResetAt {
 			// New window
 			entry = authRateLimitEntry{
 				Count:   1,
 				ResetAt: now + int64(rl.window.Seconds()),
 			}
-			if err := rl.bolt.Set("ratelimit", key, entry, int64(rl.window.Seconds())); err != nil && rl.logger != nil {
+			if err := rl.bolt.Set("ratelimit", key, entry, int64(rl.window.Seconds())); err != nil {
 				rl.logger.Error("auth ratelimit set failed", "key", key, "error", err)
 			}
 			next.ServeHTTP(w, r)
@@ -139,7 +163,7 @@ func (rl *AuthRateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		entry.Count++
-		if err := rl.bolt.Set("ratelimit", key, entry, int64(rl.window.Seconds())); err != nil && rl.logger != nil {
+		if err := rl.bolt.Set("ratelimit", key, entry, int64(rl.window.Seconds())); err != nil {
 			rl.logger.Error("auth ratelimit increment failed", "key", key, "error", err)
 		}
 
