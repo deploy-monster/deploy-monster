@@ -23,6 +23,7 @@ editing the old one.
 | [0008](0008-encryption-key-strategy.md) | Encryption key strategy (Argon2id + AES-256-GCM vault) | Accepted |
 | [0009](0009-store-interface-composition.md) | 12-way Store interface composition for backend portability | Accepted |
 | [0010](0010-custom-api-hooks-over-tanstack-query.md) | Custom `useApi` hook over TanStack Query | Accepted |
+| [0011](0011-bolt-not-found-sentinel-and-observability.md) | `core.ErrBoltNotFound` sentinel and KV-corruption observability | Accepted |
 
 ## Writing a new ADR
 

@@ -124,7 +124,7 @@ tenant checks at one layer.
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-See [`docs/adr/`](docs/adr/) for the 10 ADRs explaining why it looks
+See [`docs/adr/`](docs/adr/) for the 11 ADRs explaining why it looks
 like this.
 
 ---
@@ -267,7 +267,7 @@ trade-offs before committing.
 | [`docs/sla.md`](docs/sla.md) | Published performance + availability targets for 1.0 |
 | [`docs/configuration.md`](docs/configuration.md) | Full YAML + env-var reference |
 | [`docs/api-reference.md`](docs/api-reference.md) | API overview; `docs/openapi.yaml` for the machine-readable spec |
-| [`docs/adr/`](docs/adr/) | 10 architecture decision records |
+| [`docs/adr/`](docs/adr/) | 11 architecture decision records |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, test/perf gates, code style |
 
 ---

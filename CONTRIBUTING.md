@@ -172,7 +172,7 @@ for traceability.
   - `SPECIFICATION.md` — product spec
   - `IMPLEMENTATION.md` — patterns and code examples
   - `PRODUCTIONREADY.md` — go/no-go verdict
-- **`docs/adr/`** — 10 Nygard-template ADRs covering the load-bearing
+- **`docs/adr/`** — 11 Nygard-template ADRs covering the load-bearing
   decisions (start here if you're asking "why is it like this?").
 - **`docs/openapi.yaml`** — API contract; regenerate with
   `make openapi-check` and update if you add a route.
