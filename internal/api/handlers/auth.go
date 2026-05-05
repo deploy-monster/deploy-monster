@@ -27,6 +27,7 @@ type AuthHandler struct {
 	store         core.Store
 	bolt          core.BoltStorer
 	totpValidator func(userID, code string) bool // TOTP validator function
+	logger        *slog.Logger
 }
 
 // AuthServices is the narrow auth surface used by API handlers.
@@ -114,12 +115,36 @@ func NewAuthHandler(authMod AuthServices, store core.Store, bolt core.BoltStorer
 		authMod: authMod,
 		store:   store,
 		bolt:    bolt,
+		// Default to package-level slog so the handler always has a
+		// usable logger even if the caller never invokes SetLogger.
+		logger: slog.Default(),
 	}
 	// Set up TOTP validator if auth module provides one
 	if authMod != nil && authMod.TOTP() != nil {
 		h.totpValidator = authMod.TOTP().Validate
 	}
 	return h
+}
+
+// SetLogger overrides the logger used for auth-flow telemetry. Tests
+// inject a capturing logger here; production wiring can leave the
+// default in place.
+func (h *AuthHandler) SetLogger(logger *slog.Logger) {
+	if logger != nil {
+		h.logger = logger
+	}
+}
+
+// log returns the handler logger or the package default when the
+// handler was constructed directly (e.g. AuthHandler{} in tests).
+// This is the only branch in the file that allows for a nil logger;
+// every caller routes through this accessor instead of touching
+// h.logger directly.
+func (h *AuthHandler) log() *slog.Logger {
+	if h.logger == nil {
+		return slog.Default()
+	}
+	return h.logger
 }
 
 // validateTOTP validates a TOTP code for a user.
@@ -234,7 +259,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	// Update last login
 	if err := h.store.UpdateLastLogin(r.Context(), user.ID); err != nil {
-		slog.Warn("failed to update last login", "user_id", user.ID, "error", err)
+		h.log().Warn("failed to update last login", "user_id", user.ID, "error", err)
 	}
 
 	setTokenCookies(w, r, tokens)
@@ -380,7 +405,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	// Revoke the old refresh token (rotation)
 	if h.bolt != nil && rtClaims.JTI != "" {
 		if err := h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
-			slog.Error("failed to revoke refresh token", "jti", rtClaims.JTI, "error", err)
+			h.log().Error("failed to revoke refresh token", "jti", rtClaims.JTI, "error", err)
 		}
 	}
 
@@ -448,7 +473,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	// Revoke the refresh token
 	if h.bolt != nil && rtClaims.JTI != "" {
 		if err := h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
-			slog.Error("failed to revoke refresh token on logout", "jti", rtClaims.JTI, "error", err)
+			h.log().Error("failed to revoke refresh token on logout", "jti", rtClaims.JTI, "error", err)
 		}
 	}
 
@@ -478,7 +503,7 @@ func (h *AuthHandler) revokeAccessTokenFromRequest(r *http.Request) {
 		return
 	}
 	if err := h.authMod.JWT().RevokeAccessToken(h.bolt, claims.ID, claims.UserID, claims.ExpiresAt.Time); err != nil {
-		slog.Warn("failed to revoke access token on logout", "jti", claims.ID, "error", err)
+		h.log().Warn("failed to revoke access token on logout", "jti", claims.ID, "error", err)
 	}
 }
 
@@ -513,7 +538,7 @@ func (h *AuthHandler) trackSession(r *http.Request, userID, refreshToken string)
 	}
 
 	if err := h.bolt.Set("user_sessions", sessionKey, session, internalAuth.RefreshTokenTTLSeconds); err != nil {
-		slog.Warn("failed to track session", "user_id", userID, "error", err)
+		h.log().Warn("failed to track session", "user_id", userID, "error", err)
 		return
 	}
 
@@ -574,10 +599,10 @@ func (h *AuthHandler) enforceSessionLimit(userID string) {
 		for i := 0; i < toRevoke && i < len(sessions); i++ {
 			s := sessions[i]
 			if err := h.bolt.Set("revoked_tokens", s.jti, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
-				slog.Warn("failed to revoke old session", "user_id", userID, "jti", s.jti, "error", err)
+				h.log().Warn("failed to revoke old session", "user_id", userID, "jti", s.jti, "error", err)
 			}
 			if err := h.bolt.Delete("user_sessions", s.key); err != nil {
-				slog.Warn("failed to delete old session tracking", "user_id", userID, "key", s.key, "error", err)
+				h.log().Warn("failed to delete old session tracking", "user_id", userID, "key", s.key, "error", err)
 			}
 		}
 	}
@@ -624,7 +649,7 @@ func (h *AuthHandler) checkPerAccountRateLimit(email string) (bool, int64) {
 			// Corrupted entry or unexpected bolt failure: fail open
 			// (treat as not locked) to avoid wedging legitimate
 			// logins, but surface it so operators notice.
-			slog.Warn("account rate-limit read failed", "email", email, "error", err)
+			h.log().Warn("account rate-limit read failed", "email", email, "error", err)
 		}
 		return false, 0
 	}
@@ -655,7 +680,7 @@ func (h *AuthHandler) incrementPerAccountRateLimit(ctx context.Context, email st
 		// rather than reset a possibly-already-counted state, but
 		// surface it so the entry doesn't silently stop counting
 		// until its 15-minute TTL elapses.
-		slog.Warn("account rate-limit read failed; increment skipped",
+		h.log().Warn("account rate-limit read failed; increment skipped",
 			"email", email, "error", err)
 		return
 	}

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
@@ -75,6 +76,68 @@ func TestAuthRateLimiter_CorruptedReadEmitsWarn(t *testing.T) {
 	}
 	if stub.setCalls != 1 {
 		t.Errorf("expected one Set call (fresh-window write), got %d", stub.setCalls)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TenantRateLimiter parallels
+// ---------------------------------------------------------------------------
+
+func TestTenantRateLimiter_New_DefaultsLogger(t *testing.T) {
+	trl := NewTenantRateLimiter(&rlBoltStub{}, 5, time.Minute)
+	if trl.logger == nil {
+		t.Fatal("NewTenantRateLimiter must default the logger so the new Warn-on-corruption paths are not dead code")
+	}
+}
+
+func TestTenantRateLimiter_CorruptedReadEmitsWarn(t *testing.T) {
+	stub := &rlBoltStub{getErr: errors.New("bolt: corrupted entry")}
+	trl := NewTenantRateLimiter(stub, 5, time.Minute)
+
+	var buf bytes.Buffer
+	trl.SetLogger(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+
+	handler := trl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	ctx := auth.ContextWithClaims(req.Context(), &auth.Claims{TenantID: "t-corrupted", UserID: "u1"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req.WithContext(ctx))
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected request to flow through after fresh-window reset, got status %d", rec.Code)
+	}
+	logs := buf.String()
+	// Both the config read and the window read use the same stub error,
+	// so two Warn lines are expected: one for the per-tenant config
+	// fall-through, one for the window reset.
+	if !strings.Contains(logs, "tenant ratelimit config read failed") {
+		t.Errorf("expected config-read Warn, got: %q", logs)
+	}
+	if !strings.Contains(logs, "tenant ratelimit read failed") {
+		t.Errorf("expected window-read Warn, got: %q", logs)
+	}
+}
+
+func TestTenantRateLimiter_NotFoundDoesNotWarn(t *testing.T) {
+	stub := &rlBoltStub{getErr: fmt.Errorf("key %q: %w", "trl:t-fresh", core.ErrBoltNotFound)}
+	trl := NewTenantRateLimiter(stub, 5, time.Minute)
+
+	var buf bytes.Buffer
+	trl.SetLogger(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+
+	handler := trl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	ctx := auth.ContextWithClaims(req.Context(), &auth.Claims{TenantID: "t-fresh", UserID: "u1"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req.WithContext(ctx))
+
+	if strings.Contains(buf.String(), "tenant ratelimit") {
+		t.Fatalf("NotFound path must not warn, got: %q", buf.String())
 	}
 }
 

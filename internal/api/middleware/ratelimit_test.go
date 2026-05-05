@@ -27,7 +27,7 @@ func (m *rlBoltStore) Get(bucket, key string, out any) error {
 	k := bucket + ":" + key
 	raw, ok := m.data[k]
 	if !ok {
-		return fmt.Errorf("not found")
+		return fmt.Errorf("key %q in bucket %q: %w", key, bucket, core.ErrBoltNotFound)
 	}
 	return json.Unmarshal(raw, out)
 }

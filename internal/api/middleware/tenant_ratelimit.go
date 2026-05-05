@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -25,6 +27,7 @@ type TenantRateLimiter struct {
 	defaultRate   int
 	defaultWindow time.Duration
 	mu            sync.Mutex // protects bolt operations for same key
+	logger        *slog.Logger
 }
 
 type tenantRateLimitEntry struct {
@@ -39,7 +42,22 @@ func NewTenantRateLimiter(bolt core.BoltStorer, defaultRate int, window time.Dur
 		bolt:          bolt,
 		defaultRate:   defaultRate,
 		defaultWindow: window,
+		logger:        slog.Default(),
 	}
+}
+
+// SetLogger overrides the logger used for tenant-ratelimit telemetry.
+func (trl *TenantRateLimiter) SetLogger(logger *slog.Logger) {
+	if logger != nil {
+		trl.logger = logger
+	}
+}
+
+func (trl *TenantRateLimiter) log() *slog.Logger {
+	if trl.logger == nil {
+		return slog.Default()
+	}
+	return trl.logger
 }
 
 // Middleware returns an HTTP middleware that enforces per-tenant rate limits.
@@ -65,6 +83,11 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 		var cfg tenantRateLimitConfig
 		if err := trl.bolt.Get("tenant_ratelimit", tenantID, &cfg); err == nil && cfg.RequestsPerMinute > 0 {
 			rate = cfg.RequestsPerMinute
+		} else if err != nil && !errors.Is(err, core.ErrBoltNotFound) {
+			// Corrupted config falls through to the default rate; surface
+			// it so operators notice instead of silently serving the
+			// default for what looks like a configured tenant.
+			trl.log().Warn("tenant ratelimit config read failed", "tenant", tenantID, "error", err)
 		}
 
 		// Enforce sliding window per tenant
@@ -78,6 +101,12 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 
 		var entry tenantRateLimitEntry
 		err := trl.bolt.Get("ratelimit", key, &entry)
+		if err != nil && !errors.Is(err, core.ErrBoltNotFound) {
+			// Same fresh-window reset as a real miss; surface so a
+			// corrupted entry doesn't quietly let an attacker reset.
+			trl.log().Warn("tenant ratelimit read failed; resetting window",
+				"tenant", tenantID, "error", err)
+		}
 		if err != nil || now >= entry.ResetAt {
 			// New window
 			entry = tenantRateLimitEntry{
