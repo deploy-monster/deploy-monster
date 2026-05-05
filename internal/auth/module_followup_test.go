@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -62,6 +63,66 @@ func TestCleanupBootstrapAdminCredentials_FileWithoutMarkerKept(t *testing.T) {
 
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("env file should still exist when no password marker is present: %v", err)
+	}
+}
+
+// TestCleanupBootstrapAdminCredentials_ReadErrorIsNotNotExist covers the
+// rare branch where ReadFile fails for a reason other than IsNotExist —
+// the easiest provocation is pointing the env-file path at a directory,
+// which on every supported OS surfaces as "is a directory" rather than
+// "no such file or directory". The function must Warn-and-return without
+// panicking on the nil-data path that follows.
+func TestCleanupBootstrapAdminCredentials_ReadErrorIsNotNotExist(t *testing.T) {
+	dir := t.TempDir()
+	// Path is a directory, not a file — ReadFile errors with
+	// syscall.EISDIR (or platform equivalent) which is not IsNotExist.
+	withBootstrapEnvFile(t, dir)
+
+	m := New()
+	m.logger = slog.Default()
+	// Must not panic; function emits a Warn and returns.
+	m.cleanupBootstrapAdminCredentials()
+
+	// Sanity check: directory still exists (cleanup did not try to
+	// remove a directory).
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("expected dir to still exist; stat err=%v", err)
+	}
+}
+
+// TestCleanupBootstrapAdminCredentials_RemoveFailureWarns provokes the
+// post-marker remove-failure branch by putting the env file inside a
+// read-only parent directory so os.Remove returns EACCES. Skipped on
+// Windows where 0o500 on directories does not block deletion the same
+// way it does on POSIX.
+func TestCleanupBootstrapAdminCredentials_RemoveFailureWarns(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("read-only parent dir does not block file removal on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root user bypasses the read-only directory protection")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "deploymonster.env")
+	contents := "MONSTER_ADMIN_PASSWORD=hunter2\n"
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	// Make parent dir read+exec only so unlink fails with EACCES.
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("chmod parent: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) }) // restore so t.TempDir cleanup can run
+	withBootstrapEnvFile(t, path)
+
+	m := New()
+	m.logger = slog.Default()
+	m.cleanupBootstrapAdminCredentials()
+
+	// File must still exist because Remove failed.
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("file should still exist after blocked remove; stat err=%v", err)
 	}
 }
 
