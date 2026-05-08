@@ -1,6 +1,6 @@
 # DeployMonster Development and Launch Plan
 
-Last updated: 2026-05-08
+Last updated: 2026-05-09
 
 This plan is the working path for taking DeployMonster from the current
 repository state to a shippable self-hosted product. It is ordered by
@@ -8,13 +8,15 @@ dependency: do not add major features until the earlier gates are green.
 
 ## Current Status
 
-- Sprint 0 gates are green locally as of 2026-05-08:
-  `go vet ./...`, `go test -short ./...`, `go run ./cmd/openapi-gen`,
-  frontend lint, Vitest, build, and bundle check.
-- Sprint 1 has started. Critical mutating API routes now use permission-aware
-  middleware, viewer-role regression coverage was added, and non-app resource
-  operations now have dedicated permission names for network, volume, registry,
-  backup, git, marketplace, topology, webhook, deploy-freeze, and deploy-approval
+- PR #43 (`codex/launch-hardening`) is ready for review, mergeable, and green
+  on GitHub CI as of 2026-05-09.
+- Sprint 0 through Sprint 6 in-repo readiness work is complete for the current
+  launch-hardening branch. The remaining launch gate is external staging proof,
+  not additional local code cleanup.
+- Critical mutating API routes now use permission-aware middleware,
+  viewer-role regression coverage was added, and non-app resource operations
+  now have dedicated permission names for network, volume, registry, backup,
+  git, marketplace, topology, webhook, deploy-freeze, and deploy-approval
   actions.
 - Topology save/deploy now verifies that `project_id` belongs to the caller's
   tenant before writing topology state or compiling deployment output.
@@ -32,8 +34,8 @@ dependency: do not add major features until the earlier gates are green.
 - Domain verification now resolves the stored domain first, rejects cross-tenant
   or mismatched FQDN verification, and batch verification only accepts FQDNs
   already attached to the caller's tenant.
-- Remaining Sprint 1 work: broaden resource-scoped cross-tenant tests beyond
-  router-level permission checks for the remaining non-app handlers.
+- Remaining launch work: execute `docs/staging-validation.md` on real
+  infrastructure, attach evidence, then run the release workflow.
 
 ## Target State
 

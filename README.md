@@ -16,7 +16,9 @@ Turn any VPS with Docker into a multi-tenant deployment platform.
 </div>
 
 > **Status: v0.1.8 (conditional-go).** Self-hosted single-tenant: ready.
-> Multi-tenant SaaS: closing residual Sprint 1–3 items. See
+> Multi-tenant SaaS: requires the staging validation, backup/restore,
+> rollback, load, and soak evidence in
+> [`docs/staging-validation.md`](docs/staging-validation.md). See
 > [`PRODUCTION-READY.md`](PRODUCTION-READY.md) for the current verdict.
 
 ---
