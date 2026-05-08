@@ -106,9 +106,19 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid certificate/key pair")
 		return
 	}
+	if cert.Leaf == nil && len(cert.Certificate) > 0 {
+		if leaf, parseErr := x509.ParseCertificate(cert.Certificate[0]); parseErr == nil {
+			cert.Leaf = leaf
+		}
+	}
 
-	// Verify the certificate domain matches domain_id (UPLOAD-001)
-	if err := validateCertDomain([]byte(req.CertPEM), req.DomainID); err != nil {
+	domain, ok := h.requireTenantCertificateDomain(w, r, req.DomainID, claims.TenantID)
+	if !ok {
+		return
+	}
+
+	// Verify the certificate domain matches the tenant-owned domain (UPLOAD-001).
+	if err := validateCertDomain([]byte(req.CertPEM), domain.FQDN); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -125,7 +135,7 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	info := CertInfo{
 		ID:        core.GenerateID(),
 		TenantID:  claims.TenantID,
-		Domain:    req.DomainID,
+		Domain:    domain.FQDN,
 		Issuer:    issuer,
 		ExpiresAt: expiresAt,
 		AutoRenew: false,
@@ -153,10 +163,39 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id":        info.ID,
-		"domain_id": req.DomainID,
+		"domain_id": domain.ID,
 		"issuer":    issuer,
 		"status":    "active",
 	})
+}
+
+func (h *CertificateHandler) requireTenantCertificateDomain(w http.ResponseWriter, r *http.Request, domainRef, tenantID string) (*core.Domain, bool) {
+	domain, err := h.store.GetDomain(r.Context(), domainRef)
+	if err != nil {
+		if err == core.ErrNotFound {
+			domain, err = h.store.GetDomainByFQDN(r.Context(), domainRef)
+		}
+		if err != nil {
+			if err == core.ErrNotFound {
+				writeError(w, http.StatusNotFound, "domain not found")
+				return nil, false
+			}
+			writeError(w, http.StatusInternalServerError, "failed to lookup domain")
+			return nil, false
+		}
+	}
+
+	app, err := h.store.GetApp(r.Context(), domain.AppID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to lookup application")
+		return nil, false
+	}
+	if app.TenantID != tenantID {
+		writeError(w, http.StatusForbidden, "access denied")
+		return nil, false
+	}
+
+	return domain, true
 }
 
 // validateCertDomain checks that the certificate's domains (SAN + CN) cover

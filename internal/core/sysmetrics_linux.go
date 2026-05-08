@@ -64,7 +64,56 @@ func (r *linuxSysMetricsReader) Read() (SysMetrics, error) {
 		out.DiskUsedMB = bytesToMB(used)
 	}
 
+	if rx, tx, ok := readNetCounters(); ok {
+		out.NetRxBytes = rx
+		out.NetTxBytes = tx
+	}
+
 	return out, nil
+}
+
+// readNetCounters parses /proc/net/dev and returns the sum of received and
+// transmitted bytes across every non-loopback interface. Loopback (`lo`)
+// would inflate the totals with intra-host traffic and isn't useful as a
+// platform-level signal, so it's skipped.
+func readNetCounters() (int64, int64, bool) {
+	f, err := os.Open("/proc/net/dev")
+	if err != nil {
+		return 0, 0, false
+	}
+	defer func() { _ = f.Close() }()
+
+	scanner := bufio.NewScanner(f)
+	// Skip the two header lines.
+	for i := 0; i < 2 && scanner.Scan(); i++ {
+	}
+
+	var rx, tx int64
+	for scanner.Scan() {
+		line := scanner.Text()
+		colon := strings.IndexByte(line, ':')
+		if colon < 0 {
+			continue
+		}
+		iface := strings.TrimSpace(line[:colon])
+		if iface == "lo" {
+			continue
+		}
+		fields := strings.Fields(line[colon+1:])
+		if len(fields) < 9 {
+			continue
+		}
+		// /proc/net/dev columns: rx_bytes rx_packets ... (8 rx) tx_bytes tx_packets ... (8 tx)
+		rxv, err1 := strconv.ParseInt(fields[0], 10, 64)
+		txv, err2 := strconv.ParseInt(fields[8], 10, 64)
+		if err1 == nil {
+			rx += rxv
+		}
+		if err2 == nil {
+			tx += txv
+		}
+	}
+	return rx, tx, true
 }
 
 // readCPUTimes parses /proc/stat's first "cpu" aggregate line and returns

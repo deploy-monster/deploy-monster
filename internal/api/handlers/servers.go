@@ -57,24 +57,52 @@ func (h *ServerHandler) ListProviders(w http.ResponseWriter, _ *http.Request) {
 }
 
 // List handles GET /api/v1/servers.
-func (h *ServerHandler) List(w http.ResponseWriter, _ *http.Request) {
+// Always includes a synthetic "local" entry for the master process so the UI
+// can render the platform's own node alongside any provisioned worker hosts.
+func (h *ServerHandler) List(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	hostname, _ := os.Hostname()
 	if hostname == "" {
 		hostname = "local"
 	}
 
+	out := []serverNode{{
+		ID:        "local",
+		Hostname:  hostname,
+		Provider:  "local",
+		Region:    "local",
+		Size:      "local",
+		Status:    "active",
+		Role:      "master",
+		CreatedAt: time.Now(),
+	}}
+
+	stored, err := h.store.ListServersByTenant(r.Context(), claims.TenantID)
+	if err != nil {
+		ctxLogger(r.Context()).Error("servers list: store query failed", "error", err)
+	}
+	for _, srv := range stored {
+		out = append(out, serverNode{
+			ID:        srv.ID,
+			Hostname:  srv.Hostname,
+			IPAddress: srv.IPAddress,
+			Provider:  srv.ProviderType,
+			Region:    srv.Region,
+			Size:      srv.Size,
+			Status:    srv.Status,
+			Role:      srv.Role,
+			CreatedAt: srv.CreatedAt,
+		})
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"data": []serverNode{{
-			ID:        "local",
-			Hostname:  hostname,
-			Provider:  "local",
-			Region:    "local",
-			Size:      "local",
-			Status:    "active",
-			Role:      "master",
-			CreatedAt: time.Now(),
-		}},
-		"total": 1,
+		"data":  out,
+		"total": len(out),
 	})
 }
 
@@ -206,16 +234,96 @@ func (h *ServerHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		instance.IPAddress = req.IPAddress
 	}
 
+	// Persist so List/Get reflect the provisioned host. Custom (BYOH) servers
+	// are immediately "active"; cloud-provisioned ones start "provisioning"
+	// and the agent bootstrap flow flips them to "active" later.
+	status := "provisioning"
+	if req.Provider == "custom" {
+		status = "active"
+	}
+	srv := &core.Server{
+		ID:           instance.ID,
+		TenantID:     claims.TenantID,
+		Hostname:     instance.Name,
+		IPAddress:    instance.IPAddress,
+		Role:         "worker",
+		ProviderType: req.Provider,
+		ProviderRef:  instance.ID,
+		Region:       req.Region,
+		Size:         req.Size,
+		SSHPort:      22,
+		Status:       status,
+		AgentStatus:  "unknown",
+	}
+	if err := h.store.CreateServer(r.Context(), srv); err != nil {
+		ctxLogger(r.Context()).Error("servers provision: persist failed", "error", err, "instance_id", instance.ID)
+		internalErrorCtx(r.Context(), w, "failed to persist server record", err)
+		return
+	}
+
 	h.events.Publish(r.Context(), core.NewTenantEvent(
 		core.EventServerAdded, "api", claims.TenantID, claims.UserID,
 		core.ServerEventData{
-			ServerID: instance.ID,
-			Hostname: instance.Name,
-			IP:       instance.IPAddress,
+			ServerID: srv.ID,
+			Hostname: srv.Hostname,
+			IP:       srv.IPAddress,
 		},
 	))
 
-	writeJSON(w, http.StatusCreated, instance)
+	writeJSON(w, http.StatusCreated, serverNode{
+		ID:        srv.ID,
+		Hostname:  srv.Hostname,
+		IPAddress: srv.IPAddress,
+		Provider:  srv.ProviderType,
+		Region:    srv.Region,
+		Size:      srv.Size,
+		Status:    srv.Status,
+		Role:      srv.Role,
+		CreatedAt: time.Now(),
+	})
+}
+
+// Delete handles DELETE /api/v1/servers/{id}.
+func (h *ServerHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, ok := requirePathParam(w, r, "id")
+	if !ok {
+		return
+	}
+	if id == "local" {
+		writeError(w, http.StatusBadRequest, "cannot delete the master node")
+		return
+	}
+	srv, err := h.store.GetServer(r.Context(), id)
+	if err == core.ErrNotFound {
+		writeError(w, http.StatusNotFound, "server not found")
+		return
+	}
+	if err != nil {
+		internalErrorCtx(r.Context(), w, "lookup failed", err)
+		return
+	}
+	if srv.TenantID == "" {
+		writeError(w, http.StatusForbidden, "shared server cannot be deleted from tenant scope")
+		return
+	}
+	if srv.TenantID != claims.TenantID {
+		writeError(w, http.StatusForbidden, "not your server")
+		return
+	}
+	if err := h.store.DeleteServer(r.Context(), id); err != nil {
+		internalErrorCtx(r.Context(), w, "delete failed", err)
+		return
+	}
+	h.events.Publish(r.Context(), core.NewTenantEvent(
+		core.EventServerRemoved, "api", claims.TenantID, claims.UserID,
+		core.ServerEventData{ServerID: id, Hostname: srv.Hostname, IP: srv.IPAddress},
+	))
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *ServerHandler) provider(name string) core.VPSProvisioner {

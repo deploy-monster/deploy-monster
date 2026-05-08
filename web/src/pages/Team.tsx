@@ -147,7 +147,10 @@ function AuditSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function Team() {
-  const { data: members, loading: membersLoading, refetch: refetchMembers } = useApi<TeamMember[]>('/team/members');
+  const { data: membersResp, loading: membersLoading, refetch: refetchMembers } = useApi<
+    { data: TeamMember[]; total: number } | TeamMember[]
+  >('/team/members');
+  const members = Array.isArray(membersResp) ? membersResp : membersResp?.data;
   const { data: auditLog, loading: auditLoading } = useApi<PaginatedResponse<AuditEntry> | AuditEntry[]>('/team/audit-log');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');

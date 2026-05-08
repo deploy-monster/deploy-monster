@@ -196,8 +196,8 @@ export function Apps() {
       }
       await appsAPI[action](appId);
       refetch();
-    } catch {
-      toast.error('Action failed');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Action failed');
     } finally {
       setActionLoading(null);
     }

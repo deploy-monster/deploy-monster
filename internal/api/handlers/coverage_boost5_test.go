@@ -561,6 +561,7 @@ func TestDeployApprovalHandler_ListPending(t *testing.T) {
 	seedApprovalRequest(h, &ApprovalRequest{ID: "apr-2", AppID: "app-1", TenantID: "t1", Status: "approved", CreatedAt: time.Now()})
 
 	req := httptest.NewRequest("GET", "/api/v1/deploy/approvals", nil)
+	req = withClaims(req, "u1", "t1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 	h.ListPending(rr, req)
 

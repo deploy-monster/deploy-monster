@@ -423,3 +423,14 @@ func TestAuditLog_CapturesRealIP(t *testing.T) {
 		t.Errorf("expected IP 10.0.0.1, got %q", store.entries[0].IPAddress)
 	}
 }
+
+func (m *auditMockStore) CreateServer(_ context.Context, _ *core.Server) error { return nil }
+func (m *auditMockStore) GetServer(_ context.Context, _ string) (*core.Server, error) {
+	return nil, core.ErrNotFound
+}
+func (m *auditMockStore) ListServersByTenant(_ context.Context, _ string) ([]core.Server, error) {
+	return nil, nil
+}
+func (m *auditMockStore) ListAllServers(_ context.Context) ([]core.Server, error) { return nil, nil }
+func (m *auditMockStore) UpdateServerStatus(_ context.Context, _, _ string) error { return nil }
+func (m *auditMockStore) DeleteServer(_ context.Context, _ string) error          { return nil }

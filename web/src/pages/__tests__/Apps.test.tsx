@@ -342,7 +342,7 @@ describe('Apps page', () => {
     fireEvent.click(findActionButton(card, 'lucide-square'));
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('Action failed');
+      expect(toastErrorMock).toHaveBeenCalledWith('boom');
     });
   });
 });

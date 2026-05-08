@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 func TestModule_Start_WithSalt(t *testing.T) {
@@ -73,3 +75,14 @@ func TestModule_PersistSalt_NilBolt(t *testing.T) {
 		t.Errorf("persistSalt with nil bolt: %v", err)
 	}
 }
+
+func (m *mockSecretStore) CreateServer(_ context.Context, _ *core.Server) error { return nil }
+func (m *mockSecretStore) GetServer(_ context.Context, _ string) (*core.Server, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockSecretStore) ListServersByTenant(_ context.Context, _ string) ([]core.Server, error) {
+	return nil, nil
+}
+func (m *mockSecretStore) ListAllServers(_ context.Context) ([]core.Server, error) { return nil, nil }
+func (m *mockSecretStore) UpdateServerStatus(_ context.Context, _, _ string) error { return nil }
+func (m *mockSecretStore) DeleteServer(_ context.Context, _ string) error          { return nil }

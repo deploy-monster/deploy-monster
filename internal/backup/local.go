@@ -20,8 +20,18 @@ type LocalStorage struct {
 	basePath string
 }
 
-// NewLocalStorage creates a local backup storage target.
+// NewLocalStorage creates a local backup storage target. The base path is
+// canonicalized via filepath.Clean so subsequent path-traversal checks
+// (which compare against l.basePath via filepath.Clean) compare like-with-
+// like. Without this, a "./backups" config produced clean paths that did
+// not start with the literal "./backups" string and every List call —
+// including the retention sweep — failed with "path outside storage root".
 func NewLocalStorage(basePath string) *LocalStorage {
+	if abs, err := filepath.Abs(basePath); err == nil {
+		basePath = abs
+	} else {
+		basePath = filepath.Clean(basePath)
+	}
 	_ = os.MkdirAll(basePath, 0750)
 	return &LocalStorage{basePath: basePath}
 }
@@ -92,29 +102,64 @@ func (l *LocalStorage) Delete(_ context.Context, key string) error {
 }
 
 func (l *LocalStorage) List(_ context.Context, prefix string) ([]core.BackupEntry, error) {
-	// Sanitize prefix to prevent path traversal.
-	cleanPrefix := filepath.Clean(l.basePath + "/" + prefix)
-	if !strings.HasPrefix(cleanPrefix, l.basePath) {
+	// Sanitize prefix to prevent path traversal. Both basePath (set in
+	// NewLocalStorage) and target are absolute paths so the rel-based
+	// containment check is comparing canonical strings.
+	target := filepath.Clean(filepath.Join(l.basePath, prefix))
+	rel, err := filepath.Rel(l.basePath, target)
+	if err != nil || strings.HasPrefix(rel, "..") {
 		return nil, fmt.Errorf("invalid backup prefix: path outside storage root")
 	}
-	pattern := cleanPrefix + "*"
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, err
+
+	// Two prefix flavours are supported:
+	//   1. Directory prefix (e.g. "tenant-id/app-id"): recursively walk that
+	//      subtree and surface every file. The retention sweep and the API
+	//      List endpoint both use this form.
+	//   2. Filename prefix within a directory (e.g. "test-"): glob siblings
+	//      whose name starts with the prefix. Used by older callers and a
+	//      few unit tests that assert on filename matching semantics.
+	walkRoot := target
+	filenameFilter := ""
+	if info, statErr := os.Stat(target); statErr != nil || !info.IsDir() {
+		walkRoot = filepath.Dir(target)
+		filenameFilter = filepath.Base(target)
 	}
 
-	entries := make([]core.BackupEntry, 0, len(matches))
-	for _, path := range matches {
-		info, err := os.Stat(path)
+	entries := make([]core.BackupEntry, 0)
+	walkErr := filepath.Walk(walkRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			continue
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
 		}
-		rel, _ := filepath.Rel(l.basePath, path)
+		if info.IsDir() {
+			return nil
+		}
+		if filenameFilter != "" && !strings.HasPrefix(filepath.Base(path), filenameFilter) {
+			return nil
+		}
+		// Walk reports symlinks via Lstat so a broken link wouldn't fail
+		// the callback. Stat the target explicitly so we can drop entries
+		// whose underlying file no longer exists — a backup pointing at a
+		// missing target shouldn't appear in the list.
+		st, statErr := os.Stat(path)
+		if statErr != nil {
+			return nil
+		}
+		rel, relErr := filepath.Rel(l.basePath, path)
+		if relErr != nil {
+			return nil
+		}
 		entries = append(entries, core.BackupEntry{
-			Key:       rel,
-			Size:      info.Size(),
-			CreatedAt: info.ModTime().Unix(),
+			Key:       filepath.ToSlash(rel),
+			Size:      st.Size(),
+			CreatedAt: st.ModTime().Unix(),
 		})
+		return nil
+	})
+	if walkErr != nil && !os.IsNotExist(walkErr) {
+		return nil, walkErr
 	}
 
 	sort.Slice(entries, func(i, j int) bool {

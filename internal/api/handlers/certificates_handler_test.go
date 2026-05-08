@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // ─── List Certificates ───────────────────────────────────────────────────────
@@ -208,10 +209,12 @@ func TestCertificateUpload_DomainMismatch(t *testing.T) {
 	// Upload a cert for example.com but claim domain_id = evil.com
 	cert, key := testCertForDomain("example.com")
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "test-tenant"})
+	store.addDomain(&core.Domain{ID: "domain-evil", AppID: "app1", FQDN: "evil.com", Type: "custom"})
 	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	body := map[string]string{
-		"domain_id": "evil.com",
+		"domain_id": "domain-evil",
 		"cert_pem":  cert,
 		"key_pem":   key,
 	}
@@ -234,6 +237,8 @@ func TestCertificateUpload_DomainMismatch(t *testing.T) {
 func TestCertificateUpload_WildcardCertMatchesSubdomain(t *testing.T) {
 	// Wildcard cert *.example.com should match app.example.com
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "test-tenant"})
+	store.addDomain(&core.Domain{ID: "domain-app", AppID: "app1", FQDN: "app.example.com", Type: "custom"})
 	handler := NewCertificateHandler(store, newMockBoltStore())
 
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -266,5 +271,32 @@ func TestCertificateUpload_WildcardCertMatchesSubdomain(t *testing.T) {
 
 	if rr.Code != http.StatusCreated {
 		t.Fatalf("expected 201 for wildcard match, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestCertificateUpload_CrossTenantDomainForbidden(t *testing.T) {
+	cert, key := testCertForDomain("app.example.com")
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app2", TenantID: "other-tenant"})
+	store.addDomain(&core.Domain{ID: "domain-app", AppID: "app2", FQDN: "app.example.com", Type: "custom"})
+	handler := NewCertificateHandler(store, newMockBoltStore())
+
+	body := map[string]string{
+		"domain_id": "domain-app",
+		"cert_pem":  cert,
+		"key_pem":   key,
+	}
+	bodyBytes, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader(bodyBytes))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
+		TenantID: "test-tenant",
+		UserID:   "test-user",
+	}))
+	rr := httptest.NewRecorder()
+
+	handler.Upload(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rr.Code, rr.Body.String())
 	}
 }

@@ -102,6 +102,10 @@ jobs:
         working-directory: web
         run: npx tsc --noEmit -p tsconfig.app.json
 
+      - name: ESLint
+        working-directory: web
+        run: pnpm run lint
+
       - name: Run Vitest
         working-directory: web
         run: pnpm test

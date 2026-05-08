@@ -313,6 +313,17 @@ func (sw *statusWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// Flush forwards to the underlying ResponseWriter so SSE handlers and any
+// other streaming endpoint can push bytes immediately. Without it the
+// http.Flusher type assertion in SSE handlers fails (the wrapper hides
+// the underlying interface), every event is buffered until the
+// connection closes, and panels appear to hang forever.
+func (sw *statusWriter) Flush() {
+	if f, ok := sw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func realIP(r *http.Request) string {
 	if ip := r.Header.Get("X-Real-IP"); ip != "" {
 		return ip

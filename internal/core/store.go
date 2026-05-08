@@ -29,6 +29,7 @@ type Store interface {
 	InviteStore
 	UsageRecordStore
 	BackupStore
+	ServerStore
 	Close() error
 	Ping(ctx context.Context) error
 }
@@ -216,6 +217,40 @@ type Deployment struct {
 	StartedAt     *time.Time `json:"started_at,omitempty"`
 	FinishedAt    *time.Time `json:"finished_at,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
+}
+
+// Server represents a host node (master or worker) attached to the platform.
+type Server struct {
+	ID               string    `json:"id"`
+	TenantID         string    `json:"tenant_id"`
+	Hostname         string    `json:"hostname"`
+	IPAddress        string    `json:"ip_address"`
+	Role             string    `json:"role"`
+	ProviderType     string    `json:"provider_type"`
+	ProviderRef      string    `json:"provider_ref"`
+	Region           string    `json:"region"`
+	Size             string    `json:"size"`
+	SSHPort          int       `json:"ssh_port"`
+	SSHKeyID         string    `json:"ssh_key_id"`
+	DockerVersion    string    `json:"docker_version"`
+	CPUCores         int       `json:"cpu_cores"`
+	RAMmb            int       `json:"ram_mb"`
+	DiskMB           int       `json:"disk_mb"`
+	MonthlyCostCents int       `json:"monthly_cost_cents"`
+	SwarmJoined      bool      `json:"swarm_joined"`
+	AgentStatus      string    `json:"agent_status"`
+	Status           string    `json:"status"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+// ServerStore manages server/node CRUD.
+type ServerStore interface {
+	CreateServer(ctx context.Context, server *Server) error
+	GetServer(ctx context.Context, id string) (*Server, error)
+	ListServersByTenant(ctx context.Context, tenantID string) ([]Server, error)
+	ListAllServers(ctx context.Context) ([]Server, error)
+	UpdateServerStatus(ctx context.Context, id, status string) error
+	DeleteServer(ctx context.Context, id string) error
 }
 
 // Domain represents a domain mapped to an application.

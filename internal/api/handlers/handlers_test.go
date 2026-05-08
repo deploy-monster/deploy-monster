@@ -11,28 +11,6 @@ import (
 	"testing"
 )
 
-func TestEnvVarMasking(t *testing.T) {
-	tests := []struct {
-		input string
-		want  string
-	}{
-		{"ab", "****"},
-		{"abc", "****"},
-		{"abcd", "****"},
-		{"abcde", "ab*de"},
-		{"secretvalue123", "se**********23"},
-		{"${SECRET:db_pass}", "${SECRET:***}"}, // Secret refs masked to hide secret name
-		{"password123!", "pa********3!"},
-	}
-
-	for _, tt := range tests {
-		got := maskValue(tt.input)
-		if got != tt.want {
-			t.Errorf("maskValue(%q) = %q, want %q", tt.input, got, tt.want)
-		}
-	}
-}
-
 func TestGenerateSlug_EdgeCases(t *testing.T) {
 	tests := []struct {
 		input string

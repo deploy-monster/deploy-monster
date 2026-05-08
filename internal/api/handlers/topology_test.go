@@ -13,6 +13,7 @@ import (
 
 func TestTopologyHandler_Save(t *testing.T) {
 	store := newMockStore()
+	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"})
 	bolt := newMockBoltStore()
 	c := &core.Core{DB: &core.Database{Bolt: bolt}}
 	h := NewTopologyHandler(store, c)
@@ -69,6 +70,7 @@ func TestTopologyHandler_Save(t *testing.T) {
 
 func TestTopologyHandler_Deploy(t *testing.T) {
 	store := newMockStore()
+	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"})
 	bolt := newMockBoltStore()
 	c := &core.Core{DB: &core.Database{Bolt: bolt}}
 	h := NewTopologyHandler(store, c)
@@ -201,6 +203,7 @@ func TestTopologyHandler_DeployEmptyNodes(t *testing.T) {
 
 func TestTopologyHandler_DeployWorkerNode(t *testing.T) {
 	store := newMockStore()
+	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"})
 	bolt := newMockBoltStore()
 	c := &core.Core{DB: &core.Database{Bolt: bolt}}
 	h := NewTopologyHandler(store, c)

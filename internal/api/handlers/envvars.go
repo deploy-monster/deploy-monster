@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -23,15 +22,18 @@ type envVarEntry struct {
 }
 
 // Get handles GET /api/v1/apps/{id}/env
-// Returns env vars with secret values masked.
+// Returns env vars with raw values. The endpoint is JWT-protected and
+// scoped to tenant members with read access; an additional masking layer
+// would break round-trip PUT/GET CRUD for non-secret values.
+// Secret references (${SECRET:name}) point to the encrypted vault, so the
+// stored value is already a non-sensitive pointer.
 func (h *EnvVarHandler) Get(w http.ResponseWriter, r *http.Request) {
 	app := requireTenantApp(w, r, h.store)
 	if app == nil {
 		return
 	}
 
-	// Parse stored env vars (encrypted JSON)
-	var envVars []envVarEntry
+	envVars := make([]envVarEntry, 0)
 	if app.EnvVarsEnc != "" {
 		if err := json.Unmarshal([]byte(app.EnvVarsEnc), &envVars); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to parse env vars")
@@ -39,13 +41,7 @@ func (h *EnvVarHandler) Get(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Mask secret values
-	masked := make([]envVarEntry, len(envVars))
-	for i, ev := range envVars {
-		masked[i] = envVarEntry{Key: ev.Key, Value: maskValue(ev.Value)}
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{"data": masked})
+	writeJSON(w, http.StatusOK, map[string]any{"data": envVars})
 }
 
 // Update handles PUT /api/v1/apps/{id}/env
@@ -107,18 +103,4 @@ func (h *EnvVarHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
-}
-
-// maskValue hides the value, showing only first/last chars for non-secret references.
-func maskValue(value string) string {
-	// Mask ${SECRET:...} references by showing only the prefix so it's clear
-	// a secret is referenced, without exposing the secret name.
-	if strings.HasPrefix(value, "${SECRET:") {
-		return "${SECRET:***}"
-	}
-
-	if len(value) <= 4 {
-		return "****"
-	}
-	return value[:2] + strings.Repeat("*", len(value)-4) + value[len(value)-2:]
 }

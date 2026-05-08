@@ -12,6 +12,8 @@ type SysMetrics struct {
 	DiskUsedMB  int64      // best-effort root-fs used
 	DiskTotalMB int64      // best-effort root-fs total
 	LoadAvg     [3]float64 // 1/5/15 min load averages on Linux; zeros elsewhere
+	NetRxBytes  int64      // total bytes received across all non-loopback interfaces
+	NetTxBytes  int64      // total bytes transmitted across all non-loopback interfaces
 	SampledAt   time.Time
 }
 

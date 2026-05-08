@@ -522,9 +522,20 @@ func TestBoltStore_Get_NonExistentBucket(t *testing.T) {
 func TestBoltStore_Set_NonExistentBucket(t *testing.T) {
 	store := testBolt(t)
 
-	err := store.Set("nonexistent_bucket", "key", "val", 0)
-	if err == nil {
-		t.Error("expected error for non-existent bucket")
+	// Set auto-creates the bucket on demand. Handlers persist into many
+	// buckets that aren't pre-registered (user_sessions, redirects, etc.),
+	// and treating "missing bucket" as an error meant every first write
+	// silently failed. Verify the bucket is created and the value
+	// round-trips back through Get.
+	if err := store.Set("nonexistent_bucket", "key", "val", 0); err != nil {
+		t.Fatalf("Set should auto-create bucket, got %v", err)
+	}
+	var got string
+	if err := store.Get("nonexistent_bucket", "key", &got); err != nil {
+		t.Fatalf("Get after auto-create Set: %v", err)
+	}
+	if got != "val" {
+		t.Errorf("round-trip got %q, want %q", got, "val")
 	}
 }
 

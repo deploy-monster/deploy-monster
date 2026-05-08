@@ -484,8 +484,17 @@ func TestBolt_BatchSet_UnknownBucket(t *testing.T) {
 	items := []core.BoltBatchItem{
 		{Bucket: "nonexistent_bucket", Key: "k", Value: "v"},
 	}
-	err := bs.BatchSet(items)
-	if err == nil {
-		t.Error("BatchSet with unknown bucket should fail")
+	// Mirrors Set's auto-create behaviour: handlers persist into buckets
+	// that aren't pre-registered (user_sessions, redirects, etc.); a hard
+	// "bucket not found" error caused those first writes to silently fail.
+	if err := bs.BatchSet(items); err != nil {
+		t.Fatalf("BatchSet should auto-create bucket, got %v", err)
+	}
+	var got string
+	if err := bs.Get("nonexistent_bucket", "k", &got); err != nil {
+		t.Fatalf("Get after BatchSet: %v", err)
+	}
+	if got != "v" {
+		t.Errorf("round-trip got %q, want %q", got, "v")
 	}
 }

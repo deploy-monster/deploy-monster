@@ -8,10 +8,13 @@ import { MemoryRouter } from 'react-router';
 // for `/apps/${id}/deployments`. We route by path suffix so each feed can be
 // primed independently per test.
 
-type ApiResponse = { data: unknown; loading: boolean };
+type ApiResponse = { data: unknown; loading: boolean; error?: string | null };
 const appState: ApiResponse = { data: null, loading: true };
-const deploymentsState: ApiResponse = { data: [], loading: false };
+const deploymentsState: ApiResponse = { data: { data: [] }, loading: false };
+const envState: ApiResponse = { data: { data: [] }, loading: false };
+const statsState: ApiResponse = { data: null, loading: false, error: null };
 const refetchAppMock = vi.fn();
+const refetchEnvMock = vi.fn();
 
 vi.mock('../../hooks', async () => {
   const actual = await vi.importActual<typeof import('../../hooks')>('../../hooks');
@@ -26,6 +29,22 @@ vi.mock('../../hooks', async () => {
           refetch: vi.fn(),
         };
       }
+      if (path.includes('/env')) {
+        return {
+          data: envState.data,
+          loading: envState.loading,
+          error: null,
+          refetch: refetchEnvMock,
+        };
+      }
+      if (path.includes('/stats')) {
+        return {
+          data: statsState.data,
+          loading: statsState.loading,
+          error: statsState.error ?? null,
+          refetch: vi.fn(),
+        };
+      }
       return {
         data: appState.data,
         loading: appState.loading,
@@ -36,16 +55,32 @@ vi.mock('../../hooks', async () => {
   };
 });
 
+const apiPutMock = vi.fn();
+vi.mock('@/api/client', async () => {
+  const actual = await vi.importActual<typeof import('@/api/client')>('@/api/client');
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      put: (path: string, body?: unknown) => apiPutMock(path, body),
+    },
+  };
+});
+
 const startMock = vi.fn();
 const stopMock = vi.fn();
 const restartMock = vi.fn();
 const deleteMock = vi.fn();
+const deployMock = vi.fn();
+const updateMock = vi.fn();
 vi.mock('../../api/apps', () => ({
   appsAPI: {
     start: (id: string) => startMock(id),
     stop: (id: string) => stopMock(id),
     restart: (id: string) => restartMock(id),
     delete: (id: string) => deleteMock(id),
+    deploy: (id: string) => deployMock(id),
+    update: (id: string, data: unknown) => updateMock(id, data),
   },
 }));
 
@@ -112,13 +147,21 @@ describe('AppDetail page', () => {
   beforeEach(() => {
     appState.data = null;
     appState.loading = true;
-    deploymentsState.data = [];
+    deploymentsState.data = { data: [] };
     deploymentsState.loading = false;
+    envState.data = { data: [] };
+    envState.loading = false;
+    statsState.data = null;
+    statsState.error = null;
     refetchAppMock.mockReset();
+    refetchEnvMock.mockReset();
+    apiPutMock.mockReset().mockResolvedValue(undefined);
     startMock.mockReset().mockResolvedValue(undefined);
     stopMock.mockReset().mockResolvedValue(undefined);
     restartMock.mockReset().mockResolvedValue(undefined);
     deleteMock.mockReset();
+    deployMock.mockReset().mockResolvedValue(undefined);
+    updateMock.mockReset().mockResolvedValue(undefined);
     toastErrorMock.mockReset();
   });
 
@@ -174,17 +217,14 @@ describe('AppDetail page', () => {
     await waitFor(() => expect(startMock).toHaveBeenCalledWith('app-1'));
   });
 
-  it('re-uses the restart endpoint when the header Deploy button is clicked', async () => {
+  it('calls appsAPI.deploy when the header Deploy button is clicked', async () => {
     appState.data = fakeApp({ status: 'running' });
     appState.loading = false;
     renderAppDetail();
 
-    // The header Deploy button's accessible name is exactly "Deploy"; the
-    // Latest Deployment empty-state button is labelled "Deploy Now", so the
-    // anchored regex disambiguates them.
     fireEvent.click(screen.getByRole('button', { name: /^deploy$/i }));
 
-    await waitFor(() => expect(restartMock).toHaveBeenCalledWith('app-1'));
+    await waitFor(() => expect(deployMock).toHaveBeenCalledWith('app-1'));
   });
 
   it('surfaces a toast.error when a control action rejects', async () => {
@@ -247,41 +287,51 @@ describe('AppDetail page', () => {
     expect(deleteMock).toHaveBeenCalledWith('app-1');
   });
 
-  it('switches to the Environment tab and lists the seeded env vars', () => {
+  it('switches to the Environment tab and lists env vars from the API', () => {
     appState.data = fakeApp();
     appState.loading = false;
+    envState.data = {
+      data: [
+        { key: 'NODE_ENV', value: 'production' },
+        { key: 'DATABASE_URL', value: '${SECRET:db_url}' },
+      ],
+    };
     renderAppDetail();
 
     fireEvent.click(screen.getByRole('tab', { name: /environment/i }));
 
     expect(screen.getByText('NODE_ENV')).toBeInTheDocument();
     expect(screen.getByText('DATABASE_URL')).toBeInTheDocument();
-    // NODE_ENV is non-secret so its value renders in the clear.
     expect(screen.getByText('production')).toBeInTheDocument();
   });
 
-  it('adds a new env var from the form and renders it in the table', () => {
+  it('PUTs the new env var list when Add Variable is clicked', async () => {
     appState.data = fakeApp();
     appState.loading = false;
+    envState.data = { data: [{ key: 'EXISTING', value: 'foo' }] };
     renderAppDetail();
 
     fireEvent.click(screen.getByRole('tab', { name: /environment/i }));
 
-    // The Key input upper-cases its value on change, so typing "new_flag"
-    // lands as "NEW_FLAG".
     fireEvent.change(screen.getByLabelText(/^key$/i), { target: { value: 'new_flag' } });
     fireEvent.change(screen.getByLabelText(/^value$/i), { target: { value: 'on' } });
-    expect((screen.getByLabelText(/^key$/i) as HTMLInputElement).value).toBe('NEW_FLAG');
-
     fireEvent.click(screen.getByRole('button', { name: /add variable/i }));
 
-    expect(screen.getByText('NEW_FLAG')).toBeInTheDocument();
-    expect(screen.getByText('on')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(apiPutMock).toHaveBeenCalledWith('/apps/app-1/env', {
+        vars: [
+          { key: 'EXISTING', value: 'foo' },
+          { key: 'NEW_FLAG', value: 'on' },
+        ],
+      }),
+    );
+    await waitFor(() => expect(refetchEnvMock).toHaveBeenCalled());
   });
 
   it('toggles secret value visibility when the Reveal button is clicked', () => {
     appState.data = fakeApp();
     appState.loading = false;
+    envState.data = { data: [{ key: 'DATABASE_URL', value: '${SECRET:db_url}' }] };
     renderAppDetail();
 
     fireEvent.click(screen.getByRole('tab', { name: /environment/i }));
@@ -297,7 +347,7 @@ describe('AppDetail page', () => {
   it('renders the empty state on the Deployments tab when there is no history', () => {
     appState.data = fakeApp();
     appState.loading = false;
-    deploymentsState.data = [];
+    deploymentsState.data = { data: [] };
     renderAppDetail();
 
     fireEvent.click(screen.getByRole('tab', { name: /deployments/i }));
@@ -308,26 +358,28 @@ describe('AppDetail page', () => {
   it('renders the deployment history table with a rollback control for older rows', () => {
     appState.data = fakeApp();
     appState.loading = false;
-    deploymentsState.data = [
-      {
-        id: 'd1',
-        version: 3,
-        image: 'ghcr.io/example/app:3',
-        status: 'success',
-        commit_sha: 'abcdef1234567890',
-        triggered_by: 'alice',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'd2',
-        version: 2,
-        image: 'ghcr.io/example/app:2',
-        status: 'success',
-        commit_sha: '1234abcd5678ef90',
-        triggered_by: 'bob',
-        created_at: new Date().toISOString(),
-      },
-    ];
+    deploymentsState.data = {
+      data: [
+        {
+          id: 'd1',
+          version: 3,
+          image: 'ghcr.io/example/app:3',
+          status: 'success',
+          commit_sha: 'abcdef1234567890',
+          triggered_by: 'alice',
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'd2',
+          version: 2,
+          image: 'ghcr.io/example/app:2',
+          status: 'success',
+          commit_sha: '1234abcd5678ef90',
+          triggered_by: 'bob',
+          created_at: new Date().toISOString(),
+        },
+      ],
+    };
     renderAppDetail();
 
     fireEvent.click(screen.getByRole('tab', { name: /deployments/i }));

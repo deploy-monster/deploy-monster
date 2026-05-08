@@ -1121,8 +1121,15 @@ func TestStatsHandler_AppStats_NoContainer(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.AppStats(rr, req)
 
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", rr.Code)
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 (empty stats for app with no containers), got %d", rr.Code)
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if count, _ := resp["count"].(float64); count != 0 {
+		t.Errorf("expected count=0, got %v", resp["count"])
 	}
 }
 
@@ -1427,6 +1434,7 @@ func TestWildcardSSLHandler_Request_InvalidBody(t *testing.T) {
 	h := NewWildcardSSLHandler(newMockBoltStore())
 
 	req := httptest.NewRequest("POST", "/api/v1/certificates/wildcard", strings.NewReader("{bad"))
+	req = withClaims(req, "u1", "t1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 	h.Request(rr, req)
 
@@ -1439,6 +1447,7 @@ func TestWildcardSSLHandler_Request_MissingDomain(t *testing.T) {
 	h := NewWildcardSSLHandler(newMockBoltStore())
 
 	req := httptest.NewRequest("POST", "/api/v1/certificates/wildcard", strings.NewReader(`{"domain":""}`))
+	req = withClaims(req, "u1", "t1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 	h.Request(rr, req)
 
@@ -1452,11 +1461,24 @@ func TestWildcardSSLHandler_Request_Success(t *testing.T) {
 
 	body := `{"domain":"example.com","dns_provider":"cloudflare"}`
 	req := httptest.NewRequest("POST", "/api/v1/certificates/wildcard", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 	h.Request(rr, req)
 
 	if rr.Code != http.StatusAccepted {
 		t.Errorf("expected 202, got %d", rr.Code)
+	}
+}
+
+func TestWildcardSSLHandler_Request_NoClaims(t *testing.T) {
+	h := NewWildcardSSLHandler(newMockBoltStore())
+
+	req := httptest.NewRequest("POST", "/api/v1/certificates/wildcard", strings.NewReader(`{"domain":"example.com"}`))
+	rr := httptest.NewRecorder()
+	h.Request(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rr.Code)
 	}
 }
 

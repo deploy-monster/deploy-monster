@@ -16,6 +16,7 @@ func TestDeployApproval_ListPending_Success(t *testing.T) {
 	handler := NewDeployApprovalHandler(store, events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/deploy/approvals", nil)
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 
 	handler.ListPending(rr, req)
@@ -36,6 +37,50 @@ func TestDeployApproval_ListPending_Success(t *testing.T) {
 	}
 	if int(resp["total"].(float64)) != 0 {
 		t.Errorf("expected total=0, got %v", resp["total"])
+	}
+}
+
+func TestDeployApproval_ListPending_NoClaims(t *testing.T) {
+	store := newMockStore()
+	events := testCore().Events
+	handler := NewDeployApprovalHandler(store, events)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/deploy/approvals", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ListPending(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestDeployApproval_ListPending_TenantScoped(t *testing.T) {
+	store := newMockStore()
+	events := testCore().Events
+	handler := NewDeployApprovalHandler(store, events)
+	handler.pending["appr1"] = &ApprovalRequest{ID: "appr1", AppID: "app1", TenantID: "tenant1", Status: "pending"}
+	handler.pending["appr2"] = &ApprovalRequest{ID: "appr2", AppID: "app2", TenantID: "tenant2", Status: "pending"}
+	handler.pending["appr3"] = &ApprovalRequest{ID: "appr3", AppID: "app3", TenantID: "tenant1", Status: "approved"}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/deploy/approvals", nil)
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+
+	handler.ListPending(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+	if int(resp["total"].(float64)) != 1 {
+		t.Fatalf("expected one tenant-local pending approval, got %v", resp["total"])
+	}
+	data := resp["data"].([]any)
+	item := data[0].(map[string]any)
+	if item["id"] != "appr1" {
+		t.Fatalf("listed approval id = %v, want appr1", item["id"])
 	}
 }
 

@@ -64,9 +64,9 @@ CREATE TABLE roles (
 -- Built-in roles
 INSERT INTO roles (id, name, description, permissions_json, is_builtin) VALUES
     ('role_super_admin', 'Super Admin', 'Full platform access', '["*"]', TRUE),
-    ('role_owner', 'Owner', 'Full tenant control', '["tenant.*","app.*","project.*","member.*","billing.*","secret.*","server.*","domain.*","db.*"]', TRUE),
-    ('role_admin', 'Admin', 'Manage team and resources', '["app.*","project.*","member.*","secret.*","server.*","billing.*","domain.*","db.*"]', TRUE),
-    ('role_developer', 'Developer', 'Deploy and manage apps', '["app.*","project.view","secret.app.*","domain.*","db.*"]', TRUE),
+    ('role_owner', 'Owner', 'Full tenant control', '["tenant.*","app.*","project.*","member.*","billing.*","secret.*","server.*","domain.*","db.*","network.*","volume.*","registry.*","backup.*","git.*","marketplace.*","topology.*","webhook.*","deploy.*"]', TRUE),
+    ('role_admin', 'Admin', 'Manage team and resources', '["app.*","project.*","member.*","secret.*","server.*","billing.*","domain.*","db.*","network.*","volume.*","registry.*","backup.*","git.*","marketplace.*","topology.*","webhook.*","deploy.*"]', TRUE),
+    ('role_developer', 'Developer', 'Deploy and manage apps', '["app.*","project.view","secret.app.*","domain.*","db.*","network.manage","volume.manage","registry.manage","backup.create","backup.restore","git.manage","marketplace.deploy","topology.manage","topology.deploy","webhook.manage"]', TRUE),
     ('role_operator', 'Operator', 'Operate running apps', '["app.view","app.restart","app.logs","app.metrics"]', TRUE),
     ('role_viewer', 'Viewer', 'Read-only access', '["app.view","app.logs","project.view"]', TRUE);
 

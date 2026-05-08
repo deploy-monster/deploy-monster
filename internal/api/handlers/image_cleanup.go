@@ -17,6 +17,10 @@ func NewImageCleanupHandler(runtime core.ContainerRuntime) *ImageCleanupHandler 
 
 // DanglingImages handles GET /api/v1/images/dangling
 func (h *ImageCleanupHandler) DanglingImages(w http.ResponseWriter, r *http.Request) {
+	if h.runtime == nil {
+		writeError(w, http.StatusServiceUnavailable, "container runtime not available")
+		return
+	}
 	images, err := h.runtime.ImageList(r.Context())
 	if err != nil {
 		internalError(w, "failed to list images", err)
@@ -41,6 +45,10 @@ func (h *ImageCleanupHandler) DanglingImages(w http.ResponseWriter, r *http.Requ
 // Prune handles DELETE /api/v1/images/prune
 // Removes unused and dangling images.
 func (h *ImageCleanupHandler) Prune(w http.ResponseWriter, r *http.Request) {
+	if h.runtime == nil {
+		writeError(w, http.StatusServiceUnavailable, "container runtime not available")
+		return
+	}
 	images, err := h.runtime.ImageList(r.Context())
 	if err != nil {
 		internalError(w, "failed to list images", err)

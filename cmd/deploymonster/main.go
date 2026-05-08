@@ -23,9 +23,11 @@ import (
 	// All modules auto-register via init()
 	_ "github.com/deploy-monster/deploy-monster/internal/api"
 	_ "github.com/deploy-monster/deploy-monster/internal/auth"
+	_ "github.com/deploy-monster/deploy-monster/internal/autoscale"
 	_ "github.com/deploy-monster/deploy-monster/internal/backup"
 	_ "github.com/deploy-monster/deploy-monster/internal/billing"
 	_ "github.com/deploy-monster/deploy-monster/internal/build"
+	_ "github.com/deploy-monster/deploy-monster/internal/cron"
 	_ "github.com/deploy-monster/deploy-monster/internal/database"
 	_ "github.com/deploy-monster/deploy-monster/internal/db"
 	_ "github.com/deploy-monster/deploy-monster/internal/deploy"

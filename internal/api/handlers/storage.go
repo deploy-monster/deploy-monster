@@ -26,41 +26,54 @@ func (h *StorageHandler) Usage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get volume info from runtime
 	var volumeCount int
 	var volumeTotalMB int64
-	volumes, err := h.runtime.VolumeList(r.Context())
-	if err == nil {
-		volumeCount = len(volumes)
-	}
-
-	// Get image info from runtime
 	var imageCount int
 	var imageTotalMB int64
-	images, err := h.runtime.ImageList(r.Context())
-	if err == nil {
-		imageCount = len(images)
-		for _, img := range images {
-			imageTotalMB += img.Size / (1024 * 1024)
+	runtimeAvailable := h.runtime != nil
+
+	if runtimeAvailable {
+		if volumes, err := h.runtime.VolumeList(r.Context()); err == nil {
+			volumeCount = len(volumes)
+			for _, v := range volumes {
+				if v.Mountpoint == "" {
+					continue
+				}
+				volumeTotalMB += dirSize(v.Mountpoint) / (1024 * 1024)
+			}
+		}
+		if images, err := h.runtime.ImageList(r.Context()); err == nil {
+			imageCount = len(images)
+			for _, img := range images {
+				imageTotalMB += img.Size / (1024 * 1024)
+			}
 		}
 	}
 
-	// Check backup count from bolt cache
-	var backupStats struct {
-		Count   int   `json:"count"`
-		TotalMB int64 `json:"total_mb"`
+	// Backup byte total is read from the local backup storage rather than
+	// a denormalised cache so it can't drift after a manual file delete.
+	var backupCount int
+	var backupTotalMB int64
+	if h.bolt != nil {
+		var backupStats struct {
+			Count   int   `json:"count"`
+			TotalMB int64 `json:"total_mb"`
+		}
+		if h.bolt.Get("metrics_ring", "backup_stats:"+claims.TenantID, &backupStats) == nil {
+			backupCount = backupStats.Count
+			backupTotalMB = backupStats.TotalMB
+		}
 	}
-	_ = h.bolt.Get("metrics_ring", "backup_stats:"+claims.TenantID, &backupStats)
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"tenant_id": claims.TenantID,
 		"volumes": map[string]any{
 			"count":    volumeCount,
 			"total_mb": volumeTotalMB,
 		},
 		"backups": map[string]any{
-			"count":    backupStats.Count,
-			"total_mb": backupStats.TotalMB,
+			"count":    backupCount,
+			"total_mb": backupTotalMB,
 		},
 		"databases": map[string]any{
 			"count":    0,
@@ -70,5 +83,9 @@ func (h *StorageHandler) Usage(w http.ResponseWriter, r *http.Request) {
 			"count":    imageCount,
 			"total_mb": imageTotalMB,
 		},
-	})
+	}
+	if !runtimeAvailable {
+		resp["runtime"] = "unavailable"
+	}
+	writeJSON(w, http.StatusOK, resp)
 }

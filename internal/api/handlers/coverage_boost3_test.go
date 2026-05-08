@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -147,10 +148,21 @@ func TestRegistryHandler_New(t *testing.T) {
 func TestRegistryHandler_List(t *testing.T) {
 	h := NewRegistryHandler(newMockBoltStore())
 	req := httptest.NewRequest("GET", "/api/v1/registries", nil)
+	req = withClaims(req, "u1", "t1", "admin", "u@e.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestRegistryHandler_List_NoClaims(t *testing.T) {
+	h := NewRegistryHandler(newMockBoltStore())
+	req := httptest.NewRequest("GET", "/api/v1/registries", nil)
+	rr := httptest.NewRecorder()
+	h.List(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rr.Code)
 	}
 }
 
@@ -187,7 +199,8 @@ func TestRegistryHandler_Add_MissingFields(t *testing.T) {
 }
 
 func TestRegistryHandler_Add_Success(t *testing.T) {
-	h := NewRegistryHandler(newMockBoltStore())
+	bolt := newMockBoltStore()
+	h := NewRegistryHandler(bolt)
 	body := `{"name":"My Registry","url":"registry.example.com","username":"user","password":"pass"}`
 	req := httptest.NewRequest("POST", "/api/v1/registries", strings.NewReader(body))
 	req = withClaims(req, "u1", "t1", "admin", "u@e.com")
@@ -195,6 +208,36 @@ func TestRegistryHandler_Add_Success(t *testing.T) {
 	h.Add(rr, req)
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d", rr.Code)
+	}
+	if _, ok := bolt.data["registries"][registryListKey("t1")]; !ok {
+		t.Fatal("registry was not stored under tenant-scoped key")
+	}
+	if len(bolt.data["registry_creds"]) != 1 {
+		t.Fatalf("expected one tenant-scoped credential entry, got %d", len(bolt.data["registry_creds"]))
+	}
+}
+
+func TestRegistryHandler_List_IsTenantScoped(t *testing.T) {
+	bolt := newMockBoltStore()
+	bolt.Set("registries", registryListKey("t1"), registryList{
+		Registries: []RegistryConfig{{ID: "custom-1", Name: "Tenant 1 Registry", URL: "registry.t1.example"}},
+	}, 0)
+	h := NewRegistryHandler(bolt)
+
+	req := httptest.NewRequest("GET", "/api/v1/registries", nil)
+	req = withClaims(req, "u2", "t2", "admin", "u2@e.com")
+	rr := httptest.NewRecorder()
+	h.List(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	total := int(resp["total"].(float64))
+	if total != len(builtinRegistries) {
+		t.Fatalf("tenant t2 saw t1 custom registry: total=%d", total)
 	}
 }
 
@@ -361,8 +404,9 @@ func TestInviteHandler_List_Error(t *testing.T) {
 
 func TestBackupHandler_Download_NilStorage(t *testing.T) {
 	h := NewBackupHandler(newMockStore(), nil, core.NewEventBus(slog.Default()))
-	req := httptest.NewRequest("GET", "/api/v1/backups/bak-1/download", nil)
-	req.SetPathValue("key", "bak-1")
+	req := httptest.NewRequest("GET", "/api/v1/backups/t1/app-1/bak-1/download", nil)
+	req.SetPathValue("key", "t1/app-1/bak-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Download(rr, req)
 	if rr.Code != http.StatusServiceUnavailable {

@@ -202,11 +202,18 @@ func TestMigrations_RollbackPartial(t *testing.T) {
 	if len(indexesBefore) == 0 {
 		t.Fatal("expected indexes from index-adding migrations, got none")
 	}
-	// Snapshot the initial _migrations row count so we can assert the
-	// N-peeled invariant without hard-coding a total.
+	// This test pins the contract for the index-adding migrations 0002 and
+	// 0003. Newer migrations (e.g. 0004 add server region/size columns)
+	// don't introduce indexes; peel them off first so the assertions below
+	// remain stable as the migration tail grows.
+	for migrationCount(t, db) > 3 {
+		if err := db.Rollback(1); err != nil {
+			t.Fatalf("Rollback to baseline: %v", err)
+		}
+	}
 	totalMigrations := migrationCount(t, db)
 	if totalMigrations < 2 {
-		t.Fatalf("expected at least 2 applied migrations, got %d", totalMigrations)
+		t.Fatalf("expected at least 2 applied migrations after baseline, got %d", totalMigrations)
 	}
 
 	// Peel the top migration off. The specific indexes 0003 introduced

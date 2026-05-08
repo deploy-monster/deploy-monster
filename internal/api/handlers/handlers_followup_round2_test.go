@@ -131,6 +131,7 @@ func TestServerHandler_List_ReturnsLocalNode(t *testing.T) {
 	h := NewServerHandler(newMockStore(), core.NewServices(), core.NewEventBus(slog.Default()))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 

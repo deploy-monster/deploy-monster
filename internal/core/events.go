@@ -337,7 +337,8 @@ const (
 	EventContainerDied    = "container.died"
 
 	// Server / Infrastructure
-	EventServerAdded = "server.added"
+	EventServerAdded   = "server.added"
+	EventServerRemoved = "server.removed"
 
 	// Webhook (inbound)
 	EventWebhookReceived = "webhook.received"

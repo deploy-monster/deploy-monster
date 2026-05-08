@@ -109,6 +109,7 @@ type mockStore struct {
 	deletedAppID     string
 	deletedDomainID  string
 	deletedProjectID string
+	deletedServerID  string
 	createdProject   *core.Project
 	createdApp       *core.Application
 	createdDomain    *core.Domain
@@ -116,6 +117,12 @@ type mockStore struct {
 	updatedUser      *core.User
 	updatedPassword  string
 	updatedApp       *core.Application
+
+	// Servers
+	serversByID       map[string]*core.Server
+	lastCreatedServer *core.Server
+	errCreateServer   error
+	errListServers    error
 }
 
 func newMockStore() *mockStore {
@@ -939,6 +946,8 @@ type mockContainerRuntime struct {
 	logsErr      error
 	imageList    []core.ImageInfo
 	imageListErr error
+	stopErr      error
+	restartErr   error
 }
 
 func (m *mockContainerRuntime) Ping() error { return m.pingErr }
@@ -948,7 +957,7 @@ func (m *mockContainerRuntime) CreateAndStart(_ context.Context, _ core.Containe
 }
 
 func (m *mockContainerRuntime) Stop(_ context.Context, _ string, _ int) error {
-	return nil
+	return m.stopErr
 }
 
 func (m *mockContainerRuntime) Remove(_ context.Context, _ string, _ bool) error {
@@ -956,7 +965,7 @@ func (m *mockContainerRuntime) Remove(_ context.Context, _ string, _ bool) error
 }
 
 func (m *mockContainerRuntime) Restart(_ context.Context, _ string) error {
-	return nil
+	return m.restartErr
 }
 
 func (m *mockContainerRuntime) Logs(_ context.Context, _ string, _ string, _ bool) (io.ReadCloser, error) {
@@ -1121,5 +1130,92 @@ func (m *mockNotificationSender) Send(_ context.Context, n core.Notification) er
 		return m.sendErr
 	}
 	m.lastNotification = &n
+	return nil
+}
+
+// ─── ServerStore (mock) ─────────────────────────────────────────────────────
+
+func (m *mockStore) addServer(srv *core.Server) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.serversByID == nil {
+		m.serversByID = make(map[string]*core.Server)
+	}
+	m.serversByID[srv.ID] = srv
+}
+
+func (m *mockStore) CreateServer(_ context.Context, srv *core.Server) error {
+	if m.errCreateServer != nil {
+		return m.errCreateServer
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.serversByID == nil {
+		m.serversByID = make(map[string]*core.Server)
+	}
+	if srv.ID == "" {
+		srv.ID = "srv-" + srv.Hostname
+	}
+	cp := *srv
+	m.serversByID[srv.ID] = &cp
+	m.lastCreatedServer = &cp
+	return nil
+}
+
+func (m *mockStore) GetServer(_ context.Context, id string) (*core.Server, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	srv, ok := m.serversByID[id]
+	if !ok {
+		return nil, core.ErrNotFound
+	}
+	cp := *srv
+	return &cp, nil
+}
+
+func (m *mockStore) ListServersByTenant(_ context.Context, tenantID string) ([]core.Server, error) {
+	if m.errListServers != nil {
+		return nil, m.errListServers
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]core.Server, 0, len(m.serversByID))
+	for _, srv := range m.serversByID {
+		if srv.TenantID == "" || srv.TenantID == tenantID {
+			out = append(out, *srv)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockStore) ListAllServers(_ context.Context) ([]core.Server, error) {
+	if m.errListServers != nil {
+		return nil, m.errListServers
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]core.Server, 0, len(m.serversByID))
+	for _, srv := range m.serversByID {
+		out = append(out, *srv)
+	}
+	return out, nil
+}
+
+func (m *mockStore) UpdateServerStatus(_ context.Context, id, status string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	srv, ok := m.serversByID[id]
+	if !ok {
+		return core.ErrNotFound
+	}
+	srv.Status = status
+	return nil
+}
+
+func (m *mockStore) DeleteServer(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.serversByID, id)
+	m.deletedServerID = id
 	return nil
 }

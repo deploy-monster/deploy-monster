@@ -33,7 +33,7 @@ func (s *rlBoltStub) BatchSet(_ []core.BoltBatchItem) error { return nil }
 func (s *rlBoltStub) Get(bucket, key string, dest any) error {
 	return s.getErr
 }
-func (s *rlBoltStub) Delete(bucket, key string) error  { return nil }
+func (s *rlBoltStub) Delete(bucket, key string) error { return nil }
 func (s *rlBoltStub) List(bucket string) ([]string, error) {
 	return nil, nil
 }

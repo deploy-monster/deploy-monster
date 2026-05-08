@@ -2,11 +2,17 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+// ErrBackupNotReady is returned by TriggerNow when the backup module's
+// scheduler hasn't started yet — typically because TriggerNow was called
+// before the module's Start() (e.g. during early boot or in tests).
+var ErrBackupNotReady = errors.New("backup engine not ready")
 
 func init() {
 	core.RegisterModule(func() core.Module { return New() })
@@ -122,4 +128,23 @@ func (m *Module) StorageNames() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// TriggerNow runs the backup pipeline immediately, in a background
+// goroutine, and returns once the work has been queued. The caller
+// should watch the EventBackupCompleted/EventBackupFailed events to
+// learn the outcome.
+//
+// The supplied context is only used for early cancellation propagation;
+// the actual run uses the scheduler's server-lifetime context so the
+// goroutine outlives the HTTP request that triggered it. Passing the
+// request context directly would have the run cancelled the moment the
+// HTTP handler returned (which is what /api/v1/backups POST used to do
+// before this entry point existed).
+func (m *Module) TriggerNow(_ context.Context) error {
+	if m.scheduler == nil {
+		return ErrBackupNotReady
+	}
+	go m.scheduler.runBackups()
+	return nil
 }

@@ -106,7 +106,10 @@ function CardSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function GitSources() {
-  const { data: providers, loading, refetch } = useApi<GitProvider[]>('/git/providers');
+  const { data: providersResp, loading, refetch } = useApi<
+    { data: GitProvider[] } | GitProvider[]
+  >('/git/providers');
+  const providers = Array.isArray(providersResp) ? providersResp : providersResp?.data;
   const [connectDialog, setConnectDialog] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [token, setToken] = useState('');

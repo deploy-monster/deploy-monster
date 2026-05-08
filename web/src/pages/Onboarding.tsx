@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
+import { api } from '@/api/client';
 import {
   Rocket,
   Server,
@@ -35,7 +36,11 @@ const steps = [
 interface ServerCheckItem {
   label: string;
   value: string;
-  status: 'pending' | 'checking' | 'ok';
+  status: 'pending' | 'checking' | 'ok' | 'warn' | 'fail';
+}
+
+interface SetupChecksResponse {
+  data: { label: string; value: string; status: 'ok' | 'warn' | 'fail' }[];
 }
 
 const GIT_PROVIDERS = [
@@ -84,40 +89,47 @@ export function Onboarding() {
     gitProvider: '',
   });
 
-  // Server detection animation state
+  // Real server checks fetched from /api/v1/setup/checks. The animation
+  // shows each row in "checking" while the request is in flight, then
+  // commits to the actual server status when the response arrives.
   const [serverChecks, setServerChecks] = useState<ServerCheckItem[]>([
-    { label: 'Hostname',      value: 'localhost',            status: 'pending' },
-    { label: 'Docker Engine', value: 'Connected',            status: 'pending' },
-    { label: 'SSL',           value: "Let's Encrypt (auto)", status: 'pending' },
-    { label: 'Ports',         value: '80, 443, 8443',        status: 'pending' },
+    { label: 'Hostname',      value: '—', status: 'pending' },
+    { label: 'Docker Engine', value: '—', status: 'pending' },
+    { label: 'SSL',           value: '—', status: 'pending' },
+    { label: 'Ports',         value: '—', status: 'pending' },
   ]);
 
-  // Simulate detection when entering server step
   useEffect(() => {
     if (step !== 1) return;
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset check statuses when entering server step
-    setServerChecks((prev) => prev.map((c) => ({ ...c, status: 'pending' as const })));
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset to "checking" while the request is in flight
+    setServerChecks((prev) => prev.map((c) => ({ ...c, status: 'checking' as const })));
 
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    serverChecks.forEach((_, i) => {
-      // Start checking
-      timers.push(setTimeout(() => {
+    api
+      .get<SetupChecksResponse>('/setup/checks')
+      .then((resp) => {
+        if (cancelled) return;
+        const byLabel = new Map(resp.data.map((c) => [c.label, c]));
         setServerChecks((prev) =>
-          prev.map((c, j) => (j === i ? { ...c, status: 'checking' as const } : c))
+          prev.map((c) => {
+            const real = byLabel.get(c.label);
+            if (!real) return { ...c, status: 'fail' as const, value: 'unknown' };
+            return { ...c, value: real.value, status: real.status };
+          }),
         );
-      }, i * 400));
-
-      // Mark as ok
-      timers.push(setTimeout(() => {
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : 'failed to fetch checks';
         setServerChecks((prev) =>
-          prev.map((c, j) => (j === i ? { ...c, status: 'ok' as const } : c))
+          prev.map((c) => ({ ...c, status: 'fail' as const, value: msg })),
         );
-      }, i * 400 + 600));
-    });
+      });
 
-    return () => timers.forEach(clearTimeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
   }, [step]);
 
   const next = () => {
@@ -233,7 +245,11 @@ export function Onboarding() {
                           <div className="flex items-center gap-2">
                             <span className={cn(
                               'text-sm transition-opacity duration-300',
-                              status === 'ok' ? 'text-foreground font-medium opacity-100' : 'opacity-0'
+                              (status === 'ok' || status === 'warn' || status === 'fail')
+                                ? 'text-foreground font-medium opacity-100'
+                                : 'opacity-0',
+                              status === 'fail' && 'text-destructive',
+                              status === 'warn' && 'text-amber-600 dark:text-amber-400',
                             )}>
                               {value}
                             </span>
@@ -246,6 +262,16 @@ export function Onboarding() {
                             {status === 'ok' && (
                               <div className="flex items-center justify-center size-5 rounded-full bg-emerald-500 animate-in fade-in zoom-in duration-300">
                                 <Check className="size-3 text-white" />
+                              </div>
+                            )}
+                            {status === 'warn' && (
+                              <div className="flex items-center justify-center size-5 rounded-full bg-amber-500 text-white text-xs font-bold">
+                                !
+                              </div>
+                            )}
+                            {status === 'fail' && (
+                              <div className="flex items-center justify-center size-5 rounded-full bg-destructive text-white text-xs font-bold">
+                                ×
                               </div>
                             )}
                           </div>
@@ -262,6 +288,11 @@ export function Onboarding() {
                   <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400">
                     <Check className="size-3" />
                     All checks passed
+                  </Badge>
+                )}
+                {serverChecks.some((c) => c.status === 'warn' || c.status === 'fail') && (
+                  <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-400">
+                    Some checks need attention
                   </Badge>
                 )}
               </div>

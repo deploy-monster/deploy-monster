@@ -131,11 +131,14 @@ func TestLogStreamer_StreamLogs_NilRuntime(t *testing.T) {
 
 	ls.StreamLogs(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Errorf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
+	// SSE keeps a 200 status with an inline error event. See
+	// TestFinal_StreamLogs_NilRuntime for the rationale.
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
 	}
-	if !strings.Contains(w.Body.String(), "container runtime not available") {
-		t.Errorf("body = %q", w.Body.String())
+	body := w.Body.String()
+	if !strings.Contains(body, "event: error") || !strings.Contains(body, "container runtime not available") {
+		t.Errorf("body = %q", body)
 	}
 }
 
@@ -995,3 +998,14 @@ func TestTerminal_SendCommand_ContentType(t *testing.T) {
 		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
 }
+
+func (m *mockStore) CreateServer(_ context.Context, _ *core.Server) error { return nil }
+func (m *mockStore) GetServer(_ context.Context, _ string) (*core.Server, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockStore) ListServersByTenant(_ context.Context, _ string) ([]core.Server, error) {
+	return nil, nil
+}
+func (m *mockStore) ListAllServers(_ context.Context) ([]core.Server, error) { return nil, nil }
+func (m *mockStore) UpdateServerStatus(_ context.Context, _, _ string) error { return nil }
+func (m *mockStore) DeleteServer(_ context.Context, _ string) error          { return nil }

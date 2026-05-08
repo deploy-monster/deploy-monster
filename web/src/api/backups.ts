@@ -16,5 +16,10 @@ interface CreateBackupRequest {
 export const backupsAPI = {
   list: () => api.get<BackupEntry[]>('/backups'),
   create: (data: CreateBackupRequest) => api.post('/backups', data),
-  restore: (key: string) => api.post(`/backups/${encodeURIComponent(key)}/restore`, {}),
+  restore: (key: string) => api.post(`/backups/restore/${encodeBackupKey(key)}`, {}),
+  downloadURL: (key: string) => `/api/v1/backups/download/${encodeBackupKey(key)}`,
 };
+
+function encodeBackupKey(key: string): string {
+  return key.split('/').map(encodeURIComponent).join('/');
+}
