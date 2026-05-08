@@ -252,6 +252,7 @@ func TestAutoRestarterCoverage_CheckCrashed_MixedStates(t *testing.T) {
 
 	ar := NewAutoRestarter(runtime, store, events, logger)
 	ar.maxRetries = 1
+	disableAutoRestartBackoff(ar)
 
 	ar.checkCrashed()
 

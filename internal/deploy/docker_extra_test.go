@@ -202,6 +202,7 @@ func TestAutoRestarter_HandleCrash_SucceedsFirstAttempt(t *testing.T) {
 
 	ar := NewAutoRestarter(runtime, store, events, logger)
 	ar.maxRetries = 3
+	disableAutoRestartBackoff(ar)
 
 	ar.handleCrash(context.Background(), "app-ok", "ctr-ok")
 
@@ -232,6 +233,7 @@ func TestAutoRestarter_HandleCrash_NilRuntime_BreaksLoop(t *testing.T) {
 
 	ar := NewAutoRestarter(nil, store, events, logger)
 	ar.maxRetries = 3
+	disableAutoRestartBackoff(ar)
 
 	ar.handleCrash(context.Background(), "app-nil", "ctr-nil")
 

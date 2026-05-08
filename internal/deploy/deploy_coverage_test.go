@@ -421,6 +421,7 @@ func TestAutoRestarter_CheckCrashed_DeadWithAppID(t *testing.T) {
 
 	ar := NewAutoRestarter(runtime, store, events, logger)
 	ar.maxRetries = 1
+	disableAutoRestartBackoff(ar)
 	ar.checkCrashed()
 
 	// Only c2 should trigger handleCrash (dead + has app ID)
@@ -449,6 +450,7 @@ func TestAutoRestarter_HandleCrash_RetryThenSuccess(t *testing.T) {
 
 	ar := NewAutoRestarter(runtime, store, events, logger)
 	ar.maxRetries = 3
+	disableAutoRestartBackoff(ar)
 
 	ar.handleCrash(context.Background(), "app-retry", "ctr-retry")
 
@@ -484,6 +486,7 @@ func TestAutoRestarter_HandleCrash_AllRetriesFail(t *testing.T) {
 
 	ar := NewAutoRestarter(runtime, store, events, logger)
 	ar.maxRetries = 2
+	disableAutoRestartBackoff(ar)
 
 	ar.handleCrash(context.Background(), "app-allfail", "ctr-allfail")
 

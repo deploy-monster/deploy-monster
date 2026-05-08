@@ -24,8 +24,13 @@ type AutoRestarter struct {
 	events     *core.EventBus
 	logger     *slog.Logger
 	maxRetries int
+	retryDelay func(attempt int) time.Duration
 	stopCh     chan struct{}
 	stopOnce   sync.Once
+}
+
+func defaultAutoRestartRetryDelay(attempt int) time.Duration {
+	return time.Duration(attempt*5) * time.Second
 }
 
 // NewAutoRestarter creates an auto-restart monitor. A nil logger is
@@ -40,6 +45,7 @@ func NewAutoRestarter(runtime core.ContainerRuntime, store core.Store, events *c
 		events:     events,
 		logger:     logger,
 		maxRetries: 5,
+		retryDelay: defaultAutoRestartRetryDelay,
 		stopCh:     make(chan struct{}),
 	}
 }
@@ -92,7 +98,11 @@ func (ar *AutoRestarter) handleCrash(ctx context.Context, appID, containerID str
 
 	// Attempt restart with backoff
 	for attempt := 1; attempt <= ar.maxRetries; attempt++ {
-		time.Sleep(time.Duration(attempt*5) * time.Second)
+		retryDelay := ar.retryDelay
+		if retryDelay == nil {
+			retryDelay = defaultAutoRestartRetryDelay
+		}
+		time.Sleep(retryDelay(attempt))
 
 		if ar.runtime == nil {
 			break
