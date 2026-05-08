@@ -260,6 +260,7 @@ trade-offs before committing.
 |---|---|
 | [`docs/getting-started.md`](docs/getting-started.md) | First-deploy walkthrough |
 | [`docs/deployment-guide.md`](docs/deployment-guide.md) | Production install, domains, backups, notifications |
+| [`docs/staging-validation.md`](docs/staging-validation.md) | Release-candidate staging, backup, restore, rollback, load, and soak checks |
 | [`docs/upgrade-guide.md`](docs/upgrade-guide.md) | Version-to-version upgrade procedure, rollback |
 | [`docs/runbook.md`](docs/runbook.md) | Operator runbook: scenario index for P0/P1 events |
 | [`docs/secret-rotation.md`](docs/secret-rotation.md) | JWT secret rotation (routine + emergency) |
