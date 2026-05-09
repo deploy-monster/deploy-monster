@@ -462,9 +462,38 @@ jobs:
     name: Docker
     needs: [test, test-react, lint]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v6
 
       - name: Build Docker image (full build from source)
         run: docker build -t deploymonster:latest -f deployments/Dockerfile .
+
+      - name: Smoke Docker image CLI
+        run: |
+          docker run --rm deploymonster:latest version
+          docker run --rm deploymonster:latest help >/tmp/deploymonster-help.txt
+          grep -q "DeployMonster" /tmp/deploymonster-help.txt
+
+      - name: Smoke Docker image server
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name deploymonster-ci-smoke \
+            -p 127.0.0.1:18443:8443 \
+            -e MONSTER_HOST=0.0.0.0 \
+            -e MONSTER_PORT=8443 \
+            -e MONSTER_SECRET=ci-docker-secret-key-with-at-least-32-chars \
+            -e MONSTER_DB_PATH=/tmp/deploymonster-ci.db \
+            -e MONSTER_RATE_LIMIT_PER_MINUTE=0 \
+            -e MONSTER_ADMIN_EMAIL=admin@deploymonster.test \
+            -e MONSTER_ADMIN_PASSWORD=TestPassword123! \
+            deploymonster:latest serve
+          trap 'docker logs deploymonster-ci-smoke || true; docker rm -f deploymonster-ci-smoke >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:18443/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Docker smoke server never became healthy" >&2
+          exit 1
