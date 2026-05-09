@@ -308,3 +308,14 @@ func TestRequireSuperAdmin_ErrorResponse_JSON(t *testing.T) {
 		t.Errorf("expected code=forbidden, got %v", errObj["code"])
 	}
 }
+
+func (m *mockPermStore) CreateServer(_ context.Context, _ *core.Server) error { return nil }
+func (m *mockPermStore) GetServer(_ context.Context, _ string) (*core.Server, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockPermStore) ListServersByTenant(_ context.Context, _ string) ([]core.Server, error) {
+	return nil, nil
+}
+func (m *mockPermStore) ListAllServers(_ context.Context) ([]core.Server, error) { return nil, nil }
+func (m *mockPermStore) UpdateServerStatus(_ context.Context, _, _ string) error { return nil }
+func (m *mockPermStore) DeleteServer(_ context.Context, _ string) error          { return nil }

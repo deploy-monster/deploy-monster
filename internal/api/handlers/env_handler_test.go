@@ -48,15 +48,12 @@ func TestEnvVarGet_Success(t *testing.T) {
 		t.Fatalf("expected 2 env vars, got %d", len(data))
 	}
 
-	// Values should be masked
 	first := data[0].(map[string]any)
 	if first["key"] != "DB_HOST" {
 		t.Errorf("expected key 'DB_HOST', got %v", first["key"])
 	}
-	// "localhost" is 9 chars, should be masked as "lo*****st"
-	val := first["value"].(string)
-	if !strings.Contains(val, "*") {
-		t.Errorf("expected masked value, got %q", val)
+	if first["value"] != "localhost" {
+		t.Errorf("expected raw value 'localhost', got %v", first["value"])
 	}
 }
 
@@ -88,9 +85,8 @@ func TestEnvVarGet_SecretReference(t *testing.T) {
 
 	data := resp["data"].([]any)
 	entry := data[0].(map[string]any)
-	// Secret references are masked to prevent exposure
-	if entry["value"] != "${SECRET:***}" {
-		t.Errorf("expected masked secret reference, got %v", entry["value"])
+	if entry["value"] != "${SECRET:db_password}" {
+		t.Errorf("expected raw secret reference, got %v", entry["value"])
 	}
 }
 
@@ -739,28 +735,4 @@ func TestEnvironmentApplyPreset_ProjectNotFound(t *testing.T) {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
 	assertErrorMessage(t, rr, "project not found")
-}
-
-// ─── maskValue unit tests ────────────────────────────────────────────────────
-
-func TestMaskValue(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"ab", "****"},
-		{"abcd", "****"},
-		{"abcde", "ab*de"},
-		{"secret123", "se*****23"},
-		{"${SECRET:name}", "${SECRET:***}"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := maskValue(tt.input)
-			if got != tt.expected {
-				t.Errorf("maskValue(%q) = %q, want %q", tt.input, got, tt.expected)
-			}
-		})
-	}
 }

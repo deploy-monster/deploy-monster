@@ -38,8 +38,8 @@ func TestCommand_Run_Success(t *testing.T) {
 
 	handler.Run(rr, req)
 
-	if rr.Code != http.StatusAccepted {
-		t.Fatalf("expected 202, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
 	var resp map[string]any
@@ -54,8 +54,8 @@ func TestCommand_Run_Success(t *testing.T) {
 	if int(resp["timeout"].(float64)) != 120 {
 		t.Errorf("expected timeout=120, got %v", resp["timeout"])
 	}
-	if resp["status"] != "queued" {
-		t.Errorf("expected status=queued, got %v", resp["status"])
+	if resp["success"] != true {
+		t.Errorf("expected success=true, got %v", resp["success"])
 	}
 	if resp["container_id"] != "container123" {
 		t.Errorf("expected container_id=container123, got %v", resp["container_id"])
@@ -81,8 +81,8 @@ func TestCommand_Run_DefaultTimeout(t *testing.T) {
 
 	handler.Run(rr, req)
 
-	if rr.Code != http.StatusAccepted {
-		t.Fatalf("expected 202, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
 	var resp map[string]any

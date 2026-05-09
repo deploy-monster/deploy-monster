@@ -46,7 +46,7 @@ fi
 
 # 2. Go vet
 echo "Running go vet..."
-if ! go vet ./... 22>&1; then
+if ! go vet ./... 2>&1; then
     echo "❌ Pre-commit blocked: go vet found issues"
     exit 1
 fi

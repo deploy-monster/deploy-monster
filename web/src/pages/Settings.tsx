@@ -104,9 +104,12 @@ export function Settings() {
   const canManageAPIKeys = user?.role === 'role_super_admin';
   const { data: totpStatus, refetch: refetchTOTPStatus } =
     useApi<{ enabled: boolean }>('/auth/totp/status');
-  const { data: apiKeys, refetch: refetchAPIKeys } = useApi<APIKey[]>('/admin/api-keys', {
+  const { data: apiKeysResp, refetch: refetchAPIKeys } = useApi<
+    { data: APIKey[]; total: number } | APIKey[]
+  >('/admin/api-keys', {
     immediate: canManageAPIKeys,
   });
+  const apiKeys = Array.isArray(apiKeysResp) ? apiKeysResp : apiKeysResp?.data;
 
   // Profile
   const [editName, setEditName] = useState(user?.name || '');

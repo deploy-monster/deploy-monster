@@ -429,11 +429,20 @@ func TestDeleteApp_StoreError(t *testing.T) {
 
 // ─── Restart / Stop / Start ──────────────────────────────────────────────────
 
-func TestRestart_Success(t *testing.T) {
+func appLifecycleHandler(t *testing.T, runtime *mockContainerRuntime) (*AppHandler, *mockStore) {
+	t.Helper()
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	c := testCore()
-	handler := NewAppHandler(store, c)
+	if runtime != nil {
+		c.Services.Container = runtime
+	}
+	return NewAppHandler(store, c), store
+}
+
+func TestRestart_Success(t *testing.T) {
+	rt := &mockContainerRuntime{containers: []core.ContainerInfo{{ID: "ctr-1"}}}
+	handler, store := appLifecycleHandler(t, rt)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/restart", nil)
 	req.SetPathValue("id", "app1")
@@ -443,27 +452,50 @@ func TestRestart_Success(t *testing.T) {
 	handler.Restart(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rr.Code)
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
-
 	if store.updatedStatus["app1"] != "running" {
 		t.Errorf("expected status 'running', got %q", store.updatedStatus["app1"])
 	}
+}
 
-	var resp map[string]string
-	json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["status"] != "restarting" {
-		t.Errorf("expected response status 'restarting', got %q", resp["status"])
+func TestRestart_NoRuntime(t *testing.T) {
+	handler, _ := appLifecycleHandler(t, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/restart", nil)
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Restart(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rr.Code)
 	}
 }
 
-func TestRestart_StoreError(t *testing.T) {
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
-	store.errUpdateAppStatus = errors.New("db error")
+func TestRestart_NoContainer(t *testing.T) {
+	rt := &mockContainerRuntime{} // empty containers list
+	handler, _ := appLifecycleHandler(t, rt)
 
-	c := testCore()
-	handler := NewAppHandler(store, c)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/restart", nil)
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Restart(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestRestart_RuntimeError(t *testing.T) {
+	rt := &mockContainerRuntime{
+		containers: []core.ContainerInfo{{ID: "ctr-1"}},
+		restartErr: errors.New("docker boom"),
+	}
+	handler, _ := appLifecycleHandler(t, rt)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/restart", nil)
 	req.SetPathValue("id", "app1")
@@ -478,10 +510,8 @@ func TestRestart_StoreError(t *testing.T) {
 }
 
 func TestStop_Success(t *testing.T) {
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
-	c := testCore()
-	handler := NewAppHandler(store, c)
+	rt := &mockContainerRuntime{containers: []core.ContainerInfo{{ID: "ctr-1"}}}
+	handler, store := appLifecycleHandler(t, rt)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/stop", nil)
 	req.SetPathValue("id", "app1")
@@ -493,25 +523,36 @@ func TestStop_Success(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
-
 	if store.updatedStatus["app1"] != "stopped" {
 		t.Errorf("expected status 'stopped', got %q", store.updatedStatus["app1"])
 	}
+}
 
-	var resp map[string]string
-	json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["status"] != "stopped" {
-		t.Errorf("expected response status 'stopped', got %q", resp["status"])
+func TestStop_NoContainerIdempotent(t *testing.T) {
+	rt := &mockContainerRuntime{} // no containers
+	handler, store := appLifecycleHandler(t, rt)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/stop", nil)
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Stop(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 (idempotent), got %d", rr.Code)
+	}
+	if store.updatedStatus["app1"] != "stopped" {
+		t.Errorf("expected status 'stopped', got %q", store.updatedStatus["app1"])
 	}
 }
 
-func TestStop_StoreError(t *testing.T) {
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
-	store.errUpdateAppStatus = errors.New("db error")
-
-	c := testCore()
-	handler := NewAppHandler(store, c)
+func TestStop_RuntimeError(t *testing.T) {
+	rt := &mockContainerRuntime{
+		containers: []core.ContainerInfo{{ID: "ctr-1"}},
+		stopErr:    errors.New("docker boom"),
+	}
+	handler, _ := appLifecycleHandler(t, rt)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/stop", nil)
 	req.SetPathValue("id", "app1")
@@ -526,10 +567,8 @@ func TestStop_StoreError(t *testing.T) {
 }
 
 func TestStart_Success(t *testing.T) {
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "stopped"})
-	c := testCore()
-	handler := NewAppHandler(store, c)
+	rt := &mockContainerRuntime{containers: []core.ContainerInfo{{ID: "ctr-1"}}}
+	handler, store := appLifecycleHandler(t, rt)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/start", nil)
 	req.SetPathValue("id", "app1")
@@ -541,25 +580,14 @@ func TestStart_Success(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
-
 	if store.updatedStatus["app1"] != "running" {
 		t.Errorf("expected status 'running', got %q", store.updatedStatus["app1"])
 	}
-
-	var resp map[string]string
-	json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["status"] != "running" {
-		t.Errorf("expected response status 'running', got %q", resp["status"])
-	}
 }
 
-func TestStart_StoreError(t *testing.T) {
-	store := newMockStore()
-	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "stopped"})
-	store.errUpdateAppStatus = errors.New("db error")
-
-	c := testCore()
-	handler := NewAppHandler(store, c)
+func TestStart_NoContainer(t *testing.T) {
+	rt := &mockContainerRuntime{} // empty
+	handler, _ := appLifecycleHandler(t, rt)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/start", nil)
 	req.SetPathValue("id", "app1")
@@ -568,8 +596,8 @@ func TestStart_StoreError(t *testing.T) {
 
 	handler.Start(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", rr.Code)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
 	}
 }
 

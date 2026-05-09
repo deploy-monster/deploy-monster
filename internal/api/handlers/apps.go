@@ -207,62 +207,130 @@ func (h *AppHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Restart handles POST /api/v1/apps/{id}/restart
+// findAppContainerID resolves the container backing an app via the
+// monster.app.id label. Returns ("", nil) when no container exists yet
+// (app not deployed) and ("", err) when the runtime call fails.
+func (h *AppHandler) findAppContainerID(r *http.Request, appID string) (string, error) {
+	rt := h.core.Services.Container
+	if rt == nil {
+		return "", core.ErrUnavailable
+	}
+	containers, err := rt.ListByLabels(r.Context(), map[string]string{
+		"monster.app.id": appID,
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(containers) == 0 {
+		return "", nil
+	}
+	return containers[0].ID, nil
+}
+
+// Restart handles POST /api/v1/apps/{id}/restart.
+// Performs a real container restart via the runtime; status flip is only
+// recorded after the restart succeeds.
 func (h *AppHandler) Restart(w http.ResponseWriter, r *http.Request) {
 	app := requireTenantApp(w, r, h.store)
 	if app == nil {
 		return
 	}
-	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "running"); err != nil {
-		writeError(w, http.StatusInternalServerError, "restart failed")
+	rt := h.core.Services.Container
+	if rt == nil {
+		writeError(w, http.StatusServiceUnavailable, "container runtime not available")
 		return
 	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"status": "restarting"})
+	containerID, err := h.findAppContainerID(r, app.ID)
+	if err != nil {
+		internalErrorCtx(r.Context(), w, "lookup container failed", err)
+		return
+	}
+	if containerID == "" {
+		writeError(w, http.StatusNotFound, "no container for this app — deploy it first")
+		return
+	}
+	if err := rt.Restart(r.Context(), containerID); err != nil {
+		internalErrorCtx(r.Context(), w, "restart failed", err)
+		return
+	}
+	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "running"); err != nil {
+		ctxLogger(r.Context()).Error("restart: status update failed", "app_id", app.ID, "error", err)
+	}
+	h.core.Events.Publish(r.Context(), core.Event{
+		Type: core.EventAppStarted, Source: "api",
+		Data: map[string]string{"id": app.ID, "action": "restart"},
+	})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "running", "action": "restarted"})
 }
 
-// Stop handles POST /api/v1/apps/{id}/stop
+// Stop handles POST /api/v1/apps/{id}/stop.
 func (h *AppHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	app := requireTenantApp(w, r, h.store)
 	if app == nil {
 		return
 	}
-
-	// Stop container if runtime is available
-	if rt := h.core.Services.Container; rt != nil {
-		_ = rt.Stop(r.Context(), "dm-"+app.ID, 10)
-	}
-
-	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "stopped"); err != nil {
-		writeError(w, http.StatusInternalServerError, "stop failed")
+	rt := h.core.Services.Container
+	if rt == nil {
+		writeError(w, http.StatusServiceUnavailable, "container runtime not available")
 		return
 	}
-
+	containerID, err := h.findAppContainerID(r, app.ID)
+	if err != nil {
+		internalErrorCtx(r.Context(), w, "lookup container failed", err)
+		return
+	}
+	if containerID == "" {
+		// Idempotent stop on an undeployed app — flip status, no error.
+		_ = h.store.UpdateAppStatus(r.Context(), app.ID, "stopped")
+		writeJSON(w, http.StatusOK, map[string]string{"status": "stopped", "action": "noop"})
+		return
+	}
+	if err := rt.Stop(r.Context(), containerID, 10); err != nil {
+		internalErrorCtx(r.Context(), w, "stop failed", err)
+		return
+	}
+	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "stopped"); err != nil {
+		ctxLogger(r.Context()).Error("stop: status update failed", "app_id", app.ID, "error", err)
+	}
 	h.core.Events.Publish(r.Context(), core.Event{
-		Type:   core.EventAppStopped,
-		Source: "api",
-		Data:   map[string]string{"id": app.ID},
+		Type: core.EventAppStopped, Source: "api",
+		Data: map[string]string{"id": app.ID},
 	})
-
 	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
 }
 
-// Start handles POST /api/v1/apps/{id}/start
+// Start handles POST /api/v1/apps/{id}/start.
+// Equivalent to runtime.Restart on the existing container — Docker's "start"
+// only works on stopped containers, "restart" handles both cases idempotently.
 func (h *AppHandler) Start(w http.ResponseWriter, r *http.Request) {
 	app := requireTenantApp(w, r, h.store)
 	if app == nil {
 		return
 	}
-	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "running"); err != nil {
-		writeError(w, http.StatusInternalServerError, "start failed")
+	rt := h.core.Services.Container
+	if rt == nil {
+		writeError(w, http.StatusServiceUnavailable, "container runtime not available")
 		return
 	}
-
+	containerID, err := h.findAppContainerID(r, app.ID)
+	if err != nil {
+		internalErrorCtx(r.Context(), w, "lookup container failed", err)
+		return
+	}
+	if containerID == "" {
+		writeError(w, http.StatusNotFound, "no container for this app — deploy it first")
+		return
+	}
+	if err := rt.Restart(r.Context(), containerID); err != nil {
+		internalErrorCtx(r.Context(), w, "start failed", err)
+		return
+	}
+	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "running"); err != nil {
+		ctxLogger(r.Context()).Error("start: status update failed", "app_id", app.ID, "error", err)
+	}
 	h.core.Events.Publish(r.Context(), core.Event{
-		Type:   core.EventAppStarted,
-		Source: "api",
-		Data:   map[string]string{"id": app.ID},
+		Type: core.EventAppStarted, Source: "api",
+		Data: map[string]string{"id": app.ID},
 	})
-
 	writeJSON(w, http.StatusOK, map[string]string{"status": "running"})
 }

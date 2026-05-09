@@ -32,12 +32,9 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 		tail = "100"
 	}
 
-	if ls.runtime == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "container runtime not available"})
-		return
-	}
-
-	// Set SSE headers
+	// Set SSE headers up-front so browser EventSource sees a successful
+	// open and surfaces our error event instead of treating runtime/no-
+	// container as a transport failure (which it would silently retry).
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -47,6 +44,12 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		return // response already started; cannot send error status
+	}
+
+	if ls.runtime == nil {
+		_, _ = w.Write([]byte("event: error\ndata: container runtime not available\n\n"))
+		flusher.Flush()
+		return
 	}
 
 	// Find container for this app

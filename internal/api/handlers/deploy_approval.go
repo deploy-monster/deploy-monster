@@ -43,13 +43,19 @@ type ApprovalRequest struct {
 }
 
 // ListPending handles GET /api/v1/deploy/approvals
-func (h *DeployApprovalHandler) ListPending(w http.ResponseWriter, _ *http.Request) {
+func (h *DeployApprovalHandler) ListPending(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
 	items := make([]*ApprovalRequest, 0)
 	for _, req := range h.pending {
-		if req.Status == "pending" {
+		if req.Status == "pending" && req.TenantID == claims.TenantID {
 			items = append(items, req)
 		}
 	}

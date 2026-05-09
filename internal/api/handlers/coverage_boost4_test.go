@@ -407,8 +407,9 @@ func TestPinHandler_Unpin_ExistingPin(t *testing.T) {
 
 func TestBackupHandler_Download_NilStorage_Boost4(t *testing.T) {
 	h := NewBackupHandler(newMockStore(), nil, core.NewEventBus(slog.Default()))
-	req := httptest.NewRequest("GET", "/api/v1/backups/test.tar/download", nil)
-	req.SetPathValue("key", "test.tar")
+	req := httptest.NewRequest("GET", "/api/v1/backups/t1/app-1/test.tar/download", nil)
+	req.SetPathValue("key", "t1/app-1/test.tar")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Download(rr, req)
 
@@ -423,8 +424,9 @@ func TestBackupHandler_Download_Success(t *testing.T) {
 	}
 	h := NewBackupHandler(newMockStore(), storage, core.NewEventBus(slog.Default()))
 
-	req := httptest.NewRequest("GET", "/api/v1/backups/test.tar/download", nil)
-	req.SetPathValue("key", "test.tar")
+	req := httptest.NewRequest("GET", "/api/v1/backups/t1/app-1/test.tar/download", nil)
+	req.SetPathValue("key", "t1/app-1/test.tar")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Download(rr, req)
 
@@ -446,8 +448,9 @@ func TestBackupHandler_Download_NotFound(t *testing.T) {
 	storage := &mockBackupStorage{errDown: io.EOF}
 	h := NewBackupHandler(newMockStore(), storage, core.NewEventBus(slog.Default()))
 
-	req := httptest.NewRequest("GET", "/api/v1/backups/missing.tar/download", nil)
-	req.SetPathValue("key", "missing.tar")
+	req := httptest.NewRequest("GET", "/api/v1/backups/t1/app-1/missing.tar/download", nil)
+	req.SetPathValue("key", "t1/app-1/missing.tar")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.Download(rr, req)
 
@@ -1196,10 +1199,12 @@ func TestCronJobHandler_Delete_NoExisting(t *testing.T) {
 func TestDeployApprovalHandler_ListPending_WithItems(t *testing.T) {
 	h := NewDeployApprovalHandler(newMockStore(), core.NewEventBus(slog.Default()))
 	now := time.Now()
-	h.pending["a1"] = &ApprovalRequest{ID: "a1", AppID: "app-1", Status: "pending", CreatedAt: now}
-	h.pending["a2"] = &ApprovalRequest{ID: "a2", AppID: "app-2", Status: "approved", CreatedAt: now}
+	h.pending["a1"] = &ApprovalRequest{ID: "a1", AppID: "app-1", TenantID: "t1", Status: "pending", CreatedAt: now}
+	h.pending["a2"] = &ApprovalRequest{ID: "a2", AppID: "app-2", TenantID: "t1", Status: "approved", CreatedAt: now}
+	h.pending["a3"] = &ApprovalRequest{ID: "a3", AppID: "app-3", TenantID: "t2", Status: "pending", CreatedAt: now}
 
 	req := httptest.NewRequest("GET", "/api/v1/deploy/approvals", nil)
+	req = withClaims(req, "u1", "t1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 	h.ListPending(rr, req)
 
@@ -1638,9 +1643,12 @@ func TestCertificateHandler_Upload_ValidCert(t *testing.T) {
 	// Generate a self-signed certificate for testing
 	cert, key := generateTestCert(t)
 	bolt := newMockBoltStore()
-	h := NewCertificateHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "test-tenant"})
+	store.addDomain(&core.Domain{ID: "domain-test", AppID: "app1", FQDN: "test.example.com", Type: "custom"})
+	h := NewCertificateHandler(store, bolt)
 
-	body := `{"domain_id":"test.example.com","cert_pem":"` + escapeJSON(cert) + `","key_pem":"` + escapeJSON(key) + `"}`
+	body := `{"domain_id":"domain-test","cert_pem":"` + escapeJSON(cert) + `","key_pem":"` + escapeJSON(key) + `"}`
 	req := httptest.NewRequest("POST", "/api/v1/certificates", strings.NewReader(body))
 	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
 		TenantID: "test-tenant",
@@ -2409,6 +2417,7 @@ func TestWildcardSSLHandler_Request_BoltError(t *testing.T) {
 	h := NewWildcardSSLHandler(newErrorBoltStore())
 	body := `{"domain":"*.example.com"}`
 	req := httptest.NewRequest("POST", "/api/v1/certificates/wildcard", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 	h.Request(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -2418,9 +2427,12 @@ func TestWildcardSSLHandler_Request_BoltError(t *testing.T) {
 
 func TestRegistryHandler_List_Stored(t *testing.T) {
 	bolt := newMockBoltStore()
-	bolt.Set("registries", "_all", map[string]any{"items": []any{}}, 0)
+	bolt.Set("registries", registryListKey("t1"), registryList{
+		Registries: []RegistryConfig{{ID: "custom-1", Name: "Tenant Registry", URL: "registry.example.com"}},
+	}, 0)
 	h := NewRegistryHandler(bolt)
 	req := httptest.NewRequest("GET", "/api/v1/registries", nil)
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 	if rr.Code != http.StatusOK {

@@ -100,7 +100,10 @@ function TableSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function Secrets() {
-  const { data: secrets, loading, refetch } = useApi<SecretEntry[]>('/secrets');
+  const { data: secretsResp, loading, refetch } = useApi<
+    { data: SecretEntry[]; total: number } | SecretEntry[]
+  >('/secrets');
+  const secrets = Array.isArray(secretsResp) ? secretsResp : secretsResp?.data;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState('');
   const [value, setValue] = useState('');

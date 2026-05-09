@@ -383,4 +383,3 @@ func TestTOTPService_GenerateBackupCodes(t *testing.T) {
 		}
 	}
 }
-

@@ -16,7 +16,9 @@ Turn any VPS with Docker into a multi-tenant deployment platform.
 </div>
 
 > **Status: v0.1.8 (conditional-go).** Self-hosted single-tenant: ready.
-> Multi-tenant SaaS: closing residual Sprint 1–3 items. See
+> Multi-tenant SaaS: requires the staging validation, backup/restore,
+> rollback, load, and soak evidence in
+> [`docs/staging-validation.md`](docs/staging-validation.md). See
 > [`PRODUCTION-READY.md`](PRODUCTION-READY.md) for the current verdict.
 
 ---
@@ -208,11 +210,11 @@ bundle-size budget).
 - **17** fuzz targets (input parsing, webhook HMAC, JWT validate, secret resolver, cross-tenant router)
 - **44** benchmarks
 - **~24 MB** single binary with embedded UI
-- **Coverage:** statement-weighted **88.9 %** after stripping the
+- **Coverage:** statement-weighted **85.9 %** after stripping the
   `tests/loadtest` and `tests/soak` harness packages from the
   profile (their `*_test.go` files are one-line smoke tests that
   exist only so the binaries compile under `go test`). Raw coverage
-  including those harnesses is 87.1 %. Hot packages run well above
+  including those harnesses is 84.3 %. Hot packages run well above
   target: `webhooks` 99.0 %, `mcp` 98.9 %, `api` 93.8 %,
   `notifications` 93.9 %, `marketplace` 95.3 %, `deploy` 91.5 %,
   `auth` 91.1 %, `db` 88.4 %, `compose` 100 %. The CI gate
@@ -260,6 +262,7 @@ trade-offs before committing.
 |---|---|
 | [`docs/getting-started.md`](docs/getting-started.md) | First-deploy walkthrough |
 | [`docs/deployment-guide.md`](docs/deployment-guide.md) | Production install, domains, backups, notifications |
+| [`docs/staging-validation.md`](docs/staging-validation.md) | Release-candidate staging, backup, restore, rollback, load, and soak checks |
 | [`docs/upgrade-guide.md`](docs/upgrade-guide.md) | Version-to-version upgrade procedure, rollback |
 | [`docs/runbook.md`](docs/runbook.md) | Operator runbook: scenario index for P0/P1 events |
 | [`docs/secret-rotation.md`](docs/secret-rotation.md) | JWT secret rotation (routine + emergency) |

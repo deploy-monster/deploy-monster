@@ -14,6 +14,8 @@ type DeliveryLog struct {
 	Status    string `json:"status"` // "sent" or "failed"
 	Error     string `json:"error,omitempty"`
 	Timestamp int64  `json:"timestamp"`
+	TenantID  string `json:"tenant_id,omitempty"`
+	UserID    string `json:"user_id,omitempty"`
 }
 
 // DeliveryTracker subscribes to webhook events and persists delivery logs to BBolt.
@@ -41,6 +43,8 @@ func (t *DeliveryTracker) Start() {
 			URL:       data.Recipient,
 			Status:    "sent",
 			Timestamp: time.Now().Unix(),
+			TenantID:  e.TenantID,
+			UserID:    e.UserID,
 		})
 	})
 
@@ -55,6 +59,8 @@ func (t *DeliveryTracker) Start() {
 			Status:    "failed",
 			Error:     data.Error,
 			Timestamp: time.Now().Unix(),
+			TenantID:  e.TenantID,
+			UserID:    e.UserID,
 		})
 	})
 }

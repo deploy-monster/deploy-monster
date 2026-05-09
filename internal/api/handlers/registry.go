@@ -18,6 +18,14 @@ func NewRegistryHandler(bolt core.BoltStorer) *RegistryHandler {
 	return &RegistryHandler{bolt: bolt}
 }
 
+func registryListKey(tenantID string) string {
+	return "tenant:" + tenantID
+}
+
+func registryCredKey(tenantID, registryID string) string {
+	return tenantID + ":" + registryID
+}
+
 // RegistryConfig represents a Docker registry connection.
 type RegistryConfig struct {
 	ID       string `json:"id"`
@@ -41,13 +49,19 @@ var builtinRegistries = []RegistryConfig{
 }
 
 // List handles GET /api/v1/registries
-func (h *RegistryHandler) List(w http.ResponseWriter, _ *http.Request) {
+func (h *RegistryHandler) List(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	all := make([]RegistryConfig, len(builtinRegistries))
 	copy(all, builtinRegistries)
 
 	// Load custom registries from BBolt
 	var list registryList
-	if err := h.bolt.Get("registries", "all", &list); err == nil {
+	if err := h.bolt.Get("registries", registryListKey(claims.TenantID), &list); err == nil {
 		all = append(all, list.Registries...)
 	}
 
@@ -90,7 +104,7 @@ func (h *RegistryHandler) Add(w http.ResponseWriter, r *http.Request) {
 
 	// Load existing custom registries
 	var list registryList
-	_ = h.bolt.Get("registries", "all", &list)
+	_ = h.bolt.Get("registries", registryListKey(claims.TenantID), &list)
 
 	if len(list.Registries) >= 20 {
 		writeError(w, http.StatusConflict, "registry limit reached (20)")
@@ -98,14 +112,14 @@ func (h *RegistryHandler) Add(w http.ResponseWriter, r *http.Request) {
 	}
 	list.Registries = append(list.Registries, newReg)
 
-	if err := h.bolt.Set("registries", "all", list, 0); err != nil {
+	if err := h.bolt.Set("registries", registryListKey(claims.TenantID), list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save registry")
 		return
 	}
 
 	// Store credentials separately (password never in the list response)
 	if req.Password != "" {
-		if err := h.bolt.Set("registry_creds", newReg.ID, map[string]string{
+		if err := h.bolt.Set("registry_creds", registryCredKey(claims.TenantID, newReg.ID), map[string]string{
 			"username": req.Username,
 			"password": req.Password,
 		}, 0); err != nil {

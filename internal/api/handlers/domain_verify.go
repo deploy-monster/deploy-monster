@@ -51,21 +51,25 @@ func (h *DomainVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	domain, ok := h.requireTenantDomain(w, r, domainID, claims.TenantID)
+	if !ok {
+		return
+	}
+
 	var req struct {
 		FQDN string `json:"fqdn"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req) // Intentionally lenient: FQDN may come from bolt lookup
+	_ = json.NewDecoder(r.Body).Decode(&req) // Intentionally lenient: FQDN may be omitted
 
-	// If FQDN not provided in body, try to look it up from stored records
 	if req.FQDN == "" {
-		var record domainVerifyRecord
-		if err := h.bolt.Get("domain_verify", domainID, &record); err == nil && record.FQDN != "" {
-			req.FQDN = record.FQDN
-		}
+		req.FQDN = domain.FQDN
 	}
-
 	if req.FQDN == "" {
 		writeError(w, http.StatusBadRequest, "fqdn required")
+		return
+	}
+	if req.FQDN != domain.FQDN {
+		writeError(w, http.StatusForbidden, "fqdn does not belong to this domain")
 		return
 	}
 
@@ -87,6 +91,12 @@ func (h *DomainVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 
 // BatchVerify handles POST /api/v1/domains/verify-batch
 func (h *DomainVerifyHandler) BatchVerify(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	var req struct {
 		FQDNs []string `json:"fqdns"`
 	}
@@ -95,15 +105,68 @@ func (h *DomainVerifyHandler) BatchVerify(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	results := make([]VerifyResult, len(req.FQDNs))
-	for i, fqdn := range req.FQDNs {
-		results[i] = verifyDNS(fqdn)
+	allowed, ok := h.tenantDomainSet(w, r, claims.TenantID)
+	if !ok {
+		return
+	}
+
+	results := make([]VerifyResult, 0, len(req.FQDNs))
+	for _, fqdn := range req.FQDNs {
+		if !allowed[fqdn] {
+			writeError(w, http.StatusForbidden, "fqdn does not belong to this tenant")
+			return
+		}
+		results = append(results, verifyDNS(fqdn))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"results": results,
 		"total":   len(results),
 	})
+}
+
+func (h *DomainVerifyHandler) requireTenantDomain(w http.ResponseWriter, r *http.Request, domainID, tenantID string) (*core.Domain, bool) {
+	domain, err := h.store.GetDomain(r.Context(), domainID)
+	if err != nil {
+		if err == core.ErrNotFound {
+			writeError(w, http.StatusNotFound, "domain not found")
+			return nil, false
+		}
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return nil, false
+	}
+
+	app, err := h.store.GetApp(r.Context(), domain.AppID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return nil, false
+	}
+	if app.TenantID != tenantID {
+		writeError(w, http.StatusForbidden, "access denied")
+		return nil, false
+	}
+
+	return domain, true
+}
+
+func (h *DomainVerifyHandler) tenantDomainSet(w http.ResponseWriter, r *http.Request, tenantID string) (map[string]bool, bool) {
+	apps, _, err := h.store.ListAppsByTenant(r.Context(), tenantID, 10000, 0)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return nil, false
+	}
+	allowed := make(map[string]bool)
+	for _, app := range apps {
+		domains, err := h.store.ListDomainsByApp(r.Context(), app.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return nil, false
+		}
+		for _, domain := range domains {
+			allowed[domain.FQDN] = true
+		}
+	}
+	return allowed, true
 }
 
 func verifyDNS(fqdn string) VerifyResult {

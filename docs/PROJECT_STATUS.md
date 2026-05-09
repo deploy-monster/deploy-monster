@@ -1,258 +1,93 @@
 # DeployMonster Project Status
 
-**Last Updated:** 2026-03-26
+**Last updated:** 2026-05-09
+**Current branch under review:** `codex/launch-hardening` / PR #43
+**Readiness verdict:** conditional go
 
-## Overview
+DeployMonster is ready for self-hosted, single-tenant operation after
+the launch-hardening work in PR #43. Multi-tenant SaaS launch remains
+conditional until the staging validation, backup/restore drill,
+rollback drill, and release artifact publication are completed on real
+infrastructure.
 
-DeployMonster is a **production-ready** self-hosted PaaS platform. Single binary, zero dependencies, enterprise-grade features.
+This page is a short status pointer. For detailed evidence, use:
 
----
+- [`README.md`](../README.md) for current feature counts and quick-start
+  positioning.
+- [`PRODUCTION-READY.md`](../PRODUCTION-READY.md) for the executive
+  readiness verdict.
+- [`docs/DEVELOPMENT_LAUNCH_PLAN.md`](DEVELOPMENT_LAUNCH_PLAN.md) for
+  the sprint-by-sprint implementation plan.
+- [`docs/staging-validation.md`](staging-validation.md) for the required
+  pre-release staging proof.
+- GitHub PR #43 for current CI evidence.
 
-## Code Statistics
+## Current Evidence
 
-| Metric | Value |
-|--------|-------|
-| **Go Source Files** | 269 |
-| **Go Test Files** | 246 |
-| **Source LOC** | 30,275 |
-| **Test LOC** | 84,752 |
-| **Test:Code Ratio** | 2.8:1 |
-| **React Components** | 33 |
-| **API Handlers** | 116 |
+PR #43 current-head CI is green:
 
----
+| Gate | Status |
+|---|---|
+| Go race / coverage test | Passing |
+| React typecheck, lint, Vitest, build, bundle budget | Passing |
+| Go vet, Go build, OpenAPI drift | Passing |
+| SQLite integration tests | Passing |
+| Postgres integration tests | Passing |
+| Secrets scan | Passing |
+| Playwright E2E | Passing |
+| Cross-platform release build matrix | Passing |
 
-## Test Coverage
+The Docker publish job is skipped on this PR path by workflow
+condition; image publication still needs to be verified on the release
+path.
 
-| Package | Coverage |
-|---------|----------|
-| `internal/compose` | 100.0% |
-| `internal/api/middleware` | 100.0% |
-| `internal/database/engines` | 100.0% |
-| `internal/enterprise/integrations` | 100.0% |
-| `internal/ingress/middleware` | 100.0% |
-| `internal/vps/providers` | 100.0% |
-| `internal/core` | 99.2% |
-| `internal/notifications` | 99.3% |
-| `internal/build` | 98.3% |
-| `internal/discovery` | 98.3% |
-| `internal/dns` | 98.7% |
-| `internal/swarm` | 98.8% |
-| `internal/marketplace` | 98.4% |
-| `internal/mcp` | 98.5% |
-| `internal/enterprise` | 98.4% |
-| `internal/ingress/lb` | 98.1% |
-| `internal/gitsources/providers` | 98.2% |
-| `internal/billing` | 97.3% |
-| `internal/api/handlers` | 97.6% |
-| `internal/dns/providers` | 97.6% |
-| `internal/auth` | 96.5% |
-| `internal/api/ws` | 96.9% |
-| `internal/api` | 95.4% |
-| `internal/deploy` | 95.4% |
-| `internal/gitsources` | 95.0% |
-| `internal/backup` | 94.1% |
-| `internal/database` | 94.1% |
-| `internal/resource` | 93.5% |
-| `internal/db` | 92.4% |
-| `internal/webhooks` | 92.5% |
-| `internal/ingress` | 92.0% |
-| `internal/vps` | 91.1% |
-| `internal/secrets` | 90.7% |
-| **Average** | **~96%** |
+## What Is Ready
 
-### Test Types
-- **Unit Tests:** 246 files
-- **Integration Tests:** Included in coverage
-- **Fuzz Tests:** 7
-- **Benchmarks:** 38
-- **React Tests:** 65 tests in 9 files
+- Single-binary build with embedded React UI.
+- Modular monolith lifecycle and dependency ordering.
+- Tenant isolation hardening on app, domain, backup, registry, server,
+  and deployment-sensitive paths covered by regression tests.
+- RBAC route permissions expanded and aligned with operator actions.
+- OpenAPI drift gate and generated API documentation.
+- Frontend unit tests and Playwright E2E coverage for core workflows.
+- Operational docs for install, upgrade, secret rotation, Docker socket
+  hardening, incident response, and staging validation.
 
----
+## What Is Conditional
 
-## Features Implemented
-
-### Core Platform
-- [x] Modular monolith architecture (20 modules)
-- [x] Auto-registration via `init()`
-- [x] Dependency resolution (topological sort)
-- [x] EventBus (sync/async handlers)
-- [x] Service registry (typed interfaces)
-- [x] Health checks per module
-- [x] Graceful shutdown
-
-### Database
-- [x] SQLite (default, embedded)
-- [x] BBolt KV store (30+ buckets)
-- [x] Store interface abstraction
-- [x] PostgreSQL ready (interface prepared)
-
-### Authentication & Authorization
-- [x] JWT tokens (HS256, key rotation support)
-- [x] bcrypt password hashing
-- [x] TOTP 2FA
-- [x] RBAC (6 built-in roles)
-- [x] Tenant isolation
-- [x] API keys with scopes
-
-### Deployment
-- [x] Docker SDK integration
-- [x] 14 language detectors
-- [x] 12 Dockerfile templates
-- [x] Build pipeline (git → build → deploy)
-- [x] Deploy strategies (recreate, rolling)
-- [x] Container management
-- [x] Container exec
-- [x] Log streaming
-
-### Ingress
-- [x] Custom reverse proxy
-- [x] Auto SSL (Let's Encrypt)
-- [x] DNS-01 challenge (Cloudflare)
-- [x] HTTP-01 challenge
-- [x] Load balancer (5 strategies)
-- [x] Middleware (rate limit, CORS, compression)
-- [x] Wildcard domains
-
-### Infrastructure
-- [x] VPS provisioning (Hetzner, DO, Vultr, Linode)
-- [x] SSH connection pool
-- [x] Server bootstrap (cloud-init)
-- [x] Master/Agent architecture
-- [x] WebSocket protocol
-
-### Developer Experience
-- [x] React 19 UI
-- [x] Vite 8 build
-- [x] Tailwind CSS 4
-- [x] shadcn/ui components
-- [x] 224 REST API endpoints
-- [x] OpenAPI 3.0 spec
-- [x] MCP server (9 AI tools)
-
-### Enterprise
-- [x] Billing (Stripe)
-- [x] Plans (Free, Pro, Business, Enterprise)
-- [x] White-label support
-- [x] WHMCS integration
-- [x] Audit logging
-- [x] GDPR compliance
-
-### Operations
-- [x] Backup engine (local, S3)
-- [x] Cron scheduler
-- [x] Monitoring metrics
-- [x] Prometheus endpoint
-- [x] Notifications (Slack, Discord, Telegram, webhook)
-- [x] DNS sync (Cloudflare)
-
-### Marketplace
-- [x] 25 app templates
-- [x] One-click deploy
-- [x] WordPress, Ghost, n8n, Grafana, etc.
-
----
-
-## API Endpoints (224)
-
-| Category | Endpoints |
-|----------|-----------|
-| Auth | 12 |
-| Apps | 35 |
-| Deployments | 15 |
-| Domains | 10 |
-| Projects | 8 |
-| Servers | 12 |
-| Secrets | 10 |
-| Backups | 8 |
-| Billing | 15 |
-| Team | 12 |
-| Admin | 25 |
-| MCP | 9 |
-| Webhooks | 10 |
-| Marketplace | 15 |
-| Monitoring | 8 |
-| **Total** | **224** |
-
----
-
-## Binary Size
-
-| Build | Size |
-|-------|------|
-| Default | 22 MB |
-| Stripped | 16 MB |
-| Compressed (gzip) | 8 MB |
-
----
-
-## Performance
-
-| Metric | Value |
-|--------|-------|
-| Startup Time | < 2 seconds |
-| Memory Usage (idle) | ~50 MB |
-| Memory Usage (100 apps) | ~200 MB |
-| API Response Time | < 10ms |
-| Concurrent Connections | 10,000+ |
-
----
-
-## Documentation
-
-| Document | Status |
-|----------|--------|
-| README.md | ✅ Complete |
-| docs/architecture.md | ✅ Complete |
-| docs/getting-started.md | ✅ Complete |
-| docs/deployment-guide.md | ✅ Complete |
-| docs/api-reference.md | ✅ Complete |
-| docs/openapi.yaml | ✅ Complete |
-| docs/examples/api-quickstart.md | ✅ Complete |
-
----
+- Multi-tenant SaaS operation depends on successful staging proof with
+  real DNS, SSL, webhook, backup, restore, rollback, load, and soak
+  checks.
+- Release artifacts and Docker images still need to be built and
+  published from the release workflow.
+- Any launch candidate must attach evidence from
+  [`docs/staging-validation.md`](staging-validation.md) before being
+  called production-ready for hosted SaaS.
 
 ## Known Limitations
 
-1. **Windows Support:** Not officially supported (Linux/macOS only)
-2. **PostgreSQL:** Interface ready, implementation pending
-3. **Kubernetes:** Not supported (Docker only)
-4. **Multi-region:** Single region per deployment
+1. **No multi-master HA.** DeployMonster is still a single control-plane
+   process; use host backups and restore drills for recovery.
+2. **Docker socket exposure is powerful by design.** Operators must
+   follow [`docker-socket-hardening.md`](docker-socket-hardening.md).
+3. **Kubernetes is intentionally out of scope.** See
+   [`adr/0003-no-kubernetes.md`](adr/0003-no-kubernetes.md).
+4. **Release Docker publish is not proven by PR CI.** It is skipped
+   outside the release path.
+5. **Staging validation is not optional.** CI proves code paths; it does
+   not prove real DNS, ACME, cloud storage, or provider integrations.
 
----
+## Next Required Actions
 
-## Roadmap (Post-v1.0)
-
-- [ ] PostgreSQL implementation
-- [ ] Kubernetes support
-- [ ] Multi-region deployments
-- [ ] GPU workloads
-- [ ] Edge deployments
-- [ ] Terraform provider
-- [ ] Pulumi integration
-
----
-
-## Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 0.5.2 | 2026-03-26 | Architecture docs, test improvements |
-| 0.5.1 | 2026-03-25 | Coverage improvements, bug fixes |
-| 0.5.0 | 2026-03-24 | Master/Agent architecture |
-| 0.4.0 | 2026-03-22 | PostgreSQL Store interface |
-| 0.3.0 | 2026-03-20 | Billing module |
-| 0.2.0 | 2026-03-15 | Ingress module |
-| 0.1.0 | 2026-03-01 | Initial release |
-
----
-
-## Contributors
-
-- **ECOSTACK TECHNOLOGY OÜ** — [ecostack.ee](https://ecostack.ee)
-
----
+1. Review and merge PR #43.
+2. Execute [`docs/staging-validation.md`](staging-validation.md) on a
+   disposable staging host.
+3. Attach staging smoke, backup/restore, rollback, load, and soak
+   evidence to the release issue.
+4. Build and publish release artifacts/images from the release workflow.
+5. Cut the release only after the go/no-go checklist is complete.
 
 ## License
 
-AGPL-3.0 — Commercial license available for enterprise features.
+AGPL-3.0. Commercial licensing terms are handled outside this
+repository.

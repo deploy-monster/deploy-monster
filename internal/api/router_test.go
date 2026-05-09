@@ -1289,11 +1289,11 @@ func (s *testStore) GetRole(_ context.Context, roleID string) (*core.Role, error
 	case "role_super_admin":
 		perms = `["*"]`
 	case "role_owner":
-		perms = `["tenant.*","app.*","project.*","member.*","billing.*","secret.*","server.*","domain.*","db.*"]`
+		perms = `["tenant.*","app.*","project.*","member.*","billing.*","secret.*","server.*","domain.*","db.*","network.*","volume.*","registry.*","backup.*","git.*","marketplace.*","topology.*","webhook.*","deploy.*"]`
 	case "role_admin":
-		perms = `["app.*","project.*","member.*","secret.*","server.*","billing.*","domain.*","db.*"]`
+		perms = `["app.*","project.*","member.*","secret.*","server.*","billing.*","domain.*","db.*","network.*","volume.*","registry.*","backup.*","git.*","marketplace.*","topology.*","webhook.*","deploy.*"]`
 	case "role_developer":
-		perms = `["app.*","project.view","secret.app.*","domain.*","db.*"]`
+		perms = `["app.*","project.view","secret.app.*","domain.*","db.*","network.manage","volume.manage","registry.manage","backup.create","backup.restore","git.manage","marketplace.deploy","topology.manage","topology.deploy","webhook.manage"]`
 	case "role_viewer":
 		perms = `["app.view","app.logs","project.view"]`
 	}
@@ -1579,6 +1579,60 @@ func TestAdminRoutes_ForbiddenForDeveloper(t *testing.T) {
 	token := mintToken(t, authMod, "role_developer")
 
 	for _, route := range adminRoutes {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			req := httptest.NewRequest(route.method, route.path, strings.NewReader("{}"))
+			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("Content-Type", "application/json")
+			rr := httptest.NewRecorder()
+			r.mux.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusForbidden {
+				t.Errorf("status = %d, want 403 (body: %s)", rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestMutatingRoutes_ViewerRoleRequiresPermission(t *testing.T) {
+	c, authMod := testCoreSetup(t)
+	r := NewRouter(c, authMod, c.Store)
+	token := mintToken(t, authMod, "role_viewer")
+
+	routes := []adminRoute{
+		{http.MethodPost, "/api/v1/apps/app123/scale"},
+		{http.MethodPut, "/api/v1/apps/app123/resources"},
+		{http.MethodPost, "/api/v1/projects/project123/environment"},
+		{http.MethodPost, "/api/v1/networks/connect"},
+		{http.MethodPost, "/api/v1/domains/domain123/verify"},
+		{http.MethodPost, "/api/v1/domains/verify-batch"},
+		{http.MethodPost, "/api/v1/certificates"},
+		{http.MethodPost, "/api/v1/certificates/wildcard"},
+		{http.MethodDelete, "/api/v1/images/prune"},
+		{http.MethodPost, "/api/v1/volumes"},
+		{http.MethodPost, "/api/v1/registries"},
+		{http.MethodPost, "/api/v1/team/invites"},
+		{http.MethodPost, "/api/v1/backups"},
+		{http.MethodPost, "/api/v1/backups/restore/tenant-test/app123/backup123.json"},
+		{http.MethodPost, "/api/v1/servers"},
+		{http.MethodDelete, "/api/v1/servers/server123"},
+		{http.MethodPost, "/api/v1/servers/provision"},
+		{http.MethodPost, "/api/v1/servers/test-ssh"},
+		{http.MethodDelete, "/api/v1/build/cache"},
+		{http.MethodPatch, "/api/v1/tenant/settings"},
+		{http.MethodPost, "/api/v1/git/providers"},
+		{http.MethodDelete, "/api/v1/git/providers/provider123"},
+		{http.MethodPost, "/api/v1/topology"},
+		{http.MethodPost, "/api/v1/topology/deploy"},
+		{http.MethodPost, "/api/v1/webhooks/outbound"},
+		{http.MethodDelete, "/api/v1/webhooks/outbound/webhook123"},
+		{http.MethodPost, "/api/v1/deploy/freeze"},
+		{http.MethodDelete, "/api/v1/deploy/freeze/freeze123"},
+		{http.MethodPost, "/api/v1/deploy/approvals/approval123/approve"},
+		{http.MethodPost, "/api/v1/deploy/approvals/approval123/reject"},
+		{http.MethodPost, "/api/v1/ssh-keys/generate"},
+	}
+
+	for _, route := range routes {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {
 			req := httptest.NewRequest(route.method, route.path, strings.NewReader("{}"))
 			req.Header.Set("Authorization", "Bearer "+token)

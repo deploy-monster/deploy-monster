@@ -98,7 +98,10 @@ func TestFinal95_DomainVerify_FQDNFromBolt(t *testing.T) {
 		FQDN:     "this-domain-does-not-exist-xyz.invalid",
 	}, 0)
 
-	h := NewDomainVerifyHandler(newMockStore(), bolt)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1"})
+	store.addDomain(&core.Domain{ID: "domain-1", AppID: "app-1", FQDN: "this-domain-does-not-exist-xyz.invalid"})
+	h := NewDomainVerifyHandler(store, bolt)
 
 	// POST without fqdn in body — handler should pull it from bolt
 	body := `{}`
@@ -134,8 +137,8 @@ func TestFinal95_DomainVerify_NoFQDNAnywhere(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.Verify(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", rr.Code)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rr.Code)
 	}
 }
 
@@ -857,7 +860,10 @@ func TestFinal95_CheckSSL_ConnectionRefused(t *testing.T) {
 // =============================================================================
 
 func TestFinal95_DomainVerify_FQDNInBody(t *testing.T) {
-	h := NewDomainVerifyHandler(newMockStore(), newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1"})
+	store.addDomain(&core.Domain{ID: "d1", AppID: "app-1", FQDN: "this-domain-does-not-exist-xyz.invalid"})
+	h := NewDomainVerifyHandler(store, newMockBoltStore())
 
 	body := `{"fqdn":"this-domain-does-not-exist-xyz.invalid"}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/d1/verify", strings.NewReader(body))
@@ -885,10 +891,15 @@ func TestFinal95_DomainVerify_FQDNInBody(t *testing.T) {
 // =============================================================================
 
 func TestFinal95_DomainVerify_BatchVerify_MultipleFQDNs(t *testing.T) {
-	h := NewDomainVerifyHandler(newMockStore(), newMockBoltStore())
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1"})
+	store.addDomain(&core.Domain{ID: "d1", AppID: "app-1", FQDN: "invalid-domain-abc.invalid"})
+	store.addDomain(&core.Domain{ID: "d2", AppID: "app-1", FQDN: "invalid-domain-xyz.invalid"})
+	h := NewDomainVerifyHandler(store, newMockBoltStore())
 
 	body := `{"fqdns":["invalid-domain-abc.invalid","invalid-domain-xyz.invalid"]}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/verify-batch", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.BatchVerify(rr, req)
 
@@ -1469,7 +1480,7 @@ func TestFinal95_EventWebhook_Create_BoltSetError(t *testing.T) {
 
 func TestFinal95_Registry_List_WithCustom(t *testing.T) {
 	bolt := newMockBoltStore()
-	bolt.Set("registries", "all", registryList{
+	bolt.Set("registries", registryListKey("t1"), registryList{
 		Registries: []RegistryConfig{
 			{ID: "custom-1", Name: "My Registry", URL: "registry.example.com"},
 		},
@@ -1477,6 +1488,7 @@ func TestFinal95_Registry_List_WithCustom(t *testing.T) {
 	h := NewRegistryHandler(bolt)
 
 	req := httptest.NewRequest("GET", "/api/v1/registries", nil)
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 

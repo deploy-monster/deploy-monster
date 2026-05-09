@@ -13,6 +13,7 @@ import (
 
 func TestTopologyHandler_Save_Success(t *testing.T) {
 	store := newMockStore()
+	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"})
 	bolt := newMockBoltStore()
 	c := &core.Core{DB: &core.Database{Bolt: bolt}}
 	h := NewTopologyHandler(store, c)
@@ -42,6 +43,39 @@ func TestTopologyHandler_Save_Success(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp["success"] != true {
 		t.Errorf("expected success=true, got %v", resp["success"])
+	}
+}
+
+func TestTopologyHandler_Save_CrossTenantProject(t *testing.T) {
+	store := newMockStore()
+	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-2", Name: "Foreign Project"})
+	bolt := newMockBoltStore()
+	c := &core.Core{DB: &core.Database{Bolt: bolt}}
+	h := NewTopologyHandler(store, c)
+
+	req := TopologyDeployRequest{
+		Nodes:       []TopologyNode{{ID: "app-1", Type: "app"}},
+		Edges:       []TopologyEdge{},
+		ProjectID:   "proj-1",
+		Environment: "production",
+	}
+	body, _ := json.Marshal(req)
+	httpReq := httptest.NewRequest("POST", "/api/v1/topology/save", bytes.NewReader(body))
+	ctx := auth.ContextWithClaims(httpReq.Context(), &auth.Claims{
+		UserID:   "user-1",
+		TenantID: "tenant-1",
+		RoleID:   "admin",
+	})
+	httpReq = httpReq.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	h.Save(w, httpReq)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+	if _, ok := bolt.data["topologies"]; ok {
+		t.Fatal("cross-tenant save wrote topology data")
 	}
 }
 

@@ -124,7 +124,10 @@ function TableSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function Backups() {
-  const { data: backups, loading, refetch } = useApi<BackupEntry[]>('/backups');
+  const { data: backupsResp, loading, refetch } = useApi<
+    { data: BackupEntry[]; total: number } | BackupEntry[]
+  >('/backups');
+  const backups = Array.isArray(backupsResp) ? backupsResp : backupsResp?.data;
   const [restoreDialog, setRestoreDialog] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [restoring, setRestoring] = useState(false);

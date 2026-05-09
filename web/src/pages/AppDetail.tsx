@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { appsAPI, type App } from '../api/apps';
 import type { Deployment, EnvVar } from '@/api/deployments';
+import { api, type PaginatedResponse } from '@/api/client';
 import { useApi } from '../hooks';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/lib/utils';
@@ -50,6 +51,23 @@ import {
 } from '@/components/ui/table';
 import { Tooltip } from '@/components/ui/tooltip';
 import { AlertDialog } from '@/components/ui/alert-dialog';
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                             */
+/* ------------------------------------------------------------------ */
+
+interface AppStatsResponse {
+  app_id: string;
+  count: number;
+  running: number;
+  cpu_percent: number;
+  memory_usage: number;
+  memory_limit: number;
+  memory_percent: number;
+  network_rx: number;
+  network_tx: number;
+  containers: { id: string; name: string; state: string; running: boolean }[];
+}
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
@@ -88,6 +106,75 @@ function getStatusConfig(status: string) {
   return STATUS_CONFIG[status] || { variant: 'secondary' as const, dot: 'bg-slate-400', label: status };
 }
 
+function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2)} ${units[i]}`;
+}
+
+function buildMetricCards(
+  stats: AppStatsResponse | null,
+  app: App,
+  statsError: string | null,
+): { icon: typeof Cpu; label: string; value: string; color: string; barColor: string; percent: number }[] {
+  const haveStats = !!stats && (stats.count ?? 0) > 0;
+  const cpuPercent = haveStats ? Math.min(100, stats!.cpu_percent) : 0;
+  const memPercent = haveStats ? Math.min(100, stats!.memory_percent) : 0;
+  const memValue = haveStats
+    ? stats!.memory_limit > 0
+      ? `${formatBytes(stats!.memory_usage)} / ${formatBytes(stats!.memory_limit)}`
+      : formatBytes(stats!.memory_usage)
+    : statsError
+      ? '—'
+      : 'No container';
+  const netValue = haveStats
+    ? `${formatBytes(stats!.network_rx)} ↓ / ${formatBytes(stats!.network_tx)} ↑`
+    : statsError
+      ? '—'
+      : 'No container';
+  const uptime = app.status === 'running' ? timeAgo(app.created_at).replace(' ago', '') : '—';
+  return [
+    {
+      icon: Cpu,
+      label: 'CPU Usage',
+      value: haveStats ? `${cpuPercent.toFixed(1)}%` : statsError ? '—' : 'No container',
+      color: 'text-blue-500',
+      barColor: 'bg-blue-500',
+      percent: cpuPercent,
+    },
+    {
+      icon: MemoryStick,
+      label: 'Memory',
+      value: memValue,
+      color: 'text-emerald-500',
+      barColor: 'bg-emerald-500',
+      percent: memPercent,
+    },
+    {
+      icon: Network,
+      label: 'Network I/O',
+      value: netValue,
+      color: 'text-violet-500',
+      barColor: 'bg-violet-500',
+      percent: 0,
+    },
+    {
+      icon: Timer,
+      label: 'Uptime',
+      value: uptime,
+      color: 'text-amber-500',
+      barColor: 'bg-amber-500',
+      percent: app.status === 'running' ? 100 : 0,
+    },
+  ];
+}
+
 /* ------------------------------------------------------------------ */
 /*  Main Component                                                    */
 /* ------------------------------------------------------------------ */
@@ -95,23 +182,67 @@ function getStatusConfig(status: string) {
 export function AppDetail() {
   const { id } = useParams();
   const { data: app, loading: appLoading, refetch: refetchApp } = useApi<App>(`/apps/${id}`);
-  const { data: deploymentsData } = useApi<Deployment[]>(`/apps/${id}/deployments`);
-  const deployments = deploymentsData || [];
+  const { data: deploymentsData } = useApi<PaginatedResponse<Deployment>>(`/apps/${id}/deployments`);
+  const deployments = deploymentsData?.data ?? [];
+
+  const { data: envData, refetch: refetchEnv } = useApi<{ data: { key: string; value: string }[] }>(
+    `/apps/${id}/env`,
+  );
+  const envVars: EnvVar[] = (envData?.data ?? []).map((e) => ({
+    key: e.key,
+    value: e.value,
+    isSecret: e.value.startsWith('${SECRET:'),
+  }));
+
+  const { data: stats, error: statsError } = useApi<AppStatsResponse>(
+    `/apps/${id}/stats`,
+    { refreshInterval: 10000 },
+  );
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Environment variables local state (demo -- would be fetched from API)
-  const [envVars, setEnvVars] = useState<EnvVar[]>([
-    { key: 'NODE_ENV', value: 'production', isSecret: false },
-    { key: 'DATABASE_URL', value: '${SECRET:db_url}', isSecret: true },
-    { key: 'API_KEY', value: '${SECRET:api_key}', isSecret: true },
-    { key: 'PORT', value: '3000', isSecret: false },
-  ]);
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
   const [showSecrets, setShowSecrets] = useState(false);
   const [, setEditingEnv] = useState<string | null>(null);
+  const [envSaving, setEnvSaving] = useState(false);
+
+  const [settingsNameDraft, setSettingsNameDraft] = useState<string | null>(null);
+  const [settingsBranchDraft, setSettingsBranchDraft] = useState<string | null>(null);
+  const [settingsSourceURLDraft, setSettingsSourceURLDraft] = useState<string | null>(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+
+  const settingsName = settingsNameDraft ?? app?.name ?? '';
+  const settingsBranch = settingsBranchDraft ?? app?.branch ?? '';
+  const settingsSourceURL = settingsSourceURLDraft ?? app?.source_url ?? '';
+
+  const settingsDirty =
+    !!app &&
+    (settingsName !== app.name ||
+      settingsBranch !== (app.branch ?? '') ||
+      settingsSourceURL !== (app.source_url ?? ''));
+
+  const handleSettingsSave = useCallback(async () => {
+    if (!id || !app) return;
+    setSettingsSaving(true);
+    try {
+      const patch: { name?: string; branch?: string; source_url?: string } = {};
+      if (settingsName && settingsName !== app.name) patch.name = settingsName;
+      if (settingsBranch !== (app.branch ?? '')) patch.branch = settingsBranch;
+      if (settingsSourceURL !== (app.source_url ?? '')) patch.source_url = settingsSourceURL;
+      await appsAPI.update(id, patch);
+      toast.success('Settings saved');
+      await refetchApp();
+      setSettingsNameDraft(null);
+      setSettingsBranchDraft(null);
+      setSettingsSourceURLDraft(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save settings');
+    } finally {
+      setSettingsSaving(false);
+    }
+  }, [id, app, settingsName, settingsBranch, settingsSourceURL, refetchApp]);
 
   /* -- Actions ---------------------------------------------------- */
 
@@ -151,24 +282,48 @@ export function AppDetail() {
     if (!id) return;
     setActionLoading('deploy');
     try {
-      await appsAPI.restart(id);
+      await appsAPI.deploy(id);
+      toast.success('Deployment started');
       refetchApp();
-    } catch {
-      toast.error('Failed to deploy application');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to deploy application');
     } finally {
       setActionLoading(null);
     }
   }, [id, refetchApp]);
 
+  const persistEnvVars = useCallback(
+    async (next: { key: string; value: string }[]) => {
+      if (!id) return;
+      setEnvSaving(true);
+      try {
+        await api.put(`/apps/${id}/env`, { vars: next });
+        refetchEnv();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to save environment variables');
+      } finally {
+        setEnvSaving(false);
+      }
+    },
+    [id, refetchEnv],
+  );
+
   const addEnvVar = () => {
-    if (!newEnvKey.trim()) return;
-    setEnvVars((prev) => [...prev, { key: newEnvKey, value: newEnvValue, isSecret: false }]);
+    const key = newEnvKey.trim();
+    if (!key) return;
+    if (envVars.some((v) => v.key === key)) {
+      toast.error(`Variable ${key} already exists`);
+      return;
+    }
+    const next = [...envVars.map(({ key: k, value }) => ({ key: k, value })), { key, value: newEnvValue }];
     setNewEnvKey('');
     setNewEnvValue('');
+    persistEnvVars(next);
   };
 
   const removeEnvVar = (key: string) => {
-    setEnvVars((prev) => prev.filter((v) => v.key !== key));
+    const next = envVars.filter((v) => v.key !== key).map(({ key: k, value }) => ({ key: k, value }));
+    persistEnvVars(next);
   };
 
   /* -- Loading state ---------------------------------------------- */
@@ -311,42 +466,14 @@ export function AppDetail() {
         {/*  Overview Tab                                               */}
         {/* ========================================================== */}
         <TabsContent value="overview" className="space-y-6">
+          {statsError && (
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+              Live metrics unavailable: {statsError}
+            </div>
+          )}
           {/* Metric cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              {
-                icon: Cpu,
-                label: 'CPU Usage',
-                value: '12%',
-                color: 'text-blue-500',
-                barColor: 'bg-blue-500',
-                percent: 12,
-              },
-              {
-                icon: MemoryStick,
-                label: 'Memory',
-                value: '256 MB / 512 MB',
-                color: 'text-emerald-500',
-                barColor: 'bg-emerald-500',
-                percent: 50,
-              },
-              {
-                icon: Network,
-                label: 'Network I/O',
-                value: '1.2 KB/s',
-                color: 'text-violet-500',
-                barColor: 'bg-violet-500',
-                percent: 8,
-              },
-              {
-                icon: Timer,
-                label: 'Uptime',
-                value: app.status === 'running' ? timeAgo(app.created_at).replace(' ago', '') : '--',
-                color: 'text-amber-500',
-                barColor: 'bg-amber-500',
-                percent: app.status === 'running' ? 100 : 0,
-              },
-            ].map(({ icon: Icon, label, value, color, barColor, percent }) => (
+            {buildMetricCards(stats, app, statsError).map(({ icon: Icon, label, value, color, barColor, percent }) => (
               <Card key={label}>
                 <CardContent className="pt-5">
                   <div className="flex items-center gap-3 mb-3">
@@ -602,6 +729,9 @@ export function AppDetail() {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                {envSaving && (
+                  <span className="text-xs text-muted-foreground">Saving…</span>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -746,13 +876,17 @@ export function AppDetail() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">General</CardTitle>
-              <CardDescription>Basic application information</CardDescription>
+              <CardDescription>Update application name, source URL, and branch</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="mb-1.5">Application Name</Label>
-                  <Input value={app.name} readOnly className="bg-muted" />
+                  <Label htmlFor="settings-name" className="mb-1.5">Application Name</Label>
+                  <Input
+                    id="settings-name"
+                    value={settingsName}
+                    onChange={(e) => setSettingsNameDraft(e.target.value)}
+                  />
                 </div>
                 <div>
                   <Label className="mb-1.5">Application ID</Label>
@@ -772,6 +906,26 @@ export function AppDetail() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
+                  <Label htmlFor="settings-source" className="mb-1.5">Source URL</Label>
+                  <Input
+                    id="settings-source"
+                    value={settingsSourceURL}
+                    onChange={(e) => setSettingsSourceURLDraft(e.target.value)}
+                    placeholder="https://github.com/example/repo.git"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="settings-branch" className="mb-1.5">Branch</Label>
+                  <Input
+                    id="settings-branch"
+                    value={settingsBranch}
+                    onChange={(e) => setSettingsBranchDraft(e.target.value)}
+                    placeholder="main"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
                   <Label className="mb-1.5">Created</Label>
                   <Input
                     value={new Date(app.created_at).toLocaleString()}
@@ -787,6 +941,29 @@ export function AppDetail() {
                     className="bg-muted"
                   />
                 </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSettingsNameDraft(null);
+                    setSettingsBranchDraft(null);
+                    setSettingsSourceURLDraft(null);
+                  }}
+                  disabled={!settingsDirty || settingsSaving}
+                  className="cursor-pointer"
+                >
+                  Reset
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSettingsSave}
+                  disabled={!settingsDirty || settingsSaving || !settingsName.trim()}
+                  className="cursor-pointer"
+                >
+                  {settingsSaving ? 'Saving…' : 'Save Changes'}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -845,6 +1022,7 @@ export function AppDetail() {
 function LogsPanel({ appId }: { appId: string }) {
   const [logs, setLogs] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new logs arrive
@@ -868,15 +1046,26 @@ function LogsPanel({ appId }: { appId: string }) {
 
     eventSource.onopen = () => {
       setConnected(true);
+      setStreamError(null);
     };
 
     eventSource.onmessage = (e) => {
       setLogs((prev) => [...prev.slice(-500), e.data]);
     };
 
-    eventSource.onerror = () => {
+    // Backend emits an `event: error\ndata: <msg>` line for runtime/container
+    // failures and then closes the stream. Capture it so the panel can
+    // surface the real reason instead of a silent "Waiting for logs..."
+    // forever.
+    eventSource.addEventListener('error', (ev) => {
+      const data = (ev as MessageEvent).data;
+      if (typeof data === 'string' && data.length > 0) {
+        setStreamError(data);
+      } else if (eventSource.readyState === EventSource.CLOSED) {
+        setStreamError('Stream closed');
+      }
       setConnected(false);
-    };
+    });
 
     return () => {
       eventSource.close();
@@ -918,8 +1107,17 @@ function LogsPanel({ appId }: { appId: string }) {
           >
             {logs.length === 0 ? (
               <div className="flex items-center gap-2 text-[#8b949e]">
-                <div className="size-1.5 rounded-full bg-[#8b949e] animate-pulse" />
-                <span>Waiting for logs...</span>
+                {streamError ? (
+                  <>
+                    <div className="size-1.5 rounded-full bg-[#ff5f57]" />
+                    <span>{streamError}</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="size-1.5 rounded-full bg-[#8b949e] animate-pulse" />
+                    <span>Waiting for logs...</span>
+                  </>
+                )}
               </div>
             ) : (
               logs.map((line, i) => (

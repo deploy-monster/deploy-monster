@@ -1,4 +1,4 @@
-.PHONY: build dev test lint clean docker docker-compose fmt vet tidy bench coverage release install help test-e2e openapi-check openapi-bootstrap db-gate db-gate-baseline readme-coverage-check
+.PHONY: build dev test lint clean docker docker-compose fmt vet tidy bench coverage release release-snapshot check-release-tools install help test-e2e openapi-check openapi-bootstrap db-gate db-gate-baseline readme-coverage-check
 
 # Variables
 BINARY_NAME := deploymonster
@@ -191,15 +191,20 @@ coverage: test
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "Open coverage.html in your browser"
 
+## check-release-tools: Verify local release tooling is installed
+check-release-tools:
+	@command -v goreleaser >/dev/null 2>&1 || { echo "goreleaser is required for release builds" >&2; exit 1; }
+	@command -v syft >/dev/null 2>&1 || { echo "syft is required for GoReleaser SBOM generation" >&2; exit 1; }
+
 ## release: Create a release with goreleaser
-release:
+release: check-release-tools
 	@echo "Creating release..."
 	goreleaser release --clean
 
 ## release-snapshot: Test release without publishing (skips before hooks + docker build)
-release-snapshot:
+release-snapshot: check-release-tools
 	@echo "Creating snapshot release..."
-	goreleaser release --snapshot --clean --skip=before,docker
+	./scripts/release-snapshot.sh
 
 ## install: Install binary to GOPATH/bin
 install:

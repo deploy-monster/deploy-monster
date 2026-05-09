@@ -100,9 +100,9 @@ func (b *BoltStore) Set(bucket, key string, value any, ttlSeconds int64) error {
 	}
 
 	return b.db.Update(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket([]byte(bucket))
-		if bkt == nil {
-			return fmt.Errorf("bucket %q not found", bucket)
+		bkt, err := tx.CreateBucketIfNotExists([]byte(bucket))
+		if err != nil {
+			return fmt.Errorf("create bucket %q: %w", bucket, err)
 		}
 		return bkt.Put([]byte(key), raw)
 	})
@@ -117,9 +117,9 @@ func (b *BoltStore) BatchSet(items []core.BoltBatchItem) error {
 
 	return b.db.Update(func(tx *bolt.Tx) error {
 		for _, item := range items {
-			bkt := tx.Bucket([]byte(item.Bucket))
-			if bkt == nil {
-				return fmt.Errorf("bucket %q not found", item.Bucket)
+			bkt, err := tx.CreateBucketIfNotExists([]byte(item.Bucket))
+			if err != nil {
+				return fmt.Errorf("create bucket %q: %w", item.Bucket, err)
 			}
 
 			data, err := json.Marshal(item.Value)

@@ -1,0 +1,2 @@
+ALTER TABLE servers DROP COLUMN region;
+ALTER TABLE servers DROP COLUMN size;

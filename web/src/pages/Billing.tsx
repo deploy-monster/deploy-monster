@@ -109,7 +109,10 @@ function PlanCardSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function Billing() {
-  const { data: plans, loading: plansLoading } = useApi<Plan[]>('/billing/plans');
+  const { data: plansResp, loading: plansLoading } = useApi<{ data: Plan[] } | Plan[]>(
+    '/billing/plans',
+  );
+  const plans = Array.isArray(plansResp) ? plansResp : plansResp?.data;
   const { data: usage, loading: usageLoading } = useApi<UsageData>('/billing/usage');
 
   const currentPlanId = usage?.plan?.id || 'free';

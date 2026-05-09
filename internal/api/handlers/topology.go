@@ -29,6 +29,19 @@ func NewTopologyHandler(store core.Store, c *core.Core) *TopologyHandler {
 	return &TopologyHandler{store: store, core: c, logger: slog.Default()}
 }
 
+func (h *TopologyHandler) requireTenantProject(ctx context.Context, w http.ResponseWriter, projectID, tenantID string) (*core.Project, bool) {
+	if strings.TrimSpace(projectID) == "" {
+		writeError(w, http.StatusBadRequest, "project_id is required")
+		return nil, false
+	}
+	project, err := h.store.GetProject(ctx, projectID)
+	if err != nil || project == nil || project.TenantID != tenantID {
+		writeError(w, http.StatusNotFound, "project not found")
+		return nil, false
+	}
+	return project, true
+}
+
 // TopologyNode represents a node in the topology editor
 type TopologyNode struct {
 	ID       string         `json:"id"`
@@ -124,6 +137,10 @@ func (h *TopologyHandler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, ok := h.requireTenantProject(r.Context(), w, req.ProjectID, claims.TenantID); !ok {
+		return
+	}
+
 	// Persist topology to BBolt KV store
 	// Key format: topology:{tenantID}:{projectID}:{environment}
 	key := fmt.Sprintf("topology:%s:%s:%s", claims.TenantID, req.ProjectID, req.Environment)
@@ -163,9 +180,7 @@ func (h *TopologyHandler) Load(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Tenant isolation: verify the project belongs to the calling user's tenant
-	project, err := h.store.GetProject(r.Context(), projectID)
-	if err != nil || project.TenantID != claims.TenantID {
-		writeError(w, http.StatusNotFound, "project not found")
+	if _, ok := h.requireTenantProject(r.Context(), w, projectID, claims.TenantID); !ok {
 		return
 	}
 
@@ -300,6 +315,10 @@ func (h *TopologyHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 	envDecoded, _ := url.QueryUnescape(req.Environment)
 	if strings.ContainsAny(projectIDDecoded, "../\\") || strings.ContainsAny(envDecoded, "../\\") {
 		writeError(w, http.StatusBadRequest, "invalid project ID or environment")
+		return
+	}
+
+	if _, ok := h.requireTenantProject(r.Context(), w, req.ProjectID, claims.TenantID); !ok {
 		return
 	}
 

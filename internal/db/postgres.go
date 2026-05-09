@@ -1245,3 +1245,158 @@ func (p *PostgresDB) UpdateBackupStatus(ctx context.Context, id, status string, 
 		status, sizeBytes, completedAt, id)
 	return err
 }
+
+// =====================================================
+// SERVERS
+// =====================================================
+
+// CreateServer inserts a new server row.
+func (p *PostgresDB) CreateServer(ctx context.Context, srv *core.Server) error {
+	if srv.ID == "" {
+		srv.ID = core.GenerateID()
+	}
+	if srv.Role == "" {
+		srv.Role = "worker"
+	}
+	if srv.ProviderType == "" {
+		srv.ProviderType = "custom"
+	}
+	if srv.SSHPort == 0 {
+		srv.SSHPort = 22
+	}
+	if srv.Status == "" {
+		srv.Status = "provisioning"
+	}
+	if srv.AgentStatus == "" {
+		srv.AgentStatus = "unknown"
+	}
+	tenantID := sql.NullString{String: srv.TenantID, Valid: srv.TenantID != ""}
+	sshKeyID := sql.NullString{String: srv.SSHKeyID, Valid: srv.SSHKeyID != ""}
+	swarm := 0
+	if srv.SwarmJoined {
+		swarm = 1
+	}
+
+	_, err := p.db.ExecContext(ctx,
+		`INSERT INTO servers (id, tenant_id, hostname, ip_address, role,
+			provider_type, provider_ref, region, size, ssh_port, ssh_key_id,
+			docker_version, cpu_cores, ram_mb, disk_mb, monthly_cost_cents,
+			swarm_joined, agent_status, status)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+		srv.ID, tenantID, srv.Hostname, srv.IPAddress, srv.Role,
+		srv.ProviderType, srv.ProviderRef, srv.Region, srv.Size,
+		srv.SSHPort, sshKeyID, srv.DockerVersion, srv.CPUCores,
+		srv.RAMmb, srv.DiskMB, srv.MonthlyCostCents, swarm,
+		srv.AgentStatus, srv.Status,
+	)
+	return err
+}
+
+// GetServer fetches a server by ID.
+func (p *PostgresDB) GetServer(ctx context.Context, id string) (*core.Server, error) {
+	srv := &core.Server{}
+	var tenantID, sshKeyID sql.NullString
+	var swarm int
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, tenant_id, hostname, ip_address, role, provider_type, provider_ref,
+			region, size, ssh_port, ssh_key_id, docker_version, cpu_cores, ram_mb,
+			disk_mb, monthly_cost_cents, swarm_joined, agent_status, status, created_at
+		 FROM servers WHERE id = $1`, id,
+	).Scan(&srv.ID, &tenantID, &srv.Hostname, &srv.IPAddress, &srv.Role,
+		&srv.ProviderType, &srv.ProviderRef, &srv.Region, &srv.Size,
+		&srv.SSHPort, &sshKeyID, &srv.DockerVersion, &srv.CPUCores,
+		&srv.RAMmb, &srv.DiskMB, &srv.MonthlyCostCents, &swarm,
+		&srv.AgentStatus, &srv.Status, &srv.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, core.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	srv.TenantID = tenantID.String
+	srv.SSHKeyID = sshKeyID.String
+	srv.SwarmJoined = swarm != 0
+	return srv, nil
+}
+
+// ListServersByTenant returns all servers belonging to a tenant plus shared (NULL tenant) servers.
+func (p *PostgresDB) ListServersByTenant(ctx context.Context, tenantID string) ([]core.Server, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, tenant_id, hostname, ip_address, role, provider_type, provider_ref,
+			region, size, ssh_port, ssh_key_id, docker_version, cpu_cores, ram_mb,
+			disk_mb, monthly_cost_cents, swarm_joined, agent_status, status, created_at
+		 FROM servers
+		 WHERE tenant_id = $1 OR tenant_id IS NULL OR tenant_id = ''
+		 ORDER BY created_at LIMIT 1000`, tenantID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var servers []core.Server
+	for rows.Next() {
+		var srv core.Server
+		var ts sql.NullString
+		var sk sql.NullString
+		var sw int
+		if err := rows.Scan(&srv.ID, &ts, &srv.Hostname, &srv.IPAddress, &srv.Role,
+			&srv.ProviderType, &srv.ProviderRef, &srv.Region, &srv.Size,
+			&srv.SSHPort, &sk, &srv.DockerVersion, &srv.CPUCores,
+			&srv.RAMmb, &srv.DiskMB, &srv.MonthlyCostCents, &sw,
+			&srv.AgentStatus, &srv.Status, &srv.CreatedAt); err != nil {
+			return nil, err
+		}
+		srv.TenantID = ts.String
+		srv.SSHKeyID = sk.String
+		srv.SwarmJoined = sw != 0
+		servers = append(servers, srv)
+	}
+	return servers, rows.Err()
+}
+
+// ListAllServers returns every server in the platform.
+func (p *PostgresDB) ListAllServers(ctx context.Context) ([]core.Server, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT id, tenant_id, hostname, ip_address, role, provider_type, provider_ref,
+			region, size, ssh_port, ssh_key_id, docker_version, cpu_cores, ram_mb,
+			disk_mb, monthly_cost_cents, swarm_joined, agent_status, status, created_at
+		 FROM servers ORDER BY created_at LIMIT 10000`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var servers []core.Server
+	for rows.Next() {
+		var srv core.Server
+		var ts sql.NullString
+		var sk sql.NullString
+		var sw int
+		if err := rows.Scan(&srv.ID, &ts, &srv.Hostname, &srv.IPAddress, &srv.Role,
+			&srv.ProviderType, &srv.ProviderRef, &srv.Region, &srv.Size,
+			&srv.SSHPort, &sk, &srv.DockerVersion, &srv.CPUCores,
+			&srv.RAMmb, &srv.DiskMB, &srv.MonthlyCostCents, &sw,
+			&srv.AgentStatus, &srv.Status, &srv.CreatedAt); err != nil {
+			return nil, err
+		}
+		srv.TenantID = ts.String
+		srv.SSHKeyID = sk.String
+		srv.SwarmJoined = sw != 0
+		servers = append(servers, srv)
+	}
+	return servers, rows.Err()
+}
+
+// UpdateServerStatus updates a server's lifecycle status.
+func (p *PostgresDB) UpdateServerStatus(ctx context.Context, id, status string) error {
+	_, err := p.db.ExecContext(ctx, `UPDATE servers SET status = $1 WHERE id = $2`, status, id)
+	return err
+}
+
+// DeleteServer removes a server row.
+func (p *PostgresDB) DeleteServer(ctx context.Context, id string) error {
+	_, err := p.db.ExecContext(ctx, `DELETE FROM servers WHERE id = $1`, id)
+	return err
+}

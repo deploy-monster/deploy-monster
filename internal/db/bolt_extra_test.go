@@ -145,9 +145,11 @@ func TestBoltExtra_DefaultBuckets(t *testing.T) {
 func TestBoltExtra_NonexistentBucket_Set(t *testing.T) {
 	store := testBolt(t)
 
-	err := store.Set("nonexistent_bucket", "key", "value", 0)
-	if err == nil {
-		t.Error("expected error when setting to nonexistent bucket")
+	// Set auto-creates the bucket — see TestBoltStore_Set_NonExistentBucket
+	// for the rationale (silent first-write failures for unregistered
+	// buckets like user_sessions).
+	if err := store.Set("nonexistent_bucket", "key", "value", 0); err != nil {
+		t.Fatalf("Set should auto-create bucket, got %v", err)
 	}
 }
 

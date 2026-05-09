@@ -139,7 +139,10 @@ function CardSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function Databases() {
-  const { data: databases, loading, refetch } = useApi<DatabaseInstance[]>('/databases');
+  const { data: databasesResp, loading, refetch } = useApi<
+    { data: DatabaseInstance[]; total: number } | DatabaseInstance[]
+  >('/databases');
+  const databases = Array.isArray(databasesResp) ? databasesResp : databasesResp?.data;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [engine, setEngine] = useState('postgres');

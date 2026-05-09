@@ -177,6 +177,33 @@ paths:
                     items:
                       type: string
 
+  # ── Setup / Onboarding ──────────────────────────────
+  /api/v1/setup/checks:
+    get:
+      operationId: getSetupChecks
+      tags: [Health]
+      summary: Get first-run setup checks
+      responses:
+        "200":
+          description: Setup readiness checks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        label:
+                          type: string
+                        value:
+                          type: string
+                        status:
+                          type: string
+                          enum: [ok, warn, fail]
+
   # ── Auth ──────────────────────────────────────────────
   /api/v1/auth/login:
     post:
@@ -1044,12 +1071,22 @@ paths:
               schema:
                 type: object
                 properties:
+                  fqdn:
+                    type: string
                   verified:
                     type: boolean
-                  errors:
+                  records:
                     type: array
                     items:
                       type: string
+                  error:
+                    type: string
+                  checked_at:
+                    type: string
+        "403":
+          description: Domain belongs to another tenant or FQDN mismatch
+        "404":
+          description: Domain not found
 
   # ── Compose Stacks ────────────────────────────────────
   /api/v1/stacks:
@@ -1631,32 +1668,34 @@ paths:
         "202":
           description: Backup started
 
-  /api/v1/backups/{key}/restore:
+  /api/v1/backups/restore/{key...}:
     post:
-      operationId: restoreBackup
+      operationId: restoreBackupByPath
       tags: [Backups]
-      summary: Restore a backup archive
+      summary: Restore a tenant-scoped backup archive
       parameters:
-        - name: key
+        - name: key...
           in: path
           required: true
           schema:
             type: string
+          description: Tenant-scoped backup key, including nested path segments.
       responses:
         "202":
           description: Restore started
 
-  /api/v1/backups/{key}/download:
+  /api/v1/backups/download/{key...}:
     get:
-      operationId: downloadBackup
+      operationId: downloadBackupByPath
       tags: [Backups]
-      summary: Download a backup archive
+      summary: Download a tenant-scoped backup archive
       parameters:
-        - name: key
+        - name: key...
           in: path
           required: true
           schema:
             type: string
+          description: Tenant-scoped backup key, including nested path segments.
       responses:
         "200":
           description: Backup file
@@ -1753,6 +1792,23 @@ paths:
       responses:
         "200":
           description: SSH test result
+
+  /api/v1/servers/{id}:
+    delete:
+      operationId: deleteServer
+      tags: [Servers]
+      summary: Delete a server node
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "204":
+          description: Server deleted
+        "400":
+          description: The local master node cannot be deleted
+        "403":
+          description: Server belongs to a different tenant
+        "404":
+          description: Server not found
 
   /api/v1/servers/{id}/metrics:
     get:
@@ -2827,15 +2883,53 @@ paths:
                     type: string
         "400":
           description: Invalid certificate or key
+        "403":
+          description: Domain belongs to another tenant
+        "404":
+          description: Domain not found
 
   /api/v1/certificates/wildcard:
     post:
       operationId: requestWildcardCertificate
       tags: [Certificates]
       summary: Request a wildcard SSL certificate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain:
+                  type: string
+                dns_provider:
+                  type: string
       responses:
-        "201":
+        "202":
           description: Wildcard certificate requested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  tenant_id:
+                    type: string
+                  domain:
+                    type: string
+                  wildcard:
+                    type: string
+                  dns_provider:
+                    type: string
+                  status:
+                    type: string
+                    enum: [pending, active, failed]
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized
 
   # ── Deploy Freeze ────────────────────────────────────
   /api/v1/deploy/freeze:
@@ -4342,9 +4436,25 @@ paths:
       operationId: batchVerifyDomains
       tags: [Domains]
       summary: Batch verify multiple domains
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fqdns]
+              properties:
+                fqdns:
+                  type: array
+                  items:
+                    type: string
       responses:
         "200":
           description: Verification results
+        "401":
+          description: Unauthorized
+        "403":
+          description: One or more FQDNs do not belong to the tenant
 
   /api/v1/domains/ssl-check:
     get:

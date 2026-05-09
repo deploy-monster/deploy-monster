@@ -17,6 +17,7 @@ var (
 	ErrInvalidInput  = errors.New("invalid input")
 	ErrExpired       = errors.New("expired")
 	ErrInvalidToken  = errors.New("invalid token")
+	ErrUnavailable   = errors.New("unavailable")
 
 	// ErrBoltNotFound is returned by BoltStorer.Get when the key or
 	// bucket is missing. Distinct from ErrNotFound (which the SQL/PG

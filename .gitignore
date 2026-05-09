@@ -16,6 +16,7 @@ web/package-lock.json
 *.db-wal
 *.db-shm
 *.bolt
+backups/
 
 # Test coverage
 *.out

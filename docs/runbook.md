@@ -21,6 +21,7 @@ need right now?" entry point.
 | JWT secret needs rotation (routine) | Scheduled | [Secret rotation runbook](secret-rotation.md#standard-rotation) |
 | JWT secret compromise (emergency) | P0 | [Secret rotation runbook § Emergency compromise](secret-rotation.md#emergency-compromise-response) |
 | Full host loss — restore from scratch | P0 | [§ Disaster recovery](#disaster-recovery) below |
+| Staging launch validation | Scheduled | [Staging validation runbook](staging-validation.md) |
 | Scheduled backup verification | Scheduled | [Upgrade guide § Backup and restore](upgrade-guide.md#backup-and-restore) |
 | Docker socket exposure hardening | Scheduled | [Docker socket hardening](docker-socket-hardening.md) |
 | Agent fleet upgrade | Scheduled | [Upgrade guide § Upgrading agents](upgrade-guide.md#upgrading-agents) |

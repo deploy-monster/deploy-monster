@@ -17,10 +17,12 @@ import (
 // ─── Mock BackupStorage ──────────────────────────────────────────────────────
 
 type mockBackupStorage struct {
-	entries  []core.BackupEntry
-	errList  error
-	errDown  error
-	fileData string // data returned by Download
+	entries         []core.BackupEntry
+	errList         error
+	errDown         error
+	fileData        string // data returned by Download
+	lastListPrefix  string
+	lastDownloadKey string
 }
 
 func (m *mockBackupStorage) Name() string { return "mock" }
@@ -28,6 +30,7 @@ func (m *mockBackupStorage) Upload(_ context.Context, _ string, _ io.Reader, _ i
 	return nil
 }
 func (m *mockBackupStorage) Download(_ context.Context, key string) (io.ReadCloser, error) {
+	m.lastDownloadKey = key
 	if m.errDown != nil {
 		return nil, m.errDown
 	}
@@ -38,7 +41,8 @@ func (m *mockBackupStorage) Download(_ context.Context, key string) (io.ReadClos
 	return io.NopCloser(strings.NewReader(data)), nil
 }
 func (m *mockBackupStorage) Delete(_ context.Context, _ string) error { return nil }
-func (m *mockBackupStorage) List(_ context.Context, _ string) ([]core.BackupEntry, error) {
+func (m *mockBackupStorage) List(_ context.Context, prefix string) ([]core.BackupEntry, error) {
+	m.lastListPrefix = prefix
 	if m.errList != nil {
 		return nil, m.errList
 	}
@@ -59,6 +63,7 @@ func TestBackupList_Success(t *testing.T) {
 	handler := NewBackupHandler(store, storage, events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/backups", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -84,6 +89,9 @@ func TestBackupList_Success(t *testing.T) {
 	if int(total) != 2 {
 		t.Errorf("expected total 2, got %d", int(total))
 	}
+	if storage.lastListPrefix != "tenant1/" {
+		t.Errorf("list prefix = %q, want tenant1/", storage.lastListPrefix)
+	}
 }
 
 func TestBackupList_NilStorage(t *testing.T) {
@@ -92,6 +100,7 @@ func TestBackupList_NilStorage(t *testing.T) {
 	handler := NewBackupHandler(store, nil, events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/backups", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -118,6 +127,7 @@ func TestBackupList_StorageError(t *testing.T) {
 	handler := NewBackupHandler(store, storage, events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/backups", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -130,11 +140,20 @@ func TestBackupList_StorageError(t *testing.T) {
 
 // ─── Create ──────────────────────────────────────────────────────────────────
 
+type fakeBackupTrigger struct{ called bool }
+
+func (f *fakeBackupTrigger) TriggerNow(_ context.Context) error {
+	f.called = true
+	return nil
+}
+
 func TestBackupCreate_Success(t *testing.T) {
 	store := newMockStore()
 	storage := &mockBackupStorage{}
 	events := core.NewEventBus(slog.Default())
 	handler := NewBackupHandler(store, storage, events)
+	trigger := &fakeBackupTrigger{}
+	handler.SetTrigger(trigger)
 
 	body, _ := json.Marshal(map[string]string{
 		"source_type": "volume",
@@ -150,13 +169,33 @@ func TestBackupCreate_Success(t *testing.T) {
 	if rr.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d: %s", rr.Code, rr.Body.String())
 	}
-
+	if !trigger.called {
+		t.Error("expected TriggerNow to be invoked")
+	}
 	var resp map[string]string
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if resp["status"] != "queued" {
-		t.Errorf("expected status 'queued', got %q", resp["status"])
+	if resp["status"] != "running" {
+		t.Errorf("expected status 'running', got %q", resp["status"])
+	}
+}
+
+func TestBackupCreate_NoTrigger(t *testing.T) {
+	store := newMockStore()
+	storage := &mockBackupStorage{}
+	events := core.NewEventBus(slog.Default())
+	handler := NewBackupHandler(store, storage, events)
+
+	body, _ := json.Marshal(map[string]string{"source_type": "volume", "source_id": "vol-1"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/backups", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when no trigger wired, got %d", rr.Code)
 	}
 }
 
@@ -205,8 +244,8 @@ func TestBackupRestore_Success(t *testing.T) {
 	events := core.NewEventBus(slog.Default())
 	handler := NewBackupHandler(store, storage, events)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/backups/backup-001.tar.gz/restore", nil)
-	req.SetPathValue("key", "backup-001.tar.gz")
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/backups/tenant1/app1/backup-001.tar.gz/restore", nil)
+	req.SetPathValue("key", "tenant1/app1/backup-001.tar.gz")
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
@@ -222,5 +261,29 @@ func TestBackupRestore_Success(t *testing.T) {
 	}
 	if resp["status"] != "queued" {
 		t.Errorf("expected status 'queued', got %q", resp["status"])
+	}
+	if storage.lastDownloadKey != "tenant1/app1/backup-001.tar.gz" {
+		t.Errorf("download key = %q, want tenant1/app1/backup-001.tar.gz", storage.lastDownloadKey)
+	}
+}
+
+func TestBackupRestore_CrossTenantKey(t *testing.T) {
+	store := newMockStore()
+	storage := &mockBackupStorage{fileData: "backup-data"}
+	events := core.NewEventBus(slog.Default())
+	handler := NewBackupHandler(store, storage, events)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/backups/tenant2/app1/backup-001.tar.gz/restore", nil)
+	req.SetPathValue("key", "tenant2/app1/backup-001.tar.gz")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Restore(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if storage.lastDownloadKey != "" {
+		t.Fatalf("cross-tenant restore reached storage with key %q", storage.lastDownloadKey)
 	}
 }

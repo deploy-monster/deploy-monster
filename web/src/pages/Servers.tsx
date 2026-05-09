@@ -163,7 +163,12 @@ function CardSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function Servers() {
-  const { data: servers, loading, refetch } = useApi<ServerNode[]>('/servers');
+  const { data: serversResp, loading, refetch } = useApi<
+    { data: ServerNode[]; total: number } | ServerNode[]
+  >('/servers');
+  const servers: ServerNode[] = Array.isArray(serversResp)
+    ? serversResp
+    : serversResp?.data ?? [];
   const [dialogOpen, setDialogOpen] = useState(false);
   const [provider, setProvider] = useState('custom');
   const [hostname, setHostname] = useState('');
@@ -202,7 +207,7 @@ export function Servers() {
     }
   };
 
-  const remoteServers = (servers || []).filter((s) => s.id !== 'local' && s.provider !== 'local');
+  const remoteServers = servers.filter((s) => s.id !== 'local' && s.provider !== 'local');
   const activeCount = remoteServers.filter((s) => s.status === 'active' || s.status === 'running').length;
 
   return (

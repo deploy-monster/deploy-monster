@@ -23,8 +23,15 @@ func TestFinal_StreamLogs_NilRuntime(t *testing.T) {
 	rr := httptest.NewRecorder()
 	ls.StreamLogs(rr, req)
 
-	if rr.Code != http.StatusServiceUnavailable {
-		t.Errorf("expected 503, got %d", rr.Code)
+	// SSE keeps a 200 status with an inline `event: error` so clients can
+	// surface the runtime-unavailable reason. 503 made EventSource
+	// silently retry forever and the panel showed "Waiting for logs…".
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "event: error") || !strings.Contains(body, "container runtime not available") {
+		t.Errorf("expected SSE error event, got %q", body)
 	}
 }
 

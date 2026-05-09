@@ -149,6 +149,7 @@ func TestAutoRestarter_HandleCrash_RestartSucceeds(t *testing.T) {
 
 	ar := NewAutoRestarter(runtime, store, events, logger)
 	ar.maxRetries = 1 // Just one attempt
+	disableAutoRestartBackoff(ar)
 
 	ar.handleCrash(context.Background(), "app-1", "container-abc")
 
@@ -180,6 +181,7 @@ func TestAutoRestarter_HandleCrash_RestartFails(t *testing.T) {
 
 	ar := NewAutoRestarter(runtime, store, events, logger)
 	ar.maxRetries = 1
+	disableAutoRestartBackoff(ar)
 
 	ar.handleCrash(context.Background(), "app-fail", "container-xyz")
 
@@ -258,6 +260,7 @@ func TestAutoRestarter_CheckCrashed_ExitedContainers(t *testing.T) {
 
 	ar := NewAutoRestarter(runtime, store, events, logger)
 	ar.maxRetries = 1
+	disableAutoRestartBackoff(ar)
 
 	ar.checkCrashed()
 

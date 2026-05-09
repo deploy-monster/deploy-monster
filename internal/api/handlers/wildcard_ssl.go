@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -20,6 +21,7 @@ func NewWildcardSSLHandler(bolt core.BoltStorer) *WildcardSSLHandler {
 // WildcardCertConfig defines a wildcard SSL request.
 type WildcardCertConfig struct {
 	ID          string `json:"id"`
+	TenantID    string `json:"tenant_id"`
 	Domain      string `json:"domain"`       // e.g., example.com
 	Wildcard    string `json:"wildcard"`     // *.example.com
 	DNSProvider string `json:"dns_provider"` // cloudflare, route53
@@ -28,6 +30,12 @@ type WildcardCertConfig struct {
 
 // Request handles POST /api/v1/certificates/wildcard
 func (h *WildcardSSLHandler) Request(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	var req struct {
 		Domain      string `json:"domain"`
 		DNSProvider string `json:"dns_provider"`
@@ -45,6 +53,7 @@ func (h *WildcardSSLHandler) Request(w http.ResponseWriter, r *http.Request) {
 	certID := core.GenerateID()
 	cfg := WildcardCertConfig{
 		ID:          certID,
+		TenantID:    claims.TenantID,
 		Domain:      req.Domain,
 		Wildcard:    "*." + req.Domain,
 		DNSProvider: req.DNSProvider,
@@ -52,13 +61,13 @@ func (h *WildcardSSLHandler) Request(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store the wildcard cert request
-	if err := h.bolt.Set("wildcard_ssl", certID, cfg, 0); err != nil {
+	if err := h.bolt.Set("wildcard_ssl", claims.TenantID+":"+certID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save wildcard certificate request")
 		return
 	}
 
 	// Also index by domain for lookups
-	if err := h.bolt.Set("wildcard_ssl_domain", req.Domain, cfg, 0); err != nil {
+	if err := h.bolt.Set("wildcard_ssl_domain", claims.TenantID+":"+req.Domain, cfg, 0); err != nil {
 		slog.Error("failed to index wildcard cert by domain", "domain", req.Domain, "error", err)
 	}
 

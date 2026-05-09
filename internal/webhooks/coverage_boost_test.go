@@ -91,6 +91,9 @@ func TestDeliveryTracker_Start_SentEvent(t *testing.T) {
 	if log.URL != "https://example.com/hook" {
 		t.Errorf("url = %q, want https://example.com/hook", log.URL)
 	}
+	if log.TenantID != "t1" || log.UserID != "u1" {
+		t.Errorf("tenant/user = %q/%q, want t1/u1", log.TenantID, log.UserID)
+	}
 }
 
 func TestDeliveryTracker_Start_FailedEvent(t *testing.T) {
@@ -118,6 +121,9 @@ func TestDeliveryTracker_Start_FailedEvent(t *testing.T) {
 	}
 	if log.Error != "connection refused" {
 		t.Errorf("error = %q, want connection refused", log.Error)
+	}
+	if log.TenantID != "t1" || log.UserID != "u1" {
+		t.Errorf("tenant/user = %q/%q, want t1/u1", log.TenantID, log.UserID)
 	}
 }
 

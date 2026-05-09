@@ -301,17 +301,23 @@ func TestProvision_Success(t *testing.T) {
 		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	var inst core.VPSInstance
-	json.Unmarshal(rr.Body.Bytes(), &inst)
+	var node serverNode
+	json.Unmarshal(rr.Body.Bytes(), &node)
 
-	if inst.Name != "my-server" {
-		t.Errorf("expected name my-server, got %q", inst.Name)
+	if node.Hostname != "my-server" {
+		t.Errorf("expected hostname my-server, got %q", node.Hostname)
 	}
-	if inst.IPAddress == "" {
+	if node.IPAddress == "" {
 		t.Error("expected non-empty IP address")
 	}
-	if inst.ID == "" {
+	if node.ID == "" {
 		t.Error("expected non-empty instance ID")
+	}
+	if node.Provider != "hetzner" || node.Region != "fsn1" || node.Size != "cx11" {
+		t.Errorf("expected provider/region/size echoed back, got %+v", node)
+	}
+	if store.lastCreatedServer == nil || store.lastCreatedServer.Hostname != "my-server" {
+		t.Error("expected server to be persisted via store.CreateServer")
 	}
 }
 
@@ -493,5 +499,79 @@ func TestProvision_ProviderError(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestServerHandler_List_IsTenantScoped(t *testing.T) {
+	store := newMockStore()
+	store.addServer(&core.Server{ID: "srv-t1", TenantID: "tenant1", Hostname: "tenant-1", Status: "active"})
+	store.addServer(&core.Server{ID: "srv-t2", TenantID: "tenant2", Hostname: "tenant-2", Status: "active"})
+	store.addServer(&core.Server{ID: "srv-shared", Hostname: "shared", Status: "active"})
+	handler := NewServerHandler(store, core.NewServices(), core.NewEventBus(nil))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.List(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Data []serverNode `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, node := range resp.Data {
+		seen[node.ID] = true
+	}
+	if !seen["srv-t1"] || !seen["srv-shared"] {
+		t.Fatalf("expected tenant and shared servers, saw %+v", seen)
+	}
+	if seen["srv-t2"] {
+		t.Fatalf("cross-tenant server was listed: %+v", seen)
+	}
+}
+
+func TestServerHandler_Delete_CrossTenantForbidden(t *testing.T) {
+	store := newMockStore()
+	store.addServer(&core.Server{ID: "srv-t2", TenantID: "tenant2", Hostname: "tenant-2", Status: "active"})
+	handler := NewServerHandler(store, core.NewServices(), core.NewEventBus(nil))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/servers/srv-t2", nil)
+	req.SetPathValue("id", "srv-t2")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Delete(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if store.deletedServerID != "" {
+		t.Fatalf("cross-tenant server was deleted: %s", store.deletedServerID)
+	}
+}
+
+func TestServerHandler_Delete_SharedServerForbidden(t *testing.T) {
+	store := newMockStore()
+	store.addServer(&core.Server{ID: "srv-shared", Hostname: "shared", Status: "active"})
+	handler := NewServerHandler(store, core.NewServices(), core.NewEventBus(nil))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/servers/srv-shared", nil)
+	req.SetPathValue("id", "srv-shared")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Delete(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if store.deletedServerID != "" {
+		t.Fatalf("shared server was deleted: %s", store.deletedServerID)
 	}
 }

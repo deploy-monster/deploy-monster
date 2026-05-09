@@ -134,7 +134,8 @@ function AlertRow({ alert }: { alert: AlertRule }) {
 
 export function Monitoring() {
   const { data: metrics, loading, refetch } = useApi<ServerMetrics>('/metrics/server', { refreshInterval: 10000 });
-  const { data: alerts } = useApi<AlertRule[]>('/alerts');
+  const { data: alertsResp } = useApi<{ data: AlertRule[] } | AlertRule[]>('/alerts');
+  const alerts = Array.isArray(alertsResp) ? alertsResp : alertsResp?.data;
   const [, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {

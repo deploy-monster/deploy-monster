@@ -32,13 +32,23 @@ interface CreateAppRequest {
   project_id?: string;
 }
 
+interface UpdateAppRequest {
+  name?: string;
+  source_url?: string;
+  branch?: string;
+  dockerfile?: string;
+  replicas?: number;
+}
+
 export const appsAPI = {
   list: (page = 1, perPage = 20) =>
     api.get<PaginatedResponse<App>>(`/apps?page=${page}&per_page=${perPage}`),
   get: (id: string) => api.get<App>(`/apps/${id}`),
   create: (data: CreateAppRequest) => api.post<App>('/apps', data),
+  update: (id: string, data: UpdateAppRequest) => api.patch<App>(`/apps/${id}`, data),
   delete: (id: string) => api.delete(`/apps/${id}`),
   restart: (id: string) => api.post(`/apps/${id}/restart`),
   stop: (id: string) => api.post(`/apps/${id}/stop`),
   start: (id: string) => api.post(`/apps/${id}/start`),
+  deploy: (id: string) => api.post(`/apps/${id}/deploy`),
 };

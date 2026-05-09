@@ -812,3 +812,14 @@ func TestSyncDomainRecords_RecordTypes(t *testing.T) {
 		t.Fatalf("expected 2 create calls, got %d", mock.createCalls)
 	}
 }
+
+func (m *mockStore) CreateServer(_ context.Context, _ *core.Server) error { return nil }
+func (m *mockStore) GetServer(_ context.Context, _ string) (*core.Server, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockStore) ListServersByTenant(_ context.Context, _ string) ([]core.Server, error) {
+	return nil, nil
+}
+func (m *mockStore) ListAllServers(_ context.Context) ([]core.Server, error) { return nil, nil }
+func (m *mockStore) UpdateServerStatus(_ context.Context, _, _ string) error { return nil }
+func (m *mockStore) DeleteServer(_ context.Context, _ string) error          { return nil }

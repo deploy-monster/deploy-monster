@@ -1038,6 +1038,8 @@ func TestDNSRecordHandler_Delete_NoProvider(t *testing.T) {
 
 func TestDomainVerifyHandler_Verify_EmptyFQDN(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1"})
+	store.addDomain(&core.Domain{ID: "dom-1", AppID: "app-1", FQDN: ""})
 	h := NewDomainVerifyHandler(store, newMockBoltStore())
 
 	body := `{"fqdn":""}`
@@ -1054,6 +1056,8 @@ func TestDomainVerifyHandler_Verify_EmptyFQDN(t *testing.T) {
 
 func TestDomainVerifyHandler_Verify_WithFQDN(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1"})
+	store.addDomain(&core.Domain{ID: "dom-1", AppID: "app-1", FQDN: "localhost"})
 	h := NewDomainVerifyHandler(store, newMockBoltStore())
 
 	body := `{"fqdn":"localhost"}`
@@ -1070,10 +1074,13 @@ func TestDomainVerifyHandler_Verify_WithFQDN(t *testing.T) {
 
 func TestDomainVerifyHandler_BatchVerify(t *testing.T) {
 	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1"})
+	store.addDomain(&core.Domain{ID: "dom-1", AppID: "app-1", FQDN: "localhost"})
 	h := NewDomainVerifyHandler(store, newMockBoltStore())
 
 	body := `{"fqdns":["localhost"]}`
 	req := httptest.NewRequest("POST", "/api/v1/domains/verify-batch", strings.NewReader(body))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.BatchVerify(rr, req)
 
@@ -1087,6 +1094,7 @@ func TestDomainVerifyHandler_BatchVerify_InvalidBody(t *testing.T) {
 	h := NewDomainVerifyHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest("POST", "/api/v1/domains/verify-batch", strings.NewReader("bad"))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 	rr := httptest.NewRecorder()
 	h.BatchVerify(rr, req)
 
