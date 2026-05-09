@@ -289,6 +289,7 @@ Validation:
 
 ```bash
 scripts/build.sh
+scripts/release-snapshot.sh
 make docker
 make release-snapshot
 ```

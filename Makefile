@@ -193,8 +193,8 @@ coverage: test
 
 ## check-release-tools: Verify local release tooling is installed
 check-release-tools:
-	@command -v goreleaser >/dev/null 2>&1 || { echo "goreleaser is required: https://goreleaser.com/install/" >&2; exit 1; }
-	@command -v syft >/dev/null 2>&1 || { echo "syft is required for GoReleaser SBOM generation: https://github.com/anchore/syft#installation" >&2; exit 1; }
+	@command -v goreleaser >/dev/null 2>&1 || { echo "goreleaser is required for release builds" >&2; exit 1; }
+	@command -v syft >/dev/null 2>&1 || { echo "syft is required for GoReleaser SBOM generation" >&2; exit 1; }
 
 ## release: Create a release with goreleaser
 release: check-release-tools
@@ -204,7 +204,7 @@ release: check-release-tools
 ## release-snapshot: Test release without publishing (skips before hooks + docker build)
 release-snapshot: check-release-tools
 	@echo "Creating snapshot release..."
-	goreleaser release --snapshot --clean --skip=before,docker
+	./scripts/release-snapshot.sh
 
 ## install: Install binary to GOPATH/bin
 install:
