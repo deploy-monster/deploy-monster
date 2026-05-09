@@ -30,6 +30,7 @@ Do not paste secrets. Store passwords, API tokens, S3 keys, and
 - [ ] Release-shaped binary was built from a clean checkout.
 - [ ] `deploymonster version` output was recorded.
 - [ ] `deploymonster help` succeeded.
+- [ ] `scripts/staging-preflight.sh` passed.
 - [ ] Staging host disk capacity is at least 3x current data size.
 - [ ] DNS TTLs are low enough for cutover testing.
 
@@ -96,4 +97,3 @@ Attach `scripts/staging-smoke.sh` output.
 ## Exceptions
 
 List any accepted exceptions, owner, follow-up issue, and rollback plan.
-

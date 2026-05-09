@@ -40,12 +40,20 @@ keys, and `MONSTER_SECRET` in the team password manager.
    ./bin/deploymonster version
    ./bin/deploymonster help >/dev/null
    ```
-3. Confirm the staging host has enough space for a local restore drill:
+3. Run the staging pre-flight helper:
+   ```bash
+   STAGING_SSH_HOST=<user@host> \
+   STAGING_BASE_URL=https://staging.example.com \
+   STAGING_TEST_APP_DOMAIN=test-<timestamp>.staging.example.com \
+   ./scripts/staging-preflight.sh
+   ```
+4. Confirm the staging host has enough space for a local restore drill
+   manually if the helper is not available:
    ```bash
    ssh <host> 'df -h /var/lib/deploymonster || df -h /'
    ```
    Require at least three times the current data directory size.
-4. Confirm DNS TTLs are short enough for cutover testing:
+5. Confirm DNS TTLs are short enough for cutover testing:
    ```bash
    dig +short <staging-domain>
    dig +short <test-app-domain>
