@@ -272,6 +272,9 @@ Goal: releases are repeatable and verifiable.
 
 Tasks:
 
+- Install local release tooling before running release targets:
+  - `goreleaser`
+  - `syft` (used by GoReleaser SBOM generation)
 - Verify `scripts/build.sh` produces the expected embedded UI binary.
 - Test release Docker image and development Docker image.
 - Smoke-test CLI commands:
