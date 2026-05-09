@@ -8,11 +8,11 @@ dependency: do not add major features until the earlier gates are green.
 
 ## Current Status
 
-- PR #43 (`codex/launch-hardening`) is ready for review, mergeable, and green
-  on GitHub CI as of 2026-05-09.
-- Sprint 0 through Sprint 6 in-repo readiness work is complete for the current
-  launch-hardening branch. The remaining launch gate is external staging proof,
-  not additional local code cleanup.
+- PR #43 is merged to `master` as commit `e911ba7`, and post-merge GitHub CI is
+  green as of 2026-05-09.
+- Sprint 0 through Sprint 7 in-repo readiness work is complete on `master`. The
+  remaining launch gate is external staging proof, not additional local code
+  cleanup.
 - Critical mutating API routes now use permission-aware middleware,
   viewer-role regression coverage was added, and non-app resource operations
   now have dedicated permission names for network, volume, registry, backup,

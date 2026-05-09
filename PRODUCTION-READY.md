@@ -1,21 +1,21 @@
 # DeployMonster — Production Readiness
 
 **Status:** CONDITIONAL GO
-**Version:** v0.1.8 candidate
+**Release candidate:** `master` at `e911ba7`
 **Report date:** 2026-05-09
 **Owner:** Ersin / ECOSTACK TECHNOLOGY OÜ
 
-This file is the executive readiness pointer for the current branch.
+This file is the executive readiness pointer for the current release
+candidate.
 Detailed historical analysis remains in `docs/archive/`; current release
-evidence should be attached to the PR or release issue.
+evidence should be attached to the release issue.
 
 ## Verdict
 
-**Ship to self-hosted single-tenant production: GO after review and
-merge.**
+**Ship to self-hosted single-tenant production: GO.**
 
 **Ship to hosted multi-tenant SaaS: CONDITIONAL GO.** The code and CI
-state are ready for review, but hosted SaaS launch must wait for real
+state are merged to `master`, but hosted SaaS launch must wait for real
 staging proof:
 
 - staging install or upgrade from the release candidate
@@ -33,8 +33,7 @@ The required procedure is documented in
 
 ## Current Evidence
 
-PR #43 (`codex/launch-hardening`) is ready for review, mergeable, and
-green on current-head CI:
+PR #43 is merged. Post-merge `master` CI is green on commit `e911ba7`:
 
 | Gate | Status |
 |---|---|
@@ -46,9 +45,10 @@ green on current-head CI:
 | Secrets scan | Passing |
 | Playwright E2E | Passing |
 | Cross-platform release build matrix | Passing |
+| Docker image build, CLI smoke, server smoke | Passing |
 
-The Docker job is skipped on the PR path by workflow condition. Docker
-image publication must still be verified on the release path.
+Release artifact and image publication must still be verified on the
+tag-driven release workflow path.
 
 ## What Changed Since The April Readiness Review
 
@@ -57,23 +57,21 @@ image publication must still be verified on the release path.
 - RBAC route permissions were expanded for non-app operator actions.
 - OpenAPI drift, README coverage drift, and project-status drift were
   corrected.
-- Frontend, backend, integration, E2E, secrets, and build-matrix gates
-  are green on GitHub.
+- Frontend, backend, integration, E2E, secrets, build-matrix, and Docker
+  gates are green on GitHub.
 - `docs/staging-validation.md` now defines the required external proof
   before a hosted SaaS launch.
 
 ## Remaining Blockers For Hosted SaaS
 
-1. Human review and merge of PR #43.
-2. Staging validation on real infrastructure.
-3. Backup/restore and rollback evidence attached to the release issue.
-4. Load and short-soak evidence attached to the release issue.
-5. Release artifacts and Docker images published from the release
+1. Staging validation on real infrastructure.
+2. Backup/restore and rollback evidence attached to the release issue.
+3. Load and short-soak evidence attached to the release issue.
+4. Release artifacts and Docker images published from the release
    workflow.
 
 ## Known Risks
 
-- The PR is large and still needs human review.
 - CI cannot prove real DNS, ACME, cloud storage, webhook-provider, or
   Docker-host behavior.
 - Docker socket access remains an intentionally powerful operational

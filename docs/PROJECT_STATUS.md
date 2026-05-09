@@ -1,11 +1,12 @@
 # DeployMonster Project Status
 
 **Last updated:** 2026-05-09
-**Current branch under review:** `codex/launch-hardening` / PR #43
+**Current release branch:** `master`
+**Current release commit:** `e911ba7`
 **Readiness verdict:** conditional go
 
 DeployMonster is ready for self-hosted, single-tenant operation after
-the launch-hardening work in PR #43. Multi-tenant SaaS launch remains
+the launch-hardening work merged from PR #43. Multi-tenant SaaS launch remains
 conditional until the staging validation, backup/restore drill,
 rollback drill, and release artifact publication are completed on real
 infrastructure.
@@ -20,11 +21,11 @@ This page is a short status pointer. For detailed evidence, use:
   the sprint-by-sprint implementation plan.
 - [`docs/staging-validation.md`](staging-validation.md) for the required
   pre-release staging proof.
-- GitHub PR #43 for current CI evidence.
+- GitHub run `25599779035` for post-merge `master` CI evidence.
 
 ## Current Evidence
 
-PR #43 current-head CI is green:
+Post-merge `master` CI is green on commit `e911ba7`:
 
 | Gate | Status |
 |---|---|
@@ -36,10 +37,10 @@ PR #43 current-head CI is green:
 | Secrets scan | Passing |
 | Playwright E2E | Passing |
 | Cross-platform release build matrix | Passing |
+| Docker image build, CLI smoke, server smoke | Passing |
 
-The Docker publish job is skipped on this PR path by workflow
-condition; image publication still needs to be verified on the release
-path.
+Release publication still needs to be verified on the tag-driven
+release workflow path.
 
 ## What Is Ready
 
@@ -72,20 +73,20 @@ path.
    follow [`docker-socket-hardening.md`](docker-socket-hardening.md).
 3. **Kubernetes is intentionally out of scope.** See
    [`adr/0003-no-kubernetes.md`](adr/0003-no-kubernetes.md).
-4. **Release Docker publish is not proven by PR CI.** It is skipped
-   outside the release path.
+4. **Release publication is not complete.** CI proves the Docker image
+   build and smoke path, but the tag-driven release workflow still must
+   publish artifacts and the GHCR image.
 5. **Staging validation is not optional.** CI proves code paths; it does
    not prove real DNS, ACME, cloud storage, or provider integrations.
 
 ## Next Required Actions
 
-1. Review and merge PR #43.
-2. Execute [`docs/staging-validation.md`](staging-validation.md) on a
+1. Execute [`docs/staging-validation.md`](staging-validation.md) on a
    disposable staging host.
-3. Attach staging smoke, backup/restore, rollback, load, and soak
+2. Attach staging smoke, backup/restore, rollback, load, and soak
    evidence to the release issue.
-4. Build and publish release artifacts/images from the release workflow.
-5. Cut the release only after the go/no-go checklist is complete.
+3. Build and publish release artifacts/images from the release workflow.
+4. Cut the release only after the go/no-go checklist is complete.
 
 ## License
 
