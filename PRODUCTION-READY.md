@@ -1,7 +1,7 @@
 # DeployMonster — Production Readiness
 
 **Status:** CONDITIONAL GO
-**Release candidate:** `master` at `e911ba7`
+**Release candidate:** latest `master` HEAD
 **Report date:** 2026-05-09
 **Owner:** Ersin / ECOSTACK TECHNOLOGY OÜ
 
@@ -33,7 +33,7 @@ The required procedure is documented in
 
 ## Current Evidence
 
-PR #43 is merged. Post-merge `master` CI is green on commit `e911ba7`:
+PR #43 is merged. Post-merge `master` CI is green:
 
 | Gate | Status |
 |---|---|

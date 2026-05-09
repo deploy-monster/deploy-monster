@@ -8,8 +8,8 @@ dependency: do not add major features until the earlier gates are green.
 
 ## Current Status
 
-- PR #43 is merged to `master` as commit `e911ba7`, and post-merge GitHub CI is
-  green as of 2026-05-09.
+- PR #43 is merged to `master`, and post-merge GitHub CI is green as of
+  2026-05-09.
 - Sprint 0 through Sprint 7 in-repo readiness work is complete on `master`. The
   remaining launch gate is external staging proof, not additional local code
   cleanup.

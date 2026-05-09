@@ -4,6 +4,11 @@ Use this runbook before marking a release candidate production-ready.
 It assumes the branch already passes CI and that you have a disposable
 staging host with Docker, DNS control, and a smoke-test admin account.
 
+Open a release validation issue with the
+[`Release validation`](../.github/ISSUE_TEMPLATE/release_validation.md)
+template before starting. Use that issue to track the inputs, evidence,
+exceptions, and final go/no-go decision.
+
 ## Inputs
 
 Record these values in the release issue before starting:

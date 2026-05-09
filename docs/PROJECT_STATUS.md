@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-09
 **Current release branch:** `master`
-**Current release commit:** `e911ba7`
+**Current release commit:** latest `master` HEAD
 **Readiness verdict:** conditional go
 
 DeployMonster is ready for self-hosted, single-tenant operation after
@@ -21,11 +21,11 @@ This page is a short status pointer. For detailed evidence, use:
   the sprint-by-sprint implementation plan.
 - [`docs/staging-validation.md`](staging-validation.md) for the required
   pre-release staging proof.
-- GitHub run `25599779035` for post-merge `master` CI evidence.
+- Latest successful `master` CI run for post-merge evidence.
 
 ## Current Evidence
 
-Post-merge `master` CI is green on commit `e911ba7`:
+Post-merge `master` CI is green:
 
 | Gate | Status |
 |---|---|
