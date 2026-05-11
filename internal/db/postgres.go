@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -608,9 +609,180 @@ func hashAppIDToLockID(appID string) int64 {
 	return int64(h & 0x7FFFFFFFFFFFFFFF) // Ensure positive
 }
 
-// =====================================================
-// Domain CRUD
-// =====================================================
+// leaderLockKey converts a string key (e.g. "deploymonster:leader") to a
+// stable int64 by hashing it. This avoids collisions between keys that
+// would otherwise map to the same small integer space.
+func leaderLockKey(key string) int64 {
+	h := 0
+	for i := 0; i < len(key); i++ {
+		h = 31*h + int(key[i])
+	}
+	return int64(h & 0x7FFFFFFFFFFFFFFF)
+}
+
+// PostgresLeaderElector implements LeaderElector using PostgreSQL advisory
+// locks. Since pg_advisory_xact_lock is transaction-scoped and
+// automatically released at commit, we use pg_advisory_lock (session-scoped)
+// for leadership that persists across transactions, paired with a row in
+// a leadership table to track who holds the lock and until when.
+type PostgresLeaderElector struct {
+	db *sql.DB
+}
+
+// NewPostgresLeaderElector creates a leader elector backed by PostgreSQL.
+// The provided *sql.DB should be the same underlying connection pool used
+// by PostgresDB so that advisory locks are shared across both.
+func NewPostgresLeaderElector(db *sql.DB) *PostgresLeaderElector {
+	return &PostgresLeaderElector{db: db}
+}
+
+var _ core.LeaderElector = (*PostgresLeaderElector)(nil)
+
+// Elect attempts to acquire leadership for the given key. On success,
+// this instance becomes the leader and holds it for leaseDuration.
+// Other instances attempting Elect for the same key will return (false, nil)
+// until the lease expires or this instance calls Resign.
+func (p *PostgresLeaderElector) Elect(ctx context.Context, key string, leaseDuration time.Duration) (bool, error) {
+	lockID := leaderLockKey(key)
+	instanceID := hostname()
+
+	// Try to insert a leadership row — if another instance already holds
+	// leadership (and it hasn't expired), the INSERT fails with a unique
+	// constraint violation and we lose the election.
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin election tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Clean up any stale leadership from crashed instances first.
+	_, _ = tx.ExecContext(ctx,
+		`DELETE FROM _leader_election WHERE key = $1 AND expires_at < NOW()`,
+		key,
+	)
+
+	// Attempt to claim leadership.
+	expiresAt := time.Now().Add(leaseDuration)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO _leader_election (key, instance_id, expires_at)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (key) DO NOTHING`,
+		key, instanceID, expiresAt,
+	)
+	if err != nil {
+		return false, fmt.Errorf("insert leadership claim: %w", err)
+	}
+
+	// Check if we actually got the row (ON CONFLICT DO NOTHING means no error
+	// on conflict, but no row inserted either). Use a separate query to confirm.
+	var holder string
+	err = tx.QueryRowContext(ctx,
+		`SELECT instance_id FROM _leader_election WHERE key = $1 AND expires_at > NOW()`,
+		key,
+	).Scan(&holder)
+	if err == sql.ErrNoRows {
+		_ = tx.Rollback()
+		return false, nil // another instance won
+	}
+	if err != nil {
+		return false, fmt.Errorf("check leadership: %w", err)
+	}
+	if holder != instanceID {
+		_ = tx.Rollback()
+		return false, nil
+	}
+
+	// Acquire the PostgreSQL advisory lock to guarantee mutual exclusion.
+	_, err = tx.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, lockID)
+	if err != nil {
+		return false, fmt.Errorf("acquire advisory lock: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		// Try to release the lock on failure even though transaction failed.
+		_, _ = p.db.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, lockID)
+		return false, fmt.Errorf("commit election: %w", err)
+	}
+
+	return true, nil
+}
+
+// Renew extends the leadership lease. Returns true if leadership is still held
+// (and is now valid until leaseDuration from now). Returns false if leadership
+// was lost or the key doesn't exist.
+func (p *PostgresLeaderElector) Renew(ctx context.Context, key string, leaseDuration time.Duration) (bool, error) {
+	instanceID := hostname()
+
+	var holder string
+	err := p.db.QueryRowContext(ctx,
+		`SELECT instance_id FROM _leader_election WHERE key = $1 AND expires_at > NOW()`,
+		key,
+	).Scan(&holder)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("check leadership for renew: %w", err)
+	}
+	if holder != instanceID {
+		return false, nil
+	}
+
+	// Refresh the expiry time and extend the advisory lock.
+	expiresAt := time.Now().Add(leaseDuration)
+	_, err = p.db.ExecContext(ctx,
+		`UPDATE _leader_election SET expires_at = $1 WHERE key = $2 AND instance_id = $3`,
+		expiresAt, key, instanceID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("renew leadership: %w", err)
+	}
+
+	return true, nil
+}
+
+// Resign voluntarily releases leadership so another instance can take over.
+func (p *PostgresLeaderElector) Resign(ctx context.Context, key string) error {
+	lockID := leaderLockKey(key)
+	instanceID := hostname()
+
+	_, err := p.db.ExecContext(ctx,
+		`DELETE FROM _leader_election WHERE key = $1 AND instance_id = $2`,
+		key, instanceID,
+	)
+	if err != nil {
+		return fmt.Errorf("resign leadership: %w", err)
+	}
+
+	_, _ = p.db.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, lockID)
+	return nil
+}
+
+// IsLeader reports whether this instance currently holds leadership for the key.
+func (p *PostgresLeaderElector) IsLeader(ctx context.Context, key string) (bool, error) {
+	instanceID := hostname()
+	var holder string
+	err := p.db.QueryRowContext(ctx,
+		`SELECT instance_id FROM _leader_election WHERE key = $1 AND expires_at > NOW()`,
+		key,
+	).Scan(&holder)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("isleader check: %w", err)
+	}
+	return holder == instanceID, nil
+}
+
+// hostname returns the current hostname or a generated ID as a fallback.
+func hostname() string {
+	h, _ := os.Hostname()
+	if h == "" {
+		return core.GenerateID()
+	}
+	return h
+}
 
 func (p *PostgresDB) CreateDomain(ctx context.Context, d *core.Domain) error {
 	if d.ID == "" {

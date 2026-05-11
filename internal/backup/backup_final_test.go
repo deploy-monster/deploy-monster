@@ -20,7 +20,7 @@ import (
 
 func TestLocalStorage_List_WithMultipleFiles(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	// Create files
 	os.WriteFile(filepath.Join(dir, "bk-001.tar"), []byte("data1"), 0644)
@@ -44,7 +44,7 @@ func TestLocalStorage_List_WithMultipleFiles(t *testing.T) {
 // by creating a symlink that points to a non-existent target on supported platforms.
 func TestLocalStorage_List_StatErrorBranch(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	// Create a real file and a broken symlink
 	os.WriteFile(filepath.Join(dir, "ls-good.tar"), []byte("ok"), 0644)
@@ -76,7 +76,7 @@ func TestLocalStorage_List_GlobError(t *testing.T) {
 	// Using a pattern with invalid glob chars is hard since filepath.Glob
 	// is lenient. Instead test with an empty directory.
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	entries, err := ls.List(context.Background(), "nonexistent-prefix-")
 	if err != nil {

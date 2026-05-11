@@ -99,7 +99,7 @@ func TestMasterAgent_Integration_FullProtocol(t *testing.T) {
 
 	// ---- Real AgentClient against the real AgentServer ------------------
 	runtime := &mockRuntime{}
-	client := NewAgentClient(masterURL, agentID, token, "integration", runtime, slog.Default())
+	client := NewAgentClient(masterURL, agentID, token, "integration", runtime, slog.Default(), "", "", "")
 
 	clientCtx, clientCancel := context.WithCancel(context.Background())
 	clientDone := make(chan error, 1)

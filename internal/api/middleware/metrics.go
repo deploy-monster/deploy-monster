@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"runtime"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // processStart is captured at package init so /metrics/api can expose
@@ -20,56 +21,98 @@ var processStart = time.Now()
 
 // APIMetrics collects HTTP request metrics for the management API.
 type APIMetrics struct {
-	totalRequests  atomic.Int64
+	registry *prometheus.Registry
+	// Prometheus histogram for request latency (P50/P90/P95/P99).
+	latencyHistogram *prometheus.HistogramVec
+	// Prometheus counter for total requests.
+	requestsTotal *prometheus.CounterVec
+	// Prometheus counter for total response bytes.
+	bytesOutTotal prometheus.Counter
+	// Prometheus gauge for active requests.
 	activeRequests atomic.Int64
-	totalErrors    atomic.Int64
-	totalLatencyUS atomic.Int64 // microseconds cumulative
-	totalBytesOut  atomic.Int64 // total response bytes
-	statusCounts   sync.Map     // status code string -> *atomic.Int64
-	endpointCounts sync.Map     // "METHOD /path" -> *atomic.Int64
+	// Prometheus counter for 5xx errors.
+	errorsTotal *prometheus.CounterVec
 
 	// Business metrics (incremented via event subscriptions)
-	deploysTotal  atomic.Int64
-	deploysFailed atomic.Int64
-	buildsTotal   atomic.Int64
-	buildsFailed  atomic.Int64
-	appsCreated   atomic.Int64
-	appsDeleted   atomic.Int64
-	eventBus      *core.EventBus // optional, for Stats() in handler
+	deploysTotal  prometheus.Counter
+	deploysFailed prometheus.Counter
+	buildsTotal   prometheus.Counter
+	buildsFailed  prometheus.Counter
+	appsCreated  prometheus.Counter
+	appsDeleted  prometheus.Counter
+	eventBus     *core.EventBus // optional, for Stats() in handler
 }
 
-// NewAPIMetrics creates a new API metrics collector.
+// NewAPIMetrics creates a new API metrics collector with Prometheus histogram.
 func NewAPIMetrics() *APIMetrics {
-	return &APIMetrics{}
+	reg := prometheus.NewRegistry()
+	m := &APIMetrics{
+		registry: reg,
+		latencyHistogram: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "http_request_duration_seconds",
+				Help:    "HTTP request latency in seconds.",
+				Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+			},
+			[]string{"method", "endpoint", "status_code"},
+		),
+		requestsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_requests_total",
+				Help: "Total number of HTTP requests.",
+			},
+			[]string{"method", "endpoint", "status_code"},
+		),
+		errorsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_errors_total",
+				Help: "Total number of HTTP 5xx errors.",
+			},
+			[]string{"method", "endpoint"},
+		),
+		bytesOutTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "http_response_bytes_total",
+			Help: "Total response bytes sent.",
+		}),
+		deploysTotal:   prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_deploys_total", Help: "Total deployments."}),
+		deploysFailed: prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_deploys_failed_total", Help: "Failed deployments."}),
+		buildsTotal:   prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_builds_total", Help: "Total builds."}),
+		buildsFailed:  prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_builds_failed_total", Help: "Failed builds."}),
+		appsCreated:   prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_apps_created_total", Help: "Apps created."}),
+		appsDeleted:   prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_apps_deleted_total", Help: "Apps deleted."}),
+	}
+	reg.MustRegister(m.latencyHistogram, m.requestsTotal, m.errorsTotal, m.bytesOutTotal,
+		m.deploysTotal, m.deploysFailed, m.buildsTotal, m.buildsFailed, m.appsCreated, m.appsDeleted)
+	return m
 }
 
 // SubscribeEvents subscribes to the event bus to track business-level metrics.
 func (m *APIMetrics) SubscribeEvents(eb *core.EventBus) {
 	m.eventBus = eb
 	eb.SubscribeAsync(core.EventDeployFinished, func(_ context.Context, _ core.Event) error {
-		m.deploysTotal.Add(1)
+		m.deploysTotal.Inc()
 		return nil
 	})
 	eb.SubscribeAsync(core.EventDeployFailed, func(_ context.Context, _ core.Event) error {
-		m.deploysTotal.Add(1)
-		m.deploysFailed.Add(1)
+		m.deploysTotal.Inc()
+		m.deploysFailed.Inc()
 		return nil
 	})
 	eb.SubscribeAsync(core.EventBuildCompleted, func(_ context.Context, _ core.Event) error {
-		m.buildsTotal.Add(1)
+		m.buildsTotal.Inc()
 		return nil
 	})
 	eb.SubscribeAsync(core.EventBuildFailed, func(_ context.Context, _ core.Event) error {
-		m.buildsTotal.Add(1)
-		m.buildsFailed.Add(1)
+		m.buildsTotal.Inc()
+		m.buildsFailed.Inc()
 		return nil
 	})
 	eb.SubscribeAsync(core.EventAppCreated, func(_ context.Context, _ core.Event) error {
-		m.appsCreated.Add(1)
+		m.appsCreated.Inc()
 		return nil
 	})
 	eb.SubscribeAsync(core.EventAppDeleted, func(_ context.Context, _ core.Event) error {
-		m.appsDeleted.Add(1)
+		m.appsDeleted.Inc()
 		return nil
 	})
 }
@@ -84,190 +127,31 @@ func (m *APIMetrics) Middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(sw, r)
 
 		m.activeRequests.Add(-1)
-		m.totalRequests.Add(1)
-		m.totalLatencyUS.Add(time.Since(start).Microseconds())
-		m.totalBytesOut.Add(int64(sw.bytesWritten))
+		duration := time.Since(start).Seconds()
+		statusCode := fmt.Sprintf("%d", sw.status)
+		endpoint := groupPath(r.URL.Path)
+
+		m.latencyHistogram.WithLabelValues(r.Method, endpoint, statusCode).Observe(duration)
+		m.requestsTotal.WithLabelValues(r.Method, endpoint, statusCode).Inc()
+		m.bytesOutTotal.Add(float64(sw.bytesWritten))
 
 		if sw.status >= 500 {
-			m.totalErrors.Add(1)
+			m.errorsTotal.WithLabelValues(r.Method, endpoint).Inc()
 		}
-
-		// Count by status code
-		statusKey := fmt.Sprintf("%d", sw.status)
-		counter := m.getOrCreateCounter(&m.statusCounts, statusKey)
-		counter.Add(1)
-
-		// Count by endpoint (method + first path segment for grouping)
-		endpoint := r.Method + " " + groupPath(r.URL.Path)
-		epCounter := m.getOrCreateCounter(&m.endpointCounts, endpoint)
-		epCounter.Add(1)
 	})
 }
 
-// Handler returns an HTTP handler that exposes metrics in Prometheus text format.
+// Handler returns an HTTP handler that exposes metrics via the Prometheus registry.
 func (m *APIMetrics) Handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var sb strings.Builder
-
-		total := m.totalRequests.Load()
-		active := m.activeRequests.Load()
-		errors := m.totalErrors.Load()
-		latencyUS := m.totalLatencyUS.Load()
-
-		var avgLatency float64
-		if total > 0 {
-			avgLatency = float64(latencyUS) / float64(total)
-		}
-
-		sb.WriteString("# HELP api_requests_total Total API requests\n")
-		sb.WriteString("# TYPE api_requests_total counter\n")
-		fmt.Fprintf(&sb, "api_requests_total %d\n", total)
-
-		sb.WriteString("\n# HELP api_requests_active Currently active API requests\n")
-		sb.WriteString("# TYPE api_requests_active gauge\n")
-		fmt.Fprintf(&sb, "api_requests_active %d\n", active)
-
-		sb.WriteString("\n# HELP api_errors_total Total 5xx errors\n")
-		sb.WriteString("# TYPE api_errors_total counter\n")
-		fmt.Fprintf(&sb, "api_errors_total %d\n", errors)
-
-		sb.WriteString("\n# HELP api_latency_avg_microseconds Average request latency\n")
-		sb.WriteString("# TYPE api_latency_avg_microseconds gauge\n")
-		fmt.Fprintf(&sb, "api_latency_avg_microseconds %.2f\n", avgLatency)
-
-		sb.WriteString("\n# HELP api_response_bytes_total Total response bytes sent\n")
-		sb.WriteString("# TYPE api_response_bytes_total counter\n")
-		fmt.Fprintf(&sb, "api_response_bytes_total %d\n", m.totalBytesOut.Load())
-
-		sb.WriteString("\n# HELP api_requests_by_status Total requests by status code\n")
-		sb.WriteString("# TYPE api_requests_by_status counter\n")
-		m.statusCounts.Range(func(key, value any) bool {
-			k, _ := key.(string)
-			v, _ := value.(*atomic.Int64)
-			if k != "" && v != nil {
-				fmt.Fprintf(&sb, "api_requests_by_status{status=%q} %d\n", k, v.Load())
-			}
-			return true
-		})
-
-		sb.WriteString("\n# HELP api_requests_by_endpoint Total requests by endpoint\n")
-		sb.WriteString("# TYPE api_requests_by_endpoint counter\n")
-		m.endpointCounts.Range(func(key, value any) bool {
-			k, _ := key.(string)
-			v, _ := value.(*atomic.Int64)
-			if k != "" && v != nil {
-				fmt.Fprintf(&sb, "api_requests_by_endpoint{endpoint=%q} %d\n", k, v.Load())
-			}
-			return true
-		})
-
-		// Business metrics
-		sb.WriteString("\n# HELP deploys_total Total deployments (success + failure)\n")
-		sb.WriteString("# TYPE deploys_total counter\n")
-		fmt.Fprintf(&sb, "deploys_total %d\n", m.deploysTotal.Load())
-
-		sb.WriteString("\n# HELP deploys_failed_total Failed deployments\n")
-		sb.WriteString("# TYPE deploys_failed_total counter\n")
-		fmt.Fprintf(&sb, "deploys_failed_total %d\n", m.deploysFailed.Load())
-
-		sb.WriteString("\n# HELP builds_total Total builds (success + failure)\n")
-		sb.WriteString("# TYPE builds_total counter\n")
-		fmt.Fprintf(&sb, "builds_total %d\n", m.buildsTotal.Load())
-
-		sb.WriteString("\n# HELP builds_failed_total Failed builds\n")
-		sb.WriteString("# TYPE builds_failed_total counter\n")
-		fmt.Fprintf(&sb, "builds_failed_total %d\n", m.buildsFailed.Load())
-
-		sb.WriteString("\n# HELP apps_created_total Total apps created\n")
-		sb.WriteString("# TYPE apps_created_total counter\n")
-		fmt.Fprintf(&sb, "apps_created_total %d\n", m.appsCreated.Load())
-
-		sb.WriteString("\n# HELP apps_deleted_total Total apps deleted\n")
-		sb.WriteString("# TYPE apps_deleted_total counter\n")
-		fmt.Fprintf(&sb, "apps_deleted_total %d\n", m.appsDeleted.Load())
-
-		// Go runtime stats — required by the soak-test harness
-		// (tests/soak) to detect goroutine leaks and heap climb over
-		// 24-hour runs. Intentionally cheap: one ReadMemStats call
-		// per scrape. Exported under the standard Prometheus names
-		// (`go_goroutines`, `go_memstats_*`) so third-party Grafana
-		// dashboards work out of the box.
-		var ms runtime.MemStats
-		runtime.ReadMemStats(&ms)
-
-		sb.WriteString("\n# HELP go_goroutines Number of goroutines\n")
-		sb.WriteString("# TYPE go_goroutines gauge\n")
-		fmt.Fprintf(&sb, "go_goroutines %d\n", runtime.NumGoroutine())
-
-		sb.WriteString("\n# HELP go_memstats_alloc_bytes Currently allocated bytes\n")
-		sb.WriteString("# TYPE go_memstats_alloc_bytes gauge\n")
-		fmt.Fprintf(&sb, "go_memstats_alloc_bytes %d\n", ms.Alloc)
-
-		sb.WriteString("\n# HELP go_memstats_heap_inuse_bytes Heap bytes in use\n")
-		sb.WriteString("# TYPE go_memstats_heap_inuse_bytes gauge\n")
-		fmt.Fprintf(&sb, "go_memstats_heap_inuse_bytes %d\n", ms.HeapInuse)
-
-		sb.WriteString("\n# HELP go_memstats_heap_objects Live heap objects\n")
-		sb.WriteString("# TYPE go_memstats_heap_objects gauge\n")
-		fmt.Fprintf(&sb, "go_memstats_heap_objects %d\n", ms.HeapObjects)
-
-		sb.WriteString("\n# HELP go_memstats_sys_bytes Bytes obtained from system\n")
-		sb.WriteString("# TYPE go_memstats_sys_bytes gauge\n")
-		fmt.Fprintf(&sb, "go_memstats_sys_bytes %d\n", ms.Sys)
-
-		sb.WriteString("\n# HELP go_memstats_next_gc_bytes Target heap size of next GC\n")
-		sb.WriteString("# TYPE go_memstats_next_gc_bytes gauge\n")
-		fmt.Fprintf(&sb, "go_memstats_next_gc_bytes %d\n", ms.NextGC)
-
-		sb.WriteString("\n# HELP go_memstats_num_gc Number of completed GC cycles\n")
-		sb.WriteString("# TYPE go_memstats_num_gc counter\n")
-		fmt.Fprintf(&sb, "go_memstats_num_gc %d\n", ms.NumGC)
-
-		sb.WriteString("\n# HELP process_uptime_seconds Seconds since process start\n")
-		sb.WriteString("# TYPE process_uptime_seconds gauge\n")
-		fmt.Fprintf(&sb, "process_uptime_seconds %.3f\n", time.Since(processStart).Seconds())
-
-		// Event bus stats
-		if m.eventBus != nil {
-			stats := m.eventBus.Stats()
-			sb.WriteString("\n# HELP eventbus_published_total Total events published\n")
-			sb.WriteString("# TYPE eventbus_published_total counter\n")
-			fmt.Fprintf(&sb, "eventbus_published_total %d\n", stats.PublishCount)
-
-			sb.WriteString("\n# HELP eventbus_errors_total Total event handler errors\n")
-			sb.WriteString("# TYPE eventbus_errors_total counter\n")
-			fmt.Fprintf(&sb, "eventbus_errors_total %d\n", stats.ErrorCount)
-
-			sb.WriteString("\n# HELP eventbus_subscriptions Active event subscriptions\n")
-			sb.WriteString("# TYPE eventbus_subscriptions gauge\n")
-			fmt.Fprintf(&sb, "eventbus_subscriptions %d\n", stats.SubscriptionCount)
-
-			sb.WriteString("\n# HELP eventbus_async_pool_size Max concurrent async handlers\n")
-			sb.WriteString("# TYPE eventbus_async_pool_size gauge\n")
-			fmt.Fprintf(&sb, "eventbus_async_pool_size %d\n", stats.AsyncPoolSize)
-
-			sb.WriteString("\n# HELP eventbus_async_pool_active Currently active async handlers\n")
-			sb.WriteString("# TYPE eventbus_async_pool_active gauge\n")
-			fmt.Fprintf(&sb, "eventbus_async_pool_active %d\n", stats.AsyncPoolActive)
-		}
-
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		_, _ = w.Write([]byte(sb.String()))
-	}
+	return promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{EnableOpenMetrics: true}).ServeHTTP
 }
 
-func (m *APIMetrics) getOrCreateCounter(sm *sync.Map, key string) *atomic.Int64 {
-	if v, ok := sm.Load(key); ok {
-		if c, ok := v.(*atomic.Int64); ok {
-			return c
-		}
-	}
-	counter := &atomic.Int64{}
-	actual, _ := sm.LoadOrStore(key, counter)
-	if c, ok := actual.(*atomic.Int64); ok {
-		return c
-	}
-	return counter
+// TotalBytesOut returns the total response bytes as an atomic int64.
+// This exists for test compatibility - the actual counter is a Prometheus counter.
+func (m *APIMetrics) TotalBytesOut() int64 {
+	var m2 dto.Metric
+	m.bytesOutTotal.Write(&m2)
+	return int64(m2.Counter.GetValue())
 }
 
 // groupPath normalizes URL paths for metric grouping — replaces path IDs with {id}.

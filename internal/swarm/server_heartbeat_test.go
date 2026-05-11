@@ -467,7 +467,7 @@ func TestAgentClient_HandleMetricsCollect_WithContainerCount(t *testing.T) {
 			return []core.ContainerInfo{{ID: "a"}, {ID: "b"}}, nil
 		},
 	}
-	client := NewAgentClient("http://master", "agent-m-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent-m-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	got, err := client.handleMetricsCollect(context.Background(), core.AgentMessage{})
 	if err != nil {

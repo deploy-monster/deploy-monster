@@ -348,7 +348,7 @@ func TestStorageNames_ConcurrentRead(t *testing.T) {
 // =====================================================
 
 func TestLocalStorage_Name(t *testing.T) {
-	ls := NewLocalStorage(t.TempDir())
+	ls := NewLocalStorage(t.TempDir(), nil)
 	if name := ls.Name(); name != "local" {
 		t.Errorf("Name() = %q, want %q", name, "local")
 	}
@@ -360,7 +360,7 @@ func TestLocalStorage_ImplementsInterface(t *testing.T) {
 
 func TestLocalStorage_Upload(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	data := []byte("test backup data")
 	err := ls.Upload(context.Background(), "test-backup.tar.gz", bytes.NewReader(data), int64(len(data)))
@@ -380,7 +380,7 @@ func TestLocalStorage_Upload(t *testing.T) {
 
 func TestLocalStorage_Upload_SubDirectory(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	data := []byte("nested backup")
 	err := ls.Upload(context.Background(), "apps/myapp/backup.tar.gz", bytes.NewReader(data), int64(len(data)))
@@ -399,7 +399,7 @@ func TestLocalStorage_Upload_SubDirectory(t *testing.T) {
 
 func TestLocalStorage_Download(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	// Write a file first
 	data := []byte("download me")
@@ -422,7 +422,7 @@ func TestLocalStorage_Download(t *testing.T) {
 
 func TestLocalStorage_Download_NotFound(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	_, err := ls.Download(context.Background(), "nonexistent.tar")
 	if err == nil {
@@ -432,7 +432,7 @@ func TestLocalStorage_Download_NotFound(t *testing.T) {
 
 func TestLocalStorage_Delete(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	// Create a file
 	path := filepath.Join(dir, "delete-me.tar")
@@ -451,7 +451,7 @@ func TestLocalStorage_Delete(t *testing.T) {
 
 func TestLocalStorage_Delete_NotFound(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	err := ls.Delete(context.Background(), "nonexistent.tar")
 	if err == nil {
@@ -461,7 +461,7 @@ func TestLocalStorage_Delete_NotFound(t *testing.T) {
 
 func TestLocalStorage_List(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	// Create some files
 	for _, name := range []string{"backup-001.tar", "backup-002.tar", "backup-003.tar"} {
@@ -493,7 +493,7 @@ func TestLocalStorage_List(t *testing.T) {
 
 func TestLocalStorage_List_Empty(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	entries, err := ls.List(context.Background(), "none-")
 	if err != nil {
@@ -506,7 +506,7 @@ func TestLocalStorage_List_Empty(t *testing.T) {
 
 func TestLocalStorage_List_SortedByCreatedAtDescending(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	// Create files with different modification times
 	names := []string{"b-old.tar", "b-mid.tar", "b-new.tar"}
@@ -1038,7 +1038,7 @@ func TestLocalStorage_Upload_CreateFileError(t *testing.T) {
 
 func TestLocalStorage_Upload_CopyError(t *testing.T) {
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	// Use an erroring reader
 	err := ls.Upload(context.Background(), "bad.tar", &errReader{}, 10)
@@ -1059,7 +1059,7 @@ func TestLocalStorage_List_StatError(t *testing.T) {
 	// (e.g., file removed between Glob and Stat). Hard to simulate reliably,
 	// but we test that list still works when all stat calls succeed.
 	dir := t.TempDir()
-	ls := NewLocalStorage(dir)
+	ls := NewLocalStorage(dir, nil)
 
 	os.WriteFile(filepath.Join(dir, "test-001.tar"), []byte("d"), 0644)
 	entries, err := ls.List(context.Background(), "test-")
@@ -1244,8 +1244,8 @@ func TestNewS3Storage_CustomRetrySettings(t *testing.T) {
 		AccessKey:    "ak",
 		SecretKey:    "sk",
 		MaxRetries:   5,
-		InitialDelay: 200 * time.Millisecond,
-		MaxDelay:     10 * time.Second,
+		InitialDelay: 200, // milliseconds
+		MaxDelay:     10,  // seconds
 	}, testLogger())
 
 	if s.maxRetries != 5 {
@@ -1276,5 +1276,97 @@ func TestS3Storage_Retry_NilContext(t *testing.T) {
 	err := s.Upload(context.TODO(), "key.tar", strings.NewReader("data"), 4)
 	if err != nil {
 		t.Logf("Upload with nil context: %v", err)
+	}
+}
+
+// =====================================================
+// ENCRYPTION TESTS
+// =====================================================
+
+func TestLocalStorage_EncryptAndDecrypt(t *testing.T) {
+	dir := t.TempDir()
+	// Use a valid 32-byte key (base64 of 32 bytes = 44 chars)
+	key := []byte("01234567890123456789012345678901") // exactly 32 bytes
+	ls := NewLocalStorage(dir, key)
+
+	data := []byte("super secret backup content that should be encrypted")
+	err := ls.Upload(context.Background(), "encrypted-backup.tar.gz", bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("Upload() error = %v", err)
+	}
+
+	// File should be encrypted (not equal to plaintext)
+	plaintext, err := os.ReadFile(filepath.Join(dir, "encrypted-backup.tar.gz"))
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	if bytes.Equal(plaintext, data) {
+		t.Error("file should be encrypted but content matches plaintext")
+	}
+
+	// Download should return original data
+	rc, err := ls.Download(context.Background(), "encrypted-backup.tar.gz")
+	if err != nil {
+		t.Fatalf("Download() error = %v", err)
+	}
+	got, err := io.ReadAll(rc)
+	rc.Close()
+	if err != nil {
+		t.Fatalf("failed to read download: %v", err)
+	}
+	if !bytes.Equal(got, data) {
+		t.Errorf("decrypted content = %q, want %q", got, data)
+	}
+}
+
+func TestLocalStorage_NoEncryption_NilKey(t *testing.T) {
+	dir := t.TempDir()
+	ls := NewLocalStorage(dir, nil) // nil key = no encryption
+
+	data := []byte("plaintext backup")
+	err := ls.Upload(context.Background(), "backup.tar.gz", bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("Upload() error = %v", err)
+	}
+
+	// File content should be plaintext
+	content, err := os.ReadFile(filepath.Join(dir, "backup.tar.gz"))
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	if !bytes.Equal(content, data) {
+		t.Error("without encryption, file should be plaintext")
+	}
+
+	// Download should also return plaintext
+	rc, err := ls.Download(context.Background(), "backup.tar.gz")
+	if err != nil {
+		t.Fatalf("Download() error = %v", err)
+	}
+	got, _ := io.ReadAll(rc)
+	rc.Close()
+	if !bytes.Equal(got, data) {
+		t.Error("downloaded content should be plaintext")
+	}
+}
+
+func TestLocalStorage_EncryptWithWrongKey(t *testing.T) {
+	dir := t.TempDir()
+	key1 := []byte("01234567890123456789012345678901") // 32 bytes
+	key2 := []byte("11111111111111111111111111111111") // different 32 bytes
+	ls := NewLocalStorage(dir, key1)
+
+	data := []byte("secret data")
+	err := ls.Upload(context.Background(), "enc.tar", bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("Upload() error = %v", err)
+	}
+
+	// Try to download with wrong key (but LocalStorage doesn't store key info)
+	ls2 := NewLocalStorage(dir, key2)
+	_, err = ls2.Download(context.Background(), "enc.tar")
+	// Should fail decryption since key2 can't decrypt key1-encrypted data
+	if err == nil {
+		t.Error("Download with wrong key should fail")
 	}
 }

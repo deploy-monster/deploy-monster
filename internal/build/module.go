@@ -55,11 +55,20 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 		perTenant = 2
 	}
 	m.queue = NewTenantQueue(maxConcurrent, perTenant, m.logger)
+	if c.DB != nil && c.DB.Bolt != nil {
+		m.queue.SetBolt(c.DB.Bolt)
+		m.queue.SetWorkerModule(m)
+	}
 
 	return nil
 }
 
-func (m *Module) Start(_ context.Context) error {
+func (m *Module) Start(ctx context.Context) error {
+	if m.queue != nil {
+		if err := m.queue.RecoverJobs(ctx); err != nil {
+			m.logger.Warn("failed to recover build jobs from bolt", "error", err)
+		}
+	}
 	m.logger.Info("build engine started", "max_concurrent", m.pool.maxWorkers)
 	return nil
 }
@@ -89,6 +98,11 @@ func (m *Module) Stop(ctx context.Context) error {
 
 func (m *Module) Health() core.HealthStatus {
 	return core.HealthOK
+}
+
+// GetPool returns the build module's WorkerPool for agent-side execution.
+func (m *Module) GetPool() *WorkerPool {
+	return m.pool
 }
 
 // ErrPoolClosed is returned by SubmitCtx when the pool has been

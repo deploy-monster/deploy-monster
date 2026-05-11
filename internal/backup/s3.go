@@ -22,30 +22,32 @@ var _ core.BackupStorage = (*S3Storage)(nil)
 // S3Storage stores backups in S3-compatible storage (AWS S3, MinIO, R2, etc.).
 // Uses raw HTTP with AWS Signature V4 to avoid the heavy AWS SDK dependency.
 type S3Storage struct {
-	endpoint     string
-	bucket       string
-	region       string
-	accessKey    string
-	secretKey    string
-	pathStyle    bool
-	client       *http.Client
-	maxRetries   int
-	initialDelay time.Duration
-	maxDelay     time.Duration
-	logger       *slog.Logger
+	endpoint      string
+	bucket        string
+	region        string
+	accessKey     string
+	secretKey     string
+	pathStyle     bool
+	encryptionKey []byte // 32 bytes; nil means no encryption
+	client        *http.Client
+	maxRetries    int
+	initialDelay  time.Duration
+	maxDelay      time.Duration
+	logger        *slog.Logger
 }
 
 // S3Config holds S3 storage configuration.
 type S3Config struct {
-	Endpoint     string        `json:"endpoint"` // Empty = AWS default
-	Bucket       string        `json:"bucket"`
-	Region       string        `json:"region"`
-	AccessKey    string        `json:"access_key"`
-	SecretKey    string        `json:"secret_key"`
-	PathStyle    bool          `json:"path_style"`    // Required for MinIO
-	MaxRetries   int           `json:"max_retries"`   // Default: 3
-	InitialDelay time.Duration `json:"initial_delay"` // Default: 100ms
-	MaxDelay     time.Duration `json:"max_delay"`     // Default: 5s
+	Endpoint     string `json:"endpoint"` // Empty = AWS default
+	Bucket       string `json:"bucket"`
+	Region       string `json:"region"`
+	AccessKey    string `json:"access_key"`
+	SecretKey    string `json:"secret_key"`
+	PathStyle    bool   `json:"path_style"`    // Required for MinIO
+	MaxRetries   int    `json:"max_retries"`   // Default: 3
+	InitialDelay int64  `json:"initial_delay"` // Default: 100ms (milliseconds)
+	MaxDelay     int64  `json:"max_delay"`     // Default: 5s (seconds)
+	EncryptionKey []byte `json:"-"`             // AES-256 key; nil = no encryption
 }
 
 // NewS3Storage creates an S3-compatible backup storage.
@@ -62,27 +64,28 @@ func NewS3Storage(cfg S3Config, logger *slog.Logger) *S3Storage {
 	if maxRetries <= 0 {
 		maxRetries = 3
 	}
-	initialDelay := cfg.InitialDelay
+	initialDelay := time.Duration(cfg.InitialDelay) * time.Millisecond
 	if initialDelay <= 0 {
 		initialDelay = 100 * time.Millisecond
 	}
-	maxDelay := cfg.MaxDelay
+	maxDelay := time.Duration(cfg.MaxDelay) * time.Second
 	if maxDelay <= 0 {
 		maxDelay = 5 * time.Second
 	}
 
 	return &S3Storage{
-		endpoint:     endpoint,
-		bucket:       cfg.Bucket,
-		region:       cfg.Region,
-		accessKey:    cfg.AccessKey,
-		secretKey:    cfg.SecretKey,
-		pathStyle:    cfg.PathStyle,
-		client:       &http.Client{Timeout: 10 * time.Minute},
-		maxRetries:   maxRetries,
-		initialDelay: initialDelay,
-		maxDelay:     maxDelay,
-		logger:       logger,
+		endpoint:      endpoint,
+		bucket:        cfg.Bucket,
+		region:        cfg.Region,
+		accessKey:     cfg.AccessKey,
+		secretKey:     cfg.SecretKey,
+		pathStyle:     cfg.PathStyle,
+		encryptionKey: cfg.EncryptionKey,
+		client:        &http.Client{Timeout: 10 * time.Minute},
+		maxRetries:    maxRetries,
+		initialDelay:  initialDelay,
+		maxDelay:      maxDelay,
+		logger:        logger,
 	}
 }
 
@@ -153,6 +156,16 @@ func (s *S3Storage) Upload(ctx context.Context, key string, reader io.Reader, si
 	if err != nil {
 		return fmt.Errorf("read upload body: %w", err)
 	}
+
+	// Encrypt in-place if a key is configured.
+	if s.encryptionKey != nil {
+		encrypted, encErr := encryptAES256GCM(body, s.encryptionKey)
+		if encErr != nil {
+			return fmt.Errorf("encrypt backup: %w", encErr)
+		}
+		body = encrypted
+	}
+
 	return s.retry(ctx, func() error {
 		endpoint := s.objectURL(key)
 
@@ -215,7 +228,25 @@ func (s *S3Storage) Download(ctx context.Context, key string) (io.ReadCloser, er
 		result = resp.Body
 		return nil
 	})
-	return result, err
+	if err != nil {
+		return nil, err
+	}
+
+	// If encryption is enabled, buffer and decrypt.
+	if s.encryptionKey != nil {
+		data, readErr := io.ReadAll(result)
+		_ = result.Close()
+		if readErr != nil {
+			return nil, fmt.Errorf("read encrypted backup: %w", readErr)
+		}
+		plaintext, decryptErr := decryptAES256GCM(data, s.encryptionKey)
+		if decryptErr != nil {
+			return nil, fmt.Errorf("decrypt backup: %w", decryptErr)
+		}
+		return io.NopCloser(strings.NewReader(string(plaintext))), nil
+	}
+
+	return result, nil
 }
 
 func (s *S3Storage) Delete(ctx context.Context, key string) error {

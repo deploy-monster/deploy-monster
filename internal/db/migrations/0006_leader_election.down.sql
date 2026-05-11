@@ -1,0 +1,1 @@
+-- No-op rollback for SQLite (leader election not applicable to single-instance).

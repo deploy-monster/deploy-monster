@@ -121,6 +121,9 @@ func runServe() {
 	masterURL := fs.String("master", os.Getenv("MONSTER_MASTER_URL"), "master server URL (agent mode)")
 	agentToken := fs.String("token", os.Getenv("MONSTER_JOIN_TOKEN"), "join token for agent authentication")
 	masterPort := fs.Int("master-port", envInt("MONSTER_MASTER_PORT", 0), "fallback port for --master if URL has none (agent mode; 0 = 8443)")
+	agentCertFile := fs.String("agent-cert", os.Getenv("MONSTER_AGENT_CERT_FILE"), "TLS client certificate file for agent mTLS (agent mode)")
+	agentKeyFile := fs.String("agent-key", os.Getenv("MONSTER_AGENT_KEY_FILE"), "TLS private key file for agent mTLS (agent mode)")
+	agentCAFile := fs.String("agent-ca", os.Getenv("MONSTER_AGENT_CA_FILE"), "CA certificate to verify server cert for agent mTLS (agent mode)")
 	configPath := fs.String("config", "", "path to monster.yaml config file")
 	args := os.Args[1:]
 	if len(args) > 0 && (args[0] == "serve" || args[0] == "start") {
@@ -144,7 +147,7 @@ func runServe() {
 	}
 
 	// Configure structured logger before anything else uses slog
-	core.SetupLogger(cfg.Server.LogLevel, cfg.Server.LogFormat)
+	core.SetupLogger(cfg.Server.LogLevel, cfg.Server.LogFormat, cfg.Observability.LokiURL, "", "", 5*time.Second)
 
 	// Audit config for plaintext secrets
 	if warnings := cfg.AuditSecrets(); len(warnings) > 0 {
@@ -156,7 +159,7 @@ func runServe() {
 	bi := core.BuildInfo{Version: version, Commit: commit, Date: date}
 
 	if *agentMode {
-		runAgent(ctx, bi, *masterURL, *agentToken, *masterPort)
+		runAgent(ctx, bi, *masterURL, *agentToken, *masterPort, *agentCertFile, *agentKeyFile, *agentCAFile)
 		return
 	}
 
@@ -185,7 +188,7 @@ func runServe() {
 	}
 }
 
-func runAgent(ctx context.Context, bi core.BuildInfo, masterURL, token string, masterPort int) {
+func runAgent(ctx context.Context, bi core.BuildInfo, masterURL, token string, masterPort int, certFile, keyFile, caFile string) {
 	if masterURL == "" {
 		fmt.Fprintln(os.Stderr, "agent mode requires --master URL (or MONSTER_MASTER_URL env var)")
 		os.Exit(1)
@@ -210,8 +213,8 @@ func runAgent(ctx context.Context, bi core.BuildInfo, masterURL, token string, m
 		serverID = core.GenerateID()
 	}
 
-	// Create agent client (runtime will be nil until we wire Docker SDK)
-	client := swarm.NewAgentClient(masterURL, serverID, token, bi.Version, nil, logger)
+	// Create agent client (runtime and build module nil until we wire them)
+	client := swarm.NewAgentClient(masterURL, serverID, token, bi.Version, nil, logger, certFile, keyFile, caFile)
 	if masterPort > 0 {
 		client.SetDefaultPort(masterPort)
 	}
@@ -303,7 +306,7 @@ func runRotateKeys() {
 		os.Exit(1)
 	}
 
-	core.SetupLogger(cfg.Server.LogLevel, cfg.Server.LogFormat)
+	core.SetupLogger(cfg.Server.LogLevel, cfg.Server.LogFormat, cfg.Observability.LokiURL, "", "", 5*time.Second)
 
 	bi := core.BuildInfo{Version: version, Commit: commit, Date: date}
 	app, err := core.NewApp(cfg, bi)

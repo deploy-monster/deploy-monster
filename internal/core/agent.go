@@ -46,6 +46,7 @@ const (
 	AgentMsgMetricsCollect   = "metrics.collect"
 	AgentMsgHealthCheck      = "health.check"
 	AgentMsgConfigUpdate     = "config.update"
+	AgentMsgBuildTask       = "build.task"
 )
 
 // Agent message types (agent -> master)
@@ -57,6 +58,7 @@ const (
 	AgentMsgContainerEvent = "container.event"
 	AgentMsgServerStatus   = "server.status"
 	AgentMsgLogStream      = "log.stream"
+	AgentMsgBuildResult    = "build.result"
 )
 
 // AgentInfo is reported by agents on connection.
@@ -99,6 +101,25 @@ type ContainerMetrics struct {
 	NetworkRxMB int64     `json:"network_rx_mb"`
 	NetworkTxMB int64     `json:"network_tx_mb"`
 	PIDs        int       `json:"pids"`
+}
+
+// BuildTaskPayload is the payload for a build.task message sent to an agent.
+type BuildTaskPayload struct {
+	DeployID  string `json:"deploy_id"`
+	TenantID  string `json:"tenant_id"`
+	AppID     string `json:"app_id"`
+	CommitSHA string `json:"commit_sha"`
+	ImageTag  string `json:"image_tag"`
+	FnBytes   []byte `json:"fn_bytes"` // encoded job metadata for recovery
+}
+
+// BuildResultPayload is the payload for a build.result message sent back to master.
+type BuildResultPayload struct {
+	DeployID  string `json:"deploy_id"`
+	TenantID  string `json:"tenant_id"`
+	Success   bool   `json:"success"`
+	ImageTag  string `json:"image_tag,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // =====================================================

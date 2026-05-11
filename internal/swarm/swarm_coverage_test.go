@@ -1244,7 +1244,7 @@ func TestAgentClient_Dial_Success(t *testing.T) {
 	}()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://"+ln.Addr().String(), "agent-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://"+ln.Addr().String(), "agent-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	err = client.dial(context.Background())
 	if err != nil {
@@ -1284,7 +1284,7 @@ func TestAgentClient_Dial_Rejected(t *testing.T) {
 	}()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://"+ln.Addr().String(), "agent-1", "wrong-token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://"+ln.Addr().String(), "agent-1", "wrong-token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	err = client.dial(context.Background())
 	if err == nil {
@@ -1297,7 +1297,7 @@ func TestAgentClient_Dial_Rejected(t *testing.T) {
 
 func TestAgentClient_Dial_ConnectionRefused(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	err := client.dial(context.Background())
 	if err == nil {
@@ -1319,7 +1319,7 @@ func TestAgentClient_Dial_DefaultPort(t *testing.T) {
 	l.Close()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://127.0.0.1", "agent-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://127.0.0.1", "agent-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 	client.SetDefaultPort(closedPort)
 
 	err = client.dial(context.Background())
@@ -1334,7 +1334,7 @@ func TestAgentClient_Dial_DefaultPort(t *testing.T) {
 
 func TestAgentClient_Dial_HTTPS_Prefix(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("https://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	err := client.dial(context.Background())
 	if err == nil {
@@ -1407,7 +1407,7 @@ func TestAgentClient_Connect_Full(t *testing.T) {
 	}()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://"+ln.Addr().String(), "test-agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://"+ln.Addr().String(), "test-agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -1421,7 +1421,7 @@ func TestAgentClient_Connect_Full(t *testing.T) {
 
 func TestAgentClient_ConnectWithRetry_ContextCancelled(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -1446,7 +1446,7 @@ func TestAgentClient_ConnectWithRetry_ContextCancelled(t *testing.T) {
 
 func TestAgentClient_HandleMessage_UnknownType(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	// Set up a pipe for sendResponse
 	serverConn, clientConn := net.Pipe()
@@ -1476,7 +1476,7 @@ func TestAgentClient_HandleMessage_UnknownType(t *testing.T) {
 
 func TestAgentClient_HandleMessage_PingPong(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1512,7 +1512,7 @@ func TestAgentClient_HandleMessage_PingPong(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerCreate_DecodeError(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1551,7 +1551,7 @@ func TestAgentClient_HandleMessage_ContainerCreate_DecodeError(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerStop_DecodeError(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1588,7 +1588,7 @@ func TestAgentClient_HandleMessage_ContainerStop_DecodeError(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerRemove_DecodeError(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1624,7 +1624,7 @@ func TestAgentClient_HandleMessage_ContainerRemove_DecodeError(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerRestart_DecodeError(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1660,7 +1660,7 @@ func TestAgentClient_HandleMessage_ContainerRestart_DecodeError(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerList_DecodeError(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1696,7 +1696,7 @@ func TestAgentClient_HandleMessage_ContainerList_DecodeError(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerLogs_DecodeError(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1732,7 +1732,7 @@ func TestAgentClient_HandleMessage_ContainerLogs_DecodeError(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerExec_DecodeError(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1768,7 +1768,7 @@ func TestAgentClient_HandleMessage_ContainerExec_DecodeError(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ImagePull_DecodeError(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1804,7 +1804,7 @@ func TestAgentClient_HandleMessage_ImagePull_DecodeError(t *testing.T) {
 
 func TestAgentClient_HandleMessage_MetricsCollectViaDispatch(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent-m", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent-m", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1839,7 +1839,7 @@ func TestAgentClient_HandleMessage_MetricsCollectViaDispatch(t *testing.T) {
 
 func TestAgentClient_HandleMessage_HealthCheckViaDispatch(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent-h", "token", "2.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent-h", "token", "2.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1878,7 +1878,7 @@ func TestAgentClient_HandleMessage_SuccessResult(t *testing.T) {
 			return "new-id", nil
 		},
 	}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -1918,7 +1918,7 @@ func TestAgentClient_HandleMessage_SuccessResult(t *testing.T) {
 
 func TestAgentClient_SendResponse_Error(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	// Use a closed connection to trigger encode error
 	serverConn, clientConn := net.Pipe()
@@ -1942,7 +1942,7 @@ func TestAgentClient_ReadLoop_ContextCancel(t *testing.T) {
 	defer clientConn.Close()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 	client.conn = clientConn
 	client.decoder = json.NewDecoder(clientConn)
 
@@ -1962,7 +1962,7 @@ func TestAgentClient_ReadLoop_DecodeError(t *testing.T) {
 	defer clientConn.Close()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 	client.conn = clientConn
 	client.encoder = json.NewEncoder(clientConn)
 	client.decoder = json.NewDecoder(clientConn)
@@ -2019,7 +2019,7 @@ func TestAgentClient_HandleContainerLogs_RuntimeError(t *testing.T) {
 			return nil, fmt.Errorf("container not found")
 		},
 	}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"container_id": "c-1", "tail": "100"},
@@ -2160,7 +2160,7 @@ func TestAgentServer_RemoveAgent_NilEvents(t *testing.T) {
 
 func TestAgentClient_Connect_DialError(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	err := client.Connect(context.Background())
 	if err == nil {
@@ -2198,7 +2198,7 @@ func TestAgentClient_Connect_EncodeError(t *testing.T) {
 	}()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://"+ln.Addr().String(), "agent-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://"+ln.Addr().String(), "agent-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	err = client.Connect(context.Background())
 	if err == nil {
@@ -2222,7 +2222,7 @@ func TestAgentClient_ConnectWithRetry_BackoffCap(t *testing.T) {
 	// That's too long. Instead, we can verify the retry loop runs multiple
 	// iterations by canceling after a reasonable time.
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://127.0.0.1:1", "agent-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -2259,7 +2259,7 @@ func TestAgentClient_Dial_WriteError(t *testing.T) {
 	}()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://"+ln.Addr().String(), "agent-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://"+ln.Addr().String(), "agent-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	err = client.dial(context.Background())
 	if err == nil {
@@ -2289,7 +2289,7 @@ func TestAgentClient_Dial_ReadResponseError(t *testing.T) {
 	}()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://"+ln.Addr().String(), "agent-1", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://"+ln.Addr().String(), "agent-1", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	err = client.dial(context.Background())
 	if err == nil {
@@ -2582,7 +2582,7 @@ func TestAgentClient_HandleContainerCreate_RuntimeError(t *testing.T) {
 			return "", fmt.Errorf("image pull failed")
 		},
 	}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: core.ContainerOpts{Name: "test", Image: "bad-image"},
@@ -2599,7 +2599,7 @@ func TestAgentClient_HandleContainerStop_RuntimeError(t *testing.T) {
 			return fmt.Errorf("stop failed")
 		},
 	}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"container_id": "c-1", "timeout_sec": float64(10)},
@@ -2615,7 +2615,7 @@ func TestAgentClient_HandleContainerRemove_RuntimeError(t *testing.T) {
 			return fmt.Errorf("remove failed")
 		},
 	}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"container_id": "c-1", "force": true},
@@ -2631,7 +2631,7 @@ func TestAgentClient_HandleContainerRestart_RuntimeError(t *testing.T) {
 			return fmt.Errorf("restart failed")
 		},
 	}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"container_id": "c-1"},
@@ -2647,7 +2647,7 @@ func TestAgentClient_HandleContainerList_RuntimeError(t *testing.T) {
 			return nil, fmt.Errorf("list failed")
 		},
 	}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"labels": map[string]any{}},
@@ -2664,7 +2664,7 @@ func TestAgentClient_HandleContainerExec_RuntimeError(t *testing.T) {
 			return "", fmt.Errorf("exec failed")
 		},
 	}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"container_id": "c-1", "cmd": []any{"ls"}},
@@ -2680,7 +2680,7 @@ func TestAgentClient_HandleImagePull_RuntimeError(t *testing.T) {
 	rt := &mockRuntime{}
 	// Override at the method level — mockRuntime.ImagePull always returns nil,
 	// so we need to create a variant. Let's just test the decode error path instead.
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"image": "nginx:latest"},
@@ -2713,7 +2713,7 @@ func TestDecodePayload_UnmarshalError(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerStopSuccess(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -2749,7 +2749,7 @@ func TestAgentClient_HandleMessage_ContainerStopSuccess(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerRemoveSuccess(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -2785,7 +2785,7 @@ func TestAgentClient_HandleMessage_ContainerRemoveSuccess(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerRestartSuccess(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -2821,7 +2821,7 @@ func TestAgentClient_HandleMessage_ContainerRestartSuccess(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerListSuccess(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -2857,7 +2857,7 @@ func TestAgentClient_HandleMessage_ContainerListSuccess(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerLogsSuccess(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -2893,7 +2893,7 @@ func TestAgentClient_HandleMessage_ContainerLogsSuccess(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ContainerExecSuccess(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
@@ -3127,7 +3127,7 @@ func TestAgentClient_ConnectWithRetry_ContextCancelledDuringConnect(t *testing.T
 	}()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://"+ln.Addr().String(), "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://"+ln.Addr().String(), "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -3174,7 +3174,7 @@ func TestAgentServer_HandleConnect_HijackFails(t *testing.T) {
 
 func TestAgentClient_HandleMessage_ImagePullSuccess(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger())
+	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()

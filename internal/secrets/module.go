@@ -27,12 +27,18 @@ func init() {
 // Module implements the secret vault.
 // Provides AES-256-GCM encrypted secret storage with scoping
 // (global → tenant → project → app) and versioning.
+// When Core.Services.KeyStore is set, the module delegates key
+// operations to the external KMS instead of the built-in Vault.
 type Module struct {
 	core   *core.Core
 	vault  *Vault
 	store  core.Store
 	bolt   core.BoltStorer
 	logger *slog.Logger
+
+	// keyStore is the optional external KMS (AWS KMS, SoftHSM, etc).
+	// When set, Encrypt/Decrypt delegate to it instead of vault.
+	keyStore core.KeyStore
 
 	// masterSecret is kept so Start can re-derive a new vault after a
 	// legacy-salt migration without re-reading config.
@@ -54,6 +60,10 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	m.logger = c.Logger.With("module", m.ID())
 	if c.DB != nil {
 		m.bolt = c.DB.Bolt
+	}
+	m.keyStore = c.Services.KeyStore
+	if m.keyStore != nil {
+		m.logger.Info("external key store wired", "type", fmt.Sprintf("%T", m.keyStore))
 	}
 
 	// Create vault with the server's secret key

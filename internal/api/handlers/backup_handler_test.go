@@ -240,7 +240,9 @@ func TestBackupCreate_InvalidJSON(t *testing.T) {
 
 func TestBackupRestore_Success(t *testing.T) {
 	store := newMockStore()
-	storage := &mockBackupStorage{fileData: "backup-data"}
+	// Provide valid JSON that matches core.Application
+	appJSON := `{"id":"app-orig-001","tenant_id":"tenant1","name":"my-app","type":"docker","status":"running","replicas":1}`
+	storage := &mockBackupStorage{fileData: appJSON}
 	events := core.NewEventBus(slog.Default())
 	handler := NewBackupHandler(store, storage, events)
 
@@ -255,12 +257,12 @@ func TestBackupRestore_Success(t *testing.T) {
 		t.Fatalf("expected 202, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	var resp map[string]string
+	var resp map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if resp["status"] != "queued" {
-		t.Errorf("expected status 'queued', got %q", resp["status"])
+	if resp["status"] != "restored" {
+		t.Errorf("expected status 'restored', got %q", resp["status"])
 	}
 	if storage.lastDownloadKey != "tenant1/app1/backup-001.tar.gz" {
 		t.Errorf("download key = %q, want tenant1/app1/backup-001.tar.gz", storage.lastDownloadKey)
@@ -269,7 +271,7 @@ func TestBackupRestore_Success(t *testing.T) {
 
 func TestBackupRestore_CrossTenantKey(t *testing.T) {
 	store := newMockStore()
-	storage := &mockBackupStorage{fileData: "backup-data"}
+	storage := &mockBackupStorage{fileData: `{"id":"app-orig-001","tenant_id":"tenant2","name":"my-app","type":"docker","status":"running","replicas":1}`}
 	events := core.NewEventBus(slog.Default())
 	handler := NewBackupHandler(store, storage, events)
 

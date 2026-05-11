@@ -93,6 +93,13 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 		c.DB.Snapshotter = m.sqlite
 	}
 
+	// Wire up leader elector for HA PostgreSQL deployments.
+	// SQLite deployments are always single-instance so no election needed.
+	if m.postgres != nil {
+		c.Services.LeaderElector = NewPostgresLeaderElector(m.postgres.DB())
+		c.Logger.Info("leader elector initialized (postgres HA mode)")
+	}
+
 	return nil
 }
 

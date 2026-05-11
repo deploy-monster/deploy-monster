@@ -1,6 +1,34 @@
 version: "3.8"
 
 services:
+  # Docker socket proxy: restricts Docker API access to only the endpoints
+  # DeployMonster needs (containers, images, networks, volumes, info, version, ping).
+  # A compromised DeployMonster container cannot access the host Docker socket directly
+  # — it goes through the proxy which denies write operations by default.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: dm-docker-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      VOLUMES: 1
+      INFO: 1
+      VERSION: 1
+      PING: 1
+      POST: 1
+      DELETE: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - dm-internal
+    read_only: true
+    tmpfs:
+      - /run
+    security_opt:
+      - no-new-privileges:true
+
   deploymonster:
     image: ghcr.io/deploy-monster/deploy-monster:latest
     build:
@@ -8,17 +36,23 @@ services:
       dockerfile: deployments/Dockerfile
     container_name: deploymonster
     restart: unless-stopped
+    depends_on:
+      docker-socket-proxy:
+        condition: service_started
     ports:
       - "8443:8443"   # API + UI
       - "80:80"       # HTTP (redirect + ACME)
       - "443:443"     # HTTPS (reverse proxy)
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - dm-data:/var/lib/deploymonster
     environment:
       - MONSTER_DOMAIN=${MONSTER_DOMAIN:-localhost}
       - MONSTER_ACME_EMAIL=${MONSTER_ACME_EMAIL:-}
       - MONSTER_SECRET=${MONSTER_SECRET:-}
+      # Use the socket proxy instead of direct socket access
+      - MONSTER_DOCKER_HOST=tcp://docker-socket-proxy:2375
+    networks:
+      - dm-internal
     healthcheck:
       test: ["CMD", "/deploymonster", "health"]
       interval: 30s
@@ -29,3 +63,7 @@ services:
 volumes:
   dm-data:
     driver: local
+
+networks:
+  dm-internal:
+    driver: bridge

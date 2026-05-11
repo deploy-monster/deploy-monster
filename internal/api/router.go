@@ -34,6 +34,7 @@ type Router struct {
 	apiMetrics       *middleware.APIMetrics
 	gracefulShutdown *middleware.GracefulShutdown
 	globalRL         *middleware.GlobalRateLimiter
+	ipAllowlist      *middleware.IPAllowlist
 	serverCtx        context.Context    // canceled on graceful shutdown
 	serverCancel     context.CancelFunc // called by Stop to signal goroutines
 	startedAt        time.Time          // server start time for uptime reporting
@@ -52,6 +53,7 @@ func NewRouter(c *core.Core, authMod handlers.AuthServices, store core.Store) *R
 		apiMetrics:       middleware.NewAPIMetrics(),
 		gracefulShutdown: middleware.NewGracefulShutdown(),
 		globalRL:         middleware.NewGlobalRateLimiter(rlRate, time.Minute),
+		ipAllowlist:      middleware.NewIPAllowlist(c.Config.Server.AllowedCIDRs, c.Logger),
 		serverCtx:        ctx,
 		serverCancel:     cancel,
 		startedAt:        time.Now(),
@@ -72,7 +74,9 @@ func NewRouter(c *core.Core, authMod handlers.AuthServices, store core.Store) *R
 func (r *Router) Handler() http.Handler {
 	return middleware.Chain(
 		r.mux,
-		middleware.RequestID,
+		middleware.RequestID(r.core),
+		middleware.Tracing(r.core),
+		r.ipAllowlist.Middleware,
 		r.gracefulShutdown.Middleware,
 		r.globalRL.Middleware,
 		middleware.SecurityHeaders,

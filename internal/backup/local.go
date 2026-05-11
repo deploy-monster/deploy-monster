@@ -2,6 +2,9 @@ package backup
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
@@ -16,8 +19,10 @@ import (
 var _ core.BackupStorage = (*LocalStorage)(nil)
 
 // LocalStorage stores backups on the local filesystem.
+// Optionally encrypts payloads using AES-256-GCM when an encryption key is set.
 type LocalStorage struct {
-	basePath string
+	basePath    string
+	encryptionKey []byte // 32 bytes; nil means no encryption
 }
 
 // NewLocalStorage creates a local backup storage target. The base path is
@@ -26,14 +31,14 @@ type LocalStorage struct {
 // like. Without this, a "./backups" config produced clean paths that did
 // not start with the literal "./backups" string and every List call —
 // including the retention sweep — failed with "path outside storage root".
-func NewLocalStorage(basePath string) *LocalStorage {
+func NewLocalStorage(basePath string, encryptionKey []byte) *LocalStorage {
 	if abs, err := filepath.Abs(basePath); err == nil {
 		basePath = abs
 	} else {
 		basePath = filepath.Clean(basePath)
 	}
 	_ = os.MkdirAll(basePath, 0750)
-	return &LocalStorage{basePath: basePath}
+	return &LocalStorage{basePath: basePath, encryptionKey: encryptionKey}
 }
 
 func (l *LocalStorage) Name() string { return "local" }
@@ -53,16 +58,74 @@ func (l *LocalStorage) Upload(_ context.Context, key string, reader io.Reader, _
 	path := cleanPath
 	_ = os.MkdirAll(filepath.Dir(path), 0750)
 
+	// Read the full payload before we know whether we need to encrypt —
+	// SigV4 (S3) and path traversal checks also require full reads, so
+	// this is consistent with the existing pattern.
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("read backup payload: %w", err)
+	}
+
+	// Encrypt in-place if a key is configured.
+	if l.encryptionKey != nil {
+		encrypted, err := encryptAES256GCM(data, l.encryptionKey)
+		if err != nil {
+			return fmt.Errorf("encrypt backup: %w", err)
+		}
+		data = encrypted
+	}
+
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("create backup file: %w", err)
 	}
 	defer func() { _ = f.Close() }()
 
-	if _, err := io.Copy(f, reader); err != nil {
+	if _, err := f.Write(data); err != nil {
 		return fmt.Errorf("write backup: %w", err)
 	}
 	return nil
+}
+
+// encryptAES256GCM encrypts data using AES-256-GCM with a randomly generated nonce.
+// The nonce is prepended to the ciphertext, so the total output is nonce+ciphertext.
+func encryptAES256GCM(plaintext, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("create cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("create GCM: %w", err)
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, fmt.Errorf("generate nonce: %w", err)
+	}
+	return gcm.Seal(nonce, nonce, plaintext, nil), nil
+}
+
+// decryptAES256GCM decrypts AES-256-GCM ciphertext produced by encryptAES256GCM.
+// The first GCM nonceSize bytes are the nonce; the rest is the ciphertext.
+func decryptAES256GCM(ciphertext, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("create cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("create GCM: %w", err)
+	}
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return nil, fmt.Errorf("ciphertext too short for GCM nonce")
+	}
+	nonce, data := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, data, nil)
+	if err != nil {
+		return nil, fmt.Errorf("GCM decryption failed: %w", err)
+	}
+	return plaintext, nil
 }
 
 func (l *LocalStorage) Download(_ context.Context, key string) (io.ReadCloser, error) {
@@ -82,6 +145,22 @@ func (l *LocalStorage) Download(_ context.Context, key string) (io.ReadCloser, e
 	if err != nil {
 		return nil, fmt.Errorf("open backup: %w", err)
 	}
+
+	// If encryption is enabled, we need to read and decrypt the full file.
+	// io.ReadAll is acceptable here since backup files are not streamed.
+	if l.encryptionKey != nil {
+		data, err := io.ReadAll(f)
+		_ = f.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read encrypted backup: %w", err)
+		}
+		plaintext, err := decryptAES256GCM(data, l.encryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt backup: %w", err)
+		}
+		return io.NopCloser(strings.NewReader(string(plaintext))), nil
+	}
+
 	return f, nil
 }
 

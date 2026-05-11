@@ -2,24 +2,24 @@ package backup
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// ErrBackupNotReady is returned by TriggerNow when the backup module's
-// scheduler hasn't started yet — typically because TriggerNow was called
-// before the module's Start() (e.g. during early boot or in tests).
 var ErrBackupNotReady = errors.New("backup engine not ready")
 
 func init() {
 	core.RegisterModule(func() core.Module { return New() })
 }
 
-// Module implements the backup engine.
-// Supports volume snapshots, database dumps, and configurable storage targets.
 type Module struct {
 	core      *core.Core
 	store     core.Store
@@ -45,24 +45,31 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	m.store = c.Store
 	m.logger = c.Logger.With("module", m.ID())
 
-	// Register local backup storage by default
 	localPath := c.Config.Backup.StoragePath
 	if localPath == "" {
 		localPath = "backups"
 	}
-	local := NewLocalStorage(localPath)
+	var encryptionKey []byte
+	if c.Config.Backup.EncryptionKey != "" {
+		var err error
+		encryptionKey, err = base64.StdEncoding.DecodeString(c.Config.Backup.EncryptionKey)
+		if err != nil {
+			return fmt.Errorf("invalid backup.encryption_key: %w", err)
+		}
+	}
+	local := NewLocalStorage(localPath, encryptionKey)
 	m.RegisterStorage("local", local)
 	c.Services.RegisterBackupStorage("local", local)
 
-	// Register S3 storage if configured
 	if s3Cfg := c.Config.Backup.S3; s3Cfg.Bucket != "" {
 		s3 := NewS3Storage(S3Config{
-			Endpoint:  s3Cfg.Endpoint,
-			Bucket:    s3Cfg.Bucket,
-			Region:    s3Cfg.Region,
-			AccessKey: s3Cfg.AccessKey,
-			SecretKey: s3Cfg.SecretKey,
-			PathStyle: s3Cfg.PathStyle,
+			Endpoint:      s3Cfg.Endpoint,
+			Bucket:        s3Cfg.Bucket,
+			Region:        s3Cfg.Region,
+			AccessKey:     s3Cfg.AccessKey,
+			SecretKey:     s3Cfg.SecretKey,
+			PathStyle:     s3Cfg.PathStyle,
+			EncryptionKey: encryptionKey,
 		}, m.logger)
 		m.RegisterStorage("s3", s3)
 		c.Services.RegisterBackupStorage("s3", s3)
@@ -73,7 +80,6 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 }
 
 func (m *Module) Start(_ context.Context) error {
-	// Start backup scheduler
 	schedule := m.core.Config.Backup.Schedule
 	if schedule == "" {
 		schedule = "02:00"
@@ -93,16 +99,12 @@ func (m *Module) Stop(ctx context.Context) error {
 	if m.scheduler == nil {
 		return nil
 	}
-	// Honor the module shutdown deadline so a wedged storage upload
-	// cannot pin the whole platform shutdown past the graceful window.
-	// A drain timeout is logged but not returned as an error — the
-	// module system counts a timed-out Stop as "shut down anyway" so
-	// downstream modules can keep unwinding.
 	if err := m.scheduler.StopCtx(ctx); err != nil {
 		m.logger.Warn("backup scheduler drain exceeded shutdown deadline", "error", err)
 	}
 	return nil
 }
+
 func (m *Module) Health() core.HealthStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -112,14 +114,12 @@ func (m *Module) Health() core.HealthStatus {
 	return core.HealthOK
 }
 
-// RegisterStorage adds a backup storage target.
 func (m *Module) RegisterStorage(name string, storage core.BackupStorage) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.storages[name] = storage
 }
 
-// StorageNames returns registered storage target names.
 func (m *Module) StorageNames() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -130,21 +130,115 @@ func (m *Module) StorageNames() []string {
 	return names
 }
 
-// TriggerNow runs the backup pipeline immediately, in a background
-// goroutine, and returns once the work has been queued. The caller
-// should watch the EventBackupCompleted/EventBackupFailed events to
-// learn the outcome.
-//
-// The supplied context is only used for early cancellation propagation;
-// the actual run uses the scheduler's server-lifetime context so the
-// goroutine outlives the HTTP request that triggered it. Passing the
-// request context directly would have the run cancelled the moment the
-// HTTP handler returned (which is what /api/v1/backups POST used to do
-// before this entry point existed).
 func (m *Module) TriggerNow(_ context.Context) error {
 	if m.scheduler == nil {
 		return ErrBackupNotReady
 	}
 	go m.scheduler.runBackups()
+	return nil
+}
+
+// RestoreBackup downloads a backup and restores the app it belongs to.
+// For incremental backups, it finds the preceding full backup and restores
+// from that. If the app was deleted, it recreates it from the archive.
+func (m *Module) RestoreBackup(ctx context.Context, backupID, tenantID string) error {
+	backups, _, err := m.store.ListBackupsByTenant(ctx, tenantID, 1000, 0)
+	if err != nil {
+		return fmt.Errorf("list backups: %w", err)
+	}
+	var backup *core.Backup
+	for i := range backups {
+		if backups[i].ID == backupID {
+			backup = &backups[i]
+			break
+		}
+	}
+	if backup == nil {
+		return fmt.Errorf("backup not found: %s", backupID)
+	}
+	if backup.Status != "completed" {
+		return fmt.Errorf("backup not completed: %s (status=%s)", backupID, backup.Status)
+	}
+
+	// For incremental backups, find the preceding full backup.
+	targetBackup := backup
+	if backup.BackupType == "incremental" {
+		for i := range backups {
+			if backups[i].SourceID == backup.SourceID &&
+				backups[i].BackupType == "full" &&
+				backups[i].CreatedAt.Before(backup.CreatedAt) {
+				targetBackup = &backups[i]
+			}
+		}
+		if targetBackup.BackupType != "full" {
+			return fmt.Errorf("incremental %s has no preceding full backup", backupID)
+		}
+	}
+
+	storage := m.storages[targetBackup.StorageTarget]
+	if storage == nil {
+		return fmt.Errorf("unknown storage target: %s", targetBackup.StorageTarget)
+	}
+	reader, err := storage.Download(ctx, targetBackup.FilePath)
+	if err != nil {
+		return fmt.Errorf("download backup: %w", err)
+	}
+	defer reader.Close()
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("read backup data: %w", err)
+	}
+
+	// The archived payload is the JSON of the Application struct.
+	var archivedApp core.Application
+	if err := json.Unmarshal(data, &archivedApp); err != nil {
+		return fmt.Errorf("decode backup payload: %w", err)
+	}
+
+	// Check if the app still exists.
+	apps, _, err := m.store.ListAppsByTenant(ctx, tenantID, 1000, 0)
+	if err != nil {
+		return fmt.Errorf("list tenant apps: %w", err)
+	}
+	var existing *core.Application
+	for i := range apps {
+		if apps[i].Name == archivedApp.Name && apps[i].TenantID == tenantID {
+			existing = &apps[i]
+			break
+		}
+	}
+
+	if existing == nil {
+		// Recreate from archive with a fresh ID.
+		archivedApp.ID = core.GenerateID()
+		archivedApp.TenantID = tenantID
+		archivedApp.CreatedAt = time.Now()
+		if err := m.store.CreateApp(ctx, &archivedApp); err != nil {
+			return fmt.Errorf("recreate app from backup: %w", err)
+		}
+		m.logger.Info("app recreated from backup",
+			"backup_id", backupID, "app_id", archivedApp.ID, "app_name", archivedApp.Name)
+	} else {
+		// Update in-place — only the fields that are actually stored in
+		// the Application struct (Name, Type, SourceURL, Branch, Dockerfile,
+		// BuildPack, EnvVarsEnc, LabelsJSON, Replicas, Port, Status).
+		existing.Type = archivedApp.Type
+		existing.SourceURL = archivedApp.SourceURL
+		existing.Branch = archivedApp.Branch
+		existing.Dockerfile = archivedApp.Dockerfile
+		existing.BuildPack = archivedApp.BuildPack
+		existing.EnvVarsEnc = archivedApp.EnvVarsEnc
+		existing.LabelsJSON = archivedApp.LabelsJSON
+		existing.Replicas = archivedApp.Replicas
+		existing.Port = archivedApp.Port
+		existing.UpdatedAt = time.Now()
+		if err := m.store.UpdateApp(ctx, existing); err != nil {
+			return fmt.Errorf("update app from backup: %w", err)
+		}
+		m.logger.Info("app updated from backup",
+			"backup_id", backupID, "app_id", existing.ID, "app_name", archivedApp.Name)
+	}
+
 	return nil
 }

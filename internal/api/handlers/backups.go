@@ -3,8 +3,11 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -25,8 +28,13 @@ type BackupHandler struct {
 	storage core.BackupStorage
 	events  *core.EventBus
 	trigger BackupTrigger
+	logger  *slog.Logger
 }
 
+// SetLogger wires a logger into the handler.
+func (h *BackupHandler) SetLogger(logger *slog.Logger) { h.logger = logger }
+
+// NewBackupHandler creates a BackupHandler.
 func NewBackupHandler(store core.Store, storage core.BackupStorage, events *core.EventBus) *BackupHandler {
 	return &BackupHandler{store: store, storage: storage, events: events}
 }
@@ -116,6 +124,8 @@ func (h *BackupHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // Restore handles POST /api/v1/backups/{key}/restore
+// It downloads the backup, deserializes the app config, and recreates
+// the app in the store (not the running container — that's a deploy).
 func (h *BackupHandler) Restore(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -140,16 +150,45 @@ func (h *BackupHandler) Restore(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "backup not found")
 		return
 	}
-	reader.Close()
+	defer reader.Close()
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to read backup")
+		return
+	}
+
+	var app core.Application
+	if err := json.Unmarshal(data, &app); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "invalid backup format")
+		return
+	}
+
+	// Override tenant ID from the auth context — backups may be restored
+	// to the same or a different tenant depending on permissions.
+	app.ID = core.GenerateID()
+	app.TenantID = claims.TenantID
+	app.Status = "restoring"
+	app.CreatedAt = time.Now()
+	app.UpdatedAt = app.CreatedAt
+
+	if err := h.store.CreateApp(r.Context(), &app); err != nil {
+		if h.logger != nil {
+			h.logger.Error("failed to restore app from backup", "key", key, "error", err)
+		}
+		writeError(w, http.StatusInternalServerError, "failed to restore app")
+		return
+	}
 
 	h.events.Publish(r.Context(), core.NewTenantEvent(
 		"backup.restore_started", "api", claims.TenantID, claims.UserID,
-		map[string]string{"key": key},
+		map[string]string{"key": key, "app_id": app.ID},
 	))
 
-	writeJSON(w, http.StatusAccepted, map[string]string{
-		"status":  "queued",
-		"message": "restore job has been queued",
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"status":  "restored",
+		"app_id":  app.ID,
+		"message": "app restored from backup",
 	})
 }
 

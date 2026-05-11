@@ -2,10 +2,11 @@ package core
 
 import (
 	"testing"
+	"time"
 )
 
 func TestSetupLogger_JSONFormat(t *testing.T) {
-	logger := SetupLogger("debug", "json")
+	logger := SetupLogger("debug", "json", "", "", "", 5*time.Second)
 	if logger == nil {
 		t.Fatal("SetupLogger returned nil")
 	}
@@ -26,7 +27,7 @@ func TestSetupLogger_LevelParsing(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := SetupLogger(tc.level, "text"); got == nil {
+			if got := SetupLogger(tc.level, "text", "", "", "", 5*time.Second); got == nil {
 				t.Error("expected non-nil logger")
 			}
 		})

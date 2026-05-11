@@ -7,6 +7,7 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
@@ -195,6 +196,50 @@ type SecretResolver interface {
 	ResolveAll(scope string, template string) (string, error)
 }
 
+// KeyStore is the pluggable backend for secret key material.
+// Implemented by: AWS KMS provider, SoftHSM provider, or nil for built-in Vault.
+type KeyStore interface {
+	// Encrypt encrypts plaintext using the named key version.
+	// The keyVersion parameter allows key rotation without re-encrypting
+	// all secrets at once. Returns base64-encoded ciphertext.
+	Encrypt(ctx context.Context, keyVersion string, plaintext string) (string, error)
+
+	// Decrypt decrypts base64-encoded ciphertext using the named key version.
+	Decrypt(ctx context.Context, keyVersion string, ciphertext string) (string, error)
+
+	// GenerateKey generates a new key version and returns its identifier.
+	// The returned version string is used in subsequent Encrypt calls.
+	GenerateKey(ctx context.Context, purpose string) (version string, err error)
+
+	// ListKeys returns all key version identifiers for audit purposes.
+	ListKeys(ctx context.Context) ([]string, error)
+}
+
+// JobQueue is the pluggable backend for durable job scheduling.
+// Implemented by: Kafka consumer group, RabbitMQ, NATS JetStream.
+type JobQueue interface {
+	// Publish sends a job to the queue. The topic routing key selects
+	// which consumer group receives the job.
+	Publish(ctx context.Context, topic string, job JobMessage) error
+
+	// Subscribe registers a handler for jobs on a given topic/routing key.
+	// The handler is called with the deserialized job payload.
+	Subscribe(ctx context.Context, topic string, handler func(JobMessage) error) error
+
+	// Close tears down the connection. Called on module shutdown.
+	Close() error
+}
+
+// JobMessage is the wire format for all job queue messages.
+type JobMessage struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`    // e.g. "build", "deploy", "cleanup"
+	TenantID  string `json:"tenant_id"`
+	Payload   []byte `json:"payload"` // JSON-encoded job data
+	RetryMax  int    `json:"retry_max"`
+	CreatedAt int64  `json:"created_at"` // Unix timestamp
+}
+
 // --- Notification ---
 
 // NotificationSender sends notifications through various channels.
@@ -368,6 +413,28 @@ type BoltStorer interface {
 }
 
 // =====================================================
+// LEADER ELECTION
+// Used for HA multi-instance deployments to ensure
+// only one instance runs the master role.
+// =====================================================
+
+// LeaderElector coordinates master election using distributed locks.
+type LeaderElector interface {
+	// Elect attempts to become the leader for the given lease key.
+	// Returns true if this instance won the election, false if
+	// another instance already holds the lease. Lease duration
+	// controls how long the leadership is valid before requiring renewal.
+	Elect(ctx context.Context, key string, leaseDuration time.Duration) (won bool, err error)
+	// Renew extends the lifetime of the leadership if still held.
+	// Returns true if leadership is still held, false if it was lost.
+	Renew(ctx context.Context, key string, leaseDuration time.Duration) (held bool, err error)
+	// Resign voluntarily releases leadership so another instance can take over.
+	Resign(ctx context.Context, key string) error
+	// IsLeader reports whether this instance currently holds leadership for the key.
+	IsLeader(ctx context.Context, key string) (bool, error)
+}
+
+// =====================================================
 // SERVICE REGISTRY
 // Modules register their service implementations here
 // so other modules can look them up by interface type
@@ -383,6 +450,23 @@ type Services struct {
 	SSH           SSHClient
 	Secrets       SecretResolver
 	Notifications NotificationSender
+
+	// LeaderElector coordinates master election in multi-instance deployments.
+	// Uses PostgreSQL advisory locks when available; nil means single-instance
+	// deployment where this process is always the master.
+	LeaderElector LeaderElector
+
+	// KeyStore is the pluggable backend for secret key material.
+	// When set, the secrets module uses it for encrypting/decrypting
+	// secrets instead of the built-in AES-256-GCM Vault. Supports AWS KMS,
+	// SoftHSM, or any compatible plugin. Nil means use built-in Vault.
+	KeyStore KeyStore
+
+	// JobQueue is the pluggable backend for durable job scheduling.
+	// Supports Kafka, RabbitMQ, or NATS JetStream. When set, the build
+	// scheduler uses it for job distribution across worker nodes. Nil means
+	// use in-process TenantQueue on this instance only.
+	JobQueue JobQueue
 
 	// Provider registries — support multiple implementations
 	dnsProviders    map[string]DNSProvider

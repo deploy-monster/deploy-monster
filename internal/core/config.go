@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,23 +12,24 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	Server        ServerConfig       `yaml:"server"`
-	Database      DatabaseConfig     `yaml:"database"`
-	Ingress       IngressConfig      `yaml:"ingress"`
-	ACME          ACMEConfig         `yaml:"acme"`
-	DNS           DNSConfig          `yaml:"dns"`
-	Docker        DockerConfig       `yaml:"docker"`
-	Backup        BackupConfig       `yaml:"backup"`
-	Notifications NotificationConfig `yaml:"notifications"`
-	Swarm         SwarmConfig        `yaml:"swarm"`
-	VPSProviders  VPSProvidersConfig `yaml:"vps_providers"`
-	GitSources    GitSourcesConfig   `yaml:"git_sources"`
-	Marketplace   MarketplaceConfig  `yaml:"marketplace"`
-	Registration  RegistrationConfig `yaml:"registration"`
-	Secrets       SecretsConfig      `yaml:"secrets"`
-	Billing       BillingConfig      `yaml:"billing"`
-	Limits        LimitsConfig       `yaml:"limits"`
-	Enterprise    EnterpriseConfig   `yaml:"enterprise"`
+	Server          ServerConfig          `yaml:"server"`
+	Database        DatabaseConfig        `yaml:"database"`
+	Ingress         IngressConfig         `yaml:"ingress"`
+	ACME            ACMEConfig            `yaml:"acme"`
+	DNS             DNSConfig             `yaml:"dns"`
+	Docker          DockerConfig          `yaml:"docker"`
+	Backup          BackupConfig          `yaml:"backup"`
+	Notifications   NotificationConfig     `yaml:"notifications"`
+	Swarm           SwarmConfig           `yaml:"swarm"`
+	VPSProviders    VPSProvidersConfig    `yaml:"vps_providers"`
+	GitSources      GitSourcesConfig      `yaml:"git_sources"`
+	Marketplace     MarketplaceConfig      `yaml:"marketplace"`
+	Registration    RegistrationConfig     `yaml:"registration"`
+	Secrets         SecretsConfig         `yaml:"secrets"`
+	Billing         BillingConfig          `yaml:"billing"`
+	Limits          LimitsConfig           `yaml:"limits"`
+	Enterprise      EnterpriseConfig       `yaml:"enterprise"`
+	Observability   ObservabilityConfig   `yaml:"observability"`
 }
 
 // ServerConfig holds the HTTP server configuration.
@@ -42,6 +44,7 @@ type ServerConfig struct {
 	LogLevel           string   `yaml:"log_level"`             // debug, info, warn, error (default: info)
 	LogFormat          string   `yaml:"log_format"`            // text or json (default: text)
 	RateLimitPerMinute int      `yaml:"rate_limit_per_minute"` // global per-IP rate limit; 0 = disabled (default: 120)
+	AllowedCIDRs      []string `yaml:"allowed_cidrs"`          // CIDR ranges allowed to access the API; empty = allow all
 }
 
 // DatabaseConfig holds database configuration.
@@ -50,6 +53,13 @@ type DatabaseConfig struct {
 	Path            string `yaml:"path"`
 	URL             string `yaml:"url"`
 	QueryTimeoutSec int    `yaml:"query_timeout_sec"` // per-query timeout in seconds; 0 = 5s default
+	SSLMode         string `yaml:"ssl_mode"`           // postgres only: disable, allow, require, verify-ca, verify-full (default: require)
+	// ReplicationMode enables PostgreSQL streaming replication for read replicas.
+	// Off by default. Set to "streaming" to enable.
+	ReplicationMode string `yaml:"replication_mode"`
+	// ReplicaURL is the connection URL for the read replica when replication
+	// mode is enabled. If empty, falls back to the main URL for read operations.
+	ReplicaURL string `yaml:"replica_url"`
 }
 
 // IngressConfig holds ingress gateway configuration.
@@ -91,11 +101,13 @@ type DockerConfig struct {
 
 // BackupConfig holds backup configuration.
 type BackupConfig struct {
-	Schedule      string         `yaml:"schedule"`
-	RetentionDays int            `yaml:"retention_days"`
-	StoragePath   string         `yaml:"storage_path"`
-	Encryption    bool           `yaml:"encryption"`
-	S3            BackupS3Config `yaml:"s3"`
+	Schedule        string         `yaml:"schedule"`
+	RetentionDays   int            `yaml:"retention_days"`
+	StoragePath     string         `yaml:"storage_path"`
+	Encryption      bool           `yaml:"encryption"`
+	EncryptionKey   string         `yaml:"encryption_key"` // AES-256 key for backup encryption; 32 bytes base64-encoded
+	S3              BackupS3Config `yaml:"s3"`
+	AlertmanagerURL string         `yaml:"alertmanager_url"` // Prometheus Alertmanager webhook endpoint
 }
 
 // BackupS3Config holds S3 backup storage configuration.
@@ -144,6 +156,13 @@ type SwarmConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	ManagerIP string `yaml:"manager_ip"`
 	JoinToken string `yaml:"join_token"`
+	// TLS certificate files for mutual TLS on agent connections.
+	// When TLSCertFile and TLSKeyFile are set, the agent uses TLS and
+	// presents a client certificate. TLSCACertFile verifies the server
+	// certificate. Token is sent via X-Agent-Token header (not URL).
+	TLSCertFile string `yaml:"tls_cert_file"`
+	TLSKeyFile  string `yaml:"tls_key_file"`
+	TLSCACertFile string `yaml:"tls_ca_cert_file"`
 }
 
 // VPSProvidersConfig holds VPS provider configuration.
@@ -195,6 +214,15 @@ type LimitsConfig struct {
 type EnterpriseConfig struct {
 	Enabled    bool   `yaml:"enabled"`
 	LicenseKey string `yaml:"license_key"`
+}
+
+// ObservabilityConfig holds metrics, tracing, and log aggregation settings.
+type ObservabilityConfig struct {
+	LokiURL    string `yaml:"loki_url"`    // Loki endpoint for structured logs
+	LokiTimeout int    `yaml:"loki_timeout"` // seconds (default: 5)
+	LogFormat  string `yaml:"log_format"`  // text, json, loki
+	TracingURL string `yaml:"tracing_url"` // OTLP/gRPC endpoint for OpenTelemetry traces (e.g., localhost:4317)
+	ServiceName string `yaml:"service_name"` // service name for traces (default: deploymonster)
 }
 
 // LoadConfig loads configuration from monster.yaml, applies env var overrides,
@@ -293,6 +321,13 @@ func (c *Config) Validate() error {
 	default:
 		return fmt.Errorf("config: unsupported database.driver %q (sqlite, postgres)", c.Database.Driver)
 	}
+	if c.Database.SSLMode != "" {
+		switch c.Database.SSLMode {
+		case "disable", "allow", "require", "verify-ca", "verify-full":
+		default:
+			return fmt.Errorf("config: database.ssl_mode %q not recognized (disable, allow, require, verify-ca, verify-full)", c.Database.SSLMode)
+		}
+	}
 
 	// Ingress ports
 	if c.Ingress.HTTPPort < 1 || c.Ingress.HTTPPort > 65535 {
@@ -340,6 +375,15 @@ func (c *Config) Validate() error {
 	if c.Backup.RetentionDays < 0 {
 		return fmt.Errorf("config: backup.retention_days must be non-negative")
 	}
+	if c.Backup.EncryptionKey != "" {
+		key, err := base64.StdEncoding.DecodeString(c.Backup.EncryptionKey)
+		if err != nil {
+			return fmt.Errorf("config: backup.encryption_key must be base64-encoded: %w", err)
+		}
+		if len(key) != 32 {
+			return fmt.Errorf("config: backup.encryption_key must be exactly 32 bytes (44 base64 chars)")
+		}
+	}
 	if c.Backup.S3.Bucket != "" {
 		if len(c.Backup.S3.Bucket) < 3 || len(c.Backup.S3.Bucket) > 63 {
 			return fmt.Errorf("config: backup.s3.bucket name must be 3-63 characters")
@@ -363,6 +407,18 @@ func (c *Config) Validate() error {
 	}
 	if c.Limits.MaxConcurrentBuilds < 1 {
 		return fmt.Errorf("config: limits.max_concurrent_builds must be at least 1")
+	}
+
+	// Observability log format
+	if c.Observability.LogFormat != "" {
+		switch c.Observability.LogFormat {
+		case "text", "json", "loki":
+		default:
+			return fmt.Errorf("config: observability.log_format %q not recognized (text, json, loki)", c.Observability.LogFormat)
+		}
+	}
+	if c.Observability.LokiURL != "" && !strings.HasPrefix(c.Observability.LokiURL, "http://") && !strings.HasPrefix(c.Observability.LokiURL, "https://") {
+		return fmt.Errorf("config: observability.loki_url must be a valid HTTP/HTTPS URL")
 	}
 
 	return nil
@@ -392,6 +448,7 @@ func (c *Config) AuditSecrets() []string {
 		{"notifications.telegram_token", c.Notifications.TelegramToken, "MONSTER_TELEGRAM_TOKEN"},
 		{"backup.s3.access_key", c.Backup.S3.AccessKey, "MONSTER_S3_ACCESS_KEY"},
 		{"backup.s3.secret_key", c.Backup.S3.SecretKey, "MONSTER_S3_SECRET_KEY"},
+		{"backup.encryption_key", c.Backup.EncryptionKey, "MONSTER_BACKUP_ENCRYPTION_KEY"},
 		{"swarm.join_token", c.Swarm.JoinToken, "MONSTER_JOIN_TOKEN"},
 	}
 
@@ -416,6 +473,7 @@ func applyDefaults(cfg *Config) {
 	}
 	cfg.Database.Driver = "sqlite"
 	cfg.Database.Path = "deploymonster.db"
+	cfg.Database.SSLMode = "require"
 	cfg.Ingress.HTTPPort = 80
 	cfg.Ingress.HTTPSPort = 443
 	cfg.Ingress.EnableHTTPS = true
@@ -461,6 +519,9 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("MONSTER_DB_URL"); v != "" {
 		cfg.Database.URL = v
 		cfg.Database.Driver = "postgres"
+	}
+	if v := os.Getenv("MONSTER_DB_SSL_MODE"); v != "" {
+		cfg.Database.SSLMode = v
 	}
 	if v := os.Getenv("MONSTER_DOCKER_HOST"); v != "" {
 		cfg.Docker.Host = v
@@ -558,5 +619,20 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("MONSTER_S3_SECRET_KEY"); v != "" {
 		cfg.Backup.S3.SecretKey = v
+	}
+	if v := os.Getenv("MONSTER_BACKUP_ENCRYPTION_KEY"); v != "" {
+		cfg.Backup.EncryptionKey = v
+	}
+	if v := os.Getenv("MONSTER_ALERTMANAGER_URL"); v != "" {
+		cfg.Backup.AlertmanagerURL = v
+	}
+	if v := os.Getenv("MONSTER_LOKI_URL"); v != "" {
+		cfg.Observability.LokiURL = v
+	}
+	if v := os.Getenv("MONSTER_TRACING_URL"); v != "" {
+		cfg.Observability.TracingURL = v
+	}
+	if v := os.Getenv("MONSTER_SERVICE_NAME"); v != "" {
+		cfg.Observability.ServiceName = v
 	}
 }

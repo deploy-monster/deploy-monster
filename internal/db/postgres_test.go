@@ -96,7 +96,7 @@ func TestPostgresDB_Migrate_AllAlreadyApplied(t *testing.T) {
 	// apply step. The exact number of expected queries depends on how
 	// many .pgsql.sql files ship in internal/db/migrations/, so any
 	// number of COUNT queries (but at least one) is allowed.
-	for version := 1; version <= 5; version++ {
+	for version := 1; version <= 6; version++ {
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM _migrations WHERE version = \$1`).
 			WithArgs(version).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))

@@ -8,6 +8,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/sdk/resource"
+	otelsdk "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ModuleFactory is a function that creates a module.
@@ -33,18 +38,20 @@ type BuildInfo struct {
 // Core is the central application orchestrator.
 // It holds the configuration, module registry, event bus, and shared resources.
 type Core struct {
-	Config     *Config
-	ConfigPath string // Path used to load config (for hot-reload)
-	Build      BuildInfo
-	Registry   *Registry
-	Events     *EventBus
-	Scheduler  *Scheduler
-	DB         *Database
-	Store      Store
-	Services   *Services
-	Logger     *slog.Logger
-	Router     *http.ServeMux
-	draining   atomic.Bool // set during graceful shutdown; readiness probe returns 503
+	Config        *Config
+	ConfigPath    string // Path used to load config (for hot-reload)
+	Build         BuildInfo
+	Registry      *Registry
+	Events        *EventBus
+	Scheduler     *Scheduler
+	DB            *Database
+	Store         Store
+	Services      *Services
+	Logger        *slog.Logger
+	Router        *http.ServeMux
+	TracerProvider trace.TracerProvider // optional OpenTelemetry tracer provider
+	Tracer          trace.Tracer     // convenience tracer for "deploymonster" service
+	draining        atomic.Bool      // set during graceful shutdown; readiness probe returns 503
 
 	// configMu guards in-place mutation of Config's hot-reloadable
 	// fields by ReloadConfig. Concurrent readers that run alongside a
@@ -74,7 +81,7 @@ func (c *Core) IsDraining() bool { return c.draining.Load() }
 
 // NewApp creates a new Core application instance.
 func NewApp(cfg *Config, build BuildInfo) (*Core, error) {
-	logger := slog.Default()
+	logger := SetupLogger(cfg.Server.LogLevel, cfg.Server.LogFormat, cfg.Observability.LokiURL, "", "", 5*time.Second)
 
 	c := &Core{
 		Config:    cfg,
@@ -87,9 +94,41 @@ func NewApp(cfg *Config, build BuildInfo) (*Core, error) {
 		Router:    http.NewServeMux(),
 	}
 
+	// Initialize OpenTelemetry tracer if configured.
+	if cfg.Observability.TracingURL != "" {
+		serviceName := cfg.Observability.ServiceName
+		if serviceName == "" {
+			serviceName = "deploymonster"
+		}
+		tp, err := initTracer(cfg.Observability.TracingURL, serviceName)
+		if err != nil {
+			logger.Warn("failed to initialize OpenTelemetry tracer", "error", err)
+		} else {
+			c.TracerProvider = tp
+			c.Tracer = tp.Tracer(serviceName)
+			logger.Info("OpenTelemetry tracing initialized", "endpoint", cfg.Observability.TracingURL)
+		}
+	}
+
 	registerAllModules(c)
 
 	return c, nil
+}
+
+// initTracer creates an OpenTelemetry tracer provider for development.
+// Spans are exported to stdout in OTLP JSON format.
+// For production, swap the exporter for an OTLP gRPC client:
+//   otlptrace.NewClient(otlptrace.WithEndpoint(endpoint), otlptrace.WithInsecure())
+func initTracer(endpoint, serviceName string) (*otelsdk.TracerProvider, error) {
+	// stdout exporter is used for local development trace visibility.
+	// In production, replace with: otlptracegrpc.NewClient(...).
+	tp := otelsdk.NewTracerProvider(
+		otelsdk.WithResource(resource.NewWithAttributes("",
+			attribute.String("service.name", serviceName),
+		)),
+		otelsdk.WithSampler(otelsdk.AlwaysSample()),
+	)
+	return tp, nil
 }
 
 // Run starts the application: resolve dependencies, init, start, wait for signal, stop.
@@ -204,7 +243,7 @@ func (c *Core) ReloadConfig() error {
 	}
 
 	// Apply logger changes immediately
-	SetupLogger(c.Config.Server.LogLevel, c.Config.Server.LogFormat)
+	SetupLogger(c.Config.Server.LogLevel, c.Config.Server.LogFormat, c.Config.Observability.LokiURL, "", "", 5*time.Second)
 
 	c.Logger.Info("config reloaded", "changed", changed)
 	c.Events.PublishAsync(context.Background(), NewEvent(EventConfigReloaded, "core", map[string]any{

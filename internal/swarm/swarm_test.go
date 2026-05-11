@@ -864,7 +864,7 @@ func TestRemoteExecutor_ImplementsNodeExecutor(t *testing.T) {
 
 func TestNewAgentClient(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com/", "server-1", "token-abc", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com/", "server-1", "token-abc", "1.0.0", rt, testLogger(), "", "", "")
 
 	if client == nil {
 		t.Fatal("NewAgentClient returned nil")
@@ -885,7 +885,7 @@ func TestNewAgentClient(t *testing.T) {
 
 func TestAgentClient_CollectAgentInfo(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-99", "token", "2.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-99", "token", "2.0.0", rt, testLogger(), "", "", "")
 
 	info := client.collectAgentInfo()
 	if info.ServerID != "agent-99" {
@@ -904,7 +904,7 @@ func TestAgentClient_CollectAgentInfo(t *testing.T) {
 
 func TestAgentClient_CollectAgentInfo_NoPing(t *testing.T) {
 	rt := &mockRuntime{pingErr: fmt.Errorf("no docker")}
-	client := NewAgentClient("https://master.example.com", "agent-99", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-99", "token", "1.0.0", rt, testLogger(), "", "", "")
 
 	info := client.collectAgentInfo()
 	if info.DockerVersion != "" {
@@ -913,7 +913,7 @@ func TestAgentClient_CollectAgentInfo_NoPing(t *testing.T) {
 }
 
 func TestAgentClient_CollectAgentInfo_NilRuntime(t *testing.T) {
-	client := NewAgentClient("https://master.example.com", "agent-99", "token", "1.0.0", nil, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-99", "token", "1.0.0", nil, testLogger(), "", "", "")
 
 	info := client.collectAgentInfo()
 	if info.DockerVersion != "" {
@@ -923,7 +923,7 @@ func TestAgentClient_CollectAgentInfo_NilRuntime(t *testing.T) {
 
 func TestAgentClient_HandleHealthCheck(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "3.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "3.0.0", rt, testLogger(), "", "", "")
 
 	result, err := client.handleHealthCheck(context.Background())
 	if err != nil {
@@ -942,7 +942,7 @@ func TestAgentClient_HandleHealthCheck(t *testing.T) {
 
 func TestAgentClient_HandleMetricsCollect(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-m", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-m", "token", "1.0.0", rt, testLogger(), "", "", "")
 
 	metrics, err := client.handleMetricsCollect(context.Background(), core.AgentMessage{})
 	if err != nil {
@@ -1178,7 +1178,7 @@ func TestAgentClient_HandleContainerCreate(t *testing.T) {
 			return "container-abc", nil
 		},
 	}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: core.ContainerOpts{Name: "test", Image: "nginx"},
@@ -1200,7 +1200,7 @@ func TestAgentClient_HandleContainerStop(t *testing.T) {
 			return nil
 		},
 	}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"container_id": "c-1", "timeout_sec": float64(10)},
@@ -1221,7 +1221,7 @@ func TestAgentClient_HandleContainerRemove(t *testing.T) {
 			return nil
 		},
 	}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"container_id": "c-1", "force": true},
@@ -1242,7 +1242,7 @@ func TestAgentClient_HandleContainerRestart(t *testing.T) {
 			return nil
 		},
 	}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"container_id": "c-1"},
@@ -1261,7 +1261,7 @@ func TestAgentClient_HandleContainerList(t *testing.T) {
 			return []core.ContainerInfo{{ID: "c1", Status: "running"}}, nil
 		},
 	}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"labels": map[string]any{"app": "test"}},
@@ -1281,7 +1281,7 @@ func TestAgentClient_HandleContainerLogs(t *testing.T) {
 			return io.NopCloser(strings.NewReader("log output here")), nil
 		},
 	}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"container_id": "c-1", "tail": "100"},
@@ -1301,7 +1301,7 @@ func TestAgentClient_HandleContainerExec(t *testing.T) {
 			return "exec result", nil
 		},
 	}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"container_id": "c-1", "cmd": []any{"ls", "-la"}},
@@ -1317,7 +1317,7 @@ func TestAgentClient_HandleContainerExec(t *testing.T) {
 
 func TestAgentClient_HandleImagePull(t *testing.T) {
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 
 	msg := core.AgentMessage{
 		Payload: map[string]any{"image": "nginx:latest"},
@@ -1709,7 +1709,7 @@ func TestAgentClient_SendResponse(t *testing.T) {
 	defer clientConn.Close()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 	client.conn = serverConn
 	client.encoder = json.NewEncoder(serverConn)
 
@@ -1743,7 +1743,7 @@ func TestAgentClient_HandleMessage_Ping(t *testing.T) {
 	defer clientConn.Close()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 	client.conn = serverConn
 	client.encoder = json.NewEncoder(serverConn)
 
@@ -1773,7 +1773,7 @@ func TestAgentClient_HandleMessage_HealthCheck(t *testing.T) {
 	defer clientConn.Close()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 	client.conn = serverConn
 	client.encoder = json.NewEncoder(serverConn)
 
@@ -1802,7 +1802,7 @@ func TestAgentClient_HandleMessage_MetricsCollect(t *testing.T) {
 	defer clientConn.Close()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 	client.conn = serverConn
 	client.encoder = json.NewEncoder(serverConn)
 
@@ -1831,7 +1831,7 @@ func TestAgentClient_HandleMessage_UnknownCommand(t *testing.T) {
 	defer clientConn.Close()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 	client.conn = serverConn
 	client.encoder = json.NewEncoder(serverConn)
 
@@ -1864,7 +1864,7 @@ func TestAgentClient_HandleMessage_ContainerCreate(t *testing.T) {
 			return "container-xyz", nil
 		},
 	}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 	client.conn = serverConn
 	client.encoder = json.NewEncoder(serverConn)
 
@@ -1894,7 +1894,7 @@ func TestAgentClient_HandleMessage_ContainerStop(t *testing.T) {
 	defer clientConn.Close()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 	client.conn = serverConn
 	client.encoder = json.NewEncoder(serverConn)
 
@@ -1924,7 +1924,7 @@ func TestAgentClient_HandleMessage_ImagePull(t *testing.T) {
 	defer clientConn.Close()
 
 	rt := &mockRuntime{}
-	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger())
+	client := NewAgentClient("https://master.example.com", "agent-1", "token", "1.0.0", rt, testLogger(), "", "", "")
 	client.conn = serverConn
 	client.encoder = json.NewEncoder(serverConn)
 

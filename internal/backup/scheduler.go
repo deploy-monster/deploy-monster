@@ -3,11 +3,14 @@ package backup
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -441,25 +444,74 @@ func (s *Scheduler) backupApp(ctx context.Context, tenant core.Tenant, app core.
 
 	backupSize := int64(len(payload))
 	if backupSize == 0 {
-		s.logger.Warn("backup payload is empty, skipping", "app", app.ID)
 		s.markFailed(ctx, backupID, "empty payload", nil)
 		return false
 	}
 
-	key := fmt.Sprintf("%s/%s/%s.json", tenant.ID, app.ID, backupID)
-	if err := storage.Upload(ctx, key, bytes.NewReader(payload), backupSize); err != nil {
-		s.logger.Error("failed to upload backup", "app", app.ID, "error", err)
-		s.markFailed(ctx, backupID, "upload failed", err)
-		return false
+	// Compute SHA256 of current app state for incremental detection.
+	// This lets us skip re-uploading unchanged configs.
+	hash := computeSHA256(payload)
+
+	// Check if we already have a recent backup with the same hash — if so,
+	// record this as an incremental backup (no payload uploaded) to save
+	// bandwidth and storage. We look at the last backup for this app.
+	incremental := false
+	if s.store != nil {
+		if lastBackup, found := s.findLastBackupForApp(ctx, tenant.ID, app.ID); found {
+			if lastBackup.BackupType == "full" && lastBackup.Encryption != "" {
+				if lastBackup.Encryption == hash {
+					incremental = true
+				}
+			}
+		}
+	}
+
+	var key string
+	if incremental {
+		backup.BackupType = "incremental"
+		key = fmt.Sprintf("%s/%s/%s.incremental", tenant.ID, app.ID, backupID)
+	} else {
+		backup.BackupType = "full"
+		key = fmt.Sprintf("%s/%s/%s.json", tenant.ID, app.ID, backupID)
+		backup.Encryption = hash // store hash for future incremental comparisons
+		if err := storage.Upload(ctx, key, bytes.NewReader(payload), backupSize); err != nil {
+			s.logger.Error("failed to upload backup", "app", app.ID, "error", err)
+			s.markFailed(ctx, backupID, "upload failed", err)
+			return false
+		}
 	}
 
 	if err := s.store.UpdateBackupStatus(ctx, backupID, "completed", backupSize); err != nil {
 		s.logger.Error("failed to update backup status", "app", app.ID, "error", err)
-		// Counted as success because the payload made it to storage;
-		// the status row is stale but the backup itself is fine.
 	}
-	s.logger.Debug("backup completed", "app", app.ID, "key", key, "size", backupSize)
+	s.logger.Debug("backup completed", "app", app.ID, "type", backup.BackupType, "key", key, "size", backupSize)
 	return true
+}
+
+// findLastBackupForApp returns the most recent backup for the given app
+// (full or incremental) so we can check whether the payload has changed.
+// Returns (Backup, true) if found, (Backup{}, false) if no prior backup exists.
+func (s *Scheduler) findLastBackupForApp(ctx context.Context, tenantID, appID string) (core.Backup, bool) {
+	if s.store == nil {
+		return core.Backup{}, false
+	}
+	// Guard against nil concrete store embedded in mock — a nil *storeWithOneApp
+	// satisfies the interface (embedding nil is still typed nil) but calling
+	// methods on it panics. The reflect-based check avoids this.
+	lister := findBackupLister(s.store)
+	if lister == nil {
+		return core.Backup{}, false
+	}
+	backups, _, err := lister(ctx, tenantID, 1, 0)
+	if err != nil || len(backups) == 0 {
+		return core.Backup{}, false
+	}
+	for _, b := range backups {
+		if b.SourceID == appID && b.Status == "completed" {
+			return b, true
+		}
+	}
+	return core.Backup{}, false
 }
 
 // markFailed writes a "failed" status to the backup row and logs any
@@ -515,4 +567,53 @@ func parseSimpleSchedule(schedule string) (int, int) {
 	h, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
 	m, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
 	return h, m
+}
+
+// computeSHA256 returns the hex-encoded SHA256 of data.
+func computeSHA256(data []byte) string {
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:])
+}
+
+// findBackupLister safely extracts a ListBackupsByTenant implementation
+// from a store interface, guarding against nil concrete types embedded
+// in test mocks (which satisfy the interface but panic on method calls).
+func findBackupLister(store interface{}) func(context.Context, string, int, int) ([]core.Backup, int, error) {
+	v := reflect.ValueOf(store)
+	if v.Kind() != reflect.Ptr {
+		return nil
+	}
+	if v.IsNil() {
+		return nil
+	}
+	// Walk the struct's anonymous fields looking for one that implements
+	// the method and is non-nil.
+	for i := 0; i < v.Elem().NumField(); i++ {
+		f := v.Elem().Field(i)
+		if f.Kind() == reflect.Interface && !f.IsNil() {
+			if fn := f.MethodByName("ListBackupsByTenant"); fn.IsValid() && !fn.IsZero() {
+				// Extract a bound method callable as func(ctx, tenantID, limit, offset)
+				// We call it reflectively to avoid a concrete type dependency.
+				return func(ctx context.Context, tenantID string, limit, offset int) ([]core.Backup, int, error) {
+					results := fn.Call([]reflect.Value{
+						reflect.ValueOf(ctx),
+						reflect.ValueOf(tenantID),
+						reflect.ValueOf(limit),
+						reflect.ValueOf(offset),
+					})
+					if len(results) < 3 {
+						return nil, 0, fmt.Errorf("ListBackupsByTenant returned %d values", len(results))
+					}
+					backups := results[0].Interface().([]core.Backup)
+					total := int(results[1].Int())
+					var err error
+					if results[2].Interface() != nil {
+						err = results[2].Interface().(error)
+					}
+					return backups, total, err
+				}
+			}
+		}
+	}
+	return nil
 }

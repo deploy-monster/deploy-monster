@@ -106,6 +106,7 @@ func TestConfig_RoundTripMarshalUnmarshal(t *testing.T) {
 			LogLevel:           "debug",
 			LogFormat:          "json",
 			RateLimitPerMinute: 240,
+			AllowedCIDRs:      []string{"10.0.0.0/8", "192.168.1.0/24"},
 		},
 		Database: DatabaseConfig{
 			Driver:          "postgres",

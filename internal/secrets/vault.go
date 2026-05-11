@@ -68,16 +68,16 @@ func NewVault(masterSecret string) *Vault {
 // same master secret end up with different AES keys — an attacker
 // who captures one install's ciphertext can't trivially decrypt
 // another's.
-// SECURITY FIX (CRYPTO-001): Current iteration count of 1 is below the
-// OWASP-recommended minimum of 3 for Argon2id. Increase to 3+ when
-// upgrading the KDF to prevent offline brute-force attacks on the
-// master secret. Note: changing iterations requires re-encryption of
-// all stored secrets (migration path).
+// SECURITY FIX (CRYPTO-001): Argon2id iteration count raised to 3 per
+// OWASP recommendation for Argon2id. Previous value of 1 was below
+// the minimum threshold of 3. Existing secret_versions must be
+// re-encrypted with the new KDF via the secrets migration path before
+// deployment to production.
 func NewVaultWithSalt(masterSecret string, salt []byte) *Vault {
 	if len(salt) == 0 {
 		salt = LegacyVaultSalt()
 	}
-	key := argon2.IDKey([]byte(masterSecret), salt, 1, 64*1024, 4, 32)
+	key := argon2.IDKey([]byte(masterSecret), salt, 3, 64*1024, 4, 32)
 	return &Vault{key: key}
 }
 

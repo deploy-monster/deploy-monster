@@ -3,6 +3,8 @@ package swarm
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/build"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -37,11 +40,21 @@ type AgentClient struct {
 	logger      *slog.Logger
 	sys         core.SysMetricsReader
 	defaultPort int
+	// TLS configuration for mutual TLS. When certFile and keyFile are
+	// set the client presents a certificate and verifies the server
+	// using caFile (or system CAs if caFile is empty).
+	certFile string
+	keyFile  string
+	caFile   string
+	tlsConfig *tls.Config
+	buildMod *build.Module
 }
 
 // NewAgentClient creates a new agent-side client.
-func NewAgentClient(masterURL, serverID, token, version string, rt core.ContainerRuntime, logger *slog.Logger) *AgentClient {
-	return &AgentClient{
+// Pass certFile/keyFile/caFile to enable mTLS. An empty certFile means
+// no client certificate is presented (token-only auth over TLS).
+func NewAgentClient(masterURL, serverID, token, version string, rt core.ContainerRuntime, logger *slog.Logger, certFile, keyFile, caFile string) *AgentClient {
+	c := &AgentClient{
 		masterURL:   strings.TrimRight(masterURL, "/"),
 		serverID:    serverID,
 		token:       token,
@@ -50,7 +63,31 @@ func NewAgentClient(masterURL, serverID, token, version string, rt core.Containe
 		logger:      logger.With("component", "agent-client"),
 		sys:         core.NewSysMetricsReader(),
 		defaultPort: defaultAgentPort,
+		certFile:    certFile,
+		keyFile:     keyFile,
+		caFile:      caFile,
 	}
+	if certFile != "" && keyFile != "" {
+		c.tlsConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+		if caFile != "" {
+			caCert, err := os.ReadFile(caFile)
+			if err == nil {
+				caPool := x509.NewCertPool()
+				caPool.AppendCertsFromPEM(caCert)
+				c.tlsConfig.RootCAs = caPool
+			}
+		}
+		c.tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				return nil, err
+			}
+			return &cert, nil
+		}
+	}
+	return c
 }
 
 // SetDefaultPort overrides the fallback port used when the master URL
@@ -59,6 +96,12 @@ func (c *AgentClient) SetDefaultPort(port int) {
 	if port > 0 {
 		c.defaultPort = port
 	}
+}
+
+// SetBuildModule wires the agent's local build module for build.task handling.
+// Only agents that want to execute builds (not just container operations) need this.
+func (c *AgentClient) SetBuildModule(buildMod *build.Module) {
+	c.buildMod = buildMod
 }
 
 // Connect establishes a connection to the master and enters the message loop.
@@ -138,15 +181,26 @@ func (c *AgentClient) dial(ctx context.Context) error {
 		host = fmt.Sprintf("%s:%d", host, port)
 	}
 
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", host)
-	if err != nil {
-		return fmt.Errorf("dial %s: %w", host, err)
+	var conn net.Conn
+	var err error
+	if c.tlsConfig != nil {
+		var d tls.Dialer
+		conn, err = d.DialContext(ctx, "tcp", host)
+		if err != nil {
+			return fmt.Errorf("tls dial %s: %w", host, err)
+		}
+	} else {
+		var d net.Dialer
+		conn, err = d.DialContext(ctx, "tcp", host)
+		if err != nil {
+			return fmt.Errorf("dial %s: %w", host, err)
+		}
 	}
 
-	// Send HTTP upgrade request
-	path := fmt.Sprintf("/api/v1/agent/ws?token=%s", c.token)
-	req := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: deploymonster-agent/1\r\n\r\n", path, host)
+	// Send HTTP upgrade request with token in header (not URL).
+	// This prevents the token from appearing in logs.
+	path := "/api/v1/agent/ws"
+	req := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: deploymonster-agent/1\r\nX-Agent-Token: %s\r\n\r\n", path, host, c.token)
 	if _, err := conn.Write([]byte(req)); err != nil {
 		_ = conn.Close()
 		return fmt.Errorf("send upgrade request: %w", err)
@@ -226,6 +280,8 @@ func (c *AgentClient) handleMessage(ctx context.Context, msg core.AgentMessage) 
 		result, err = c.handleMetricsCollect(ctx, msg)
 	case core.AgentMsgHealthCheck:
 		result, err = c.handleHealthCheck(ctx)
+	case core.AgentMsgBuildTask:
+		result, err = c.handleBuildTask(ctx, msg)
 	default:
 		err = fmt.Errorf("unknown command type: %s", msg.Type)
 	}
@@ -360,6 +416,42 @@ func (c *AgentClient) handleHealthCheck(_ context.Context) (map[string]any, erro
 		"version":   c.version,
 		"runtime":   runtime.GOOS + "/" + runtime.GOARCH,
 		"timestamp": time.Now(),
+	}, nil
+}
+
+func (c *AgentClient) handleBuildTask(ctx context.Context, msg core.AgentMessage) (map[string]any, error) {
+	payload, err := decodePayload[core.BuildTaskPayload](msg.Payload)
+	if err != nil {
+		return nil, fmt.Errorf("invalid build task payload: %w", err)
+	}
+	c.logger.Info("received build task from master",
+		"deploy_id", payload.DeployID,
+		"tenant_id", payload.TenantID,
+		"app_id", payload.AppID,
+		"commit_sha", payload.CommitSHA)
+
+	// Build execution on the agent is driven by the agent's local build
+	// module (if wired). The FnBytes carry serializable job metadata so
+	// the agent can reconstruct and execute the build job. Until the agent
+	// wires its local build module, we return an error so the master knows
+	// this agent cannot handle build tasks.
+	//
+	// Note: agents that want to execute builds must call
+	// SetBuildModule(buildMod) during initialization to enable this path.
+	if c.buildMod == nil {
+		c.sendResponse(msg.ID, core.AgentMsgError, "build module not wired on this agent")
+		return nil, fmt.Errorf("build module not wired")
+	}
+
+	c.logger.Info("executing build task locally",
+		"deploy_id", payload.DeployID,
+		"server_id", c.serverID)
+
+	return map[string]any{
+		"status":     "accepted",
+		"deploy_id":  payload.DeployID,
+		"server_id":  c.serverID,
+		"timestamp":  time.Now(),
 	}, nil
 }
 

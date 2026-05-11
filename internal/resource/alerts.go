@@ -1,8 +1,12 @@
 package resource
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
@@ -29,13 +33,88 @@ type AlertState struct {
 	Value      float64
 }
 
+// AlertmanagerClient sends alerts to Prometheus Alertmanager via its v2 API.
+type AlertmanagerClient struct {
+	url       string
+	client    *http.Client
+	retries   int
+	logger    *slog.Logger
+	transport http.RoundTripper // for testing
+}
+
+// NewAlertmanagerClient creates an Alertmanager webhook client.
+// The url should be the full Alertmanager webhook endpoint, e.g.
+// http://alertmanager:9093/api/v1/alerts. A nil logger is tolerated.
+func NewAlertmanagerClient(url string, logger *slog.Logger) *AlertmanagerClient {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &AlertmanagerClient{
+		url:     url,
+		client:  &http.Client{Timeout: 10 * time.Second},
+		retries: 3,
+		logger:  logger,
+	}
+}
+
+// Send sends a list of alerts to Alertmanager. It implements the
+// Alertmanager webhook API (v2 POST /api/v1/alerts).
+// The context is used for the HTTP request timeout and cancellation.
+func (c *AlertmanagerClient) Send(ctx context.Context, alerts []AlertmanagerAlert) error {
+	if c.url == "" {
+		return nil
+	}
+
+	body, err := json.Marshal(alerts)
+	if err != nil {
+		return fmt.Errorf("encode alertmanager payload: %w", err)
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < c.retries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
+		if err != nil {
+			return fmt.Errorf("create alertmanager request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			lastErr = err
+			c.logger.Warn("alertmanager delivery failed, retrying",
+				"attempt", attempt+1, "url", c.url, "error", err)
+			continue
+		}
+		resp.Body.Close()
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil
+		}
+		lastErr = fmt.Errorf("alertmanager HTTP %d", resp.StatusCode)
+		c.logger.Warn("alertmanager delivery failed, retrying",
+			"attempt", attempt+1, "status", resp.StatusCode)
+	}
+
+	return fmt.Errorf("alertmanager send failed after %d retries: %w", c.retries, lastErr)
+}
+
+// AlertmanagerAlert represents a single alert in the Alertmanager webhook API.
+type AlertmanagerAlert struct {
+	Labels      map[string]string `json:"labels"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+	StartsAt    time.Time        `json:"startsAt"`
+	EndsAt      time.Time        `json:"endsAt,omitempty"`
+	GeneratorURL string          `json:"generatorURL,omitempty"`
+}
+
 // AlertEngine evaluates metrics against alert rules and fires events.
 type AlertEngine struct {
-	mu     sync.RWMutex
-	rules  []*AlertRule
-	states map[string]*AlertState // rule.Name -> state
-	events *core.EventBus
-	logger *slog.Logger
+	mu       sync.RWMutex
+	rules    []*AlertRule
+	states   map[string]*AlertState // rule.Name -> state
+	events   *core.EventBus
+	logger   *slog.Logger
+	amClient *AlertmanagerClient // optional Alertmanager webhook
 }
 
 // NewAlertEngine creates a new alert engine. A nil logger is
@@ -79,6 +158,13 @@ func (ae *AlertEngine) AddRule(rule *AlertRule) {
 	ae.states[rule.Name] = &AlertState{Rule: rule}
 }
 
+// SetAlertmanagerClient wires an Alertmanager webhook client into the engine.
+func (ae *AlertEngine) SetAlertmanagerClient(client *AlertmanagerClient) {
+	ae.mu.Lock()
+	defer ae.mu.Unlock()
+	ae.amClient = client
+}
+
 // Evaluate checks all rules against current metrics.
 func (ae *AlertEngine) Evaluate(ctx context.Context, metrics *core.ServerMetrics) {
 	ae.mu.RLock()
@@ -105,6 +191,28 @@ func (ae *AlertEngine) Evaluate(ctx context.Context, metrics *core.ServerMetrics
 				"value", value,
 				"threshold", rule.Threshold,
 			)
+
+			// Send to Alertmanager if configured.
+			if ae.amClient != nil {
+				alert := AlertmanagerAlert{
+					Labels: map[string]string{
+						"alertname": rule.Name,
+						"severity":  rule.Severity,
+						"instance":  metrics.ServerID,
+					},
+					Annotations: map[string]string{
+						"summary": rule.Name + " threshold exceeded",
+						"value":  fmt.Sprintf("%.2f", value),
+					},
+					StartsAt:     state.FiredAt,
+					GeneratorURL: "deploymonster://server/" + metrics.ServerID,
+				}
+				go func() {
+					if err := ae.amClient.Send(context.Background(), []AlertmanagerAlert{alert}); err != nil {
+						ae.logger.Warn("failed to send alert to Alertmanager", "rule", rule.Name, "error", err)
+					}
+				}()
+			}
 
 			ae.events.PublishAsync(ctx, core.NewEvent(
 				core.EventAlertTriggered, "resource",

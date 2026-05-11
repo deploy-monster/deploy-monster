@@ -405,9 +405,13 @@ type Backup struct {
 	Status        string     `json:"status"`
 	Scheduled     bool       `json:"scheduled"`
 	RetentionDays int        `json:"retention_days"`
-	StartedAt     *time.Time `json:"started_at,omitempty"`
-	CompletedAt   *time.Time `json:"completed_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
+	// BackupType is "full" for a complete snapshot or "incremental" when
+	// no payload was uploaded because the app config had not changed since
+	// the previous backup (hash match).
+	BackupType  string     `json:"backup_type"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
 
 // BackupStore persists backup metadata.

@@ -395,8 +395,8 @@ func TestAPIMetrics_TracksBytesOut(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	if m.totalBytesOut.Load() != 11 {
-		t.Errorf("totalBytesOut = %d, want 11", m.totalBytesOut.Load())
+	if m.TotalBytesOut() != 11 {
+		t.Errorf("totalBytesOut = %d, want 11", m.TotalBytesOut())
 	}
 
 	// Second request
@@ -404,8 +404,8 @@ func TestAPIMetrics_TracksBytesOut(t *testing.T) {
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	if m.totalBytesOut.Load() != 22 {
-		t.Errorf("totalBytesOut = %d, want 22", m.totalBytesOut.Load())
+	if m.TotalBytesOut() != 22 {
+		t.Errorf("totalBytesOut = %d, want 22", m.TotalBytesOut())
 	}
 }
 
