@@ -688,10 +688,28 @@ DeployMonster documentation has been **substantially improved**. All critical an
 - API routes manual list (OpenAPI spec at `docs/openapi.yaml` provides complete documentation)
 - Security: Update OpenTelemetry Go SDK to latest version to fix PATH hijacking vulnerability
 
-**Known issues from GitHub Dependabot:**
-- OpenTelemetry Go SDK: BSD kenv command not using absolute path (high) — affects opentelemetry-go < 1.49.0
-- PostCSS XSS via unescaped </style> (high) — frontend vulnerability, pnpm audit shows no issues
-- pgx SQL Injection (high) — requires pgx update
+**Known issues from GitHub Dependabot (14 high severity, all unfixed as of 2026-05-16):**
+
+Backend (Go) vulnerabilities:
+| CVE | Package | Issue | Status |
+|-----|---------|-------|--------|
+| CVE-2026-39883 | opentelemetry-go | BSD kenv command not using absolute path (PATH hijacking) | Unfixed |
+| CVE-2026-24051 | opentelemetry-go | Arbitrary Code Execution via PATH Hijacking | Unfixed |
+| CVE-2026-34040 | moby | AuthZ plugin bypass with oversized request bodies | Unfixed |
+| CVE-2026-33671 | picomatch | ReDoS via extglob quantifiers | Unfixed |
+
+Frontend (JavaScript/TypeScript) vulnerabilities:
+| CVE | Package | Issue | Status |
+|-----|---------|-------|--------|
+| CVE-2026-39363 | vite | Arbitrary File Read via Vite Dev Server WebSocket | Unfixed |
+| CVE-2026-39364 | vite | `server.fs.deny` bypassed with queries | Unfixed |
+| CVE-2026-4800 | lodash | Code Injection via `_.template` imports key names | Unfixed |
+
+Notes:
+- Frontend pnpm audit shows "No known vulnerabilities found" (lockfile may not reflect latest)
+- Vite vulnerabilities only affect dev mode, not production builds
+- OpenTelemetry vulnerabilities require SDK update to latest (v1.43.0 → v1.49.0+)
+- pgx and PostCSS alerts from earlier scan appear to be resolved or false positives
 
 **Verification:**
 ```bash
