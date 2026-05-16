@@ -686,30 +686,30 @@ DeployMonster documentation has been **substantially improved**. All critical an
 - Event naming standardization (billing events use underscore for backward compatibility)
 - Handler base class refactoring (would require significant changes to 100+ handlers)
 - API routes manual list (OpenAPI spec at `docs/openapi.yaml` provides complete documentation)
-- Security: Update OpenTelemetry Go SDK to latest version to fix PATH hijacking vulnerability
+- Security: moby client v0.4.1 has no patch for CVE-2026-34040 (AuthZ plugin bypass)
 
-**Known issues from GitHub Dependabot (14 high severity, all unfixed as of 2026-05-16):**
+**Known issues from GitHub Dependabot (1 high severity unfixed as of 2026-05-16):**
 
 Backend (Go) vulnerabilities:
 | CVE | Package | Issue | Status |
 |-----|---------|-------|--------|
-| CVE-2026-39883 | opentelemetry-go | BSD kenv command not using absolute path (PATH hijacking) | Unfixed |
-| CVE-2026-24051 | opentelemetry-go | Arbitrary Code Execution via PATH Hijacking | Unfixed |
-| CVE-2026-34040 | moby | AuthZ plugin bypass with oversized request bodies | Unfixed |
-| CVE-2026-33671 | picomatch | ReDoS via extglob quantifiers | Unfixed |
+| CVE-2026-39883 | opentelemetry-go | BSD kenv command not using absolute path (PATH hijacking) | **Fixed in v1.43.0** |
+| CVE-2026-24051 | opentelemetry-go | Arbitrary Code Execution via PATH Hijacking | **Fixed in v1.43.0** |
+| CVE-2026-34040 | moby | AuthZ plugin bypass with oversized request bodies | Unfixed (no patch for v0.4.1) |
+| CVE-2026-33671 | picomatch | ReDoS via extglob quantifiers | **Fixed in v4.0.4** |
 
 Frontend (JavaScript/TypeScript) vulnerabilities:
 | CVE | Package | Issue | Status |
 |-----|---------|-------|--------|
-| CVE-2026-39363 | vite | Arbitrary File Read via Vite Dev Server WebSocket | Unfixed |
-| CVE-2026-39364 | vite | `server.fs.deny` bypassed with queries | Unfixed |
-| CVE-2026-4800 | lodash | Code Injection via `_.template` imports key names | Unfixed |
+| CVE-2026-39363 | vite | Arbitrary File Read via Vite Dev Server WebSocket | **Fixed in v8.0.13** |
+| CVE-2026-39364 | vite | `server.fs.deny` bypassed with queries | **Fixed in v8.0.13** |
+| CVE-2026-4800 | lodash | Code Injection via `_.template` imports key names | **Fixed (not actually installed)** |
 
 Notes:
-- Frontend pnpm audit shows "No known vulnerabilities found" (lockfile may not reflect latest)
-- Vite vulnerabilities only affect dev mode, not production builds
-- OpenTelemetry vulnerabilities require SDK update to latest (v1.43.0 → v1.49.0+)
-- pgx and PostCSS alerts from earlier scan appear to be resolved or false positives
+- All OTel SDK components updated to v1.43.0 (was v1.35.0)
+- Vite updated from 8.0.10 → 8.0.13 (vulnerabilities only affect dev server, not production builds)
+- lodash@4 is a peer dependency only — not actually resolved in node_modules
+- moby client v0.4.1 has no available patch for CVE-2026-34040
 
 **Verification:**
 ```bash
