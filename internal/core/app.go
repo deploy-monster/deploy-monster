@@ -94,6 +94,13 @@ func NewApp(cfg *Config, build BuildInfo) (*Core, error) {
 		Router:    http.NewServeMux(),
 	}
 
+	// Audit config for plaintext secrets and warn
+	if warnings := cfg.AuditSecrets(); len(warnings) > 0 {
+		for _, w := range warnings {
+			logger.Warn("config secret audit", "warning", w)
+		}
+	}
+
 	// Initialize OpenTelemetry tracer if configured.
 	if cfg.Observability.TracingURL != "" {
 		serviceName := cfg.Observability.ServiceName

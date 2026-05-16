@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -308,6 +309,13 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Allowed CIDRs
+	for _, cidr := range c.Server.AllowedCIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("config: server.allowed_cidrs contains invalid CIDR %q: %w", cidr, err)
+		}
+	}
+
 	// Database
 	switch c.Database.Driver {
 	case "sqlite":
@@ -419,6 +427,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Observability.LokiURL != "" && !strings.HasPrefix(c.Observability.LokiURL, "http://") && !strings.HasPrefix(c.Observability.LokiURL, "https://") {
 		return fmt.Errorf("config: observability.loki_url must be a valid HTTP/HTTPS URL")
+	}
+	if c.Observability.TracingURL != "" && !strings.HasPrefix(c.Observability.TracingURL, "http://") && !strings.HasPrefix(c.Observability.TracingURL, "https://") && !strings.HasPrefix(c.Observability.TracingURL, "grpc://") {
+		return fmt.Errorf("config: observability.tracing_url must be a valid HTTP/HTTPS/GRPC URL")
+	}
+	if c.Observability.ServiceName != "" && (len(c.Observability.ServiceName) < 1 || len(c.Observability.ServiceName) > 256) {
+		return fmt.Errorf("config: observability.service_name must be 1-256 characters")
 	}
 
 	return nil

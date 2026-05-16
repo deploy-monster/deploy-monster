@@ -362,7 +362,9 @@ const (
 	// Secret
 	EventSecretCreated = "secret.created"
 
-	// Billing
+	// Billing (kebab-case for backward compatibility with external consumers)
+	// Note: Other events use dot notation (e.g., "notification.sent"). Consider migrating
+	// billing events to match: "billing.subscription.updated" instead of "billing.subscription_updated"
 	EventInvoiceGenerated            = "invoice.generated"
 	EventPaymentReceived             = "payment.received"
 	EventPaymentFailed               = "payment.failed"
@@ -391,11 +393,11 @@ const (
 	EventCronJobCreated = "cronjob.created"
 	EventCronJobDeleted = "cronjob.deleted"
 
-	// DNS Record
-	EventDNSRecordDeleted = "dns_record.deleted"
+	// DNS
+	EventDNSRecordDeleted = "dns.deleted"
 
 	// Event Webhook
-	EventEventWebhookDeleted = "event_webhook.deleted"
+	EventEventWebhookDeleted = "event.webhook.deleted"
 
 	// Redirect
 	EventRedirectCreated = "redirect.created"

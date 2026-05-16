@@ -41,7 +41,7 @@ cd web && pnpm test:e2e --ui              # Playwright with interactive UI
 ## Architecture
 
 ### Backend: Go 1.26+ Modular Monolith
-- **20 modules** auto-registered via `init()` + `core.RegisterModule()` in each module's `module.go`
+- **22 modules** auto-registered via `init()` + `core.RegisterModule()` in each module's `module.go`
 - `cmd/deploymonster/main.go` imports all modules with blank `_` imports
 - Dependency order resolved via topological sort on `Dependencies()` return values
 - Graceful shutdown in reverse dependency order (30s timeout)
@@ -75,14 +75,14 @@ In-process pub/sub with the EventBus on `core.Core`:
 
 ### API Layer (`internal/api/`)
 - Go 1.22+ `http.ServeMux` with `METHOD /path` pattern syntax
-- Middleware chain: RequestID → APIVersion → BodyLimit(10MB) → Timeout(30s) → Recovery → RequestLogger → CORS → AuditLog
+- Middleware chain: RequestID → Tracing → IPAllowlist → GracefulShutdown → GlobalRateLimit → SecurityHeaders → APIMetrics → APIVersion → BodyLimit(10MB) → Timeout(30s) → Recovery → RequestLogger → CORS → CSRFProtect → Idempotency → AuditLog
 - Auth: JWT Bearer token OR X-API-Key header. Auth levels: AuthNone, AuthAPIKey, AuthJWT, AuthAdmin, AuthSuperAdmin
 - JWT: HS256, access=15min, refresh=7days. Claims: UserID, TenantID, RoleID, Email
 - Webhooks: `POST /hooks/v1/{webhookID}` with HMAC signature verification
 
 ### Database
 - **SQLite** (`modernc.org/sqlite` pure Go) — default, file-based
-- **BBolt KV** — 30+ buckets for config, state, metrics, API keys
+- **BBolt KV** — 26 buckets for config, state, metrics, API keys, webhooks, etc.
 - **PostgreSQL** — planned via `core.Store` interface (enterprise)
 - All data access through `core.Store` interface only
 
@@ -116,6 +116,8 @@ YAML file `monster.yaml` + environment variable overrides (`MONSTER_*` prefix). 
 - `docs/archive/TASKS.md` — Ordered task checklist (251 tasks, 15 phases, 100% complete — retired)
 - `docs/openapi.yaml` — OpenAPI 3.0.3 specification
 - `docs/examples/api-quickstart.md` — API usage examples with curl
+- `ARCHITECTURE.md` — Full architecture documentation (updated 2026-05-16)
+- `REFACTOR.md` — Refactoring report with code quality analysis
 
 <!-- rtk-instructions v2 -->
 # RTK (Rust Token Killer) - Token-Optimized Commands

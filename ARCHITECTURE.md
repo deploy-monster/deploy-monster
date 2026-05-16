@@ -30,8 +30,8 @@ DeployMonster transforms any VPS with Docker into a multi-tenant deployment plat
 ```
 ~24 MB single binary with embedded React UI
 ~188K LOC total (~50K Go source, ~117K Go tests, ~22K React/TS/CSS)
-20 auto-registered modules
-251 REST API routes
+22 auto-registered modules
+251+ REST API routes
 85%+ coverage gate
 ```
 
@@ -166,7 +166,7 @@ flowchart LR
 |-----------|------|-------------|---------|
 | `core.db` | Database | — | SQLite/PostgreSQL + BBolt KV store |
 | `core.auth` | Authentication | `core.db` | JWT, password hashing, sessions |
-| `api` | REST API | `core.db`, `core.auth` | HTTP server, routes, middleware |
+| `api` | REST API | `core.db`, `core.auth`, `marketplace`, `billing` | HTTP server, routes, middleware |
 | `deploy` | Deploy Engine | `core.db` | Docker container management |
 | `build` | Build Engine | `core.db`, `deploy` | Worker pool, Dockerfile generation |
 | `ingress` | Ingress Gateway | `core.db`, `deploy` | Reverse proxy on :80/:443, ACME |
@@ -184,6 +184,12 @@ flowchart LR
 | `enterprise` | Enterprise | `core.db`, `billing` | White-label, reseller, GDPR |
 | `mcp` | MCP Server | `core.db`, `deploy` | Model Context Protocol |
 | `database` | Database Manager | `core.db`, `deploy` | Managed DB containers |
+| `cron` | Cron Scheduler | `core.db` | Job scheduling and execution |
+| `autoscale` | Autoscaler | `core.db`, `deploy` | Dynamic container scaling |
+| `compose` | Compose Deployer | `core.db`, `deploy` | Docker Compose file deployment |
+| `topology` | Topology Editor | `core.db`, `deploy` | Visual topology design and deployment |
+| `webhooks` | Webhook Receiver | `core.db` | Inbound webhook handling |
+| `awsauth` | AWS Auth | — | AWS Signature V4 for S3 |
 
 > **Note:** The `core.events` (EventBus), `core.scheduler` (Task Scheduler), and `core.ssh` (SSH Client) are built into `internal/core/` and are not separate loadable modules.
 
@@ -233,13 +239,15 @@ Key service interfaces:
 
 | Interface | Purpose | Key Methods |
 |-----------|---------|-------------|
-| `ContainerRuntime` | Docker operations | `CreateAndStart`, `Stop`, `Remove`, `Restart`, `Logs`, `Exec`, `Stats` |
+| `ContainerRuntime` | Docker operations | `CreateAndStart`, `Stop`, `Remove`, `Restart`, `Logs`, `Exec`, `Stats`, `ImagePull`, `ListNetworks` |
+| `SSHClient` | SSH execution | `Connect`, `Execute`, `Upload`, `Download`, `Close` |
 | `SecretResolver` | Secret lookup | `Resolve(scope, name)`, `ResolveAll(scope, template)` |
 | `NotificationSender` | Notifications | `Send(ctx, Notification)` |
+| `OutboundWebhookSender` | Outbound webhooks | `Send`, `SendAsync` |
 | `DNSProvider` | DNS records | `Create`, `Update`, `Delete`, `Verify` |
 | `BackupStorage` | Backup storage | `Upload`, `Download`, `Delete`, `List` |
-| `VPSProvisioner` | VPS provisioning | `ListRegions`, `ListSizes`, `Create`, `Delete`, `Status` |
-| `GitProvider` | Git platforms | `ListRepos`, `ListBranches`, `GetRepoInfo`, `CreateWebhook` |
+| `VPSProvisioner` | VPS provisioning | `ListRegions`, `ListSizes`, `Create`, `Delete`, `Status`, `ListInstances` |
+| `GitProvider` | Git platforms | `ListRepos`, `ListBranches`, `GetRepoInfo`, `CreateWebhook`, `DeleteWebhook` |
 
 ---
 
@@ -419,14 +427,64 @@ EventContainerStarted, EventContainerStopped, EventContainerDied
 // Deployment
 EventDeployFinished, EventDeployFailed, EventRollbackDone
 
+// Domain
+EventDomainAdded, EventDomainRemoved
+
+// Server
+EventServerAdded, EventServerRemoved
+
 // Webhook (inbound)
 EventWebhookReceived  // Payload: WebhookEventData {WebhookID, Provider, EventType, Branch, CommitSHA, RepoURL}
 
 // Webhook (outbound)
 EventOutboundSent, EventOutboundFailed
 
+// Backup
+EventBackupStarted, EventBackupCompleted, EventBackupFailed
+
+// Alerting
+EventAlertTriggered, EventAlertResolved
+
+// User & Auth
+EventUserInvited
+
+// Secrets
+EventSecretCreated
+
+// Database
+EventDatabaseCreated
+
+// Notifications
+EventNotificationSent, EventNotificationFailed
+
 // Billing
 EventInvoiceGenerated, EventPaymentReceived, EventPaymentFailed
+EventBillingSubscriptionUpdated, EventBillingSubscriptionCanceled
+EventBillingCheckoutCompleted, EventBillingUsageReported
+
+// Project
+EventProjectCreated, EventProjectDeleted
+
+// Cron Jobs
+EventCronJobCreated, EventCronJobDeleted
+
+// DNS
+EventDNSRecordDeleted
+
+// Webhooks CRUD
+EventEventWebhookDeleted
+
+// Redirects
+EventRedirectCreated, EventRedirectDeleted
+
+// Autoscaling
+EventAutoscaleUpdated
+
+// Basic Auth
+EventBasicAuthUpdated
+
+// GPU
+EventGPUConfigUpdated
 
 // System
 EventSystemStarted, EventSystemStopping, EventConfigReloaded
@@ -444,19 +502,21 @@ The actual middleware chain (in `internal/api/router.go:Handler()`):
 flowchart LR
     Request["Incoming Request"]
     --> MID1["Request ID<br/>X-Request-ID"]
-    --> MID2["Graceful Shutdown<br/>Drain"]
-    --> MID3["Global Rate Limit<br/>Per-IP (120/min)"]
-    --> MID4["Security Headers<br/>HSTS, X-Frame"]
-    --> MID5["API Metrics<br/>Request counter + latency"]
-    --> MID6["API Version<br/>X-API-Version header"]
-    --> MID7["Body Limit<br/>10MB"]
-    --> MID8["Timeout<br/>30s"]
-    --> MID9["Recovery<br/>Panic handler"]
-    --> MID10["Request Logger<br/>Slow request >5s warn"]
-    --> MID11["CORS<br/>Allowlist mode"]
-    --> MID12["CSRF Protect<br/>Double-submit cookie"]
-    --> MID13["Idempotency<br/>BBolt-backed deduplication"]
-    --> MID14["Audit Log<br/>Store-backed request log"]
+    --> MID2["Tracing<br/>Request ID propagation"]
+    --> MID3["IP Allowlist<br/>CIDR-based access control"]
+    --> MID4["Graceful Shutdown<br/>Drain"]
+    --> MID5["Global Rate Limit<br/>Per-IP (120/min)"]
+    --> MID6["Security Headers<br/>HSTS, X-Frame"]
+    --> MID7["API Metrics<br/>Request counter + latency"]
+    --> MID8["API Version<br/>X-API-Version header"]
+    --> MID9["Body Limit<br/>10MB"]
+    --> MID10["Timeout<br/>30s"]
+    --> MID11["Recovery<br/>Panic handler"]
+    --> MID12["Request Logger<br/>Slow request >5s warn"]
+    --> MID13["CORS<br/>Allowlist mode"]
+    --> MID14["CSRF Protect<br/>Double-submit cookie"]
+    --> MID15["Idempotency<br/>BBolt-backed deduplication"]
+    --> MID16["Audit Log<br/>Store-backed request log"]
     --> Handler["API Handler"]
 ```
 
@@ -534,17 +594,64 @@ graph TB
 
 ### 8.2 BBolt Buckets
 
+The BBolt KV store uses 26 buckets for various purposes:
+
 | Bucket | Purpose |
 |--------|---------|
-| `idempotency` | Request deduplication keys |
-| `rate_limit` | Per-IP/tenant rate limit counters |
-| `metrics_ring` | Time-series container metrics |
+| `sessions` | WebSocket session data |
+| `ratelimit` | Per-IP/tenant rate limit counters |
+| `buildcache` | Build cache entries |
+| `metrics_ring` | Time-series container metrics (ring buffer, 288 points per app/server) |
+| `cronjobs` | Cron job schedules and state |
+| `app_pins` | Pinned app versions |
+| `autoscale` | Autoscaling rules and state |
+| `basic_auth` | App basic auth credentials |
 | `api_keys` | API key hashes + metadata |
-| `csrf_tokens` | CSRF token validation |
-| `vault` | Per-deployment Argon2id salt |
+| `deploy_freeze` | Deployment freeze state |
+| `deploy_notify` | Deployment notification settings |
+| `deploy_approval` | Deployment approval workflows |
+| `maintenance` | App maintenance mode settings |
+| `app_middleware` | App middleware configuration |
+| `container_metrics` | Container metrics snapshots |
+| `announcements` | System announcements |
+| `certificates` | SSL certificate data |
+| `ssh_keys` | SSH key storage |
+| `log_retention` | Log retention policies |
+| `event_webhooks` | Event-based webhook configurations |
+| `webhook_logs` | Webhook delivery logs |
 | `webhooks` | Webhook records (AppID, AutoDeploy, BranchFilter, secret hash) |
+| `revoked_tokens` | Revoked JWT tokens for logout |
+| `vault` | Per-deployment Argon2id salt (encrypted secrets) |
+| `git_provider_connections` | Git provider connection data |
 
-### 8.3 Database Module Lifecycle
+### 8.3 Metrics Ring Buffer Policy
+
+The `metrics_ring` bucket stores time-series metrics with automatic cleanup:
+
+| Setting | Value |
+|---------|-------|
+| Collection interval | 30 seconds |
+| Points retained per entity | 288 (maxRingPoints) |
+| Resolution | 5-minute effective (30s × 288 = 24h window) |
+| Cleanup | Automatic trimming on insert |
+
+**How it works:**
+1. `appendPoint(key, point)` reads existing ring from BBolt
+2. Appends new data point
+3. Trims to maxRingPoints (288) if exceeded — oldest points dropped
+4. Writes back to BBolt atomically via `BatchSet()`
+
+**Data retention:**
+- Server metrics: key format `server:{serverID}:24h`
+- Container metrics: key format `{appID}:24h`
+- Each point stores: Timestamp, CPUPercent, MemoryMB, NetworkRx/TxMB
+
+**TTL behavior:**
+- No automatic TTL — ring buffer is self-limiting by point count
+- Older data is dropped when ring is full
+- Effective 24-hour window at 5-minute resolution
+
+### 8.4 Database Module Lifecycle
 
 ```go
 type Module struct {
@@ -572,52 +679,111 @@ type Module struct {
 server:
   host: 0.0.0.0
   port: 8443
-  domain: ""                    # Platform domain
-  secret_key: ""                # Auto-generated, JWT encryption
-  cors_origins: ""              # Derived from domain if empty
-  rate_limit_per_minute: 120
+  domain: ""                         # Platform domain
+  secret_key: ""                     # Auto-generated, JWT encryption (min 32 chars)
+  previous_secret_keys: []           # Old keys for graceful JWT rotation
+  cors_origins: ""                   # Derived from domain if empty
+  enable_pprof: false                # Opt-in: expose /debug/pprof/*
+  log_level: info                    # debug, info, warn, error
+  log_format: text                   # text or json
+  rate_limit_per_minute: 120         # Global per-IP rate limit; 0 = disabled
+  allowed_cidrs: []                  # CIDR ranges allowed to access API; empty = allow all
 
 database:
-  driver: sqlite                 # or postgres
+  driver: sqlite                    # or postgres
   path: deploymonster.db
-  url: ""                        # PostgreSQL connection string
+  url: ""                            # PostgreSQL connection string
+  query_timeout_sec: 0               # Per-query timeout in seconds; 0 = 5s default
+  ssl_mode: require                 # postgres only: disable, allow, require, verify-ca, verify-full
+  replication_mode: ""               # Off by default. Set to "streaming" for read replicas
+  replica_url: ""                    # Read replica URL when replication is enabled
 
 ingress:
   http_port: 80
   https_port: 443
   enable_https: true
-  force_https: true
+  force_https: true                 # 301 redirect to HTTPS for non-ACME traffic
 
 acme:
   email: ""
   staging: false
-  provider: http-01              # or dns-01
+  provider: http-01                  # or dns-01
+  cert_dir: ""                       # Custom certificate directory
+
+dns:
+  provider: cloudflare              # cloudflare, route53, manual
+  cloudflare_token: ""               # Required when provider is cloudflare
+  auto_subdomain: ""                  # e.g., deploy.monster
 
 docker:
   host: unix:///var/run/docker.sock
-  default_cpu_quota: 100000
-  default_memory_mb: 512
+  api_version: ""                   # Docker API version override
+  tls_verify: false                 # Enable TLS verification
+  default_cpu_quota: 100000         # Microseconds per 100ms period (100000 = 1 core)
+  default_memory_mb: 512            # Default memory limit per container in MB
 
 backup:
   schedule: "02:00"
   retention_days: 30
   storage_path: /var/lib/deploymonster/backups
   encryption: true
+  encryption_key: ""                 # AES-256 key, 32 bytes base64-encoded
   s3:
     bucket: ""
     region: ""
+    endpoint: ""                     # Custom endpoint for MinIO/R2
+    access_key: ""
+    secret_key: ""
+    path_style: false                # Required for MinIO
+  alertmanager_url: ""               # Prometheus Alertmanager webhook endpoint
 
 notifications:
   smtp:
     host: ""
     port: 587
-    use_tls: true
+    username: ""
+    password: ""
+    from: ""
+    from_name: ""
+    use_tls: true                   # Implicit TLS (port 465); false = STARTTLS (port 587)
+    insecure_skip_verify: false      # For dev/self-signed relays only
   slack_webhook: ""
   discord_webhook: ""
   telegram_token: ""
+  telegram_chat_id: ""
+
+swarm:
+  enabled: false
+  manager_ip: ""
+  join_token: ""
+  tls_cert_file: ""                  # Client certificate for mutual TLS
+  tls_key_file: ""
+  tls_ca_cert_file: ""               # CA cert to verify server certificate
+
+vps_providers:
+  enabled: true
+
+git_sources:
+  github_client_id: ""
+  github_client_secret: ""
+  gitlab_client_id: ""
+  gitlab_client_secret: ""
+
+marketplace:
+  enabled: true
+  templates_dir: marketplace/templates
+  community_sync: false
 
 registration:
-  mode: open                     # open, invite_only, approval, disabled
+  mode: open                         # open, invite_only, approval, disabled
+
+secrets:
+  encryption_key: ""                 # AES-256 key for secret vault
+
+billing:
+  enabled: false
+  stripe_secret_key: ""
+  stripe_webhook_key: ""
 
 limits:
   max_apps_per_tenant: 100
@@ -625,20 +791,45 @@ limits:
   max_concurrent_builds: 5
   max_concurrent_builds_per_tenant: 2
 
-billing:
+enterprise:
   enabled: false
-  stripe_secret_key: ""
-  stripe_webhook_key: ""
+  license_key: ""
+
+observability:
+  loki_url: ""                       # Loki endpoint for structured logs
+  loki_timeout: 5                     # seconds
+  log_format: text                    # text, json, loki
+  tracing_url: ""                     # OTLP/gRPC endpoint for OpenTelemetry traces
+  service_name: deploymonster         # Service name for traces
 ```
 
 ### 9.3 Hot Reload
 
 SIGHUP triggers `Core.ReloadConfig()` which updates:
-- Log level and format
-- CORS origins
-- Registration mode
-- Backup schedule
-- Resource limits
+- Log level and format (`server.log_level`, `server.log_format`)
+- CORS origins (`server.cors_origins`)
+- Registration mode (`registration.mode`)
+- Backup schedule (`backup.schedule`)
+- Resource limits (`limits.*`)
+- Observability log format (`observability.log_format`)
+
+### 9.4 Secret Audit
+
+On startup, `Config.AuditSecrets()` warns about plaintext secrets in config that should use environment variables:
+- `MONSTER_CLOUDFLARE_TOKEN`
+- `MONSTER_GITHUB_CLIENT_SECRET`
+- `MONSTER_GITLAB_CLIENT_SECRET`
+- `MONSTER_ENCRYPTION_KEY`
+- `MONSTER_STRIPE_SECRET_KEY`
+- `MONSTER_STRIPE_WEBHOOK_KEY`
+- `MONSTER_LICENSE_KEY`
+- `MONSTER_SLACK_WEBHOOK`
+- `MONSTER_DISCORD_WEBHOOK`
+- `MONSTER_TELEGRAM_TOKEN`
+- `MONSTER_S3_ACCESS_KEY`
+- `MONSTER_S3_SECRET_KEY`
+- `MONSTER_BACKUP_ENCRYPTION_KEY`
+- `MONSTER_JOIN_TOKEN`
 
 ---
 
@@ -660,20 +851,89 @@ SIGHUP triggers `Core.ReloadConfig()` which updates:
 
 ```
 web/src/
-├── App.tsx              # Root component, routing, auth gate
+├── App.tsx                        # Root component, routing, auth gate
+├── main.tsx                       # Entry point
 ├── api/
-│   └── client.ts        # Fetch wrapper with retry, refresh, CSRF
+│   ├── client.ts                  # Fetch wrapper with retry, refresh, CSRF
+│   ├── auth.ts                    # Auth API endpoints
+│   ├── apps.ts                    # Apps API endpoints
+│   ├── deployments.ts            # Deployments API endpoints
+│   ├── servers.ts                # Servers/VPS API endpoints
+│   ├── databases.ts              # Databases API endpoints
+│   ├── domains.ts                # Domains API endpoints
+│   ├── secrets.ts                # Secrets API endpoints
+│   ├── backups.ts                # Backups API endpoints
+│   ├── billing.ts                # Billing API endpoints
+│   ├── team.ts                   # Team API endpoints
+│   ├── admin.ts                  # Admin API endpoints
+│   ├── monitoring.ts             # Monitoring API endpoints
+│   ├── marketplace.ts            # Marketplace API endpoints
+│   └── git-sources.ts            # Git sources API endpoints
 ├── stores/
-│   ├── auth.ts          # Zustand auth state
-│   ├── theme.ts         # Theme preferences
-│   ├── toastStore.ts    # Toast notifications
-│   └── topologyStore.ts # Topology editor state
+│   ├── auth.ts                   # Zustand auth state
+│   ├── theme.ts                  # Theme preferences
+│   ├── toastStore.ts             # Toast notifications
+│   └── topologyStore.ts          # Topology editor state
 ├── hooks/
-│   ├── useApi.ts        # API call hook
-│   └── index.ts         # Shared hooks
-├── components/          # Reusable components
-├── pages/                # Page components
-└── lib/                  # Utilities
+│   ├── useApi.ts                 # Generic GET API hook
+│   ├── useMutation.ts            # Mutation hook (POST/PUT/DELETE)
+│   ├── usePaginatedApi.ts        # Paginated API hook
+│   ├── useDebouncedValue.ts      # Debounce utility hook
+│   └── useDeployProgress.ts      # Deployment progress tracking
+├── components/
+│   ├── layout/
+│   │   ├── AppLayout.tsx         # Main app layout with sidebar
+│   │   └── Sidebar.tsx           # Navigation sidebar
+│   ├── topology/
+│   │   ├── TopologyCanvas.tsx   # Visual canvas for topology
+│   │   ├── CompileModal.tsx     # Compile topology modal
+│   │   ├── ComponentPalette.tsx # Component selection palette
+│   │   ├── ConfigPanel.tsx      # Configuration panel
+│   │   ├── DeployModal.tsx      # Deployment modal
+│   │   └── CustomNodes/         # Custom node renderers
+│   │       ├── AppNode.tsx      # App node renderer
+│   │       ├── DatabaseNode.tsx # Database node renderer
+│   │       ├── DomainNode.tsx   # Domain node renderer
+│   │       ├── VolumeNode.tsx   # Volume node renderer
+│   │       └── WorkerNode.tsx   # Worker node renderer
+│   ├── ui/                       # shadcn/ui components
+│   │   ├── button.tsx, input.tsx, label.tsx, card.tsx
+│   │   ├── dialog.tsx, sheet.tsx, alert-dialog.tsx
+│   │   ├── dropdown-menu.tsx, select.tsx
+│   │   ├── tabs.tsx, switch.tsx, checkbox.tsx
+│   │   ├── table.tsx, skeleton.tsx, progress.tsx
+│   │   ├── badge.tsx, avatar.tsx, separator.tsx
+│   │   └── tooltip.tsx, scroll-area.tsx
+│   ├── ErrorBoundary.tsx         # React error boundary
+│   ├── Spinner.tsx              # Loading spinner
+│   ├── Toast.tsx                # Toast notification system
+│   └── SearchDialog.tsx         # Global search dialog
+├── pages/
+│   ├── Login.tsx                # Login page
+│   ├── Register.tsx             # Registration page
+│   ├── Onboarding.tsx          # First-time setup wizard
+│   ├── Dashboard.tsx            # Main dashboard
+│   ├── Apps.tsx                # App list/management
+│   ├── AppDetail.tsx           # Single app detail view
+│   ├── DeployWizard.tsx        # New app deployment wizard
+│   ├── Marketplace.tsx         # Template marketplace
+│   ├── TemplateDetail.tsx      # Template detail view
+│   ├── Domains.tsx             # Domain management
+│   ├── Databases.tsx           # Database management
+│   ├── Servers.tsx             # Server management
+│   ├── GitSources.tsx          # Git source integration
+│   ├── Backups.tsx             # Backup management
+│   ├── Secrets.tsx             # Secrets management
+│   ├── Team.tsx                # Team management
+│   ├── Billing.tsx             # Billing/subscription
+│   ├── Admin.tsx               # Admin panel
+│   ├── Settings.tsx           # User settings
+│   ├── Monitoring.tsx          # Metrics/monitoring
+│   ├── Topology.tsx            # Visual topology editor
+│   └── NotFound.tsx            # 404 page
+└── lib/
+    ├── utils.ts                # Utility functions (cn, formatting)
+    └── generatedSecrets.ts     # Generated secret utilities
 ```
 
 ### 10.3 API Client Features
@@ -824,7 +1084,9 @@ deploymonster serve
 deploymonster serve --agent --master=host:8443 --token=<join-token>
 ```
 
-The agent mode connects to the master's WebSocket endpoint at `/api/v1/agent/ws` and authenticates with a join token. No UI or API runs on agent nodes — only container operations dispatched from the master.
+Agent mode connects to the master's WebSocket endpoint and authenticates with a join token. No UI or API runs on agent nodes — only container operations dispatched from the master.
+
+> **Note:** The agent WebSocket endpoint (`/api/v1/agent/ws`) is implemented in `internal/swarm/` module. The master listens on the agent WebSocket route for incoming agent connections and dispatches operations via the Swarm module's client/server communication.
 
 ### 12.1 Agent Protocol
 
@@ -832,10 +1094,10 @@ The agent mode connects to the master's WebSocket endpoint at `/api/v1/agent/ws`
 sequenceDiagram
     participant Master
     participant Agent
-    
-    Master->>Agent: WebSocket /api/v1/agent/ws
+
+    Master->>Agent: WebSocket connection (agent route)
     Agent-->>Master: Connect with join token
-    
+
     loop Operations
         Master->>Agent: ContainerCreate/Stop/Remove/Restart
         Master->>Agent: ContainerLogs/Exec/ImagePull
@@ -875,9 +1137,37 @@ AgentMsgServerStatus, AgentMsgLogStream
 | API Keys | bcrypt hash verification |
 | Passwords | bcrypt cost 13 |
 | Webhook Verification | HMAC signature |
-| CSRF Protection | Double-submit cookie |
+| CSRF Protection | Double-submit cookie (`__Host-dm_csrf` + `X-CSRF-Token` header) |
 
-### 13.2 Secrets Encryption
+### 13.2 CSRF Implementation
+
+**Cookie-based double-submit pattern** — protects browser-authenticated requests:
+
+| Component | Value |
+|-----------|-------|
+| Cookie name | `__Host-dm_csrf` (HttpOnly=false, Secure, SameSite=Lax) |
+| Header name | `X-CSRF-Token` |
+| Token length | 16 bytes (32 hex chars) |
+| MaxAge | 24 hours |
+| Token generation | `crypto/rand.Read` |
+
+**Exemptions:**
+- Safe methods (GET, HEAD, OPTIONS) — no CSRF check
+- Requests with `Authorization` header (Bearer token) — programmatic clients
+- Requests with `X-API-Key` header — API key auth
+
+**Flow:**
+1. User authenticates (login/register/refresh) → `SetCSRFCookie()` sets cookie
+2. Frontend reads cookie via `document.cookie` and sends as `X-CSRF-Token` header
+3. Mutating requests (POST/PUT/PATCH/DELETE) validate header matches cookie
+4. Mismatch → 403 Forbidden response
+
+**Security notes:**
+- `__Host-` prefix enforced by browsers — prevents subdomain cookie injection
+- `Secure` flag set only when TLS detected (works in dev without certs)
+- Cookie is not HttpOnly so JavaScript can read it for header injection
+
+### 13.3 Secrets Encryption
 
 ```mermaid
 flowchart TD
@@ -887,24 +1177,65 @@ flowchart TD
     Key --> AES
     Nonce["Unique Nonce"] --> AES
     AES --> Encrypted["Encrypted Secret"]
-    
+
     subgraph "Storage"
         Meta["Metadata (BBolt vault bucket)"]
         Data["Encrypted Data"]
     end
-    
+
     Encrypted --> Meta
     Encrypted --> Data
 ```
 
-### 13.3 Rate Limiting
+### 13.4 Secret Rotation (JWT)
+
+JWT signing keys support graceful rotation via `previous_secret_keys`:
+
+| Setting | Value |
+|---------|-------|
+| Grace period | 20 minutes (RotationGracePeriod) |
+| Min secret length | 32 characters (256 bits) |
+| Previous keys | Unlimited |
+
+**How it works:**
+1. Current key signs new tokens
+2. Previous keys accepted for validation within grace period
+3. After grace period, previous keys are purged automatically
+
+**Rotation procedure:**
+```yaml
+# 1. Add new secret_key
+server:
+  secret_key: "new-32-char-minimum-key-here"
+  # 2. Move old key to previous_secret_keys
+  previous_secret_keys:
+    - "old-32-char-minimum-key-here"
+```
+
+**Runtime rotation (no restart):**
+```go
+jwtSvc.AddPreviousKey("old-key-here")  // Register old key as fallback
+// After 20 minutes, old key is purged automatically
+```
+
+**Emergency revocation:**
+```go
+revoked := jwtSvc.RevokeAllPreviousKeys()  // Immediately invalidates all old keys
+```
+
+**Config environment variable:**
+```bash
+MONSTER_PREVIOUS_SECRET_KEYS=key1,key2,key3  # comma-separated list
+```
+
+### 13.4 Rate Limiting
 
 - Per-IP global limit (default: 120/min)
 - Per-tenant limits
 - Per-endpoint limits
 - BBolt-backed counters
 
-### 13.4 Input Validation
+### 13.5 Input Validation
 
 - Request body size limit (10MB)
 - Request timeout (30s)
@@ -979,6 +1310,94 @@ Mutating requests include `Idempotency-Key` header:
 | Integration tests | Gated with `//go:build integration` tags |
 | Contract tests | Shared logic in `store_contract_test.go` |
 | Fuzzing | `go test -fuzz` for parsers |
+
+### 14.7 Integration Test Infrastructure
+
+**Running Tests:**
+
+```bash
+# All tests with race detection + coverage
+make test
+
+# Short tests only (skip integration)
+make test-short
+
+# Run integration tests only
+go test -tags=integration ./...
+
+# Run specific package tests
+go test ./internal/api/...
+
+# Run tests with verbose output
+go test -v ./internal/deploy/...
+
+# Run benchmarks
+go test -bench=. ./internal/core/...
+
+# Fuzzing tests
+go test -fuzz=FuzzName ./internal/auth/...
+```
+
+**Test Categories:**
+
+| Tag | Purpose | Location |
+|-----|---------|----------|
+| `integration` | Full stack tests requiring database/docker | `*_integration_test.go` |
+| (default) | Unit tests, no external dependencies | `*_test.go` |
+
+**Test Database Setup:**
+
+Integration tests use an in-memory SQLite database by default. For PostgreSQL integration tests:
+
+```bash
+# Start PostgreSQL container
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=testpass postgres:16
+
+# Run tests with PostgreSQL
+MONSTER_DB_URL="postgres://postgres:testpass@localhost:5432/testdb?sslmode=disable" \
+  go test -tags=integration ./internal/db/...
+```
+
+**Key Test Files:**
+
+| File | Purpose |
+|------|---------|
+| `internal/api/integration_test.go` | API integration tests |
+| `internal/api/router_cross_tenant_mutation_test.go` | Multi-tenant security tests |
+| `internal/swarm/master_agent_integration_test.go` | Master/agent WebSocket protocol |
+| `internal/deploy/container_test.go` | Container operations |
+| `internal/auth/password_test.go` | Password hashing tests |
+| `internal/notifications/notifications_100_test.go` | Notification delivery |
+
+**Mock Patterns:**
+
+```go
+// Interface with optional function fields for testing
+type ContainerManager struct {
+    CreateAndStartFunc func(ctx context.Context, app *core.App) error
+    StopFunc           func(ctx context.Context, appID string) error
+}
+
+func (m *ContainerManager) CreateAndStart(ctx context.Context, app *core.App) error {
+    if m.CreateAndStartFunc != nil {
+        return m.CreateAndStartFunc(ctx, app)
+    }
+    return errors.New("not implemented")
+}
+```
+
+**Contract Tests:**
+
+Store implementations (SQLite, PostgreSQL) share contract tests that verify:
+- CRUD operations
+- Pagination
+- Error handling
+- Concurrent access
+
+Run contract tests:
+```bash
+go test -run Contract ./internal/db/...
+```
 
 ---
 
