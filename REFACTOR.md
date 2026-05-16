@@ -686,6 +686,21 @@ DeployMonster documentation has been **substantially improved**. All critical an
 - Event naming standardization (billing events use underscore for backward compatibility)
 - Handler base class refactoring (would require significant changes to 100+ handlers)
 - API routes manual list (OpenAPI spec at `docs/openapi.yaml` provides complete documentation)
+- Security: Update OpenTelemetry Go SDK to latest version to fix PATH hijacking vulnerability
+
+**Known issues from GitHub Dependabot:**
+- OpenTelemetry Go SDK: BSD kenv command not using absolute path (high) — affects opentelemetry-go < 1.49.0
+- PostCSS XSS via unescaped </style> (high) — frontend vulnerability, pnpm audit shows no issues
+- pgx SQL Injection (high) — requires pgx update
+
+**Verification:**
+```bash
+# Check OpenTelemetry version
+go list -m go.opentelemetry.io/otel@v1.43.0
+
+# Frontend audit (pnpm)
+cd web && pnpm audit  # Shows "No known vulnerabilities found"
+```
 
 ---
 
