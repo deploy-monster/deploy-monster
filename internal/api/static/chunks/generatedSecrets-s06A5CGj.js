@@ -1,2 +1,0 @@
-import{m as e}from"../assets/index-u7CyZw5t.js";var t={list:t=>e.get(`/marketplace${t?`?${t}`:``}`),deploy:t=>e.post(`/marketplace/deploy`,t)};function n(e){return Object.entries(e).sort(([e],[t])=>e.localeCompare(t))}function r(e){return n(e).map(([e,t])=>`${e}=${t}`).join(`
-`)}export{n,t as r,r as t};

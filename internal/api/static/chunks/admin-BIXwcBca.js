@@ -1,1 +1,0 @@
-import{m as e}from"../assets/index-u7CyZw5t.js";var t={system:()=>e.get(`/admin/system`),tenants:()=>e.get(`/admin/tenants`),saveSettings:t=>e.patch(`/admin/settings`,t),apiKeys:()=>e.get(`/admin/api-keys`),generateApiKey:()=>e.post(`/admin/api-keys`),revokeApiKey:t=>e.delete(`/admin/api-keys/${encodeURIComponent(t)}`)};export{t};
