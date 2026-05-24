@@ -42,7 +42,7 @@ cd web && pnpm test:e2e --ui              # Playwright with interactive UI
 
 ### Backend: Go 1.26+ Modular Monolith
 - **22 modules** auto-registered via `init()` + `core.RegisterModule()` in each module's `module.go`
-- `cmd/deploymonster/main.go` imports all modules with blank `_` imports
+- `cmd/deploymonster/main.go` imports loadable modules for registration; `deploy` and `swarm` are also normal imports because agent mode uses their exported constructors
 - Dependency order resolved via topological sort on `Dependencies()` return values
 - Graceful shutdown in reverse dependency order (30s timeout)
 - Same binary runs as **master** (full platform) or **agent** (worker node via `--agent` flag)
@@ -59,7 +59,7 @@ Events()        → return []EventHandler for event subscriptions
 ```
 
 ### Key Interfaces (in `internal/core/`)
-- `Store` — DB-agnostic repository composing 12 sub-interfaces (TenantStore, UserStore, AppStore, DeploymentStore, DomainStore, ProjectStore, RoleStore, AuditStore, SecretStore, InviteStore, UsageRecordStore, BackupStore). **Never use `*db.SQLiteDB` directly.**
+- `Store` — DB-agnostic repository composing focused sub-interfaces (TenantStore, UserStore, AppStore, DeploymentStore, DomainStore, ProjectStore, RoleStore, AuditStore, SecretStore, InviteStore, UsageRecordStore, BackupStore, ServerStore, MigrationStore). **Never use `*db.SQLiteDB` directly.**
 - `ContainerRuntime` — Docker operations (CreateAndStart, Stop, Remove, Restart, Logs, Exec, Stats, ImagePull, etc.)
 - `BoltStorer` — legacy-named SQLite-backed KV (Set, Get, Delete, List, Close). Used for config, state, metrics, API keys, webhook secrets
 - `Services` — Factory registry for pluggable providers (DNS, Backup, VPS, Git)
@@ -83,7 +83,7 @@ In-process pub/sub with the EventBus on `core.Core`:
 ### Database
 - **SQLite** (`modernc.org/sqlite` pure Go) — default, file-based
 - **SQLite-backed KV** — buckets for config, state, metrics, API keys, webhooks, etc.
-- **PostgreSQL** — planned via `core.Store` interface (enterprise)
+- **PostgreSQL** — optional backend behind the same `core.Store` interface
 - All data access through `core.Store` interface only
 
 ### Deploy Pipeline

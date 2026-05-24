@@ -128,9 +128,10 @@ approach `math.MaxInt64` (~9.2 exabytes) in any conceivable deployment. No
 fix applied — these are excluded from the CI gate via `gosec.yaml`.
 
 **G115 — TOTP time-window and rate-limit bucketing (4 sites).**
-`internal/auth/totp.go:66` (`int64 -> uint64` on a positive time step) and
-`internal/ingress/middleware/ratelimit_bolt.go:65-66` (`int64 -> rune` for
-bucket-key byte encoding). Values are positive and well within range. No fix
+`internal/auth/totp.go` (`int64 -> uint64` on a positive time step) and
+the API rate-limit middleware (`internal/api/middleware/ratelimit.go`,
+`tenant_ratelimit.go`) where positive window sizes are converted to seconds
+for KV-backed counters. Values are positive and well within range. No fix
 applied.
 
 **G101 — hardcoded credentials in marketplace templates (6 sites).**

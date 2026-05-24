@@ -31,7 +31,7 @@ DeployMonster transforms any VPS with Docker into a multi-tenant deployment plat
 ~24 MB single binary with embedded React UI
 ~188K LOC total (~50K Go source, ~117K Go tests, ~22K React/TS/CSS)
 22 auto-registered modules
-251+ REST API routes
+236 documented REST API routes
 85%+ coverage gate
 ```
 
@@ -121,12 +121,16 @@ func init() {
     core.RegisterModule(func() core.Module { return New() })
 }
 
-// main.go imports all modules as blank imports (side effect):
+// main.go imports module packages so their init() registration runs:
 _ "github.com/deploymonster/deploy-monster/internal/api"
 _ "github.com/deploymonster/deploy-monster/internal/auth"
 _ "github.com/deploymonster/deploy-monster/internal/deploy"
-// ... etc for all 20 modules
+// ... remaining loadable modules
 ```
+
+`deploy` and `swarm` are also imported normally by `cmd/deploymonster`
+because the agent CLI path uses their exported constructors. Their `init()`
+registration still runs during package import.
 
 ### 3.3 Lifecycle
 
@@ -186,12 +190,8 @@ flowchart LR
 | `database` | Database Manager | `core.db`, `deploy` | Managed DB containers |
 | `cron` | Cron Scheduler | `core.db` | Job scheduling and execution |
 | `autoscale` | Autoscaler | `core.db`, `deploy` | Dynamic container scaling |
-| `compose` | Compose Deployer | `core.db`, `deploy` | Docker Compose file deployment |
-| `topology` | Topology Editor | `core.db`, `deploy` | Visual topology design and deployment |
-| `webhooks` | Webhook Receiver | `core.db` | Inbound webhook handling |
-| `awsauth` | AWS Auth | — | AWS Signature V4 for S3 |
 
-> **Note:** The `core.events` (EventBus), `core.scheduler` (Task Scheduler), and `core.ssh` (SSH Client) are built into `internal/core/` and are not separate loadable modules.
+> **Note:** The `core.events` (EventBus), `core.scheduler` (Task Scheduler), and `core.ssh` (SSH Client) are built into `internal/core/` and are not separate loadable modules. `internal/webhooks`, `internal/compose`, `internal/topology`, and `internal/awsauth` are library packages consumed by modules/API handlers, not auto-registered modules.
 
 ---
 
@@ -575,11 +575,12 @@ graph TB
     
     subgraph "SQLite-backed KV Store"
         Idempotency["idempotency bucket"]
-        RateLimit["rate_limit bucket"]
+        RateLimit["ratelimit bucket"]
         Metrics["metrics_ring bucket"]
         APIKeys["api_keys bucket"]
-        CSRF["csrf_tokens bucket"]
         Vault["vault bucket"]
+        WebhookSecrets["webhooks bucket"]
+        BuildQueue["build_queue bucket"]
     end
     
     SQL --> Store["Store Interface"]
@@ -587,9 +588,9 @@ graph TB
     RateLimit --> KV
     Metrics --> KV
     APIKeys --> KV
-    CSRF --> KV
     Vault --> KV
     WebhookSecrets --> KV
+    BuildQueue --> KV
 ```
 
 ### 8.2 KV Buckets
@@ -623,6 +624,12 @@ The SQLite-backed KV store uses buckets for various purposes:
 | `revoked_tokens` | Revoked JWT tokens for logout |
 | `vault` | Per-deployment Argon2id salt (encrypted secrets) |
 | `git_provider_connections` | Git provider connection data |
+| `build_queue` | Tenant build queue persistence |
+
+Additional buckets are created lazily by feature handlers when needed
+(`user_sessions`, `registries`, `tenant_ratelimit`, `redirects`,
+`sticky_sessions`, `error_pages`, `response_headers`, and similar
+feature-owned KV state).
 
 ### 8.3 Metrics Ring Buffer Policy
 
@@ -657,7 +664,7 @@ The `metrics_ring` bucket stores time-series metrics with automatic cleanup:
 type Module struct {
     sqlite   *SQLiteDB    // Relational data
     postgres *PostgresDB  // Enterprise relational
-    bolt     *BoltStore   // KV store
+    bolt     *BoltStore   // Legacy field name; SQLite-backed KV store
     driver   string       // "sqlite" or "postgres"
 }
 ```
@@ -1051,7 +1058,7 @@ flowchart LR
     Verify --> Parse["parsePayload()"]
     Parse --> Emit["emit EventWebhookReceived"]
     Emit --> Handler["WebhookAutoDeployHandler"]
-    Handler --> Lookup["bolt.GetWebhook()"]
+    Handler --> Lookup["KV GetWebhook()"]
     Lookup --> Check["AutoDeploy && BranchFilter?"]
     Check -->|image| ImageDeploy["triggerImageDeploy()"]
     Check -->|git| GitBuild["triggerGitBuild(branch)"]
@@ -1061,8 +1068,9 @@ flowchart LR
 
 **Components:**
 - `internal/webhooks/receiver.go` — Inbound webhook endpoint, signature verification, payload parsing
-- `internal/api/handlers/webhook_auto_deploy.go` — Subscribes to `EventWebhookReceived`, triggers builds/deploys
-- `internal/api/handlers/webhook_crud.go` — Webhook CRUD API (Create, List, Get, Update, Delete)
+- `internal/api/router.go` — Wires inbound webhook receiver and delivery tracker
+- `internal/api/handlers/event_webhooks.go` — Outbound event webhook CRUD API
+- `internal/api/handlers/webhook_rotate.go`, `webhook_test_delivery.go`, `webhook_logs.go`, `webhook_replay.go` — webhook operations
 - `internal/db/bolt.go` — `GetWebhook()` and `GetWebhookSecret()` for KV webhook storage
 
 **Branch Filter Patterns:**
@@ -1418,18 +1426,17 @@ Key source files (see actual file for current line counts):
 | `internal/core/registry.go` | Module registration, topological sort |
 | `internal/core/store.go` | Store interface + all data models |
 | `internal/core/events.go` | EventBus with sync/async handlers, WebhookEventData |
-| `internal/core/interfaces.go` | Service interfaces (ContainerRuntime, BoltStorer with GetWebhook) |
+| `internal/core/interfaces.go` | Service interfaces (ContainerRuntime, legacy-named BoltStorer KV interface) |
 | `internal/core/config.go` | Config struct + MONSTER_* env overrides |
 | `internal/core/scheduler.go` | Cron-like task scheduler |
 | `internal/api/router.go` | HTTP route registration, middleware chain, webhook handlers |
 | `internal/api/module.go` | API module lifecycle |
 | `internal/api/middleware/middleware.go` | Auth, CORS, Recovery, RequestLogger |
 | `internal/api/middleware/*.go` | Rate limiting, metrics, CSRF, idempotency, audit |
-| `internal/api/handlers/webhook_auto_deploy.go` | Webhook auto-deploy event handler |
-| `internal/api/handlers/webhook_crud.go` | Webhook CRUD API |
+| `internal/api/handlers/event_webhooks.go` | Outbound event webhook CRUD API |
+| `internal/webhooks/receiver.go` | Inbound webhook endpoint + signature verification |
 | `internal/db/module.go` | SQLite/Postgres/KV initialization |
 | `internal/db/bolt.go` | SQLite-backed KV store, GetWebhook, GetWebhookSecret |
-| `internal/webhooks/receiver.go` | Inbound webhook endpoint + signature verification |
 | `internal/deploy/module.go` | Docker container management |
 | `internal/secrets/module.go` | AES-256-GCM encrypted vault |
 | `internal/ingress/module.go` | Reverse proxy + ACME certificate management |

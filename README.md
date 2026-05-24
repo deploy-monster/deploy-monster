@@ -74,7 +74,7 @@ tenant checks at one layer.
   categories (WordPress, Ghost, n8n, Grafana, Ollama, …).
 
 ### Platform
-- **234 REST API routes**, all tracked in `docs/openapi.yaml`; CI
+- **236 REST API routes**, all tracked in `docs/openapi.yaml`; CI
   (`openapi-gen`) fails on code/spec drift.
 - **Custom reverse proxy** — no Traefik/Nginx dependency, automatic
   Let's Encrypt via `autocert`. Five LB strategies (round-robin,
@@ -116,9 +116,9 @@ tenant checks at one layer.
 │                DeployMonster single binary (~24 MB)             │
 ├─────────┬─────────┬─────────┬──────────┬─────────┬──────────────┤
 │ Web UI  │  REST   │  SSE    │ Webhooks │ Ingress │  MCP server  │
-│ shadcn  │ 234 rt  │ Stream  │  In+Out  │ :80/443 │  9 AI tools  │
+│ shadcn  │ 236 rt  │ Stream  │  In+Out  │ :80/443 │  9 AI tools  │
 ├─────────┴─────────┴─────────┴──────────┴─────────┴──────────────┤
-│                20 auto-registered modules                       │
+│                22 auto-registered modules                       │
 │  auth │ deploy │ build │ ingress │ dns │ secrets │ billing │   │
 │  db   │ backup │ vps   │ swarm   │ marketplace │ notifications │
 ├─────────────────────────────────────────────────────────────────┤
@@ -204,22 +204,17 @@ bundle-size budget).
 ## Project stats
 
 - **~188 K** total LOC (~50 K Go source, ~117 K Go tests, ~22 K React/TS/CSS)
-- **234** registered HTTP routes
-- **20** auto-registered modules
+- **236** documented HTTP routes
+- **22** auto-registered modules
 - **91** marketplace templates
 - **17** fuzz targets (input parsing, webhook HMAC, JWT validate, secret resolver, cross-tenant router)
 - **44** benchmarks
 - **~24 MB** single binary with embedded UI
-- **Coverage:** statement-weighted **85.9 %** after stripping the
+- **Coverage:** statement-weighted **85.0 %** after stripping the
   `tests/loadtest` and `tests/soak` harness packages from the
-  profile (their `*_test.go` files are one-line smoke tests that
-  exist only so the binaries compile under `go test`). Raw coverage
-  including those harnesses is 84.3 %. Hot packages run well above
-  target: `webhooks` 99.0 %, `mcp` 98.9 %, `api` 93.8 %,
-  `notifications` 93.9 %, `marketplace` 95.3 %, `deploy` 91.5 %,
-  `auth` 91.1 %, `db` 88.4 %, `compose` 100 %. The CI gate
-  enforces the filtered-85 % threshold (see
-  `.github/workflows/ci.yml`).
+  profile. The CI gate enforces the filtered-85 % threshold (see
+  `.github/workflows/ci.yml`). Current validation also runs Vitest,
+  Playwright E2E, OpenAPI drift, bundle-size, and govulncheck gates.
 
 ---
 

@@ -4,7 +4,7 @@ Compact guide for AI agents working in DeployMonster. See `CLAUDE.md` for archit
 
 ## What This Is
 
-Go 1.26+ modular monolith PaaS (single binary, master or agent mode) with embedded React 19 frontend. 21 Go packages in `internal/`, each with a `module.go` that auto-registers via `init()` + `core.RegisterModule()`. The `webhooks` package is a library, not a module.
+Go 1.26+ modular monolith PaaS (single binary, master or agent mode) with embedded React 19 frontend. 22 loadable modules auto-register via `init()` + `core.RegisterModule()`. Some `internal/` packages (`webhooks`, `compose`, `topology`, `awsauth`) are libraries used by modules/API handlers, not modules themselves.
 
 ## Build Pipeline (Critical)
 

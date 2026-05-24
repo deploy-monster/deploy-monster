@@ -2,16 +2,16 @@
 
 ## Overview
 
-DeployMonster is a **modular monolith** — a single 22MB binary containing everything needed to run a full PaaS platform. No microservices, no external dependencies, no Docker containers required to run the platform itself.
+DeployMonster is a **modular monolith** — a single binary containing everything needed to run a full PaaS platform. No microservices, no external dependencies, no Docker containers required to run the platform itself.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                        DeployMonster Binary (22MB)                            │
+│                         DeployMonster Binary                                  │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────┐ ┌──────────┐  │
 │  │ Web UI  │ │REST API │ │   SSE   │ │ Webhooks │ │ Ingress │ │   MCP    │  │
-│  │ React   │ │ 224 eps │ │ Stream  │ │  In+Out  │ │:80/:443 │ │ 9 Tools  │  │
+│  │ React   │ │ 236 eps │ │ Stream  │ │  In+Out  │ │:80/:443 │ │ 9 Tools  │  │
 │  └────┬────┘ └────┬────┘ └────┬────┘ └────┬─────┘ └────┬────┘ └────┬─────┘  │
 │       │          │          │          │            │           │          │
 │       └──────────┴──────────┴──────────┴────────────┴───────────┘          │
@@ -25,19 +25,19 @@ DeployMonster is a **modular monolith** — a single 22MB binary containing ever
 │  └──────────────────────────────────────────────────────────────────────┘  │
 │                                    │                                        │
 │  ┌─────────────────────────────────┴────────────────────────────────────┐  │
-│  │                      20 Auto-Registered Modules                       │  │
+│  │                      22 Auto-Registered Modules                       │  │
 │  │                                                                        │  │
 │  │  ┌──────┐ ┌──────┐ ┌───────┐ ┌────────┐ ┌─────────┐ ┌──────────────┐  │  │
 │  │  │ auth │ │ build│ │deploy │ │ingress │ │ secrets │ │ notifications│  │  │
 │  │  └──────┘ └──────┘ └───────┘ └────────┘ └─────────┘ └──────────────┘  │  │
 │  │  ┌──────┐ ┌──────┐ ┌───────┐ ┌────────┐ ┌─────────┐ ┌──────────────┐  │  │
-│  │  │  db  │ │ dns  │ │ backup│ │  vps   │ │ billing │ │  webhooks    │  │  │
+│  │  │  db  │ │ dns  │ │ backup│ │  vps   │ │ billing │ │  autoscale   │  │  │
 │  │  └──────┘ └──────┘ └───────┘ └────────┘ └─────────┘ └──────────────┘  │  │
 │  │  ┌──────┐ ┌──────┐ ┌───────┐ ┌────────┐ ┌─────────┐ ┌──────────────┐  │  │
-│  │  │ api  │ │ swarm│ │compose│ │ market │ │   mcp   │ │  enterprise  │  │  │
+│  │  │ api  │ │ swarm│ │ cron  │ │ market │ │   mcp   │ │  enterprise  │  │  │
 │  │  └──────┘ └──────┘ └───────┘ └────────┘ └─────────┘ └──────────────┘  │  │
 │  │  ┌──────┐ ┌──────┐                                                        │  │
-│  │  │resource│ │discovery│ ...                                              │  │
+│  │  │resource│ │discovery│ │database│ │gitsources│ ...                       │  │
 │  │  └──────┘ └──────┘                                                        │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 │                                    │                                        │
@@ -124,30 +124,36 @@ The core engine manages module lifecycle in dependency order:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Module List (20 modules)
+### Module List (22 modules)
 
 | Module | ID | Purpose | Dependencies |
 |--------|-----|---------|--------------|
 | **db** | `core.db` | SQLite + SQLite-backed KV storage | none |
-| **auth** | `auth` | JWT, TOTP, OAuth, sessions | `core.db` |
+| **auth** | `core.auth` | JWT, TOTP, OAuth, sessions | `core.db` |
 | **secrets** | `secrets` | AES-256-GCM vault | `core.db` |
 | **deploy** | `deploy` | Docker orchestration | `core.db` |
-| **build** | `build` | 14 language detectors | `core.db` |
-| **ingress** | `ingress` | Reverse proxy + SSL | `core.db` |
+| **build** | `build` | 14 language detectors | `core.db`, `deploy` |
+| **ingress** | `ingress` | Reverse proxy + SSL | `core.db`, `deploy` |
 | **dns** | `dns` | Cloudflare DNS sync | `core.db` |
 | **backup** | `backup` | Local + S3 backups | `core.db` |
 | **vps** | `vps` | Server provisioning | `core.db` |
-| **webhooks** | `webhooks` | Git webhook receiver | `core.db` |
 | **notifications** | `notifications` | Slack, Discord, Email | `core.db` |
 | **billing** | `billing` | Stripe integration | `core.db` |
 | **enterprise** | `enterprise` | WHMCS, SSO, audit | `core.db` |
-| **swarm** | `swarm` | Multi-server cluster | `core.db` |
-| **compose** | `compose` | Docker Compose parser | `core.db` |
-| **marketplace** | `marketplace` | 25 app templates | `core.db` |
-| **mcp** | `mcp` | AI tool server | `core.db` |
-| **api** | `api` | 224 REST endpoints | ALL |
-| **discovery** | `discovery` | Container discovery | `core.db` |
-| **resource** | `resource` | Metrics + monitoring | `core.db` |
+| **swarm** | `swarm` | Multi-server cluster | `deploy` |
+| **marketplace** | `marketplace` | 91 app templates | `core.db`, `deploy` |
+| **mcp** | `mcp` | AI tool server | `core.db`, `deploy` |
+| **api** | `api` | 236 documented REST routes | `core.db`, `core.auth`, `marketplace`, `billing` |
+| **discovery** | `discovery` | Container discovery | `deploy`, `ingress` |
+| **resource** | `resource` | Metrics + monitoring | `core.db`, `deploy` |
+| **database** | `database` | Managed DB containers | `core.db`, `deploy` |
+| **cron** | `cron` | Scheduled app jobs | `core.db`, `deploy` |
+| **autoscale** | `autoscale` | Dynamic container scaling | `core.db`, `deploy` |
+| **gitsources** | `gitsources` | Git provider connections | `core.db` |
+
+`internal/webhooks`, `internal/compose`, `internal/topology`, and
+`internal/awsauth` are library packages used by modules or API handlers;
+they are not auto-registered modules.
 
 ---
 
@@ -626,7 +632,7 @@ AES-256-GCM encrypted secrets with scope-based resolution.
 
 ## 9. API Structure
 
-224 REST endpoints organized by feature:
+236 documented REST endpoints organized by feature:
 
 ```
 /api/v1/
@@ -747,15 +753,15 @@ AES-256-GCM encrypted secrets with scope-based resolution.
 │                        KV Buckets                                        │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│   config.{key}         → Platform configuration                         │
-│   cache.{key}          → TTL-based cache entries                        │
-│   metrics.{host}       → Per-host metrics (5min retention)              │
-│   sessions.{id}        → User sessions                                  │
-│   certs.{domain}       → SSL certificates                               │
-│   apikeys.{id}         → API key metadata                               │
-│   webhooks.{id}        → Webhook configurations                         │
-│   audit.{id}           → Audit log buffer                               │
-│   ... 30+ buckets                                                      │
+│   sessions/{id}        → Session and websocket state                    │
+│   ratelimit/{key}      → Per-IP and tenant rate-limit windows           │
+│   metrics_ring/{key}   → Per-app/server metrics ring buffers            │
+│   api_keys/{prefix}    → API key metadata and hashes                    │
+│   webhooks/{id}        → Inbound webhook configuration and secret hash   │
+│   event_webhooks/{id}  → Outbound webhook configuration                 │
+│   vault/salt           → Per-deployment vault salt                      │
+│   build_queue/{id}     → Persistent tenant build jobs                   │
+│   ... feature-owned buckets created lazily                              │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -832,7 +838,7 @@ DeployMonster/
 │   │
 │   ├── db/                     # SQLite + KV storage
 │   │   ├── sqlite.go
-│   │   ├── bolt.go
+│   │   ├── bolt.go            # legacy filename; SQLite-backed KV
 │   │   └── models/
 │   │
 │   ├── api/                    # REST API
@@ -888,13 +894,13 @@ DeployMonster/
 
 ## Summary
 
-DeployMonster is a **modular monolith** that packs enterprise-grade PaaS capabilities into a single 22MB binary:
+DeployMonster is a **modular monolith** that packs enterprise-grade PaaS capabilities into a single binary:
 
 | Feature | Implementation |
 |---------|---------------|
-| **Architecture** | Modular monolith, 20 auto-registered modules |
-| **Data** | SQLite + SQLite-backed KV (PostgreSQL planned) |
-| **API** | 224 REST endpoints |
+| **Architecture** | Modular monolith, 22 auto-registered modules |
+| **Data** | SQLite + SQLite-backed KV; optional PostgreSQL backend |
+| **API** | 236 documented REST routes |
 | **Auth** | JWT + bcrypt + TOTP + OAuth |
 | **Ingress** | Custom reverse proxy (no Traefik/Nginx) |
 | **SSL** | Let's Encrypt auto-certificates |
@@ -902,6 +908,6 @@ DeployMonster is a **modular monolith** that packs enterprise-grade PaaS capabil
 | **Secrets** | AES-256-GCM encrypted vault |
 | **Scaling** | Master/Agent clustering |
 | **AI** | MCP server with 9 tools |
-| **Tests** | 245 Go test files, 65 React tests, 92.8% coverage |
+| **Tests** | Go race/coverage gate, Vitest, Playwright E2E, OpenAPI drift check |
 
 The key design principle: **everything is a module**. Each feature implements the same `core.Module` interface, registers itself, and communicates via typed interfaces and the event bus. No direct database access, no cross-package imports, true modularity.

@@ -6,7 +6,12 @@ This document explains the lifecycle, dependency resolution, and extension contr
 
 ## What is a module?
 
-Every major feature in DeployMonster is implemented as a **module**: a Go package under `internal/<name>/` that implements the `core.Module` interface. The binary currently ships 20 modules, ranging from `auth` and `api` to `marketplace` and `swarm`.
+Every major feature in DeployMonster is implemented as a **module**: a Go package under `internal/<name>/` that implements the `core.Module` interface. The binary currently ships 22 loadable modules, ranging from `core.auth` and `api` to `marketplace` and `swarm`.
+
+Some `internal/` packages are libraries rather than modules. For example,
+`internal/webhooks` provides inbound webhook parsing/signature verification,
+`internal/compose` parses Compose files, `internal/topology` holds topology
+helpers, and `internal/awsauth` signs AWS-compatible requests.
 
 A module is **not** a microservice. It is a compile-time boundary inside the same binary. Modules communicate through:
 
@@ -76,13 +81,16 @@ func init() {
 }
 ```
 
-`cmd/deploymonster/main.go` then blank-imports every module package:
+`cmd/deploymonster/main.go` imports each loadable module package so its
+`init()` registration runs. Most modules are blank-imported:
 
 ```go
-import _ "github.com/deploy-monster/deploy-monster/internal/deploy"
+import _ "github.com/deploy-monster/deploy-monster/internal/auth"
 ```
 
-This pattern keeps the module list centralized in `main.go` while the module implementation stays decoupled from the orchestrator.
+`deploy` and `swarm` are also normal imports because agent mode uses exported
+constructors from those packages. This keeps the module list centralized in
+`main.go` while the module implementation stays decoupled from the orchestrator.
 
 ---
 
@@ -101,15 +109,16 @@ The registry builds the initialization graph at runtime:
 ### Example dependency graph
 
 ```text
-db          →  []
-auth        →  [db]
-discover    →  [db]
-ingress     →  [db]
-deploy      →  [db, ingress, discover]
-api         →  [auth, deploy, ingress, ...]
+core.db     →  []
+core.auth   →  [core.db]
+deploy      →  [core.db]
+ingress     →  [core.db, deploy]
+discovery   →  [deploy, ingress]
+api         →  [core.db, core.auth, marketplace, billing]
 ```
 
-Because `deploy` declares `ingress` and `discover` as dependencies, the ingress gateway and Docker event watcher are guaranteed to be initialized and started before the deploy engine begins creating containers.
+Because `discovery` declares `deploy` and `ingress` as dependencies, Docker
+event watching starts only after the runtime and route table are initialized.
 
 ### Reverse shutdown
 
@@ -208,7 +217,7 @@ type Module struct{}
 func (m *Module) ID() string   { return "demo" }
 func (m *Module) Name() string { return "Demo Module" }
 func (m *Module) Version() string { return "1.0.0" }
-func (m *Module) Dependencies() []string { return []string{"db"} }
+func (m *Module) Dependencies() []string { return []string{"core.db"} }
 
 func (m *Module) Init(ctx context.Context, c *core.Core) error  { return nil }
 func (m *Module) Start(ctx context.Context) error               { return nil }
