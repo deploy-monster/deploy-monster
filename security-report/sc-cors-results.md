@@ -10,11 +10,11 @@ Cross-origin resource sharing security scan.
 - **Severity:** Info
 - **Confidence:** 90
 - **File:** internal/api/router.go:89
-- **Description:** CORS origins are loaded from `monster.yaml` `Server.CORSOrigins`. A misconfiguration (e.g., `*`) could allow unwanted cross-origin access.
-- **Remediation:** Validate CORS origins at startup — reject `*` or empty lists in production mode.
+- **Description:** CORS origins are loaded from `monster.yaml` `Server.CORSOrigins`. Public mode (`""` or `*`) emits `Access-Control-Allow-Origin: *` without `Access-Control-Allow-Credentials`, so browsers reject credentialed cross-origin cookie requests.
+- **Remediation:** Keep production deployments on explicit origin allowlists when browser credentialed access is required. WebSocket upgrades now reject wildcard origins separately.
 
 ## Positive Security Patterns Observed
 - CORS middleware applied globally
 - Credentials policy respects HTTPS configuration
-- No `Access-Control-Allow-Origin: *` hardcoded
-- WebSocket/SSE endpoints respect CORS origins via `SetAllowedOrigins`
+- Wildcard public mode is not combined with `Access-Control-Allow-Credentials`
+- WebSocket deploy progress rejects wildcard origins and requires exact origin matches

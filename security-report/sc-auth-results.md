@@ -1,56 +1,51 @@
 # SC-Auth Results: Authentication Flaw Detection
 
 ## Scan Scope
-- Password hashing: bcrypt with cost 13
-- Brute force protection: per-IP rate limiting on login/register/refresh
-- Timing-safe comparison: bcrypt for passwords and API keys
-- Account enumeration: generic error messages on login
-- First-run super admin creation with auto-generated credentials
-- API key authentication via X-API-Key header
+- Password hashing and password policy
+- Brute force and per-account login throttling
+- First-run super admin bootstrap behavior
+- MFA/TOTP enrollment and login enforcement
+- API-key authentication
+- Frontend login and registration auth flows
 
-## Findings
+## Current Findings
 
-### AUTH-001: Auto-Generated Super Admin Credentials Written to Unencrypted File
-- **Severity:** High
-- **Confidence:** 95
-- **File:** `internal/auth/module.go:126-135`
-- **Vulnerability Type:** CWE-798 (Hardcoded Credentials)
-- **Description:** During first-run setup, if no `MONSTER_ADMIN_PASSWORD` env var is set, a 16-character password is auto-generated and written to a `.credentials` file with `0600` permissions. While the permissions are restrictive, the file is stored on disk next to the database path. There is no mechanism to automatically delete or rotate this file after the admin first logs in, leaving credentials at rest indefinitely.
-- **Impact:** An attacker with filesystem read access (e.g., via path traversal, backup extraction, or host compromise) can obtain the super admin password and gain full platform control.
-- **Remediation:**
-  1. Print the credentials to stdout/stderr during first-run setup instead of writing to a file (or use both with a strong warning).
-  2. Add a startup task that deletes the `.credentials` file once the super admin has logged in at least once.
-  3. Alternatively, force the user to set `MONSTER_ADMIN_PASSWORD` via environment variable before first run and refuse to start if unset.
-- **References:** https://cwe.mitre.org/data/definitions/798.html
+No active authentication findings remain in the scanned paths.
 
-### AUTH-002: No Multi-Factor Authentication (MFA/TOTP)
-- **Severity:** Medium
-- **Confidence:** 90
-- **File:** `internal/api/handlers/auth.go` (Login handler)
-- **Vulnerability Type:** CWE-308 (Use of Single-factor Authentication)
-- **Description:** The login flow accepts only email and password. The `users` table has a `totp_enabled` column (seen in `internal/db/users.go`), but there is no TOTP verification step during login, no enrollment endpoint, and no backup code mechanism. This leaves all accounts, including the super admin, protected by a single factor.
-- **Impact:** Credential stuffing, phishing, or password reuse attacks can lead directly to account takeover without a second factor to mitigate.
-- **Remediation:** Implement TOTP enrollment (QR code generation), TOTP verification during login when `totp_enabled` is true, and backup codes for account recovery.
-- **References:** https://cwe.mitre.org/data/definitions/308.html
+## Resolved Findings
 
-### AUTH-003: Weak Password Policy (8 chars, no special char requirement)
-- **Severity:** Medium
-- **Confidence:** 85
-- **File:** `internal/auth/password.go:27-50`
-- **Vulnerability Type:** CWE-521 (Weak Password Requirements)
-- **Description:** `ValidatePasswordStrength` enforces only length >= 8, one uppercase, one lowercase, and one digit. It does not require special characters and allows common patterns like `Password1` which would pass validation. The 8-character minimum is below modern NIST/OWASP recommendations (12+ characters).
-- **Impact:** Users can set easily guessable passwords, increasing susceptibility to brute-force and dictionary attacks.
-- **Remediation:** Increase minimum length to 12 (or 16 for admin accounts). Add a check against a common-password dictionary (e.g., Have I Been Pwned API or a local top-100k list). Consider using zxcvbn for entropy scoring.
-- **References:** https://cwe.mitre.org/data/definitions/521.html
+### AUTH-001: Bootstrap Credential File Exposure
+- **Status:** Resolved
+- **Evidence:** First-run setup no longer writes a `.credentials` file. Generated bootstrap passwords are logged once, `MONSTER_ADMIN_PASSWORD` is unset after use, and `/etc/deploymonster/deploymonster.env` is removed if it contains bootstrap admin credentials.
+- **Files:** `internal/auth/module.go:139-164`, `internal/auth/module.go:169-188`
+
+### AUTH-002: MFA/TOTP Login Enforcement
+- **Status:** Resolved
+- **Evidence:** Login accepts `totp_code` and requires it when `user.TOTPEnabled` is true. TOTP enrollment, status, disable, and backup-code endpoints exist. The frontend login flow now prompts for an authentication code after the backend returns `TOTP code required`.
+- **Files:** `internal/api/handlers/auth.go:227-241`, `internal/api/handlers/sessions.go:280-405`, `web/src/pages/Login.tsx`, `web/src/stores/auth.ts`
+
+### AUTH-003: Password Policy Hardening
+- **Status:** Resolved
+- **Evidence:** `ValidatePasswordStrength` now defaults to 12 characters and requires uppercase, lowercase, digit, special character, and a common-password blocklist check. Frontend registration and settings copy now match the backend policy.
+- **Files:** `internal/auth/password.go:76-117`, `web/src/pages/Register.tsx`, `web/src/pages/Settings.tsx`
+
+### AUTH-004: TOTP Backup Code Persistence
+- **Status:** Resolved
+- **Evidence:** Backup-code hashes are stored via the database implementations, returned plaintext codes remain one-time display only, and login validation consumes a matching backup code so it cannot be reused.
+- **Files:** `internal/auth/totp_service.go`, `internal/db/users.go`, `internal/db/postgres.go`, `internal/db/migrations/0007_totp_backup_codes.sql`
 
 ## Checks Passed
-- Passwords hashed with bcrypt (adaptive cost, cost=13)
-- Brute force protection present: login 120/min, register 120/min, refresh 5/min
-- Timing-safe comparison used via `bcrypt.CompareHashAndPassword`
-- Generic login errors ("invalid credentials") prevent account enumeration
+- Passwords hashed with bcrypt cost 13
+- Login, register, and refresh routes have rate limiting
+- Per-account login failure tracking is present
+- Generic login errors prevent account enumeration on password failure
+- TOTP validation fails closed if no validator or vault is configured
+- TOTP backup codes are persisted as hashes and consumed on successful use
+- API client no longer masks `/auth/login` 401 domain errors as session expiry
+- First-run super admin email is generated when `MONSTER_ADMIN_EMAIL` is unset
 - No plaintext password storage detected
-- No hardcoded credentials in source code (env vars used)
 
 ## Summary
-- **Total Findings:** 3 (1 High, 2 Medium)
-- **Overall Status:** Issues found; see above for details.
+- **Open Findings:** 0
+- **Resolved Findings:** 4
+- **Overall Status:** No active authentication findings remain in the scanned paths.

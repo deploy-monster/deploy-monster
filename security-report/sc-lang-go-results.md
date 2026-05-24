@@ -5,42 +5,38 @@ Go-specific security scan of the DeployMonster backend.
 
 ## Findings
 
-### Finding: GO-001
-- **Title:** Panic on Short JWT Secret at Startup
-- **Severity:** Medium
-- **Confidence:** 95
-- **File:** internal/auth/jwt.go:54
-- **Description:** `NewJWTService` panics if the JWT secret is shorter than 32 characters. While this prevents weak secrets, a panic on startup can cause denial of service if an operator misconfigures the secret.
-- **Remediation:** Return an error instead of panicking to allow graceful shutdown with a clear error message.
-
-### Finding: GO-002
-- **Title:** Panic on Random Generation Failure
+### GO-001: Panic On Random Generation Failure
 - **Severity:** Low
 - **Confidence:** 90
-- **File:** internal/auth/jwt.go:268
-- **Description:** `generateTokenID` panics if `crypto/rand.Read` fails. This could cause a cascading failure under entropy exhaustion.
-- **Remediation:** Return an error up the call stack instead of panicking.
+- **File:** `internal/auth/jwt.go`, `internal/core/id.go`, `internal/api/middleware/requestid.go`
+- **Description:** A few cryptographic ID generation paths panic if `crypto/rand` fails. This is defensible for unrecoverable entropy failures, but it can still terminate request handling or startup paths under extreme OS entropy/provider failure.
+- **Remediation:** For request-scoped token/request ID generation, return errors up the stack where practical. Keep startup-only fail-fast behavior documented.
 
-### Finding: GO-003
-- **Title:** Docker Client v28.5.2 Known Vulnerabilities
-- **Severity:** High
-- **Confidence:** 85
-- **File:** go.mod:9
-- **Description:** The `go.mod` explicitly acknowledges AuthZ bypass and plugin privilege issues in Docker v28.5.2.
-- **Remediation:** Upgrade to Docker client v29+ when available.
-
-### Finding: GO-004
-- **Title:** Unhandled Error in logWriter Write
+### GO-002: Ignored Build Log Writer Errors
 - **Severity:** Info
 - **Confidence:** 70
-- **File:** internal/build/builder.go:95
-- **Description:** `fmt.Fprintf(logWriter, ...)` error return is ignored. In a build pipeline, log writer failures could mask disk-full errors.
-- **Remediation:** Check and handle the error return.
+- **File:** `internal/build/builder.go`
+- **Description:** Build progress writes intentionally ignore `fmt.Fprintf(logWriter, ...)` errors. If the log writer points to persistent build logs, failures could hide disk/logging problems; if it points to a client stream, failing the build may be too strict.
+- **Remediation:** Decide log-writer semantics. If persistent logs are authoritative, fail the build on write errors; if streaming is best-effort, keep ignoring but document it.
+
+## Resolved / Revalidated Items
+
+### GO-003: Panic On Short JWT Secret At Startup
+- **Previous Severity:** Medium
+- **Status:** RESOLVED
+- **File:** `internal/auth/jwt.go`
+- **Notes:** `NewJWTService` returns an error for secrets shorter than 32 characters instead of panicking.
+
+### GO-004: Docker Client v28.5.2 Known Vulnerabilities
+- **Previous Severity:** High
+- **Status:** RESOLVED / NOT CURRENT
+- **File:** `go.mod`
+- **Notes:** The legacy Docker SDK module is no longer imported; current Docker integration uses split Moby modules. `govulncheck ./...` reports 0 called vulnerabilities.
 
 ## Positive Security Patterns Observed
-- No `unsafe` package usage
-- No CGO (`CGO_ENABLED=0` in build)
-- `context.Context` passed correctly throughout
-- Structured logging with `log/slog`
-- Proper error wrapping with `fmt.Errorf("...: %w", err)`
-- Race detection enabled in tests (`make test`)
+- No `unsafe` package usage in reviewed source.
+- No CGO in the release build path.
+- `context.Context` passed correctly throughout.
+- Structured logging with `log/slog`.
+- Proper error wrapping with `fmt.Errorf("...: %w")`.
+- Race detection is part of the main test target.

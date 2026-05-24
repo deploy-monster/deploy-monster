@@ -5,26 +5,25 @@ TypeScript/React frontend security scan of the DeployMonster web UI.
 
 ## Findings
 
-### Finding: TS-001
-- **Title:** pnpm Override for Non-Existent lodash Version
-- **Severity:** Low
-- **Confidence:** 80
-- **File:** web/package.json:57
-- **Description:** `"lodash@4": "^4.18.0"` override targets a version that does not exist (latest lodash v4 is 4.17.21). This may cause resolution confusion.
-- **Remediation:** Remove stale pnpm overrides.
+No active TypeScript/frontend dependency hygiene findings are verified in the current working tree.
 
-### Finding: TS-002
-- **Title:** Unmaintained dagre Dependency
-- **Severity:** Low
-- **Confidence:** 90
-- **File:** web/package.json:22
-- **Description:** `dagre` 0.8.5 was last published in 2017 and is unmaintained.
-- **Remediation:** Evaluate `@dagrejs/dagre` community fork.
+## Resolved / Revalidated Items
+
+### TS-001: pnpm Override for Non-Existent lodash Version
+- **Previous Severity:** Low
+- **Status:** RESOLVED
+- **File:** `web/package.json`
+- **Notes:** The stale `lodash@4 -> ^4.18.0` override was removed. The frontend does not use lodash, and `web/pnpm-lock.yaml` no longer contains the invalid override.
+
+### TS-002: Unmaintained dagre Dependency
+- **Previous Severity:** Low
+- **Status:** RESOLVED
+- **File:** `web/package.json`
+- **Notes:** The frontend depends on `@dagrejs/dagre` rather than the legacy `dagre` package.
 
 ## Positive Security Patterns Observed
-- React 19 with automatic XSS protection via JSX escaping
-- TypeScript strict mode (implied by build configuration)
-- Vite build with modern security defaults
-- No `dangerouslySetInnerHTML` usage detected in source
-- No `eval()` or `Function()` usage detected
-- ESLint configured with react-hooks and react-refresh plugins
+- React 19 with JSX escaping by default.
+- TypeScript build is enforced by `pnpm run build`.
+- Vite build is active and bundle-size gated.
+- No `dangerouslySetInnerHTML`, `eval`, or `Function` usage detected in source.
+- ESLint configured with react-hooks and react-refresh plugins.

@@ -16,7 +16,7 @@ api, auth, backup, billing, build, database, db, deploy, discovery, dns, enterpr
 - Auth: JWT (HS256), API keys, TOTP MFA
 
 ### Database
-- SQLite (WAL mode) + BBolt KV + PostgreSQL (planned)
+- SQLite (WAL mode) + SQLite-backed KV + PostgreSQL (planned)
 
 ## Frontend: React 19 + Vite 8 + TypeScript
 
@@ -24,6 +24,6 @@ api, auth, backup, billing, build, database, db, deploy, discovery, dns, enterpr
 ### API: Cookie-based auth with CSRF protection
 
 ### Security-Critical Files
-- `web/src/stores/auth.ts` - JWT decoding WITHOUT verification (CRITICAL)
-- `web/src/pages/Admin.tsx` - Missing RBAC (HIGH)
+- `web/src/stores/auth.ts` - Auth state from `/auth/me`; no client-side JWT trust
+- `web/src/App.tsx` / `web/src/lib/roles.ts` - Admin route gated to `role_super_admin`
 - `web/src/pages/Onboarding.tsx:127` - localStorage state

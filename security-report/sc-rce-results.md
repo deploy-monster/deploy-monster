@@ -10,7 +10,7 @@ Remote code execution security scan.
 - **Severity:** Info
 - **Confidence:** 95
 - **File:** internal/api/handlers/exec.go:164, internal/api/ws/terminal.go:163
-- **Description:** `POST /api/v1/apps/{id}/exec` and terminal endpoints allow authenticated users to execute arbitrary commands inside their containers. This is an intentional platform feature, not a vulnerability per se, but it represents a significant RCE surface that depends entirely on authentication and authorization controls.
+- **Description:** `POST /api/v1/apps/{id}/exec`, terminal, one-off app commands, cron jobs, and node executor endpoints allow authenticated users or configured jobs to execute commands inside managed containers. This is an intentional platform feature, not a vulnerability per se, but it represents a significant RCE surface that depends on authentication, authorization, tenant isolation, and audit controls.
 - **Remediation:** Ensure continuous monitoring of exec commands via audit logs. Consider adding a mandatory approval workflow for exec access in high-security environments.
 
 ### Finding: RCE-002
@@ -24,6 +24,7 @@ Remote code execution security scan.
 ## Positive Security Patterns Observed
 - Git URL validation blocks shell metacharacters, private IPs, and DNS rebinding
 - Docker build args validated against control characters and flag injection
+- Container exec, terminal, one-off app commands, cron, and node executors block shell/eval flags such as `bash -c`, `python -c`, and `node --eval`
 - Build timeout enforced (30 min default)
 - Build directory cleaned up after completion
 - Panic recovery in build pipeline prevents crashes

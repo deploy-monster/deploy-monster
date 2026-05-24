@@ -1,30 +1,38 @@
 # SC-Deserialization Results — DeployMonster
 
 ## Summary
-No insecure deserialization vulnerabilities were found. The application uses safe deserialization patterns: `json.Unmarshal`/`json.NewDecoder` for JSON, `yaml.Unmarshal` from `gopkg.in/yaml.v3` for trusted config/compose data, and `gob` is not used. No `pickle`, `ObjectInputStream`, `BinaryFormatter`, or `unserialize` equivalents exist in the Go codebase.
+No insecure deserialization vulnerabilities were found. The application uses safe deserialization patterns: JSON into explicit structs, YAML into Go structs with no arbitrary object construction, and no `gob`, pickle, ObjectInputStream, BinaryFormatter, or PHP `unserialize` equivalents for untrusted data.
 
 ## Findings
 
-### Finding: DESER-001 — `yaml.Unmarshal` used for config and compose files (Low)
-- **File:** `internal/core/config.go:212`, `internal/core/config.go:224`, `internal/compose/parser.go:109`, `internal/marketplace/validator.go:128`
-- **Severity:** Low
-- **Confidence:** 85
-- **Vulnerability Type:** CWE-502 (Deserialization of Untrusted Data)
-- **Description:** `gopkg.in/yaml.v3` unmarshals YAML into plain structs. In Go, `yaml.v3` does not support arbitrary object instantiation like Python's `yaml.load`; it maps YAML into struct fields and basic types. However, `compose/parser.go` and `marketplace/validator.go` parse user-submitted compose YAML. The parsed data is validated structurally but is still attacker-controlled input.
-- **Impact:** Low — Go's `yaml.v3` is not vulnerable to RCE via deserialization. The worst case is a parser panic or excessive memory use.
-- **Remediation:** Add YAML size limits and timeout bounds before unmarshaling user-submitted compose files to prevent DoS.
-- **References:** https://cwe.mitre.org/data/definitions/502.html
+No active insecure deserialization findings remain in the reviewed paths.
 
-### Finding: DESER-002 — `json.Unmarshal` used extensively for API and BBolt data (Safe)
-- **File:** Throughout `internal/api/handlers/*.go`, `internal/db/bolt.go`
+## Resolved / Revalidated Items
+
+### DESER-001: User-Submitted Compose YAML Parser DoS Hardening
+- **Previous Severity:** Low
+- **Status:** RESOLVED / HARDENED
+- **Files:** `internal/compose/parser.go`, `internal/api/handlers/compose.go`, `internal/marketplace/validator.go`
+- **Notes:** Compose parsing now rejects YAML documents larger than 1 MiB at parser level. Direct YAML stack deploys detect oversize bodies and return 413 instead of silently truncating. Marketplace template validation rejects oversized compose YAML before unmarshaling.
+
+### DESER-002: JSON Unmarshal Used For API And KV Data
 - **Severity:** Info
-- **Confidence:** 95
-- **Description:** Standard Go JSON unmarshaling into known structs is safe. No custom `UnmarshalJSON` methods perform dangerous operations. BBolt entries are unmarshaled into concrete types (`models.APIKey`, `models.Webhook`, etc.).
+- **Status:** SAFE
+- **Files:** `internal/api/handlers/*.go`, `internal/db/bolt.go`
+- **Notes:** Standard Go JSON unmarshaling into known structs is safe. Reviewed update paths use DTO structs and explicit field copies.
 
-### Finding: DESER-003 — No pickle, ObjectInputStream, BinaryFormatter, or PHP unserialize (Safe)
+### DESER-003: No Dangerous Native Object Deserialization
+- **Severity:** Info
+- **Status:** SAFE
 - **File:** N/A
-- **Severity:** Info
-- **Description:** Go does not have `pickle` or `ObjectInputStream`. The codebase does not use `encoding/gob` for untrusted data. All serialization paths use schema-defined formats (JSON, YAML to structs).
+- **Notes:** The codebase does not use Go `encoding/gob` for untrusted data and has no language equivalents of pickle/ObjectInputStream/BinaryFormatter/PHP unserialize.
+
+## Positive Security Patterns Observed
+- Global API body limit is 10 MB.
+- External webhook body limit is 1 MB.
+- Compose parser has a 1 MiB document limit.
+- YAML is unmarshaled into concrete structs rather than arbitrary object graphs.
+- Fuzz tests exist for config and marketplace validator paths.
 
 ## Verdict
-No issues found by sc-deserialization in production code.
+No active insecure deserialization findings remain.

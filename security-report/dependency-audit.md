@@ -20,13 +20,13 @@ DeployMonster no longer imports the legacy `github.com/docker/docker`
 module. Docker API calls use the split Moby client/API modules instead.
 
 ### SECURE
-- golang.org/x/crypto v0.50.0
-- golang.org/x/net v0.52.0
+- golang.org/x/crypto v0.51.0
+- golang.org/x/net v0.55.0
 - github.com/golang-jwt/jwt/v5 v5.3.1
 - github.com/gorilla/websocket v1.5.3
 
 ## Frontend Dependencies (web/package.json)
-`pnpm audit --json` reports 0 vulnerabilities.
+`pnpm audit --audit-level moderate` reports 0 vulnerabilities. `pnpm run lint`, `pnpm test`, `pnpm run build`, and `pnpm run check:bundle` pass. The current main frontend chunk is 19.84 KB gzipped against the 300 KB budget. Transitive `brace-expansion` and `ws` are pinned through pnpm overrides to patched versions.
 
 ## Remediation
 - Completed: replaced vulnerable Docker SDK dependency with Moby split SDK modules.

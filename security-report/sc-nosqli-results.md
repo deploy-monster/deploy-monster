@@ -8,11 +8,11 @@ NoSQL injection security scan.
 No issues found. (Not applicable: no MongoDB/NoSQL database in use.)
 
 ## Analysis
-- DeployMonster uses SQLite (relational) and BBolt KV
-- BBolt operations use byte-key lookups (`bkt.Get([]byte(key))`), not query objects
+- DeployMonster uses SQLite for relational data and JSON KV storage
+- KV operations use parameterized SQLite lookups, not query objects from user input
 - No JSON-based query construction from user input
 - No MongoDB operators (`$gt`, `$ne`, `$where`) in codebase
 
 ## Positive Security Patterns Observed
-- BBolt KV safe by design (no query language)
-- All keys are explicitly typed as byte slices
+- JSON KV data is addressed by explicit bucket/key strings
+- SQLite statements are parameterized
