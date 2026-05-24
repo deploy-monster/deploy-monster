@@ -17,6 +17,7 @@ type ComposeHandler struct {
 	store     core.Store
 	runtime   core.ContainerRuntime
 	events    *core.EventBus
+	freeze    core.BoltStorer
 	serverCtx context.Context
 }
 
@@ -27,12 +28,20 @@ func NewComposeHandler(store core.Store, runtime core.ContainerRuntime, events *
 // SetServerContext sets the server-lifetime context used by background goroutines.
 func (h *ComposeHandler) SetServerContext(ctx context.Context) { h.serverCtx = ctx }
 
+// SetDeployFreezeStore enables deploy-freeze enforcement for stack deploys.
+func (h *ComposeHandler) SetDeployFreezeStore(bolt core.BoltStorer) { h.freeze = bolt }
+
 // Deploy handles POST /api/v1/stacks
 // Accepts compose YAML in the request body and deploys all services.
 func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
 	if claims == nil {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if activeDeployFreeze(h.freeze, claims.TenantID) {
+		writeError(w, http.StatusLocked, "deployments are currently frozen")
 		return
 	}
 
@@ -44,9 +53,13 @@ func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("Content-Type") == "application/x-yaml" || r.Header.Get("Content-Type") == "text/yaml" {
-		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		body, err := io.ReadAll(io.LimitReader(r.Body, ic.MaxComposeYAMLSize+1))
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "failed to read body")
+			return
+		}
+		if len(body) > ic.MaxComposeYAMLSize {
+			writeError(w, http.StatusRequestEntityTooLarge, "compose yaml exceeds 1MB limit")
 			return
 		}
 		req.YAML = string(body)

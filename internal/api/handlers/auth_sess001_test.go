@@ -12,7 +12,7 @@ import (
 
 // SESS-001: regression tests proving both /auth/logout and /auth/refresh
 // revoke the current access token's JTI by adding it to the
-// "revoked_access_tokens" BBolt bucket. Middleware checks this bucket on
+// "revoked_access_tokens" KV bucket. Middleware checks this bucket on
 // every authenticated request, so without these revocations a stolen
 // access token would remain usable for up to the full 15-minute TTL
 // after the legitimate client signed out or rotated.

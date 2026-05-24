@@ -148,3 +148,31 @@ func TestCreateApp_QuotaEnforced_OverLimit(t *testing.T) {
 		t.Fatalf("expected 429 for over-limit tenant, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
+
+func TestCreateApp_QuotaEnforced_BillingPlanLimit(t *testing.T) {
+	store := newMockStore()
+	store.addTenant(&core.Tenant{ID: "tenant1", PlanID: "free"})
+	store.appList = []core.Application{
+		{ID: "app1", Name: "a", TenantID: "tenant1"},
+		{ID: "app2", Name: "b", TenantID: "tenant1"},
+		{ID: "app3", Name: "c", TenantID: "tenant1"},
+	}
+	store.appTotal = 3
+
+	c := testCore()
+	c.Config.Limits.MaxAppsPerTenant = 100
+	handler := NewAppHandler(store, c)
+
+	body, _ := json.Marshal(createAppRequest{Name: "d", Type: "service"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 for free-plan app limit, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if store.createdApp != nil {
+		t.Fatalf("CreateApp was called despite billing plan limit: %+v", store.createdApp)
+	}
+}

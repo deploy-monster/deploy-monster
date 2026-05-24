@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/deploy"
 	"github.com/deploy-monster/deploy-monster/internal/swarm"
 	"github.com/mattn/go-isatty"
 	"gopkg.in/yaml.v3"
@@ -30,7 +31,6 @@ import (
 	_ "github.com/deploy-monster/deploy-monster/internal/cron"
 	_ "github.com/deploy-monster/deploy-monster/internal/database"
 	_ "github.com/deploy-monster/deploy-monster/internal/db"
-	_ "github.com/deploy-monster/deploy-monster/internal/deploy"
 	_ "github.com/deploy-monster/deploy-monster/internal/discovery"
 	_ "github.com/deploy-monster/deploy-monster/internal/dns"
 	_ "github.com/deploy-monster/deploy-monster/internal/enterprise"
@@ -159,7 +159,7 @@ func runServe() {
 	bi := core.BuildInfo{Version: version, Commit: commit, Date: date}
 
 	if *agentMode {
-		runAgent(ctx, bi, *masterURL, *agentToken, *masterPort, *agentCertFile, *agentKeyFile, *agentCAFile)
+		runAgent(ctx, bi, cfg, *masterURL, *agentToken, *masterPort, *agentCertFile, *agentKeyFile, *agentCAFile)
 		return
 	}
 
@@ -188,7 +188,7 @@ func runServe() {
 	}
 }
 
-func runAgent(ctx context.Context, bi core.BuildInfo, masterURL, token string, masterPort int, certFile, keyFile, caFile string) {
+func runAgent(ctx context.Context, bi core.BuildInfo, cfg *core.Config, masterURL, token string, masterPort int, certFile, keyFile, caFile string) {
 	if masterURL == "" {
 		fmt.Fprintln(os.Stderr, "agent mode requires --master URL (or MONSTER_MASTER_URL env var)")
 		os.Exit(1)
@@ -213,8 +213,17 @@ func runAgent(ctx context.Context, bi core.BuildInfo, masterURL, token string, m
 		serverID = core.GenerateID()
 	}
 
-	// Create agent client (runtime and build module nil until we wire them)
-	client := swarm.NewAgentClient(masterURL, serverID, token, bi.Version, nil, logger, certFile, keyFile, caFile)
+	runtime, err := deploy.NewDockerManager(cfg.Docker.Host)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "agent docker runtime unavailable: %v\n", err)
+		os.Exit(1)
+	}
+	defer func() { _ = runtime.Close() }()
+	if cfg.Docker.DefaultCPUQuota > 0 || cfg.Docker.DefaultMemoryMB > 0 {
+		runtime.SetResourceDefaults(cfg.Docker.DefaultCPUQuota, cfg.Docker.DefaultMemoryMB)
+	}
+
+	client := swarm.NewAgentClient(masterURL, serverID, token, bi.Version, runtime, logger, certFile, keyFile, caFile)
 	if masterPort > 0 {
 		client.SetDefaultPort(masterPort)
 	}

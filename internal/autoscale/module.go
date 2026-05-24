@@ -63,8 +63,9 @@ func (m *Module) Start(_ context.Context) error {
 		return nil
 	}
 	m.stop = make(chan struct{})
+	stop := m.stop
 	m.stopWG.Add(1)
-	go m.loop()
+	go m.loop(stop)
 	m.logger.Info("autoscale evaluator started", "interval", EvalInterval)
 	return nil
 }
@@ -84,13 +85,13 @@ func (m *Module) Stop(_ context.Context) error {
 
 func (m *Module) Health() core.HealthStatus { return core.HealthOK }
 
-func (m *Module) loop() {
+func (m *Module) loop(stop <-chan struct{}) {
 	defer m.stopWG.Done()
 	t := time.NewTicker(EvalInterval)
 	defer t.Stop()
 	for {
 		select {
-		case <-m.stop:
+		case <-stop:
 			return
 		case <-t.C:
 			m.evaluateAll()
@@ -112,7 +113,7 @@ type autoscaleConfig struct {
 }
 
 // decision is what the evaluator persists per app per evaluation tick.
-// The UI can read this from BBolt to show "last decision" without
+// The UI can read this from KV storage to show "last decision" without
 // re-deriving it from raw stats.
 type decision struct {
 	AppID         string    `json:"app_id"`

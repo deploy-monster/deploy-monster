@@ -754,3 +754,39 @@ func TestDockerBuild_WithBuildArgs(t *testing.T) {
 		"VERSION": "1.0.0",
 	}, io.Discard)
 }
+
+func TestResolveDockerfilePath(t *testing.T) {
+	buildDir := t.TempDir()
+	tests := []struct {
+		name       string
+		dockerfile string
+		want       string
+		wantErr    bool
+	}{
+		{name: "nested", dockerfile: "docker/Dockerfile.prod", want: filepath.Join(buildDir, "docker", "Dockerfile.prod")},
+		{name: "clean relative", dockerfile: "./Dockerfile", want: filepath.Join(buildDir, "Dockerfile")},
+		{name: "absolute", dockerfile: filepath.Join(string(filepath.Separator), "etc", "passwd"), wantErr: true},
+		{name: "parent", dockerfile: "../Dockerfile", wantErr: true},
+		{name: "nested parent", dockerfile: "docker/../../Dockerfile", wantErr: true},
+		{name: "dot", dockerfile: ".", wantErr: true},
+		{name: "null byte", dockerfile: "Dockerfile\x00.prod", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveDockerfilePath(buildDir, tt.dockerfile)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("resolveDockerfilePath(%q) expected error, got nil", tt.dockerfile)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveDockerfilePath(%q) error = %v", tt.dockerfile, err)
+			}
+			if got != tt.want {
+				t.Fatalf("resolveDockerfilePath(%q) = %q, want %q", tt.dockerfile, got, tt.want)
+			}
+		})
+	}
+}

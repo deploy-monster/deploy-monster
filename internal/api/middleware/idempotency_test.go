@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -103,8 +104,8 @@ func TestIdempotency_FirstRequest_CachesResponse(t *testing.T) {
 		t.Fatalf("expected 201, got %d", rr.Code)
 	}
 
-	// Verify cached in bolt
-	scopedKey := "POST:/api/v1/apps:key-1"
+	// Verify cached in bolt.
+	scopedKey := scopedIdempotencyKey(req, "key-1", nil)
 	var entry idempotencyEntry
 	if err := bolt.Get(idempotencyBucket, scopedKey, &entry); err != nil {
 		t.Fatalf("expected cached entry, got error: %v", err)
@@ -235,6 +236,107 @@ func TestIdempotency_DifferentPaths_DifferentKeys(t *testing.T) {
 
 	if callCount != 2 {
 		t.Errorf("expected 2 calls (different paths), got %d", callCount)
+	}
+}
+
+func TestIdempotency_AuthRoutesSkipCaching(t *testing.T) {
+	bolt := newIdempBoltStore()
+	callCount := 0
+	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fmt.Sprintf(`{"access_token":"token-%d"}`, callCount)))
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"email":"a@example.com","password":"one"}`))
+	req.Header.Set("Idempotency-Key", "login-key")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"email":"b@example.com","password":"two"}`))
+	req2.Header.Set("Idempotency-Key", "login-key")
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if callCount != 2 {
+		t.Fatalf("expected auth route to run twice, got %d calls", callCount)
+	}
+	if rr2.Header().Get("X-Idempotent-Replayed") != "" {
+		t.Fatal("auth route response must not be replayed")
+	}
+	if strings.Contains(rr2.Body.String(), "token-1") {
+		t.Fatalf("second auth response replayed first token: %s", rr2.Body.String())
+	}
+}
+
+func TestIdempotency_DifferentBodiesDoNotReplay(t *testing.T) {
+	bolt := newIdempBoltStore()
+	callCount := 0
+	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		body, _ := io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(fmt.Sprintf(`{"call":%d,"body":%q}`, callCount, string(body))))
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", strings.NewReader(`{"name":"one"}`))
+	req.Header.Set("Idempotency-Key", "same-key")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/apps", strings.NewReader(`{"name":"two"}`))
+	req2.Header.Set("Idempotency-Key", "same-key")
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if callCount != 2 {
+		t.Fatalf("expected different request bodies to execute independently, got %d calls", callCount)
+	}
+	if rr2.Header().Get("X-Idempotent-Replayed") != "" {
+		t.Fatal("different request body must not replay cached response")
+	}
+}
+
+func TestIdempotency_DifferentAuthScopesDoNotReplay(t *testing.T) {
+	bolt := newIdempBoltStore()
+	callCount := 0
+	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(fmt.Sprintf(`{"call":%d}`, callCount)))
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", strings.NewReader(`{"name":"same"}`))
+	req.Header.Set("Idempotency-Key", "same-key")
+	req.Header.Set("Authorization", "Bearer user-a")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/apps", strings.NewReader(`{"name":"same"}`))
+	req2.Header.Set("Idempotency-Key", "same-key")
+	req2.Header.Set("Authorization", "Bearer user-b")
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if callCount != 2 {
+		t.Fatalf("expected different auth scopes to execute independently, got %d calls", callCount)
+	}
+	if rr2.Header().Get("X-Idempotent-Replayed") != "" {
+		t.Fatal("different auth scope must not replay cached response")
+	}
+
+	req3 := httptest.NewRequest(http.MethodPost, "/api/v1/apps", strings.NewReader(`{"name":"same"}`))
+	req3.Header.Set("Idempotency-Key", "same-key")
+	req3.Header.Set("Authorization", "Bearer user-a")
+	rr3 := httptest.NewRecorder()
+	handler.ServeHTTP(rr3, req3)
+
+	if callCount != 2 {
+		t.Fatalf("expected matching auth/body scope to replay, got %d calls", callCount)
+	}
+	if rr3.Header().Get("X-Idempotent-Replayed") != "true" {
+		t.Fatal("expected replay for same auth scope and body")
 	}
 }
 

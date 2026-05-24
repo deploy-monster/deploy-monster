@@ -78,6 +78,9 @@ func (s *SMTPProvider) Validate() error {
 	if _, err := mail.ParseAddress(s.From); err != nil {
 		return fmt.Errorf("smtp from address %q is invalid: %w", s.From, err)
 	}
+	if err := validateSMTPHeaderValue("from name", s.FromName); err != nil {
+		return err
+	}
 	if s.Username != "" && s.Password == "" {
 		return fmt.Errorf("smtp username set but password is empty")
 	}
@@ -126,16 +129,30 @@ func (s *SMTPProvider) Send(ctx context.Context, recipient, subject, body, forma
 	if recipient == "" {
 		return fmt.Errorf("smtp: recipient is required")
 	}
-	if _, err := mail.ParseAddress(recipient); err != nil {
+	if err := validateSMTPHeaderValue("recipient", recipient); err != nil {
+		return err
+	}
+	if err := validateSMTPHeaderValue("subject", subject); err != nil {
+		return err
+	}
+	parsedRecipient, err := mail.ParseAddress(recipient)
+	if err != nil {
 		return fmt.Errorf("smtp: recipient %q is invalid: %w", recipient, err)
 	}
 
-	msg := s.buildMessage(recipient, subject, body, format)
+	msg := s.buildMessage(parsedRecipient.String(), subject, body, format)
 	addr := net.JoinHostPort(s.Host, fmt.Sprintf("%d", s.defaultPort()))
 
 	return core.Retry(ctx, core.DefaultRetryConfig(), func() error {
-		return s.deliver(ctx, addr, recipient, msg)
+		return s.deliver(ctx, addr, parsedRecipient.Address, msg)
 	})
+}
+
+func validateSMTPHeaderValue(name, value string) error {
+	if strings.ContainsAny(value, "\r\n\x00") {
+		return fmt.Errorf("smtp: %s contains invalid header characters", name)
+	}
+	return nil
 }
 
 // buildMessage assembles RFC 5322 headers + body. It picks a

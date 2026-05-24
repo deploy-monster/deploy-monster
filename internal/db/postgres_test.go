@@ -79,6 +79,41 @@ func TestPostgresDB_Close_Error(t *testing.T) {
 	}
 }
 
+func TestPostgresDB_ListMigrations(t *testing.T) {
+	pg, mock := newMockPostgres(t)
+	rows := sqlmock.NewRows([]string{"version", "name", "applied_at"}).
+		AddRow(1, "0001_init.pgsql.sql", "2026-01-01T00:00:00Z").
+		AddRow(2, "0002_add_indexes.pgsql.sql", "2026-01-02T00:00:00Z")
+	mock.ExpectQuery(`SELECT version, name,\s+to_char\(applied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'\)\s+FROM _migrations ORDER BY version`).
+		WillReturnRows(rows)
+
+	migrations, err := pg.ListMigrations(context.Background())
+	if err != nil {
+		t.Fatalf("ListMigrations: %v", err)
+	}
+	if len(migrations) != 2 {
+		t.Fatalf("ListMigrations returned %d rows, want 2", len(migrations))
+	}
+	if migrations[0].Version != 1 || migrations[0].Name != "0001_init.pgsql.sql" || migrations[0].AppliedAt == "" {
+		t.Fatalf("first migration = %#v", migrations[0])
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestPostgresDB_ListMigrations_QueryError(t *testing.T) {
+	pg, mock := newMockPostgres(t)
+	mock.ExpectQuery(`SELECT version, name,`).WillReturnError(errors.New("boom"))
+
+	if _, err := pg.ListMigrations(context.Background()); err == nil {
+		t.Fatal("expected query error")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
 // =====================================================
 // migrate()
 // =====================================================
@@ -96,7 +131,7 @@ func TestPostgresDB_Migrate_AllAlreadyApplied(t *testing.T) {
 	// apply step. The exact number of expected queries depends on how
 	// many .pgsql.sql files ship in internal/db/migrations/, so any
 	// number of COUNT queries (but at least one) is allowed.
-	for version := 1; version <= 6; version++ {
+	for version := 1; version <= 7; version++ {
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM _migrations WHERE version = \$1`).
 			WithArgs(version).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
@@ -331,8 +366,8 @@ func TestPostgresDB_GetUser_Success(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	now := time.Now()
 	loginAt := now.Add(-time.Hour)
-	rows := sqlmock.NewRows([]string{"id", "email", "password_hash", "name", "avatar_url", "status", "totp_enabled", "last_login_at", "created_at", "updated_at"}).
-		AddRow("u1", "a@b.com", "hash", "Alice", "", "active", false, &loginAt, now, now)
+	rows := sqlmock.NewRows([]string{"id", "email", "password_hash", "name", "avatar_url", "status", "totp_enabled", "totp_secret_enc", "totp_backup_codes_json", "last_login_at", "created_at", "updated_at"}).
+		AddRow("u1", "a@b.com", "hash", "Alice", "", "active", false, "", `["hash1"]`, &loginAt, now, now)
 	mock.ExpectQuery("SELECT .+ FROM users WHERE id = \\$1").
 		WithArgs("u1").
 		WillReturnRows(rows)
@@ -343,6 +378,9 @@ func TestPostgresDB_GetUser_Success(t *testing.T) {
 	}
 	if user.Email != "a@b.com" {
 		t.Fatalf("unexpected email: %s", user.Email)
+	}
+	if len(user.TOTPBackupCodes) != 1 || user.TOTPBackupCodes[0] != "hash1" {
+		t.Fatalf("unexpected backup codes: %#v", user.TOTPBackupCodes)
 	}
 }
 
@@ -373,8 +411,8 @@ func TestPostgresDB_GetUser_Error(t *testing.T) {
 func TestPostgresDB_GetUserByEmail_Success(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	now := time.Now()
-	rows := sqlmock.NewRows([]string{"id", "email", "password_hash", "name", "avatar_url", "status", "totp_enabled", "last_login_at", "created_at", "updated_at"}).
-		AddRow("u1", "a@b.com", "hash", "Alice", "", "active", false, nil, now, now)
+	rows := sqlmock.NewRows([]string{"id", "email", "password_hash", "name", "avatar_url", "status", "totp_enabled", "totp_secret_enc", "totp_backup_codes_json", "last_login_at", "created_at", "updated_at"}).
+		AddRow("u1", "a@b.com", "hash", "Alice", "", "active", false, "enc-secret", `[]`, nil, now, now)
 	mock.ExpectQuery("SELECT .+ FROM users WHERE email = \\$1").
 		WithArgs("a@b.com").
 		WillReturnRows(rows)
@@ -385,6 +423,9 @@ func TestPostgresDB_GetUserByEmail_Success(t *testing.T) {
 	}
 	if user.ID != "u1" {
 		t.Fatalf("unexpected ID: %s", user.ID)
+	}
+	if user.TOTPSecret != "enc-secret" {
+		t.Fatalf("unexpected TOTP secret: %q", user.TOTPSecret)
 	}
 }
 
@@ -501,6 +542,17 @@ func TestPostgresDB_CountUsers_Error(t *testing.T) {
 	_, err := pg.CountUsers(context.Background())
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestPostgresDB_UpdateTOTPBackupCodes_Success(t *testing.T) {
+	pg, mock := newMockPostgres(t)
+	mock.ExpectExec("UPDATE users SET totp_backup_codes_json").
+		WithArgs(`["hash1","hash2"]`, "u1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := pg.UpdateTOTPBackupCodes(context.Background(), "u1", []string{"hash1", "hash2"}); err != nil {
+		t.Fatalf("UpdateTOTPBackupCodes: %v", err)
 	}
 }
 

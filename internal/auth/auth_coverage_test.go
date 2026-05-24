@@ -21,6 +21,7 @@ type mockStore struct {
 	createTenantErr error
 	createUserID    string
 	createUserErr   error
+	createdEmail    string
 }
 
 func (m *mockStore) CountUsers(_ context.Context) (int, error) {
@@ -34,7 +35,8 @@ func (m *mockStore) CreateTenantWithDefaults(_ context.Context, _, _ string) (st
 	return m.createTenantID, nil
 }
 
-func (m *mockStore) CreateUserWithMembership(_ context.Context, _, _, _, _, _, _ string) (string, error) {
+func (m *mockStore) CreateUserWithMembership(_ context.Context, email, _, _, _, _, _ string) (string, error) {
+	m.createdEmail = email
 	if m.createUserErr != nil {
 		return "", m.createUserErr
 	}
@@ -134,6 +136,39 @@ func TestModule_Init_FirstRunSetup_WithEnvPassword(t *testing.T) {
 	err := m.Init(context.Background(), c)
 	if err != nil {
 		t.Fatalf("Init with custom env credentials: %v", err)
+	}
+}
+
+func TestModule_Init_FirstRunSetup_GeneratesUnpredictableEmail(t *testing.T) {
+	store := &mockStore{
+		userCount:      0,
+		createTenantID: "tenant-1",
+		createUserID:   "user-1",
+	}
+
+	cfg := &core.Config{}
+	cfg.Server.SecretKey = "test-secret-key-at-least-32-bytes-long!"
+
+	c := &core.Core{
+		Logger: slog.Default(),
+		Store:  store,
+		Config: cfg,
+	}
+
+	t.Setenv("MONSTER_ADMIN_EMAIL", "")
+	t.Setenv("MONSTER_ADMIN_PASSWORD", "SecureP@ss123!")
+
+	m := New()
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init with generated admin email: %v", err)
+	}
+
+	legacyDefaultEmail := "admin" + "@deploymonster.local"
+	if store.createdEmail == legacyDefaultEmail {
+		t.Fatal("first-run admin email used the predictable legacy default")
+	}
+	if !strings.HasPrefix(store.createdEmail, "admin-") || !strings.HasSuffix(store.createdEmail, "@deploymonster.local") {
+		t.Fatalf("generated admin email = %q, want admin-<random>@deploymonster.local", store.createdEmail)
 	}
 }
 

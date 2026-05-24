@@ -24,7 +24,7 @@ func NewCommandHandler(runtime core.ContainerRuntime, store core.Store, events *
 	return &CommandHandler{runtime: runtime, store: store, events: events}
 }
 
-// SetBolt wires the BBolt store used to persist command history.
+// SetBolt wires the KV store used to persist command history.
 // Called by the router after the handler is constructed so the bolt
 // dependency is opt-in (some unit tests construct the handler without
 // a backing store).
@@ -79,6 +79,11 @@ func (h *CommandHandler) Run(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "command too long (max 8 KB)")
 		return
 	}
+	cmd := splitCommand(cmdStr)
+	if !areCommandTokensSafe(cmd) {
+		writeError(w, http.StatusBadRequest, "command contains blocked pattern for security reasons")
+		return
+	}
 	if req.Timeout <= 0 {
 		req.Timeout = 60
 	}
@@ -105,7 +110,7 @@ func (h *CommandHandler) Run(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	startedAt := time.Now()
-	output, execErr := h.runtime.Exec(execCtx, containerID, []string{"sh", "-c", cmdStr})
+	output, execErr := h.runtime.Exec(execCtx, containerID, cmd)
 	completedAt := time.Now()
 	if len(output) > commandOutputCap {
 		output = output[:commandOutputCap] + "\n... [output truncated]"
@@ -115,7 +120,7 @@ func (h *CommandHandler) Run(w http.ResponseWriter, r *http.Request) {
 		ID:          core.GenerateID(),
 		AppID:       appID,
 		Command:     cmdStr,
-		ContainerID: containerID[:12],
+		ContainerID: shortResourceID(containerID),
 		ExitOutput:  output,
 		StartedAt:   startedAt,
 		CompletedAt: completedAt,

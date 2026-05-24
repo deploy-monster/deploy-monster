@@ -61,6 +61,26 @@ func TestModule_Init_DiscordProvider(t *testing.T) {
 	}
 }
 
+func TestModule_Init_SkipsUnsafeWebhookProviders(t *testing.T) {
+	m := New()
+	c := &core.Core{
+		Config: &core.Config{
+			Notifications: core.NotificationConfig{
+				SlackWebhook:   "http://127.0.0.1/slack",
+				DiscordWebhook: "http://127.0.0.1/discord",
+			},
+		},
+		Logger:   slog.Default(),
+		Services: core.NewServices(),
+	}
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if got := len(m.dispatcher.Providers()); got != 0 {
+		t.Errorf("expected unsafe providers to be skipped, got %d", got)
+	}
+}
+
 func TestModule_Init_TelegramProvider(t *testing.T) {
 	m := New()
 	c := &core.Core{

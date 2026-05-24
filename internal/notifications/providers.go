@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"net/url"
@@ -70,6 +71,18 @@ func validateWebhookURL(webhookURL string) error {
 	return nil
 }
 
+func newWebhookHTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			if err := validateWebhookURL(req.URL.String()); err != nil {
+				return fmt.Errorf("blocked unsafe webhook redirect: %w", err)
+			}
+			return nil
+		},
+	}
+}
+
 // =====================================================
 // SLACK PROVIDER
 // =====================================================
@@ -84,7 +97,7 @@ type SlackProvider struct {
 func NewSlackProvider(webhookURL string) *SlackProvider {
 	return &SlackProvider{
 		WebhookURL: webhookURL,
-		client:     &http.Client{Timeout: 10 * time.Second},
+		client:     newWebhookHTTPClient(10 * time.Second),
 	}
 }
 
@@ -140,7 +153,7 @@ type DiscordProvider struct {
 func NewDiscordProvider(webhookURL string) *DiscordProvider {
 	return &DiscordProvider{
 		WebhookURL: webhookURL,
-		client:     &http.Client{Timeout: 10 * time.Second},
+		client:     newWebhookHTTPClient(10 * time.Second),
 	}
 }
 
@@ -220,9 +233,10 @@ func (t *TelegramProvider) Send(ctx context.Context, recipient, subject, body, f
 		chatID = t.ChatID
 	}
 
-	text := subject
+	escapedSubject := html.EscapeString(subject)
+	text := escapedSubject
 	if body != "" {
-		text = fmt.Sprintf("<b>%s</b>\n%s", subject, body)
+		text = fmt.Sprintf("<b>%s</b>\n%s", escapedSubject, html.EscapeString(body))
 	}
 
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.BotToken)

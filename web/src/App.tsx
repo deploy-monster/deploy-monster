@@ -6,6 +6,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastContainer } from './components/Toast';
 import { FullPageLoader } from './components/Spinner';
+import { canAccessAdmin } from './lib/roles';
 
 // Lazy-loaded pages (code splitting)
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
@@ -53,8 +54,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
-  // Admin panel requires role_admin
-  if (user?.role !== 'role_admin') {
+  if (!canAccessAdmin(user?.role)) {
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;

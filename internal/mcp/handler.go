@@ -280,7 +280,7 @@ func (h *Handler) createDatabase(ctx context.Context, input json.RawMessage) (*M
 		params.User = "dbuser"
 	}
 	if params.Password == "" {
-		params.Password = core.GenerateID()[:16]
+		params.Password = core.ShortID(core.GenerateID(), 16)
 	}
 
 	var connStr string

@@ -541,5 +541,5 @@ func (e Event) DebugString() string {
 		corr = " corr=" + e.CorrelationID
 	}
 	return fmt.Sprintf("[%s] %s from %s (tenant=%s user=%s%s)",
-		e.ID[:8], e.Type, e.Source, e.TenantID, e.UserID, corr)
+		ShortID(e.ID, 8), e.Type, e.Source, e.TenantID, e.UserID, corr)
 }

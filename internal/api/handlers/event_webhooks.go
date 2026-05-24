@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -43,7 +44,7 @@ func hashSecret(secret string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// webhookListKey returns the BBolt bucket key for a tenant's webhook list.
+// webhookListKey returns the KV bucket key for a tenant's webhook list.
 func webhookListKey(tenantID string) string {
 	return "tenant:" + tenantID
 }
@@ -112,6 +113,33 @@ func validateWebhookURL(rawURL string) error {
 // eventWebhookList wraps the persisted list of outbound webhook configs.
 type eventWebhookList struct {
 	Webhooks []EventWebhookConfig `json:"webhooks"`
+}
+
+var (
+	errWebhookLimitReached = errors.New("webhook limit reached")
+	errWebhookListMissing  = errors.New("webhook list missing")
+)
+
+type boltValueMutator interface {
+	Mutate(bucket, key string, dest any, ttlSeconds int64, mutate func(exists bool) error) error
+}
+
+func mutateBoltValue(bolt core.BoltStorer, bucket, key string, dest any, ttlSeconds int64, mutate func(exists bool) error) error {
+	if mutator, ok := bolt.(boltValueMutator); ok {
+		return mutator.Mutate(bucket, key, dest, ttlSeconds, mutate)
+	}
+
+	exists := true
+	if err := bolt.Get(bucket, key, dest); err != nil {
+		if !errors.Is(err, core.ErrBoltNotFound) {
+			return err
+		}
+		exists = false
+	}
+	if err := mutate(exists); err != nil {
+		return err
+	}
+	return bolt.Set(bucket, key, dest, ttlSeconds)
 }
 
 // List handles GET /api/v1/webhooks/outbound
@@ -193,17 +221,21 @@ func (h *EventWebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	key := webhookListKey(claims.TenantID)
 	var list eventWebhookList
-	_ = h.bolt.Get("event_webhooks", key, &list)
 
 	// Per-tenant limit: max 20 webhooks per tenant (prevents one tenant exhausting global limit)
 	const maxWebhooksPerTenant = 20
-	if len(list.Webhooks) >= maxWebhooksPerTenant {
+	err := mutateBoltValue(h.bolt, "event_webhooks", key, &list, 0, func(_ bool) error {
+		if len(list.Webhooks) >= maxWebhooksPerTenant {
+			return errWebhookLimitReached
+		}
+		list.Webhooks = append(list.Webhooks, wh)
+		return nil
+	})
+	if errors.Is(err, errWebhookLimitReached) {
 		writeError(w, http.StatusConflict, "webhook limit reached (20 per tenant)")
 		return
 	}
-	list.Webhooks = append(list.Webhooks, wh)
-
-	if err := h.bolt.Set("event_webhooks", key, list, 0); err != nil {
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save webhook config")
 		return
 	}
@@ -235,20 +267,25 @@ func (h *EventWebhookHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	key := webhookListKey(claims.TenantID)
 	var list eventWebhookList
-	if err := h.bolt.Get("event_webhooks", key, &list); err != nil {
+	err := mutateBoltValue(h.bolt, "event_webhooks", key, &list, 0, func(exists bool) error {
+		if !exists {
+			return errWebhookListMissing
+		}
+
+		filtered := make([]EventWebhookConfig, 0, len(list.Webhooks))
+		for _, wh := range list.Webhooks {
+			if wh.ID != id {
+				filtered = append(filtered, wh)
+			}
+		}
+		list.Webhooks = filtered
+		return nil
+	})
+	if errors.Is(err, errWebhookListMissing) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-
-	filtered := make([]EventWebhookConfig, 0, len(list.Webhooks))
-	for _, wh := range list.Webhooks {
-		if wh.ID != id {
-			filtered = append(filtered, wh)
-		}
-	}
-	list.Webhooks = filtered
-
-	if err := h.bolt.Set("event_webhooks", key, list, 0); err != nil {
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update webhook configs")
 		return
 	}

@@ -598,5 +598,22 @@ describe('API client', () => {
       // Two hits on /protected: initial + one retry after successful refresh.
       expect(pathCalls['/api/v1/protected']).toBe(2);
     });
+
+    it('can skip refresh handling for auth endpoint 401s', async () => {
+      const calls: string[] = [];
+      vi.mocked(globalThis.fetch).mockImplementation(async (url) => {
+        const u = String(url);
+        calls.push(u);
+        return jsonResp(401, { error: 'TOTP code required' }, false);
+      });
+
+      const err = await api.post('/auth/login', { email: 'a@b.co' }, { skipAuthRefresh: true }).catch((e) => e);
+
+      expect(err).toBeInstanceOf(APIError);
+      expect((err as APIError).status).toBe(401);
+      expect((err as APIError).message).toBe('TOTP code required');
+      expect(calls).toEqual(['/api/v1/auth/login']);
+      expect(locationHref).toBe('');
+    });
   });
 });

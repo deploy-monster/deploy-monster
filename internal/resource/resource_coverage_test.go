@@ -283,7 +283,7 @@ func TestAppendPoint_TrimToMax(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// collectOnce with BBolt — integration test
+// collectOnce with KV storage — integration test
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestCollectOnce_WithBolt(t *testing.T) {

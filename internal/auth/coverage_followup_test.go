@@ -79,6 +79,9 @@ type fakeTOTPStore struct {
 	getUser           func(ctx context.Context, id string) (*core.User, error)
 	updateTOTPEnabled func(ctx context.Context, id string, enabled bool, secret string) error
 	updateTOTPCalls   int
+	updateBackupCodes func(ctx context.Context, id string, hashes []string) error
+	backupCodeCalls   int
+	lastBackupCodes   []string
 	lastEnabled       bool
 	lastStoredSecret  string
 }
@@ -96,6 +99,15 @@ func (f *fakeTOTPStore) UpdateTOTPEnabled(ctx context.Context, id string, enable
 	f.lastStoredSecret = secret
 	if f.updateTOTPEnabled != nil {
 		return f.updateTOTPEnabled(ctx, id, enabled, secret)
+	}
+	return nil
+}
+
+func (f *fakeTOTPStore) UpdateTOTPBackupCodes(ctx context.Context, id string, hashes []string) error {
+	f.backupCodeCalls++
+	f.lastBackupCodes = append([]string{}, hashes...)
+	if f.updateBackupCodes != nil {
+		return f.updateBackupCodes(ctx, id, hashes)
 	}
 	return nil
 }
@@ -363,7 +375,12 @@ func TestTOTPService_ConfirmEnrollment_ErrorPaths(t *testing.T) {
 }
 
 func TestTOTPService_GenerateBackupCodes(t *testing.T) {
-	svc := NewTOTPService(&fakeTOTPStore{})
+	store := &fakeTOTPStore{
+		getUser: func(context.Context, string) (*core.User, error) {
+			return &core.User{ID: "u1", TOTPEnabled: true}, nil
+		},
+	}
+	svc := NewTOTPService(store)
 	codes, err := svc.GenerateBackupCodes(context.Background(), "u1")
 	if err != nil {
 		t.Fatalf("GenerateBackupCodes: %v", err)
@@ -376,6 +393,12 @@ func TestTOTPService_GenerateBackupCodes(t *testing.T) {
 	}
 	if len(codes.Plain) != len(codes.Hashes) {
 		t.Fatalf("plain/hashed length mismatch: %d vs %d", len(codes.Plain), len(codes.Hashes))
+	}
+	if store.backupCodeCalls != 1 {
+		t.Fatalf("UpdateTOTPBackupCodes calls = %d, want 1", store.backupCodeCalls)
+	}
+	if len(store.lastBackupCodes) != len(codes.Hashes) {
+		t.Fatalf("stored hashes = %d, want %d", len(store.lastBackupCodes), len(codes.Hashes))
 	}
 	for i, c := range codes.Plain {
 		if strings.TrimSpace(c) == "" {

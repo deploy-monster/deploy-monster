@@ -12,13 +12,13 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// tenantRateLimitConfig mirrors the handler-side config stored in BBolt.
+// tenantRateLimitConfig mirrors the handler-side config stored in KV storage.
 type tenantRateLimitConfig struct {
 	RequestsPerMinute int `json:"requests_per_minute"`
 	BurstSize         int `json:"burst_size"`
 }
 
-// TenantRateLimiter enforces per-tenant API rate limits using BBolt storage.
+// TenantRateLimiter enforces per-tenant API rate limits using KV storage.
 // It reads each tenant's configured limits from the "tenant_ratelimit" bucket
 // and enforces them with an in-memory sliding window per tenant.
 // SECURITY FIX (RACE-002): Uses sync.Map for thread-safe tenant tracking.
@@ -36,7 +36,7 @@ type tenantRateLimitEntry struct {
 }
 
 // NewTenantRateLimiter creates a tenant-aware rate limiter.
-// defaultRate is used when no per-tenant config exists in BBolt.
+// defaultRate is used when no per-tenant config exists in KV storage.
 func NewTenantRateLimiter(bolt core.BoltStorer, defaultRate int, window time.Duration) *TenantRateLimiter {
 	return &TenantRateLimiter{
 		bolt:          bolt,
@@ -78,7 +78,7 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 
 		tenantID := claims.TenantID
 
-		// Read tenant-specific config from BBolt (fast KV lookup)
+		// Read tenant-specific config from KV storage (fast lookup)
 		rate := trl.defaultRate
 		var cfg tenantRateLimitConfig
 		if err := trl.bolt.Get("tenant_ratelimit", tenantID, &cfg); err == nil && cfg.RequestsPerMinute > 0 {

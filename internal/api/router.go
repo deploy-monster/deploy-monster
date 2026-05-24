@@ -163,7 +163,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /hooks/v1/{webhookID}",
 		middleware.BodyLimit(maxWebhookBody)(http.HandlerFunc(webhookRecv.HandleWebhook)))
 
-	// Track outbound webhook delivery success/failure in BBolt
+	// Track outbound webhook delivery success/failure in KV storage.
 	deliveryTracker := webhooks.NewDeliveryTracker(r.core.DB.Bolt, r.core.Events)
 	deliveryTracker.Start()
 	_ = deliveryTracker // tracked via event subscriptions, no direct reference needed
@@ -187,6 +187,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/start", protectedPerm(auth.PermAppRestart, appH.Start))
 	deployTriggerH := handlers.NewDeployTriggerHandler(r.store, r.core.Services.Container, r.core.Events)
 	deployTriggerH.SetServerContext(r.serverCtx)
+	deployTriggerH.SetDeployFreezeStore(r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/apps/{id}/deploy", protectedPerm(auth.PermAppDeploy, deployTriggerH.TriggerDeploy))
 
 	// ── App Suspend/Resume & Transfer ────────────────
@@ -288,7 +289,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/apps/{id}/restarts", protected(http.HandlerFunc(rstHistH.List)))
 
 	// ── Webhook Secret Rotation ───────────────────────
-	whRotH := handlers.NewWebhookRotateHandler(r.store, r.core.Events)
+	whRotH := handlers.NewWebhookRotateHandler(r.store, r.core.Events, r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/apps/{id}/webhooks/rotate", protectedPerm(auth.PermAppCreate, whRotH.Rotate))
 
 	// ── Deploy Preview, Diff & Schedule ───────────────
@@ -464,7 +465,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("DELETE /api/v1/images/prune", protectedPerm(auth.PermServerManage, imgCleanH.Prune))
 
 	// ── Volumes ───────────────────────────────────────
-	volH := handlers.NewVolumeHandler(r.core.Services.Container, r.core.Events)
+	volH := handlers.NewVolumeHandler(r.core.Services.Container, r.store, r.core.Events)
 	r.mux.Handle("GET /api/v1/volumes", protected(http.HandlerFunc(volH.List)))
 	r.mux.Handle("POST /api/v1/volumes", protectedPerm(auth.PermVolumeManage, volH.Create))
 
@@ -578,6 +579,7 @@ func (r *Router) registerRoutes() {
 	// ── Compose Stacks ────────────────────────────────
 	composeH := handlers.NewComposeHandler(r.store, r.core.Services.Container, r.core.Events)
 	composeH.SetServerContext(r.serverCtx)
+	composeH.SetDeployFreezeStore(r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/stacks", protectedPerm(auth.PermAppCreate, composeH.Deploy))
 	r.mux.Handle("POST /api/v1/stacks/validate", protected(http.HandlerFunc(composeH.Validate)))
 
@@ -623,6 +625,7 @@ func (r *Router) registerRoutes() {
 		r.mux.HandleFunc("GET /api/v1/marketplace/{slug}", middleware.ETag(mpH.Get))
 		mpDeployH := handlers.NewMarketplaceDeployHandler(reg, r.core.Services.Container, r.store, r.core.Events)
 		mpDeployH.SetServerContext(r.serverCtx)
+		mpDeployH.SetDeployFreezeStore(r.core.DB.Bolt)
 		r.mux.Handle("POST /api/v1/marketplace/deploy", protectedPerm(auth.PermMarketplaceDeploy, mpDeployH.Deploy))
 	}
 
@@ -653,7 +656,7 @@ func (r *Router) registerRoutes() {
 
 	// ── Notifications ─────────────────────────────────
 	notifH := handlers.NewNotificationHandler(r.core.Services.Notifications)
-	r.mux.Handle("POST /api/v1/notifications/test", protected(http.HandlerFunc(notifH.Test)))
+	r.mux.Handle("POST /api/v1/notifications/test", protectedPerm(auth.PermWebhookManage, notifH.Test))
 
 	// ── Terminal ──────────────────────────────────────
 	termH := ws.NewTerminal(r.core.Services.Container, r.store, r.core.Logger)

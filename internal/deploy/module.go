@@ -195,13 +195,13 @@ func (m *Module) cleanOrphanContainers(ctx context.Context) {
 
 		// App not found — this container is an orphan
 		m.logger.Info("removing orphan container",
-			"container_id", c.ID[:12],
+			"container_id", shortContainerID(c.ID),
 			"container_name", c.Name,
 			"app_id", appID,
 		)
 		if err := m.docker.Remove(ctx, c.ID, true); err != nil {
 			m.logger.Warn("orphan cleanup: failed to remove container",
-				"container_id", c.ID[:12],
+				"container_id", shortContainerID(c.ID),
 				"error", err,
 			)
 			continue
@@ -247,4 +247,11 @@ func (m *Module) Docker() *DockerManager {
 		return d
 	}
 	return nil
+}
+
+func shortContainerID(id string) string {
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
 }

@@ -131,7 +131,11 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	// 4. Generate Dockerfile if needed
 	dockerfilePath := filepath.Join(buildDir, "Dockerfile")
 	if opts.Dockerfile != "" {
-		dockerfilePath = filepath.Join(buildDir, opts.Dockerfile)
+		dockerfilePath, err = resolveDockerfilePath(buildDir, opts.Dockerfile)
+		if err != nil {
+			b.emitFailed(ctx, opts.AppID, err)
+			return nil, err
+		}
 	} else if detected.Type != TypeDockerfile && detected.Type != TypeUnknown {
 		template := GetDockerfileTemplate(detected.Type)
 		if template != "" {
@@ -150,7 +154,11 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	// 5. Docker build
 	imageTag := opts.ImageTag
 	if imageTag == "" {
-		imageTag = fmt.Sprintf("monster/%s:%s", opts.AppName, opts.CommitSHA[:8])
+		tagSuffix := core.ShortID(opts.CommitSHA, 8)
+		if tagSuffix == "" {
+			tagSuffix = core.ShortID(core.GenerateID(), 8)
+		}
+		imageTag = fmt.Sprintf("monster/%s:%s", opts.AppName, tagSuffix)
 	}
 
 	_, _ = fmt.Fprintf(logWriter, "==> Building image %s\n", imageTag)
@@ -481,6 +489,28 @@ func dockerBuild(ctx context.Context, contextDir, dockerfile, tag string, buildA
 	cmd.Stderr = logWriter
 
 	return cmd.Run()
+}
+
+func resolveDockerfilePath(buildDir, dockerfile string) (string, error) {
+	if strings.ContainsRune(dockerfile, 0) {
+		return "", fmt.Errorf("dockerfile path contains null byte")
+	}
+	if filepath.IsAbs(dockerfile) {
+		return "", fmt.Errorf("dockerfile path must be relative")
+	}
+
+	cleanRel := filepath.Clean(dockerfile)
+	if cleanRel == "." || cleanRel == ".." || strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("dockerfile path escapes build context")
+	}
+
+	fullPath := filepath.Join(buildDir, cleanRel)
+	rel, err := filepath.Rel(buildDir, fullPath)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("dockerfile path escapes build context")
+	}
+
+	return fullPath, nil
 }
 
 // validateDockerImageTag checks if an image tag is safe.

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -32,111 +31,14 @@ func NewTerminal(runtime core.ContainerRuntime, store core.Store, logger *slog.L
 	}
 }
 
-// Allowed commands for terminal exec. Commands are passed as exec arguments
-// (no shell interpretation). The allowlist provides defense-in-depth.
-var allowedCommands = map[string]struct{}{
-	// File and directory operations
-	"ls": {}, "ll": {}, "la": {}, "dir": {}, "find": {}, "stat": {},
-	"cat": {}, "head": {}, "tail": {}, "grep": {}, "egrep": {}, "awk": {},
-	"sed": {}, "cut": {}, "sort": {}, "uniq": {}, "wc": {}, "tr": {},
-	"base64": {},
-
-	// Navigation and info
-	"pwd": {}, "cd": {}, "echo": {}, "printf": {}, "env": {}, "printenv": {},
-	"id": {}, "whoami": {}, "hostname": {}, "uname": {}, "uptime": {},
-	"date": {},
-
-	// Process and system info
-	"ps": {}, "top": {}, "htop": {}, "kill": {}, "pkill": {}, "killall": {},
-	"sleep": {}, "watch": {}, "free": {}, "vmstat": {}, "iostat": {},
-
-	// Network utilities
-	"ping": {}, "ping6": {}, "curl": {}, "wget": {}, "nc": {}, "netcat": {},
-	"ssh": {}, "scp": {}, "rsync": {}, "dig": {}, "nslookup": {}, "host": {},
-	"ip": {}, "ss": {}, "ifconfig": {}, "route": {}, "netstat": {},
-
-	// Disk and filesystem
-	"df": {}, "du": {}, "mount": {}, "umount": {}, "ln": {}, "mkdir": {},
-	"touch": {}, "file": {}, "tar": {}, "gzip": {}, "gunzip": {}, "zip": {},
-	"unzip": {}, "cp": {}, "mv": {}, "rm": {}, "chmod": {}, "chown": {},
-
-	// Package managers (read-only)
-	"apt": {}, "apt-get": {}, "yum": {}, "dnf": {}, "apk": {}, "pacman": {},
-
-	// Interpreters/shell
-	"sh": {}, "bash": {}, "zsh": {}, "fish": {}, "python": {}, "python3": {},
-	"node": {}, "ruby": {}, "perl": {}, "php": {}, "lua": {},
-
-	// Text editors
-	"vi": {}, "vim": {}, "nano": {}, "emacs": {}, "ed": {},
-
-	// Utility commands
-	"true": {}, "false": {}, "yes": {}, "seq": {}, "expr": {}, "test": {},
-}
-
-// isCommandSafe validates the primary command against the allowlist.
-// splitCommand already provides shell-injection protection by passing tokens
-// as exec arguments (no shell interpretation). This function is an additional
-// defense-in-depth layer.
+// isCommandSafe validates the command against the shared exec safety policy.
 func isCommandSafe(cmd string) bool {
-	tokens := splitCommand(cmd)
-	if len(tokens) == 0 {
-		return false
-	}
-	// Extract the base command name (strip any leading path)
-	base := tokens[0]
-	if idx := strings.LastIndex(base, "/"); idx >= 0 {
-		base = base[idx+1:]
-	}
-	if _, ok := allowedCommands[strings.ToLower(base)]; !ok {
-		return false
-	}
-	// Block shell operators that might appear as arguments
-	cmdLower := strings.ToLower(cmd)
-	blockedSuffixes := []string{"&&", "||", "|", ";", "$(", "`"}
-	for _, suffix := range blockedSuffixes {
-		if strings.Contains(cmdLower, suffix) {
-			return false
-		}
-	}
-	return true
+	return core.CommandSafe(cmd)
 }
 
-// splitCommand splits a command string into tokens, respecting quotes.
-// Replaces "sh -c" usage to prevent shell injection.
+// splitCommand splits a command string into argv tokens without invoking a shell.
 func splitCommand(cmd string) []string {
-	var tokens []string
-	var current strings.Builder
-	inQuote := rune(0)
-	for i := 0; i < len(cmd); i++ {
-		ch := rune(cmd[i])
-		if inQuote != 0 {
-			if ch == inQuote {
-				inQuote = 0
-			} else {
-				current.WriteRune(ch)
-			}
-		} else {
-			switch ch {
-			case '\'', '"':
-				inQuote = ch
-			case ' ', '\t', '\n', '\r':
-				if current.Len() > 0 {
-					tokens = append(tokens, current.String())
-					current.Reset()
-				}
-			default:
-				current.WriteRune(ch)
-			}
-		}
-	}
-	if current.Len() > 0 {
-		tokens = append(tokens, current.String())
-	}
-	if len(tokens) == 0 {
-		return []string{"/bin/true"}
-	}
-	return tokens
+	return core.SplitCommand(cmd)
 }
 
 // StreamOutput handles GET /api/v1/apps/{id}/terminal
@@ -187,7 +89,7 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 
 	// Send connection confirmation with container info
 	connData, _ := json.Marshal(map[string]string{
-		"container_id": containers[0].ID[:12],
+		"container_id": shortResourceID(containers[0].ID),
 		"image":        containers[0].Image,
 		"status":       containers[0].State,
 	})
@@ -255,7 +157,7 @@ func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 	if !isCommandSafe(req.Command) {
 		t.logger.Warn("terminal blocked dangerous command",
 			"app_id", appID,
-			"container", containerID[:12],
+			"container", shortResourceID(containerID),
 			"command", req.Command,
 		)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "command contains blocked pattern"})
@@ -264,7 +166,7 @@ func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 
 	t.logger.Info("terminal exec",
 		"app_id", appID,
-		"container", containerID[:12],
+		"container", shortResourceID(containerID),
 		"command", req.Command,
 	)
 
@@ -274,7 +176,7 @@ func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		t.logger.Error("terminal exec failed",
 			"app_id", appID,
-			"container", containerID[:12],
+			"container", shortResourceID(containerID),
 			"command", req.Command,
 			"error", err,
 		)
@@ -282,7 +184,7 @@ func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"output":       output,
 			"exit_code":    1,
-			"container_id": containerID[:12],
+			"container_id": shortResourceID(containerID),
 			"error":        err.Error(),
 		})
 		return
@@ -291,8 +193,15 @@ func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"output":       output,
 		"exit_code":    0,
-		"container_id": containerID[:12],
+		"container_id": shortResourceID(containerID),
 	})
+}
+
+func shortResourceID(id string) string {
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {

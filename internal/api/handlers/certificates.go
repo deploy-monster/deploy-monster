@@ -142,7 +142,7 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		Status:    "active",
 	}
 
-	// Store cert data in BBolt
+	// Store cert data in KV storage.
 	certData := map[string]string{
 		"cert_pem": req.CertPEM,
 		"key_pem":  req.KeyPEM,

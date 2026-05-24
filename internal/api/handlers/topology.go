@@ -42,6 +42,45 @@ func (h *TopologyHandler) requireTenantProject(ctx context.Context, w http.Respo
 	return project, true
 }
 
+func validateTopologyPathParts(projectID, environment string) bool {
+	return validateTopologyPathPart(projectID) && validateTopologyPathPart(environment)
+}
+
+func validateTopologyPathPart(part string) bool {
+	if part != strings.TrimSpace(part) {
+		return false
+	}
+
+	decoded := part
+	if decoded == "" || len(decoded) > 128 {
+		return false
+	}
+
+	for i := 0; i < 2; i++ {
+		next, err := url.QueryUnescape(decoded)
+		if err != nil {
+			return false
+		}
+		if next == decoded {
+			break
+		}
+		decoded = next
+	}
+
+	if decoded != strings.TrimSpace(decoded) || decoded == "" || len(decoded) > 128 {
+		return false
+	}
+
+	for _, r := range decoded {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			continue
+		}
+		return false
+	}
+
+	return true
+}
+
 // TopologyNode represents a node in the topology editor
 type TopologyNode struct {
 	ID       string         `json:"id"`
@@ -137,11 +176,16 @@ func (h *TopologyHandler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateTopologyPathParts(req.ProjectID, req.Environment) {
+		writeError(w, http.StatusBadRequest, "invalid project ID or environment")
+		return
+	}
+
 	if _, ok := h.requireTenantProject(r.Context(), w, req.ProjectID, claims.TenantID); !ok {
 		return
 	}
 
-	// Persist topology to BBolt KV store
+	// Persist topology to KV storage.
 	// Key format: topology:{tenantID}:{projectID}:{environment}
 	key := fmt.Sprintf("topology:%s:%s:%s", claims.TenantID, req.ProjectID, req.Environment)
 
@@ -179,12 +223,17 @@ func (h *TopologyHandler) Load(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateTopologyPathParts(projectID, environment) {
+		writeError(w, http.StatusBadRequest, "invalid project ID or environment")
+		return
+	}
+
 	// Tenant isolation: verify the project belongs to the calling user's tenant
 	if _, ok := h.requireTenantProject(r.Context(), w, projectID, claims.TenantID); !ok {
 		return
 	}
 
-	// Load topology from BBolt KV store
+	// Load topology from KV storage.
 	key := fmt.Sprintf("topology:%s:%s:%s", claims.TenantID, projectID, environment)
 
 	var req TopologyDeployRequest
@@ -220,6 +269,11 @@ func (h *TopologyHandler) Compile(w http.ResponseWriter, r *http.Request) {
 	var req TopologyDeployRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if !validateTopologyPathParts(req.ProjectID, req.Environment) {
+		writeError(w, http.StatusBadRequest, "invalid project ID or environment")
 		return
 	}
 
@@ -303,18 +357,18 @@ func (h *TopologyHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.Nodes) == 0 {
-		writeError(w, http.StatusBadRequest, "no nodes to deploy")
+	if !validateTopologyPathParts(req.ProjectID, req.Environment) {
+		writeError(w, http.StatusBadRequest, "invalid project ID or environment")
 		return
 	}
 
-	// Guard against path traversal in user-supplied path components
-	// SECURITY: Decode URL-encoded sequences before checking, as attackers may use
-	// URL encoding to bypass naive path traversal checks (e.g., %2e%2e%2f for ../)
-	projectIDDecoded, _ := url.QueryUnescape(req.ProjectID)
-	envDecoded, _ := url.QueryUnescape(req.Environment)
-	if strings.ContainsAny(projectIDDecoded, "../\\") || strings.ContainsAny(envDecoded, "../\\") {
-		writeError(w, http.StatusBadRequest, "invalid project ID or environment")
+	if !req.DryRun && h.core != nil && h.core.DB != nil && activeDeployFreeze(h.core.DB.Bolt, claims.TenantID) {
+		writeError(w, http.StatusLocked, "deployments are currently frozen")
+		return
+	}
+
+	if len(req.Nodes) == 0 {
+		writeError(w, http.StatusBadRequest, "no nodes to deploy")
 		return
 	}
 

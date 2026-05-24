@@ -62,7 +62,7 @@ func (h *LogHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"app_id":       appID,
-		"container_id": containers[0].ID[:12],
+		"container_id": shortResourceID(containers[0].ID),
 		"lines":        lines,
 		"count":        len(lines),
 	})

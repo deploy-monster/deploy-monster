@@ -44,7 +44,7 @@ func (h *MetricsHistoryHandler) AppMetrics(w http.ResponseWriter, r *http.Reques
 		period = "24h"
 	}
 
-	// Try to read stored metrics from BBolt
+	// Try to read stored metrics from KV storage.
 	bucketKey := appID + ":" + period
 	var ring metricsRing
 	if err := h.bolt.Get("metrics_ring", bucketKey, &ring); err == nil && len(ring.Points) > 0 {
@@ -98,7 +98,7 @@ func (h *MetricsHistoryHandler) ServerMetrics(w http.ResponseWriter, r *http.Req
 		period = "24h"
 	}
 
-	// Read stored server metrics from BBolt
+	// Read stored server metrics from KV storage.
 	bucketKey := "server:" + serverID + ":" + period
 	var ring metricsRing
 	if err := h.bolt.Get("metrics_ring", bucketKey, &ring); err == nil && len(ring.Points) > 0 {

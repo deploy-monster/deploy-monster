@@ -59,7 +59,7 @@ func (h *RegistryHandler) List(w http.ResponseWriter, r *http.Request) {
 	all := make([]RegistryConfig, len(builtinRegistries))
 	copy(all, builtinRegistries)
 
-	// Load custom registries from BBolt
+	// Load custom registries from KV storage.
 	var list registryList
 	if err := h.bolt.Get("registries", registryListKey(claims.TenantID), &list); err == nil {
 		all = append(all, list.Registries...)

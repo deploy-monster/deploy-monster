@@ -93,6 +93,41 @@ func TestDeployTrigger_ImageApp_NoRuntime(t *testing.T) {
 	}
 }
 
+func TestDeployTrigger_BlockedDuringFreezeWindow(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{
+		ID:         "app1",
+		TenantID:   "tenant1",
+		Name:       "Frozen App",
+		SourceType: "image",
+		SourceURL:  "nginx:latest",
+		Status:     "running",
+	})
+	store.nextDeployVersion["app1"] = 3
+
+	bolt := newMockBoltStore()
+	if err := seedActiveDeployFreeze(bolt, "tenant1"); err != nil {
+		t.Fatalf("seed freeze: %v", err)
+	}
+
+	handler := NewDeployTriggerHandler(store, &mockContainerRuntime{}, testCore().Events)
+	handler.SetDeployFreezeStore(bolt)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.TriggerDeploy(rr, req)
+
+	if rr.Code != http.StatusLocked {
+		t.Fatalf("expected 423, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if got := store.updatedStatus["app1"]; got != "" {
+		t.Fatalf("deploy should not update app status during freeze, got %q", got)
+	}
+}
+
 // ─── Deploy Trigger (git-based app) ──────────────────────────────────────────
 
 func TestDeployTrigger_GitApp_Accepted(t *testing.T) {

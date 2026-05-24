@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
+	"github.com/deploy-monster/deploy-monster/internal/build"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -92,17 +92,12 @@ func (m *AppManifest) Validate() []string {
 	// Validate source_url (required, must be valid URL or image reference)
 	if m.SourceURL == "" {
 		errors = append(errors, "source_url is required")
-	} else if m.SourceType == "image" || m.SourceType == "docker" {
-		// For Docker images, validate as image reference (e.g., "nginx:latest", "ghcr.io/repo/app:v1")
-		if strings.ContainsAny(m.SourceURL, ";\n\r") {
-			errors = append(errors, "source_url contains invalid characters")
-		}
 	} else {
-		u, err := url.Parse(m.SourceURL)
-		if err != nil {
-			errors = append(errors, "invalid source_url format")
-		} else if u.Scheme != "https" && u.Scheme != "http" && u.Scheme != "ssh" && u.Scheme != "" {
-			errors = append(errors, "source_url must use http, https, or ssh scheme")
+		if len(m.SourceURL) > 2048 {
+			errors = append(errors, "source_url must be at most 2048 characters")
+		}
+		if err := build.ValidateGitURL(m.SourceURL); err != nil {
+			errors = append(errors, "invalid source_url: "+err.Error())
 		}
 	}
 

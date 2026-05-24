@@ -19,7 +19,7 @@ import (
 // TestFullAPILifecycle tests the complete user journey:
 // register → login → create app → add domain → list apps → delete app → cleanup
 func TestFullAPILifecycle(t *testing.T) {
-	// Setup: real SQLite + BBolt in temp dir
+	// Setup: real SQLite + KV store in temp dir
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	boltPath := filepath.Join(tmpDir, "test.bolt")

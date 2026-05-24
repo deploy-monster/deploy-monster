@@ -29,7 +29,7 @@ func (h *RestartHistoryHandler) SetBolt(b core.BoltStorer) { h.bolt = b }
 
 // RestartEvent records when and why a container restarted. The persisted
 // shape is intentionally compact so a high-churn app doesn't bloat the
-// BBolt file. Per-event TTL is applied at write time so old entries roll
+// KV store. Per-event TTL is applied at write time so old entries roll
 // off without a separate sweeper.
 type RestartEvent struct {
 	ID          string    `json:"id"`
@@ -40,13 +40,13 @@ type RestartEvent struct {
 	Timestamp   time.Time `json:"timestamp"`
 }
 
-// RestartHistoryBucket is the BBolt bucket used by the event subscriber
+// RestartHistoryBucket is the KV bucket used by the event subscriber
 // in api/router.go to persist restart records. Reads route through the
 // bolt auto-create path so the bucket appears on first write.
 const RestartHistoryBucket = "restart_history"
 
 // RestartHistoryRetentionSeconds caps how long a single record lives in
-// BBolt. 30 days strikes a balance between operator usefulness ("did we
+// KV storage. 30 days strikes a balance between operator usefulness ("did we
 // crash this week?") and disk pressure on a chatty app.
 const RestartHistoryRetentionSeconds = 30 * 24 * 3600
 
@@ -134,7 +134,7 @@ func (h *RestartHistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		if containers, err := h.runtime.ListByLabels(r.Context(), map[string]string{
 			"monster.app.id": appID,
 		}); err == nil && len(containers) > 0 {
-			resp["container_id"] = containers[0].ID[:12]
+			resp["container_id"] = shortResourceID(containers[0].ID)
 		}
 	}
 

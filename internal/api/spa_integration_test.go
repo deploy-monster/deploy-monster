@@ -16,7 +16,7 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/marketplace"
 )
 
-// newTestRouter spins up a real Router backed by temp SQLite + bbolt so
+// newTestRouter spins up a real Router backed by temp SQLite + KV storage so
 // tests can exercise the full middleware chain (rate limiter, CORS,
 // CSRF, compression, SPA fallback) instead of hitting just the SPA
 // handler in isolation.

@@ -21,7 +21,7 @@ func NewMetricsExportHandler(store core.Store, bolt core.BoltStorer, runtime cor
 	return &MetricsExportHandler{store: store, bolt: bolt, runtime: runtime}
 }
 
-// metricsPoint is a single metrics data point stored in BBolt.
+// metricsPoint is a single metrics data point stored in KV storage.
 type metricsPoint struct {
 	Timestamp  string  `json:"timestamp"`
 	CPUPercent float64 `json:"cpu_percent"`
@@ -41,7 +41,7 @@ func (h *MetricsExportHandler) Export(w http.ResponseWriter, r *http.Request) {
 		format = "json"
 	}
 
-	// Try to load real metrics from BBolt
+	// Try to load real metrics from KV storage.
 	var storedPoints []metricsPoint
 	_ = h.bolt.Get("metrics_export", appID, &storedPoints)
 
@@ -79,10 +79,7 @@ func (h *MetricsExportHandler) Export(w http.ResponseWriter, r *http.Request) {
 
 	switch format {
 	case "csv":
-		if len(appID) < 8 {
-			appID = appID + "________"
-		}
-		filename := fmt.Sprintf("%s-metrics-%s.csv", appID[:8], now.Format("20060102"))
+		filename := fmt.Sprintf("%s-metrics-%s.csv", core.ShortID(appID, 8), now.Format("20060102"))
 		w.Header().Set("Content-Type", "text/csv")
 		w.Header().Set("Content-Disposition", "attachment; filename="+safeFilename(filename))
 

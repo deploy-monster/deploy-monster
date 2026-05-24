@@ -280,6 +280,9 @@ func (m *mockPermStore) GetAppByName(_ context.Context, _, _ string) (*core.Appl
 func (m *mockPermStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
 	return nil
 }
+func (m *mockPermStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, error) {
+	return nil, nil
+}
 
 // --- RequireOwnerOrAbove ---
 

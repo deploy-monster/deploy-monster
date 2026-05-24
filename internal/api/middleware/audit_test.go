@@ -189,6 +189,9 @@ func (s *auditMockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ in
 func (s *auditMockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
 	return nil
 }
+func (s *auditMockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, error) {
+	return nil, nil
+}
 
 func (s *auditMockStore) Close() error                 { return nil }
 func (s *auditMockStore) Ping(_ context.Context) error { return nil }

@@ -13,12 +13,6 @@ import (
 // parentIDKey is used to store the parent span ID from the W3C traceparent header.
 type parentIDKey struct{}
 
-// getParentID extracts the parent span ID that was parsed by RequestID middleware.
-func getParentID(ctx context.Context) string {
-	id, _ := ctx.Value(parentIDKey{}).(string)
-	return id
-}
-
 // WithParentID stores the parent span ID in context.
 func WithParentID(ctx context.Context, parentID string) context.Context {
 	return context.WithValue(ctx, parentIDKey{}, parentID)

@@ -52,6 +52,8 @@ interface RequestOptions {
   signal?: AbortSignal;
   /** Extra retries on 502/503/504 or transient network error. Default MAX_RETRIES. */
   retries?: number;
+  /** Skip the global 401 refresh flow, used by auth endpoints that return domain errors. */
+  skipAuthRefresh?: boolean;
   /**
    * Internal flag set by the 401-retry path to prevent refresh loops.
    * When true, a 401 response skips tryRefresh and hands off to /login.
@@ -64,6 +66,7 @@ interface CallOptions {
   timeout?: number;
   signal?: AbortSignal;
   retries?: number;
+  skipAuthRefresh?: boolean;
 }
 
 export interface PaginatedResponse<T> {
@@ -248,7 +251,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   // Handle 401 - try refresh exactly once per logical request.
-  if (response.status === 401) {
+  if (response.status === 401 && !options.skipAuthRefresh) {
     if (options._noRefresh) {
       // We already refreshed once in this chain and STILL got 401 —
       // the session is genuinely dead. Hand off to login.

@@ -32,7 +32,7 @@ func init() {
 //   - The collection loop was spawned as a bare `go m.collectionLoop()`
 //     with no WaitGroup. Stop closed the channel but never waited
 //     for the goroutine to exit, so the ticker + BoltBatchSet work
-//     could race with the BBolt shutdown. wg now tracks the loop.
+//     could race with KV shutdown. wg now tracks the loop.
 //   - collectionLoop had no defer/recover. A panic inside
 //     collectOnce (e.g. nil pointer through a half-initialized
 //     bolt store) would crash the whole process instead of the
@@ -92,7 +92,7 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 
 func (m *Module) Start(_ context.Context) error {
 	// Start metrics collection loop. Tier 75: tracked by wg so Stop
-	// can actually drain it instead of racing with BBolt shutdown.
+	// can actually drain it instead of racing with KV shutdown.
 	m.wg.Add(1)
 	go m.collectionLoop()
 
@@ -153,11 +153,11 @@ func (m *Module) collectOnce() {
 
 	containerMetrics := m.collector.CollectContainers(ctx)
 
-	// Batch all metrics into a single BBolt transaction
+	// Batch all metrics into a single KV transaction.
 	m.batchStoreMetrics(metrics, containerMetrics)
 }
 
-// batchStoreMetrics persists all collected metrics to BBolt in a single transaction.
+// batchStoreMetrics persists all collected metrics to KV storage in a single transaction.
 func (m *Module) batchStoreMetrics(server *core.ServerMetrics, containers []core.ContainerMetrics) {
 	if m.bolt == nil {
 		return
@@ -217,7 +217,7 @@ func (m *Module) collectionLoop() {
 	defer m.wg.Done()
 	defer func() {
 		// Pre-Tier-75 this loop had no recover. A panic inside
-		// collectOnce (e.g. in the BBolt transaction or the alert
+		// collectOnce (e.g. in the KV transaction or the alert
 		// engine) would tear the whole process down. Recover keeps
 		// the resource monitor alive even if a future enhancement
 		// accidentally panics mid-collection.

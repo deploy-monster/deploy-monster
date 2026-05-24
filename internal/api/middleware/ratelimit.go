@@ -13,7 +13,7 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// AuthRateLimiter enforces per-IP rate limits on auth endpoints using BBolt.
+// AuthRateLimiter enforces per-IP rate limits on auth endpoints using KV storage.
 // SECURITY FIX: Uses mutex to prevent race conditions on read-modify-write operations.
 type AuthRateLimiter struct {
 	bolt   core.BoltStorer

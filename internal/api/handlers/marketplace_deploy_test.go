@@ -149,6 +149,36 @@ func TestMarketplaceDeploy_Success(t *testing.T) {
 	WaitForBackground()
 }
 
+func TestMarketplaceDeploy_BlockedDuringFreezeWindow(t *testing.T) {
+	store := newMockStore()
+	store.addProject("tenant-1", core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "default"})
+	bolt := newMockBoltStore()
+	if err := seedActiveDeployFreeze(bolt, "tenant-1"); err != nil {
+		t.Fatalf("seed freeze: %v", err)
+	}
+
+	h := newDeployHandler(store)
+	h.SetDeployFreezeStore(bolt)
+
+	req := newDeployRequest(t, map[string]any{
+		"slug": "wordpress",
+		"name": "my-blog",
+		"config": map[string]string{
+			"DB_PASSWORD": "strongpass123",
+		},
+	}, "tenant-1", "user-1")
+	rr := httptest.NewRecorder()
+
+	h.Deploy(rr, req)
+
+	if rr.Code != http.StatusLocked {
+		t.Fatalf("status: got %d, want 423: %s", rr.Code, rr.Body.String())
+	}
+	if len(store.apps) != 0 {
+		t.Fatalf("deploy should not create apps during freeze, got %d", len(store.apps))
+	}
+}
+
 // TestMarketplaceDeploy_NameDefaultsToSlug verifies the contract that an
 // empty `name` field falls back to the template slug.
 func TestMarketplaceDeploy_NameDefaultsToSlug(t *testing.T) {

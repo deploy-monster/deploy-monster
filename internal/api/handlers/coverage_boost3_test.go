@@ -134,6 +134,23 @@ func TestLogDownloadHandler_Success(t *testing.T) {
 	}
 }
 
+func TestLogDownloadHandler_ShortAppID(t *testing.T) {
+	h := NewLogDownloadHandler(&mockContainerRuntime{
+		containers: []core.ContainerInfo{{ID: "ctr-abc12345", State: "running"}},
+		logsData:   "line1\n",
+	})
+	req := httptest.NewRequest("GET", "/api/v1/apps/a/logs/download", nil)
+	req.SetPathValue("id", "a")
+	rr := httptest.NewRecorder()
+	h.Download(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	if cd := rr.Header().Get("Content-Disposition"); !strings.Contains(cd, "a-logs-") {
+		t.Fatalf("Content-Disposition = %q, want short app ID filename", cd)
+	}
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // RegistryHandler
 // ═══════════════════════════════════════════════════════════════════════════════

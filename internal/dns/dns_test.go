@@ -207,6 +207,9 @@ func (s *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) (
 	return nil, 0, nil
 }
 func (s *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+func (s *mockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, error) {
+	return nil, nil
+}
 
 func (s *mockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
 	return nil

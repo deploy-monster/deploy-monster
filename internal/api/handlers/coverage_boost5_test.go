@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -403,6 +404,36 @@ func TestEventWebhookHandler_Create_LimitReached(t *testing.T) {
 
 	if rr.Code != http.StatusConflict {
 		t.Errorf("expected 409, got %d", rr.Code)
+	}
+}
+
+func TestEventWebhookHandler_Create_ConcurrentPreservesAllWebhooks(t *testing.T) {
+	bolt := newMockBoltStore()
+	h := NewEventWebhookHandler(newMockStore(), nil, bolt)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			body := fmt.Sprintf(`{"url":"https://example.com/hook-%d","events":["app.deployed"]}`, i)
+			req := httptest.NewRequest("POST", "/api/v1/webhooks/outbound", strings.NewReader(body))
+			req = withClaims(req, "u1", "t1", "role_admin", "admin@test.com")
+			rr := httptest.NewRecorder()
+			h.Create(rr, req)
+			if rr.Code != http.StatusCreated {
+				t.Errorf("Create %d: expected 201, got %d: %s", i, rr.Code, rr.Body.String())
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	var list eventWebhookList
+	if err := bolt.Get("event_webhooks", "tenant:t1", &list); err != nil {
+		t.Fatalf("Get webhooks: %v", err)
+	}
+	if len(list.Webhooks) != 10 {
+		t.Fatalf("stored webhooks = %d, want 10", len(list.Webhooks))
 	}
 }
 
@@ -1067,6 +1098,39 @@ func TestRedirectHandler_Create_LimitReached(t *testing.T) {
 
 	if rr.Code != http.StatusConflict {
 		t.Errorf("expected 409, got %d", rr.Code)
+	}
+}
+
+func TestRedirectHandler_Create_ConcurrentPreservesAllRules(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant-1", Name: "test"})
+	bolt := newMockBoltStore()
+	h := NewRedirectHandler(store, bolt)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			body := fmt.Sprintf(`{"source":"/old-%d","destination":"/new-%d"}`, i, i)
+			req := httptest.NewRequest("POST", "/api/v1/apps/app-1/redirects", strings.NewReader(body))
+			req.SetPathValue("id", "app-1")
+			req = withClaims(req, "u1", "tenant-1", "role_admin", "admin@test.com")
+			rr := httptest.NewRecorder()
+			h.Create(rr, req)
+			if rr.Code != http.StatusCreated {
+				t.Errorf("Create %d: expected 201, got %d: %s", i, rr.Code, rr.Body.String())
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	var list redirectList
+	if err := bolt.Get("redirects", "app-1", &list); err != nil {
+		t.Fatalf("Get redirects: %v", err)
+	}
+	if len(list.Rules) != 10 {
+		t.Fatalf("stored redirect rules = %d, want 10", len(list.Rules))
 	}
 }
 

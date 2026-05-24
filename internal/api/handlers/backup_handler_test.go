@@ -289,3 +289,31 @@ func TestBackupRestore_CrossTenantKey(t *testing.T) {
 		t.Fatalf("cross-tenant restore reached storage with key %q", storage.lastDownloadKey)
 	}
 }
+
+func TestRequireTenantBackupKeyValidation(t *testing.T) {
+	tests := []struct {
+		name   string
+		key    string
+		tenant string
+		want   bool
+	}{
+		{name: "valid", key: "tenant1/app1/backup-001.json", tenant: "tenant1", want: true},
+		{name: "cross tenant", key: "tenant2/app1/backup-001.json", tenant: "tenant1", want: false},
+		{name: "direct traversal", key: "tenant1/app1/../secret.json", tenant: "tenant1", want: false},
+		{name: "encoded traversal", key: "tenant1/app1/%2e%2e/secret.json", tenant: "tenant1", want: false},
+		{name: "double encoded traversal", key: "tenant1/app1/%252e%252e/secret.json", tenant: "tenant1", want: false},
+		{name: "absolute", key: "/tenant1/app1/backup.json", tenant: "tenant1", want: false},
+		{name: "backslash", key: "tenant1\\app1\\backup.json", tenant: "tenant1", want: false},
+		{name: "query char", key: "tenant1/app1/backup?.json", tenant: "tenant1", want: false},
+		{name: "empty segment", key: "tenant1//backup.json", tenant: "tenant1", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			if got := requireTenantBackupKey(rr, tt.key, tt.tenant); got != tt.want {
+				t.Fatalf("requireTenantBackupKey(%q, %q) = %v, want %v", tt.key, tt.tenant, got, tt.want)
+			}
+		})
+	}
+}

@@ -7,8 +7,10 @@ import (
 )
 
 const (
-	csrfCookieName = "__Host-dm_csrf" // __Host- prefix enforced by browsers
-	csrfHeaderName = "X-CSRF-Token"
+	csrfCookieName    = "__Host-dm_csrf" // __Host- prefix enforced by browsers
+	csrfHeaderName    = "X-CSRF-Token"
+	accessCookieName  = "dm_access"
+	refreshCookieName = "dm_refresh"
 )
 
 // CSRFProtect implements double-submit cookie CSRF protection.
@@ -30,13 +32,18 @@ func CSRFProtect(next http.Handler) http.Handler {
 			return
 		}
 
-		// Check if there's a cookie (meaning browser-based request)
+		// Check if there's a CSRF cookie. If token cookies are present, this is
+		// a cookie-authenticated browser request and must not bypass CSRF just
+		// because the CSRF cookie is missing or expired.
 		cookie, err := r.Cookie(csrfCookieName)
 		if err != nil || cookie.Value == "" {
-			// No CSRF cookie — could be first request or non-browser client
-			// For cookie-auth endpoints that mutate (login, register), we don't
-			// enforce CSRF since they set the cookie. For protected endpoints,
-			// RequireAuth will reject if there's no auth at all.
+			if hasCookie(r, accessCookieName) || hasCookie(r, refreshCookieName) {
+				writeErrorJSON(w, http.StatusForbidden, "CSRF token required")
+				return
+			}
+			// No CSRF or token cookies — could be first login/register or a
+			// non-browser client. Protected endpoints will still be rejected by
+			// RequireAuth if no bearer/API key auth is supplied.
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -50,6 +57,11 @@ func CSRFProtect(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func hasCookie(r *http.Request, name string) bool {
+	cookie, err := r.Cookie(name)
+	return err == nil && cookie.Value != ""
 }
 
 // SetCSRFCookie sets the CSRF double-submit cookie. Call this after successful

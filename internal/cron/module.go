@@ -1,6 +1,6 @@
 // Package cron wires the per-app cron jobs persisted by the API
 // (handlers/cronjobs.go) into the platform's task scheduler so they
-// actually fire instead of sitting in BBolt forever.
+// actually fire instead of sitting in KV storage forever.
 package cron
 
 import (
@@ -18,7 +18,7 @@ func init() {
 	core.RegisterModule(func() core.Module { return New() })
 }
 
-// Module is the cron executor. It loads jobs from the cronjobs bolt
+// Module is the cron executor. It loads jobs from the cronjobs KV
 // bucket on Start and re-syncs whenever the API emits cronjob lifecycle
 // events. Each job's handler shells out into the app's container via
 // the runtime's Exec method and records the run in the same
@@ -155,11 +155,16 @@ func (m *Module) handlerFor(appID string, cfg jobConfig) func(ctx context.Contex
 		}
 
 		startedAt := time.Now()
-		output, execErr := runtime.Exec(ctx, containers[0].ID, []string{"sh", "-c", cfg.Command})
+		cmd := core.SplitCommand(cfg.Command)
+		if !core.CommandTokensSafe(cmd) {
+			return fmt.Errorf("cron command blocked by security policy")
+		}
+		output, execErr := runtime.Exec(ctx, containers[0].ID, cmd)
 		completedAt := time.Now()
 
+		entryID := core.GenerateID()
 		entry := map[string]any{
-			"id":           core.GenerateID(),
+			"id":           entryID,
 			"app_id":       appID,
 			"user_id":      "cron:" + cfg.ID,
 			"command":      cfg.Command,
@@ -173,7 +178,9 @@ func (m *Module) handlerFor(appID string, cfg jobConfig) func(ctx context.Contex
 			entry["error"] = execErr.Error()
 		}
 		if raw, err := json.Marshal(entry); err == nil {
-			_ = m.core.DB.Bolt.Set("app_commands", appID+":"+entry["id"].(string), json.RawMessage(raw), 30*24*3600)
+			if err := m.core.DB.Bolt.Set("app_commands", appID+":"+entryID, json.RawMessage(raw), 30*24*3600); err != nil {
+				slog.Warn("failed to store cron command history", "app_id", appID, "job_id", cfg.ID, "error", err)
+			}
 		}
 
 		m.core.Events.PublishAsync(ctx, core.NewEvent("app.cron.run", "cron", map[string]any{

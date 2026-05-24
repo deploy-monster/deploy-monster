@@ -74,6 +74,19 @@ function getPasswordStrength(password: string): { level: number; label: string; 
   return { level: 3, label: 'Strong', color: 'bg-emerald-500' };
 }
 
+function validatePassword(password: string): string | null {
+  if (password.length < 12) return 'Password must be at least 12 characters';
+  if (
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    !/[^A-Za-z0-9]/.test(password)
+  ) {
+    return 'Password must contain uppercase, lowercase, digit, and special character';
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Register
 // ---------------------------------------------------------------------------
@@ -101,8 +114,9 @@ export function Register() {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -284,7 +298,7 @@ export function Register() {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Min. 8 characters"
+                      placeholder="Min. 12 chars, mixed case, digit, special"
                       autoComplete="new-password"
                       className="pl-10 pr-10"
                     />
@@ -323,6 +337,9 @@ export function Register() {
                       </p>
                     </div>
                   )}
+                  <p className="text-[11px] text-muted-foreground">
+                    Minimum 12 characters with uppercase, lowercase, digit, and special character.
+                  </p>
                 </div>
 
                 <div className="space-y-2">

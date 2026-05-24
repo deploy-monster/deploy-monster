@@ -21,7 +21,7 @@ var _ core.BackupStorage = (*LocalStorage)(nil)
 // LocalStorage stores backups on the local filesystem.
 // Optionally encrypts payloads using AES-256-GCM when an encryption key is set.
 type LocalStorage struct {
-	basePath    string
+	basePath      string
 	encryptionKey []byte // 32 bytes; nil means no encryption
 }
 
@@ -57,6 +57,11 @@ func (l *LocalStorage) Upload(_ context.Context, key string, reader io.Reader, _
 	}
 	path := cleanPath
 	_ = os.MkdirAll(filepath.Dir(path), 0750)
+	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("invalid backup key: symlink targets are not allowed")
+	} else if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("stat backup path: %w", err)
+	}
 
 	// Read the full payload before we know whether we need to encrypt —
 	// SigV4 (S3) and path traversal checks also require full reads, so
@@ -141,6 +146,11 @@ func (l *LocalStorage) Download(_ context.Context, key string) (io.ReadCloser, e
 	if err != nil || strings.HasPrefix(rel, "..") {
 		return nil, fmt.Errorf("invalid backup key: path outside storage root")
 	}
+	if info, err := os.Lstat(cleanPath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("invalid backup key: symlink targets are not allowed")
+	} else if err != nil {
+		return nil, fmt.Errorf("open backup: %w", err)
+	}
 	f, err := os.Open(cleanPath)
 	if err != nil {
 		return nil, fmt.Errorf("open backup: %w", err)
@@ -190,7 +200,7 @@ func (l *LocalStorage) List(_ context.Context, prefix string) ([]core.BackupEntr
 		return nil, fmt.Errorf("invalid backup prefix: path outside storage root")
 	}
 
-	// Two prefix flavours are supported:
+	// Two prefix flavors are supported:
 	//   1. Directory prefix (e.g. "tenant-id/app-id"): recursively walk that
 	//      subtree and surface every file. The retention sweep and the API
 	//      List endpoint both use this form.
@@ -213,6 +223,9 @@ func (l *LocalStorage) List(_ context.Context, prefix string) ([]core.BackupEntr
 			return err
 		}
 		if info.IsDir() {
+			return nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
 			return nil
 		}
 		if filenameFilter != "" && !strings.HasPrefix(filepath.Base(path), filenameFilter) {

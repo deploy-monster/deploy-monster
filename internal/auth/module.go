@@ -133,8 +133,8 @@ func (m *Module) firstRunSetup(ctx context.Context) error {
 	generatedPassword := false
 
 	if email == "" {
-		email = "admin@deploymonster.local"
-		m.logger.Warn("MONSTER_ADMIN_EMAIL not set; using default first-run admin email", "email", email)
+		email = generatedBootstrapAdminEmail()
+		m.logger.Warn("MONSTER_ADMIN_EMAIL not set; generated first-run admin email", "email", email)
 	}
 	if password == "" {
 		password = core.GeneratePassword(24)
@@ -185,4 +185,8 @@ func (m *Module) cleanupBootstrapAdminCredentials() {
 		return
 	}
 	m.logger.Info("removed bootstrap admin env file", "path", bootstrapAdminEnvFile)
+}
+
+func generatedBootstrapAdminEmail() string {
+	return "admin-" + core.GenerateID() + "@deploymonster.local"
 }

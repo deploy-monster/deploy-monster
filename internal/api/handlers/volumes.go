@@ -1,24 +1,32 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // VolumeHandler manages Docker volume operations.
 type VolumeHandler struct {
 	runtime core.ContainerRuntime
+	store   core.Store
 	events  *core.EventBus
 }
 
-func NewVolumeHandler(runtime core.ContainerRuntime, events *core.EventBus) *VolumeHandler {
-	return &VolumeHandler{runtime: runtime, events: events}
+func NewVolumeHandler(runtime core.ContainerRuntime, store core.Store, events *core.EventBus) *VolumeHandler {
+	return &VolumeHandler{runtime: runtime, store: store, events: events}
 }
 
 // List handles GET /api/v1/volumes
 func (h *VolumeHandler) List(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	if h.runtime == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 		return
@@ -38,17 +46,28 @@ func (h *VolumeHandler) List(w http.ResponseWriter, r *http.Request) {
 	seen := make(map[string]bool)
 	for _, c := range containers {
 		appID := c.Labels["monster.app.id"]
-		if appID != "" && !seen[appID] {
+		if appID != "" && !seen[appID] && h.appVisibleToTenant(r.Context(), appID, claims.TenantID, c.Labels) {
 			seen[appID] = true
 			volumes = append(volumes, map[string]string{
 				"app_id":       appID,
-				"container_id": c.ID[:12],
+				"container_id": shortResourceID(c.ID),
 				"name":         c.Labels["monster.app.name"],
 			})
 		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"data": volumes, "total": len(volumes)})
+}
+
+func (h *VolumeHandler) appVisibleToTenant(ctx context.Context, appID, tenantID string, labels map[string]string) bool {
+	if labelTenant := labels["monster.tenant"]; labelTenant != "" {
+		return labelTenant == tenantID
+	}
+	if h.store == nil {
+		return false
+	}
+	app, err := h.store.GetApp(ctx, appID)
+	return err == nil && app != nil && app.TenantID == tenantID
 }
 
 type createVolumeRequest struct {
@@ -60,6 +79,12 @@ type createVolumeRequest struct {
 
 // Create handles POST /api/v1/volumes
 func (h *VolumeHandler) Create(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	var req createVolumeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -72,6 +97,10 @@ func (h *VolumeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.SizeMB < 0 || req.SizeMB > 102400 {
 		writeError(w, http.StatusBadRequest, "size_mb must be between 0 and 102400")
+		return
+	}
+	if req.AppID != "" && !h.appVisibleToTenant(r.Context(), req.AppID, claims.TenantID, nil) {
+		writeError(w, http.StatusNotFound, "app not found")
 		return
 	}
 

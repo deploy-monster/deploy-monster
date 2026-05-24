@@ -15,7 +15,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
 
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, totpCode?: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
   initialize: () => Promise<void>;
@@ -41,8 +41,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isLoading: true,
 
-  login: async (email, password) => {
-    await authAPI.login({ email, password });
+  login: async (email, password, totpCode) => {
+    await authAPI.login({ email, password, totp_code: totpCode || undefined });
     // Use /auth/me to get verified user info instead of decoding JWT client-side
     const resp = await api.get<MeResponse>('/auth/me');
     if (resp?.user?.id) {

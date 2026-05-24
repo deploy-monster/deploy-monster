@@ -16,6 +16,7 @@ type DeployTriggerHandler struct {
 	store     core.Store
 	runtime   core.ContainerRuntime
 	events    *core.EventBus
+	freeze    core.BoltStorer
 	serverCtx context.Context // canceled on graceful shutdown; goroutines should select on this
 }
 
@@ -25,6 +26,9 @@ func NewDeployTriggerHandler(store core.Store, runtime core.ContainerRuntime, ev
 
 // SetServerContext sets the server-lifetime context used by background goroutines.
 func (h *DeployTriggerHandler) SetServerContext(ctx context.Context) { h.serverCtx = ctx }
+
+// SetDeployFreezeStore enables deploy-freeze enforcement for manual deploys.
+func (h *DeployTriggerHandler) SetDeployFreezeStore(bolt core.BoltStorer) { h.freeze = bolt }
 
 // buildDeployLabels creates container labels including HTTP routing labels from domains.
 func (h *DeployTriggerHandler) buildDeployLabels(ctx context.Context, app *core.Application, version int) map[string]string {
@@ -67,6 +71,11 @@ func (h *DeployTriggerHandler) TriggerDeploy(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	appID := app.ID
+
+	if activeDeployFreeze(h.freeze, app.TenantID) {
+		writeError(w, http.StatusLocked, "deployments are currently frozen")
+		return
+	}
 
 	if app.SourceType == "image" {
 		// For image-type apps, just redeploy the same image

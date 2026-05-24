@@ -57,6 +57,15 @@ func TestSMTPProvider_Validate(t *testing.T) {
 			wantErr: "invalid",
 		},
 		{
+			name: "from name header injection",
+			cfg: core.SMTPConfig{
+				Host:     "mail.example.com",
+				From:     "noreply@example.com",
+				FromName: "Deploy Monster\r\nBcc: attacker@example.com",
+			},
+			wantErr: "invalid header characters",
+		},
+		{
 			name: "username without password",
 			cfg: core.SMTPConfig{
 				Host: "mail.example.com", From: "noreply@example.com",
@@ -160,6 +169,49 @@ func TestSMTPProvider_Send_RejectsEmptyRecipient(t *testing.T) {
 	defer cancel()
 	if err := p.Send(ctx, "", "s", "b", "text"); err == nil {
 		t.Error("Send with empty recipient = nil, want error")
+	}
+}
+
+func TestSMTPProvider_Send_RejectsHeaderInjection(t *testing.T) {
+	tests := []struct {
+		name      string
+		recipient string
+		subject   string
+		wantErr   string
+	}{
+		{
+			name:      "subject crlf",
+			recipient: "admin@example.com",
+			subject:   "Alert\r\nBcc: attacker@example.com",
+			wantErr:   "subject",
+		},
+		{
+			name:      "recipient crlf",
+			recipient: "admin@example.com\r\nBcc: attacker@example.com",
+			subject:   "Alert",
+			wantErr:   "recipient",
+		},
+		{
+			name:      "subject nul",
+			recipient: "admin@example.com",
+			subject:   "Alert\x00Bcc: attacker@example.com",
+			wantErr:   "subject",
+		},
+	}
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host: "mail.example.com", From: "noreply@example.com",
+	}, discardLogger())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
+			err := p.Send(ctx, tt.recipient, tt.subject, "body", "text")
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Send = %v, want error containing %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 

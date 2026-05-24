@@ -2,7 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -36,6 +40,59 @@ type redirectList struct {
 	Rules []RedirectRule `json:"rules"`
 }
 
+var (
+	errRedirectLimitReached = errors.New("redirect rule limit reached")
+	errRedirectListMissing  = errors.New("redirect list missing")
+)
+
+func validateRedirectRule(rule RedirectRule) error {
+	if rule.Source == "" || rule.Destination == "" {
+		return fmt.Errorf("source and destination required")
+	}
+	if len(rule.Source) > 2048 {
+		return fmt.Errorf("source must be 2048 characters or less")
+	}
+	if len(rule.Destination) > 2048 {
+		return fmt.Errorf("destination must be 2048 characters or less")
+	}
+	if strings.ContainsAny(rule.Source, "\r\n") || strings.ContainsAny(rule.Destination, "\r\n") {
+		return fmt.Errorf("source and destination must not contain control characters")
+	}
+	if !strings.HasPrefix(rule.Source, "/") || strings.HasPrefix(rule.Source, "//") {
+		return fmt.Errorf("source must be an absolute path")
+	}
+
+	ruleType := rule.Type
+	if ruleType == "" {
+		ruleType = "redirect"
+	}
+	switch ruleType {
+	case "redirect", "rewrite":
+	default:
+		return fmt.Errorf("type must be redirect or rewrite")
+	}
+
+	destinationIsPath := strings.HasPrefix(rule.Destination, "/") && !strings.HasPrefix(rule.Destination, "//")
+	if ruleType == "rewrite" {
+		if !destinationIsPath {
+			return fmt.Errorf("rewrite destination must be an absolute path")
+		}
+		return nil
+	}
+	if destinationIsPath {
+		return nil
+	}
+
+	u, err := url.Parse(rule.Destination)
+	if err != nil || !u.IsAbs() || u.Host == "" {
+		return fmt.Errorf("destination must be an absolute path or http(s) URL")
+	}
+	if u.Scheme != "https" && u.Scheme != "http" {
+		return fmt.Errorf("destination URL must use http or https")
+	}
+	return nil
+}
+
 // List handles GET /api/v1/apps/{id}/redirects
 func (h *RedirectHandler) List(w http.ResponseWriter, r *http.Request) {
 	app := requireTenantApp(w, r, h.store)
@@ -67,19 +124,14 @@ func (h *RedirectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rule.Source == "" || rule.Destination == "" {
-		writeError(w, http.StatusBadRequest, "source and destination required")
-		return
-	}
-	if len(rule.Source) > 2048 {
-		writeError(w, http.StatusBadRequest, "source must be 2048 characters or less")
-		return
-	}
-	if len(rule.Destination) > 2048 {
-		writeError(w, http.StatusBadRequest, "destination must be 2048 characters or less")
+	if err := validateRedirectRule(rule); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
+	if rule.Type == "" {
+		rule.Type = "redirect"
+	}
 	if rule.StatusCode == 0 {
 		rule.StatusCode = 301
 	}
@@ -92,17 +144,19 @@ func (h *RedirectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	rule.ID = core.GenerateID()
 	rule.Enabled = true
 
-	// Load existing rules
 	var list redirectList
-	_ = h.bolt.Get("redirects", appID, &list)
-
-	if len(list.Rules) >= 200 {
+	err := mutateBoltValue(h.bolt, "redirects", appID, &list, 0, func(_ bool) error {
+		if len(list.Rules) >= 200 {
+			return errRedirectLimitReached
+		}
+		list.Rules = append(list.Rules, rule)
+		return nil
+	})
+	if errors.Is(err, errRedirectLimitReached) {
 		writeError(w, http.StatusConflict, "redirect rule limit reached (200 per app)")
 		return
 	}
-	list.Rules = append(list.Rules, rule)
-
-	if err := h.bolt.Set("redirects", appID, list, 0); err != nil {
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save redirect rule")
 		return
 	}
@@ -131,20 +185,24 @@ func (h *RedirectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var list redirectList
-	if err := h.bolt.Get("redirects", appID, &list); err != nil {
+	err := mutateBoltValue(h.bolt, "redirects", appID, &list, 0, func(exists bool) error {
+		if !exists {
+			return errRedirectListMissing
+		}
+		filtered := make([]RedirectRule, 0, len(list.Rules))
+		for _, r := range list.Rules {
+			if r.ID != ruleID {
+				filtered = append(filtered, r)
+			}
+		}
+		list.Rules = filtered
+		return nil
+	})
+	if errors.Is(err, errRedirectListMissing) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-
-	filtered := make([]RedirectRule, 0, len(list.Rules))
-	for _, r := range list.Rules {
-		if r.ID != ruleID {
-			filtered = append(filtered, r)
-		}
-	}
-	list.Rules = filtered
-
-	if err := h.bolt.Set("redirects", appID, list, 0); err != nil {
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update redirects")
 		return
 	}

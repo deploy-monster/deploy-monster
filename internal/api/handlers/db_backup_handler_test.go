@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,22 @@ import (
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+type fakeDBSnapshotter struct {
+	data       string
+	called     bool
+	calledPath string
+	err        error
+}
+
+func (f *fakeDBSnapshotter) SnapshotBackup(_ context.Context, destPath string) error {
+	f.called = true
+	f.calledPath = destPath
+	if f.err != nil {
+		return f.err
+	}
+	return os.WriteFile(destPath, []byte(f.data), 0644)
+}
 
 // ─── DB Backup ───────────────────────────────────────────────────────────────
 
@@ -57,6 +74,48 @@ func TestDBBackup_Backup_Success(t *testing.T) {
 
 	if rr.Body.String() != "sqlite-data-here" {
 		t.Errorf("expected body 'sqlite-data-here', got %q", rr.Body.String())
+	}
+}
+
+func TestDBBackup_Backup_UsesSnapshotter(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	if err := os.WriteFile(dbPath, []byte("live-file"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	snapshotter := &fakeDBSnapshotter{data: "consistent-snapshot"}
+
+	c := &core.Core{
+		Config: &core.Config{
+			Database: core.DatabaseConfig{
+				Driver: "sqlite",
+				Path:   dbPath,
+			},
+		},
+		DB:       &core.Database{Snapshotter: snapshotter},
+		Events:   core.NewEventBus(slog.Default()),
+		Services: core.NewServices(),
+		Logger:   slog.Default(),
+	}
+	handler := NewDBBackupHandler(c)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/db/backup", nil)
+	req = withClaims(req, "user1", "tenant1", "role_super_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+
+	handler.Backup(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !snapshotter.called {
+		t.Fatal("expected SnapshotBackup to be used")
+	}
+	if snapshotter.calledPath == "" {
+		t.Fatal("expected SnapshotBackup destination path")
+	}
+	if rr.Body.String() != "consistent-snapshot" {
+		t.Fatalf("body = %q, want consistent-snapshot", rr.Body.String())
 	}
 }
 

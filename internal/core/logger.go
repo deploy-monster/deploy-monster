@@ -160,9 +160,9 @@ func (ls *LokiSink) flush() {
 // multiHandler is a slog.Handler that fans out to one primary handler
 // (stdout/stderr) and zero or more LogSink backends.
 type multiHandler struct {
-	primary  slog.Handler
-	sinks    []LogSink
-	mu       sync.Mutex
+	primary slog.Handler
+	sinks   []LogSink
+	mu      sync.Mutex
 }
 
 func (mh *multiHandler) Enabled(_ context.Context, l slog.Level) bool {
@@ -172,7 +172,9 @@ func (mh *multiHandler) Enabled(_ context.Context, l slog.Level) bool {
 func (mh *multiHandler) Handle(ctx context.Context, r slog.Record) error {
 	mh.mu.Lock()
 	defer mh.mu.Unlock()
-	mh.primary.Handle(ctx, r)
+	if err := mh.primary.Handle(ctx, r); err != nil {
+		return err
+	}
 	for _, s := range mh.sinks {
 		s.Handle(r)
 	}

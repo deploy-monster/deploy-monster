@@ -285,8 +285,10 @@ func TestLocalExecutor_ListByLabels(t *testing.T) {
 func TestLocalExecutor_Exec(t *testing.T) {
 	rt := &mockRuntime{
 		execFn: func(_ context.Context, containerID string, cmd []string) (string, error) {
-			// LocalExecutor.Exec calls runtime.Exec with ("", ["sh", "-c", command])
-			if len(cmd) != 3 || cmd[0] != "sh" || cmd[1] != "-c" || cmd[2] != "ls -la" {
+			if containerID != "" {
+				t.Errorf("unexpected container ID: %q", containerID)
+			}
+			if len(cmd) != 2 || cmd[0] != "ls" || cmd[1] != "-la" {
 				t.Errorf("unexpected cmd: %v", cmd)
 			}
 			return "/root\n", nil
@@ -300,6 +302,20 @@ func TestLocalExecutor_Exec(t *testing.T) {
 	}
 	if output != "/root\n" {
 		t.Errorf("output = %q", output)
+	}
+}
+
+func TestLocalExecutor_Exec_BlocksShellEval(t *testing.T) {
+	rt := &mockRuntime{
+		execFn: func(_ context.Context, _ string, cmd []string) (string, error) {
+			t.Fatalf("runtime Exec should not be called, got %v", cmd)
+			return "", nil
+		},
+	}
+	exec := NewLocalExecutor(rt, "local")
+
+	if _, err := exec.Exec(context.Background(), "bash -c id"); err == nil {
+		t.Fatal("expected blocked command error")
 	}
 }
 

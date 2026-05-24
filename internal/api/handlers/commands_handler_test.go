@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -60,6 +61,9 @@ func TestCommand_Run_Success(t *testing.T) {
 	if resp["container_id"] != "container123" {
 		t.Errorf("expected container_id=container123, got %v", resp["container_id"])
 	}
+	if !reflect.DeepEqual(runtime.execCmd, []string{"php", "artisan", "migrate"}) {
+		t.Fatalf("exec cmd = %#v, want direct argv", runtime.execCmd)
+	}
 }
 
 func TestCommand_Run_DefaultTimeout(t *testing.T) {
@@ -93,6 +97,34 @@ func TestCommand_Run_DefaultTimeout(t *testing.T) {
 	}
 }
 
+func TestCommand_Run_ShortContainerID(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	runtime := &mockContainerRuntime{
+		containers: []core.ContainerInfo{{ID: "short", Name: "myapp", Status: "running"}},
+	}
+	handler := NewCommandHandler(runtime, store, testCore().Events)
+
+	body, _ := json.Marshal(runCommandRequest{Command: "echo hello"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/commands", bytes.NewReader(body))
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Run(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp["container_id"] != "short" {
+		t.Fatalf("container_id = %v, want short", resp["container_id"])
+	}
+}
+
 func TestCommand_Run_EmptyCommand(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
@@ -111,6 +143,31 @@ func TestCommand_Run_EmptyCommand(t *testing.T) {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 	assertErrorMessage(t, rr, "command is required")
+}
+
+func TestCommand_Run_BlocksShellEvalFlag(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	runtime := &mockContainerRuntime{
+		containers: []core.ContainerInfo{{ID: "container123456789abcdef", Name: "myapp", Status: "running"}},
+	}
+	handler := NewCommandHandler(runtime, store, testCore().Events)
+
+	body, _ := json.Marshal(runCommandRequest{Command: "bash -c id"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/commands", bytes.NewReader(body))
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Run(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertErrorMessage(t, rr, "command contains blocked pattern for security reasons")
+	if runtime.execCalls != 0 {
+		t.Fatalf("blocked command should not reach runtime exec, got %d calls", runtime.execCalls)
+	}
 }
 
 func TestCommand_Run_InvalidJSON(t *testing.T) {

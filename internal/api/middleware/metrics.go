@@ -9,15 +9,10 @@ import (
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
 )
-
-// processStart is captured at package init so /metrics/api can expose
-// uptime — the soak harness uses this to correlate sample timestamps
-// across a long run and detect clock drift or restarts.
-var processStart = time.Now()
 
 // APIMetrics collects HTTP request metrics for the management API.
 type APIMetrics struct {
@@ -38,9 +33,9 @@ type APIMetrics struct {
 	deploysFailed prometheus.Counter
 	buildsTotal   prometheus.Counter
 	buildsFailed  prometheus.Counter
-	appsCreated  prometheus.Counter
-	appsDeleted  prometheus.Counter
-	eventBus     *core.EventBus // optional, for Stats() in handler
+	appsCreated   prometheus.Counter
+	appsDeleted   prometheus.Counter
+	eventBus      *core.EventBus // optional, for Stats() in handler
 }
 
 // NewAPIMetrics creates a new API metrics collector with Prometheus histogram.
@@ -74,7 +69,7 @@ func NewAPIMetrics() *APIMetrics {
 			Name: "http_response_bytes_total",
 			Help: "Total response bytes sent.",
 		}),
-		deploysTotal:   prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_deploys_total", Help: "Total deployments."}),
+		deploysTotal:  prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_deploys_total", Help: "Total deployments."}),
 		deploysFailed: prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_deploys_failed_total", Help: "Failed deployments."}),
 		buildsTotal:   prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_builds_total", Help: "Total builds."}),
 		buildsFailed:  prometheus.NewCounter(prometheus.CounterOpts{Name: "deploymonster_builds_failed_total", Help: "Failed builds."}),
@@ -150,7 +145,9 @@ func (m *APIMetrics) Handler() http.HandlerFunc {
 // This exists for test compatibility - the actual counter is a Prometheus counter.
 func (m *APIMetrics) TotalBytesOut() int64 {
 	var m2 dto.Metric
-	m.bytesOutTotal.Write(&m2)
+	if err := m.bytesOutTotal.Write(&m2); err != nil {
+		return 0
+	}
 	return int64(m2.Counter.GetValue())
 }
 

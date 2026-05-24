@@ -232,10 +232,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnauthorized, "TOTP code required")
 			return
 		}
-		// Validate TOTP code using the stored encrypted secret
-		// The stored secret is bcrypt hashed, we need the raw secret for TOTP validation
-		// Since we store bcrypt(secret), we pass the encrypted secret to validation
-		// Note: in production, consider using a separate TOTP secret storage
+		// Validate TOTP code using the auth module's TOTP service. The service
+		// decrypts the stored secret and fails closed if no vault is configured.
 		if !h.validateTOTP(user.ID, req.TOTPCode) {
 			h.incrementPerAccountRateLimit(r.Context(), req.Email)
 			writeError(w, http.StatusUnauthorized, "invalid TOTP code")

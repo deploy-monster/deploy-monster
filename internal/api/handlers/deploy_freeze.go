@@ -35,6 +35,23 @@ type freezeWindowList struct {
 	Windows []FreezeWindow `json:"windows"`
 }
 
+func activeDeployFreeze(bolt core.BoltStorer, tenantID string) bool {
+	if bolt == nil || tenantID == "" {
+		return false
+	}
+	var list freezeWindowList
+	if err := bolt.Get("deploy_freeze", tenantID, &list); err != nil {
+		return false
+	}
+	now := time.Now()
+	for _, fw := range list.Windows {
+		if fw.Active && now.After(fw.StartsAt) && now.Before(fw.EndsAt) {
+			return true
+		}
+	}
+	return false
+}
+
 // Get handles GET /api/v1/deploy/freeze
 func (h *DeployFreezeHandler) Get(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())

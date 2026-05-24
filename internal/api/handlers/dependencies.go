@@ -46,7 +46,7 @@ func (h *DependencyHandler) Graph(w http.ResponseWriter, r *http.Request) {
 			svcName := c.Labels["monster.stack.service"]
 			if svcName != "" && c.Labels["monster.app.id"] != appID {
 				nodes = append(nodes, DependencyNode{
-					ID:     c.ID[:12],
+					ID:     shortResourceID(c.ID),
 					Name:   svcName,
 					Type:   guessNodeType(c.Image),
 					Status: c.State,

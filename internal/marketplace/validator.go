@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/deploy-monster/deploy-monster/internal/compose"
 	"gopkg.in/yaml.v3"
 )
 
@@ -104,6 +105,8 @@ func ValidateTemplate(t *Template) error {
 	}
 	if strings.TrimSpace(t.ComposeYAML) == "" {
 		addf("compose_yaml is empty")
+	} else if len(t.ComposeYAML) > compose.MaxComposeYAMLSize {
+		addf("compose_yaml exceeds %d bytes", compose.MaxComposeYAMLSize)
 	}
 
 	// ---- min resources sanity ----

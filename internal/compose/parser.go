@@ -9,6 +9,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// MaxComposeYAMLSize is the maximum accepted compose document size.
+const MaxComposeYAMLSize = 1 << 20 // 1 MiB
+
 // ComposeFile represents a parsed docker-compose.yml.
 type ComposeFile struct {
 	Version  string                    `yaml:"version,omitempty" json:"version,omitempty"`
@@ -105,6 +108,10 @@ type LoggingConfig struct {
 
 // Parse reads and parses a docker-compose YAML string.
 func Parse(data []byte) (*ComposeFile, error) {
+	if len(data) > MaxComposeYAMLSize {
+		return nil, fmt.Errorf("compose yaml exceeds %d bytes", MaxComposeYAMLSize)
+	}
+
 	var cf ComposeFile
 	if err := yaml.Unmarshal(data, &cf); err != nil {
 		return nil, fmt.Errorf("parse compose yaml: %w", err)

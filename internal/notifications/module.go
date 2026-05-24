@@ -77,12 +77,22 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	if c.Config != nil {
 		cfg := c.Config.Notifications
 		if cfg.SlackWebhook != "" {
-			m.dispatcher.RegisterProvider(NewSlackProvider(cfg.SlackWebhook))
-			m.logger.Info("slack provider registered")
+			provider := NewSlackProvider(cfg.SlackWebhook)
+			if err := provider.Validate(); err != nil {
+				m.logger.Warn("slack provider invalid, skipping", "error", err)
+			} else {
+				m.dispatcher.RegisterProvider(provider)
+				m.logger.Info("slack provider registered")
+			}
 		}
 		if cfg.DiscordWebhook != "" {
-			m.dispatcher.RegisterProvider(NewDiscordProvider(cfg.DiscordWebhook))
-			m.logger.Info("discord provider registered")
+			provider := NewDiscordProvider(cfg.DiscordWebhook)
+			if err := provider.Validate(); err != nil {
+				m.logger.Warn("discord provider invalid, skipping", "error", err)
+			} else {
+				m.dispatcher.RegisterProvider(provider)
+				m.logger.Info("discord provider registered")
+			}
 		}
 		if cfg.TelegramToken != "" {
 			chatID := c.Config.Notifications.TelegramChatID

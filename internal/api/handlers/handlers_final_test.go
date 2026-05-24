@@ -550,11 +550,22 @@ func TestFinal_Import_WithProject(t *testing.T) {
 func TestFinal_Invite_Create_StoreError(t *testing.T) {
 	store := newMockStore()
 	store.errCreateInvite = fmt.Errorf("db error")
+	store.addUser(&core.User{ID: "u1", Email: "test@test.com"}, &core.TeamMember{
+		ID:       "tm-1",
+		UserID:   "u1",
+		TenantID: "t1",
+		RoleID:   "role_owner",
+		Status:   "active",
+	})
 	// Seed role so RBAC check passes
 	store.roles["t1"] = append(store.roles["t1"], core.Role{
 		ID:              "role_owner",
 		TenantID:        "t1",
 		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	}, core.Role{
+		ID:              "role_member",
+		TenantID:        "t1",
+		PermissionsJSON: `[]`,
 	})
 	events := core.NewEventBus(slog.Default())
 	h := NewInviteHandler(store, events)

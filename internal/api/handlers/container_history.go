@@ -46,7 +46,7 @@ func (h *ContainerHistoryHandler) History(w http.ResponseWriter, r *http.Request
 		period = "1h"
 	}
 
-	// Try to load real metrics from BBolt
+	// Try to load real metrics from KV storage.
 	var ring metricsRingData
 	if h.bolt != nil {
 		_ = h.bolt.Get("metrics_ring", appID, &ring)

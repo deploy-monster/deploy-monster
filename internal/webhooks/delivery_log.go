@@ -18,7 +18,7 @@ type DeliveryLog struct {
 	UserID    string `json:"user_id,omitempty"`
 }
 
-// DeliveryTracker subscribes to webhook events and persists delivery logs to BBolt.
+// DeliveryTracker subscribes to webhook events and persists delivery logs to KV storage.
 type DeliveryTracker struct {
 	bolt   core.BoltStorer
 	events *core.EventBus
@@ -26,7 +26,7 @@ type DeliveryTracker struct {
 
 const deliveryLogBucket = "webhook_delivery_log"
 
-// NewDeliveryTracker creates a tracker that logs webhook deliveries to BBolt.
+// NewDeliveryTracker creates a tracker that logs webhook deliveries to KV storage.
 func NewDeliveryTracker(bolt core.BoltStorer, events *core.EventBus) *DeliveryTracker {
 	return &DeliveryTracker{bolt: bolt, events: events}
 }

@@ -40,7 +40,7 @@ func (h *ContainerTopHandler) Top(w http.ResponseWriter, r *http.Request) {
 	// Docker top would list processes — structural response
 	writeJSON(w, http.StatusOK, map[string]any{
 		"app_id":       appID,
-		"container_id": containers[0].ID[:12],
+		"container_id": shortResourceID(containers[0].ID),
 		"processes":    []any{},
 		"titles":       []string{"PID", "USER", "TIME", "COMMAND"},
 	})

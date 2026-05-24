@@ -1625,6 +1625,7 @@ func TestMutatingRoutes_ViewerRoleRequiresPermission(t *testing.T) {
 		{http.MethodPost, "/api/v1/topology/deploy"},
 		{http.MethodPost, "/api/v1/webhooks/outbound"},
 		{http.MethodDelete, "/api/v1/webhooks/outbound/webhook123"},
+		{http.MethodPost, "/api/v1/notifications/test"},
 		{http.MethodPost, "/api/v1/deploy/freeze"},
 		{http.MethodDelete, "/api/v1/deploy/freeze/freeze123"},
 		{http.MethodPost, "/api/v1/deploy/approvals/approval123/approve"},

@@ -84,7 +84,7 @@ func (h *SSHKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
 		PublicKey:   pubKeyStr,
 	}
 
-	// Store key metadata in BBolt (private key is only returned once)
+	// Store key metadata in KV storage (private key is only returned once)
 	var list sshKeyList
 	_ = h.bolt.Get("ssh_keys", claims.UserID, &list)
 

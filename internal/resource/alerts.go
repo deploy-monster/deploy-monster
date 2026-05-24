@@ -35,11 +35,10 @@ type AlertState struct {
 
 // AlertmanagerClient sends alerts to Prometheus Alertmanager via its v2 API.
 type AlertmanagerClient struct {
-	url       string
-	client    *http.Client
-	retries   int
-	logger    *slog.Logger
-	transport http.RoundTripper // for testing
+	url     string
+	client  *http.Client
+	retries int
+	logger  *slog.Logger
 }
 
 // NewAlertmanagerClient creates an Alertmanager webhook client.
@@ -100,11 +99,11 @@ func (c *AlertmanagerClient) Send(ctx context.Context, alerts []AlertmanagerAler
 
 // AlertmanagerAlert represents a single alert in the Alertmanager webhook API.
 type AlertmanagerAlert struct {
-	Labels      map[string]string `json:"labels"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-	StartsAt    time.Time        `json:"startsAt"`
-	EndsAt      time.Time        `json:"endsAt,omitempty"`
-	GeneratorURL string          `json:"generatorURL,omitempty"`
+	Labels       map[string]string `json:"labels"`
+	Annotations  map[string]string `json:"annotations,omitempty"`
+	StartsAt     time.Time         `json:"startsAt"`
+	EndsAt       time.Time         `json:"endsAt,omitempty"`
+	GeneratorURL string            `json:"generatorURL,omitempty"`
 }
 
 // AlertEngine evaluates metrics against alert rules and fires events.
@@ -202,7 +201,7 @@ func (ae *AlertEngine) Evaluate(ctx context.Context, metrics *core.ServerMetrics
 					},
 					Annotations: map[string]string{
 						"summary": rule.Name + " threshold exceeded",
-						"value":  fmt.Sprintf("%.2f", value),
+						"value":   fmt.Sprintf("%.2f", value),
 					},
 					StartsAt:     state.FiredAt,
 					GeneratorURL: "deploymonster://server/" + metrics.ServerID,

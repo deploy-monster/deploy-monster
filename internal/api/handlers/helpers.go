@@ -59,6 +59,13 @@ func paginateSlice[T any](items []T, pg pagination) ([]T, int) {
 	return items[start:end], total
 }
 
+func shortResourceID(id string) string {
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
+}
+
 // writePaginatedJSON writes a standard paginated JSON response.
 func writePaginatedJSON(w http.ResponseWriter, data any, total int, pg pagination) {
 	totalPages := (total + pg.PerPage - 1) / pg.PerPage

@@ -11,6 +11,25 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+func wsURL(serverURL string) string {
+	return "ws" + strings.TrimPrefix(serverURL, "http")
+}
+
+func wsOriginHeader(origin string) http.Header {
+	header := http.Header{}
+	header.Set("Origin", origin)
+	return header
+}
+
+func dialWS(t *testing.T, url, origin string) *websocket.Conn {
+	t.Helper()
+	conn, _, err := websocket.DefaultDialer.Dial(url, wsOriginHeader(origin))
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	return conn
+}
+
 func TestNewDeployHub(t *testing.T) {
 	hub := NewDeployHub()
 	if hub == nil {
@@ -214,19 +233,14 @@ func TestGetDeployHub_ReturnsSingleton(t *testing.T) {
 
 func TestServeWS_CleansUpOnDisconnect(t *testing.T) {
 	hub := NewDeployHub()
-	// Allow test connections without origin header
-	hub.SetAllowedOrigins("*")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hub.ServeWS(w, r, "proj-cleanup")
 	}))
 	defer server.Close()
+	hub.SetAllowedOrigins(server.URL)
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		t.Fatalf("failed to connect: %v", err)
-	}
+	conn := dialWS(t, wsURL(server.URL), server.URL)
 
 	// Verify the client was registered
 	time.Sleep(50 * time.Millisecond)
@@ -250,7 +264,7 @@ func TestServeWS_CleansUpOnDisconnect(t *testing.T) {
 	}
 }
 
-func TestDeployHub_OriginValidation_AllowAll(t *testing.T) {
+func TestDeployHub_OriginValidation_WildcardRejected(t *testing.T) {
 	hub := NewDeployHub()
 	hub.SetAllowedOrigins("*")
 
@@ -262,11 +276,10 @@ func TestDeployHub_OriginValidation_AllowAll(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	header := http.Header{}
 	header.Set("Origin", "http://evil.example.com")
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, header)
-	if err != nil {
-		t.Fatalf("expected connection with * origins, got error: %v", err)
+	_, _, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if err == nil {
+		t.Fatal("expected wildcard WebSocket origin to be rejected")
 	}
-	conn.Close()
 }
 
 func TestDeployHub_OriginValidation_AllowedOrigin(t *testing.T) {

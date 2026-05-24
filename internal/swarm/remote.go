@@ -95,9 +95,13 @@ func (r *RemoteExecutor) ListByLabels(ctx context.Context, labels map[string]str
 }
 
 func (r *RemoteExecutor) Exec(ctx context.Context, command string) (string, error) {
+	cmd := core.SplitCommand(command)
+	if !core.CommandTokensSafe(cmd) {
+		return "", fmt.Errorf("node command blocked by security policy")
+	}
 	resp, err := r.sendCommand(ctx, core.AgentMsgContainerExec, map[string]any{
 		"container_id": "",
-		"cmd":          []string{"sh", "-c", command},
+		"cmd":          cmd,
 	})
 	if err != nil {
 		return "", err

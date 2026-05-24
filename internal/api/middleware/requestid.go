@@ -14,8 +14,9 @@ import (
 
 type requestIDKey struct{}
 type traceIDKey struct{}
+type tracerSpanKey struct{}
 
-var tpKey = struct{}{}
+var tpKey tracerSpanKey
 
 // RequestID generates a unique ID per request for tracing and debugging.
 // Supports W3C Trace Context: if a valid traceparent header is present,
@@ -69,7 +70,8 @@ func RequestID(c *corepkg.Core) func(http.Handler) http.Handler {
 					})
 					opts = append(opts, trace.WithLinks(trace.Link{SpanContext: parentSC}))
 				}
-				ctx, span := c.Tracer.Start(ctx, spanName, opts...)
+				var span trace.Span
+				ctx, span = c.Tracer.Start(ctx, spanName, opts...)
 				defer span.End()
 				ctx = context.WithValue(ctx, tpKey, span)
 			}

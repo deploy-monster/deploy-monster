@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/billing"
@@ -56,6 +58,8 @@ func (h *BillingHandler) GetUsage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Warn("billing: failed to list apps", "error", err)
 	}
+	containersUsed := latestUsageMetric(r.Context(), h.store, claims.TenantID, "containers")
+	ramUsedMB := latestUsageMetric(r.Context(), h.store, claims.TenantID, "ram_mb", "memory_mb", "ram")
 
 	// Quota check — use the ctx-aware variant so a client disconnect
 	// cancels the probe instead of letting it run against a dead
@@ -64,11 +68,64 @@ func (h *BillingHandler) GetUsage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Warn("billing: failed quota check", "error", err)
 	}
+	appsOK := currentPlan.MaxApps < 0 || appCount < currentPlan.MaxApps
+	if status != nil {
+		appsOK = status.AppsOK
+	}
+	containersOK := currentPlan.MaxContainers < 0 || containersUsed < currentPlan.MaxContainers
+	ramOK := currentPlan.MaxRAMMB < 0 || ramUsedMB <= currentPlan.MaxRAMMB
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"plan":       currentPlan,
-		"apps_used":  appCount,
-		"apps_limit": currentPlan.MaxApps,
-		"quota":      status,
+		"plan":             currentPlan,
+		"apps_used":        appCount,
+		"apps_limit":       currentPlan.MaxApps,
+		"containers_used":  containersUsed,
+		"containers_limit": currentPlan.MaxContainers,
+		"ram_used_mb":      ramUsedMB,
+		"ram_limit_mb":     currentPlan.MaxRAMMB,
+		"quota": map[string]any{
+			"apps_used":        appCount,
+			"apps_limit":       currentPlan.MaxApps,
+			"apps_ok":          appsOK,
+			"containers_used":  containersUsed,
+			"containers_limit": currentPlan.MaxContainers,
+			"containers_ok":    containersOK,
+			"ram_used_mb":      ramUsedMB,
+			"ram_limit_mb":     currentPlan.MaxRAMMB,
+			"ram_ok":           ramOK,
+		},
 	})
+}
+
+func latestUsageMetric(ctx context.Context, store core.Store, tenantID string, metricTypes ...string) int {
+	records, _, err := store.ListUsageRecordsByTenant(ctx, tenantID, 100, 0)
+	if err != nil {
+		slog.Warn("billing: failed to list usage records", "tenant_id", tenantID, "error", err)
+		return 0
+	}
+	metricSet := make(map[string]struct{}, len(metricTypes))
+	for _, metricType := range metricTypes {
+		metricSet[metricType] = struct{}{}
+	}
+	var latest *core.UsageRecord
+	for _, record := range records {
+		if _, ok := metricSet[record.MetricType]; !ok {
+			continue
+		}
+		if latest == nil || usageRecordTime(record).After(usageRecordTime(*latest)) {
+			rec := record
+			latest = &rec
+		}
+	}
+	if latest != nil {
+		return int(latest.Value)
+	}
+	return 0
+}
+
+func usageRecordTime(record core.UsageRecord) time.Time {
+	if !record.HourBucket.IsZero() {
+		return record.HourBucket
+	}
+	return record.CreatedAt
 }

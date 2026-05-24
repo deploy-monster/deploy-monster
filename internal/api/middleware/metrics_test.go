@@ -18,12 +18,6 @@ func getCounterValue(c prometheus.Counter) float64 {
 	return m.Counter.GetValue()
 }
 
-func getGaugeValue(g prometheus.Gauge) float64 {
-	var m dto.Metric
-	g.Write(&m)
-	return m.Gauge.GetValue()
-}
-
 func TestAPIMetrics_Middleware_CountsRequests(t *testing.T) {
 	m := NewAPIMetrics()
 	handler := m.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -492,3 +492,6 @@ func (m *mockStore) ListServersByTenant(_ context.Context, _ string) ([]core.Ser
 func (m *mockStore) ListAllServers(_ context.Context) ([]core.Server, error) { return nil, nil }
 func (m *mockStore) UpdateServerStatus(_ context.Context, _, _ string) error { return nil }
 func (m *mockStore) DeleteServer(_ context.Context, _ string) error          { return nil }
+func (m *mockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, error) {
+	return nil, nil
+}

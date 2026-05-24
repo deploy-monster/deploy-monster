@@ -19,7 +19,20 @@ func NewAdminAPIKeyHandler(store core.Store, bolt core.BoltStorer) *AdminAPIKeyH
 	return &AdminAPIKeyHandler{store: store, bolt: bolt}
 }
 
-// apiKeyRecord is persisted in BBolt for each API key.
+func requireSuperAdminClaims(w http.ResponseWriter, r *http.Request) (*auth.Claims, bool) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return nil, false
+	}
+	if claims.RoleID != "role_super_admin" {
+		writeError(w, http.StatusForbidden, "insufficient privileges")
+		return nil, false
+	}
+	return claims, true
+}
+
+// apiKeyRecord is persisted in KV storage for each API key.
 type apiKeyRecord struct {
 	Prefix    string     `json:"prefix"`
 	Hash      string     `json:"hash"`
@@ -42,8 +55,12 @@ type apiKeyIndex struct {
 	Prefixes []string `json:"prefixes"`
 }
 
-// List handles GET /api/v1/admin/api-keys
-func (h *AdminAPIKeyHandler) List(w http.ResponseWriter, _ *http.Request) {
+// List handles GET /api/v1/admin/api-keys.
+func (h *AdminAPIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireSuperAdminClaims(w, r); !ok {
+		return
+	}
+
 	var idx apiKeyIndex
 	if err := h.bolt.Get("api_keys", "_index", &idx); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
@@ -68,11 +85,11 @@ func (h *AdminAPIKeyHandler) List(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Generate handles POST /api/v1/admin/api-keys.
-// Authorization is enforced by middleware.RequireSuperAdmin at the router
-// level; by the time this runs, claims are guaranteed present and role is
-// role_super_admin. The claims fetch below is only for created_by tagging.
 func (h *AdminAPIKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
-	claims := auth.ClaimsFromContext(r.Context())
+	claims, ok := requireSuperAdminClaims(w, r)
+	if !ok {
+		return
+	}
 
 	pair, err := auth.GenerateAPIKey()
 	if err != nil {
@@ -147,8 +164,11 @@ func (h *AdminAPIKeyHandler) CleanupExpiredKeys() int {
 }
 
 // Revoke handles DELETE /api/v1/admin/api-keys/{prefix}.
-// Authorized by middleware.RequireSuperAdmin at the router.
 func (h *AdminAPIKeyHandler) Revoke(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireSuperAdminClaims(w, r); !ok {
+		return
+	}
+
 	prefix, ok := requirePathParam(w, r, "prefix")
 	if !ok {
 		return

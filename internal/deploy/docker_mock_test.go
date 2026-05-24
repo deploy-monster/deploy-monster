@@ -49,10 +49,9 @@ func newTestDockerManager(t *testing.T, handler http.Handler) (*DockerManager, *
 	// Parse the server URL to get host:port
 	addr := strings.TrimPrefix(srv.URL, "http://")
 
-	cli, err := client.NewClientWithOpts(
+	cli, err := client.New(
 		client.WithHost("tcp://"+addr),
 		client.WithHTTPClient(srv.Client()),
-		client.WithAPIVersionNegotiation(),
 	)
 	if err != nil {
 		srv.Close()
@@ -728,9 +727,8 @@ func newExecTestServer(t *testing.T, execOutput string, execCreateErr bool, exec
 
 	addr := listener.Addr().String()
 
-	cli, err := client.NewClientWithOpts(
-		client.WithHost("tcp://"+addr),
-		client.WithAPIVersionNegotiation(),
+	cli, err := client.New(
+		client.WithHost("tcp://" + addr),
 	)
 	if err != nil {
 		listener.Close()
@@ -955,9 +953,8 @@ func TestDockerManager_Exec_ReadError(t *testing.T) {
 	}()
 
 	addr := listener.Addr().String()
-	cli, err := client.NewClientWithOpts(
-		client.WithHost("tcp://"+addr),
-		client.WithAPIVersionNegotiation(),
+	cli, err := client.New(
+		client.WithHost("tcp://" + addr),
 	)
 	if err != nil {
 		listener.Close()

@@ -119,6 +119,35 @@ func TestBuildLog_Download_WithLog(t *testing.T) {
 	}
 }
 
+func TestBuildLog_Download_ShortAppID(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "a", TenantID: "tenant1", Name: "Test", Status: "running"})
+	store.latestDeployments["a"] = &core.Deployment{
+		ID:       "dep1",
+		AppID:    "a",
+		Version:  3,
+		Status:   "success",
+		BuildLog: "BUILD LOG CONTENT HERE\n",
+	}
+
+	handler := NewBuildLogHandler(store)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a/builds/3/log/download", nil)
+	req.SetPathValue("id", "a")
+	req.SetPathValue("version", "3")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Download(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if cd := rr.Header().Get("Content-Disposition"); !strings.Contains(cd, "a-build-v3-") {
+		t.Fatalf("Content-Disposition = %q, want short app ID filename", cd)
+	}
+}
+
 func TestBuildLog_Download_EmptyLog(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app12345", TenantID: "tenant1", Name: "Test", Status: "running"})

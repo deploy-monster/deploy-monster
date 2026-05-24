@@ -61,6 +61,19 @@ func TestCSRFProtect_NoCookie_PassesThrough(t *testing.T) {
 	}
 }
 
+func TestCSRFProtect_TokenCookieWithoutCSRFCookie_Rejects(t *testing.T) {
+	handler := CSRFProtect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
+	req.AddCookie(&http.Cookie{Name: "dm_access", Value: "access-token"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected 403 when token cookie is present without CSRF cookie, got %d", rec.Code)
+	}
+}
+
 func TestCSRFProtect_CookieWithoutHeader_Rejects(t *testing.T) {
 	handler := CSRFProtect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

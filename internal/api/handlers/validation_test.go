@@ -240,6 +240,63 @@ func TestRedirectHandler_Create_ValidStatusCodes(t *testing.T) {
 	}
 }
 
+func TestRedirectHandler_Create_RejectsUnsafeRuleShape(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"source must be path", `{"source":"https://example.com/old","destination":"/new"}`},
+		{"protocol relative destination", `{"source":"/old","destination":"//evil.example/path"}`},
+		{"javascript destination", `{"source":"/old","destination":"javascript:alert(1)"}`},
+		{"crlf destination", "{\"source\":\"/old\",\"destination\":\"/new\\r\\nX-Evil: yes\"}"},
+		{"rewrite external destination", `{"source":"/old","destination":"https://example.com/new","type":"rewrite"}`},
+		{"unknown type", `{"source":"/old","destination":"/new","type":"proxy"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockStore()
+			store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+			h := NewRedirectHandler(store, newMockBoltStore())
+			req := httptest.NewRequest("POST", "/api/v1/apps/app-1/redirects", strings.NewReader(tt.body))
+			req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+			req.SetPathValue("id", "app-1")
+			rr := httptest.NewRecorder()
+			h.Create(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("expected 400 for %s, got %d: %s", tt.name, rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestAppManifestValidate_ReusesGitURLPolicy(t *testing.T) {
+	tests := []struct {
+		name      string
+		sourceURL string
+	}{
+		{"http git source", "http://github.com/example/repo"},
+		{"git protocol source", "git://github.com/example/repo"},
+		{"file protocol source", "file:///etc/passwd"},
+		{"local path source", "/home/user/repo"},
+		{"metadata ip source", "https://169.254.169.254/latest/meta-data"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := AppManifest{
+				Name:       "app",
+				Type:       "web",
+				SourceType: "git",
+				SourceURL:  tt.sourceURL,
+			}
+			if errs := m.Validate(); len(errs) == 0 {
+				t.Fatalf("expected source_url error for %q", tt.sourceURL)
+			}
+		})
+	}
+}
+
 // ResponseHeaders: the header-splitting class — if header names can
 // contain CRLF or non-token characters, the reverse proxy will emit a
 // new header line downstream. Same defect class as sticky_sessions.

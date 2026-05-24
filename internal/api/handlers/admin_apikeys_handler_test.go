@@ -14,6 +14,7 @@ func TestAdminAPIKeys_List_Success(t *testing.T) {
 	handler := NewAdminAPIKeyHandler(store, newMockBoltStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/api-keys", nil)
+	req = withClaims(req, "user1", "tenant1", "role_super_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -85,6 +86,7 @@ func TestAdminAPIKeys_List_DoesNotExposeHashes(t *testing.T) {
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/api-keys", nil)
+	req = withClaims(req, "user1", "tenant1", "role_super_admin", "admin@test.com")
 	rr = httptest.NewRecorder()
 	handler.List(rr, req)
 	if rr.Code != http.StatusOK {
@@ -126,5 +128,64 @@ func TestAdminAPIKeys_Revoke_Success(t *testing.T) {
 
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rr.Code)
+	}
+}
+
+func TestAdminAPIKeys_RequireSuperAdminInHandler(t *testing.T) {
+	handler := NewAdminAPIKeyHandler(newMockStore(), newMockBoltStore())
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		call   func(http.ResponseWriter, *http.Request)
+		claims bool
+		role   string
+		want   int
+	}{
+		{
+			name:   "list without claims",
+			method: http.MethodGet,
+			path:   "/api/v1/admin/api-keys",
+			call:   handler.List,
+			want:   http.StatusUnauthorized,
+		},
+		{
+			name:   "generate tenant admin",
+			method: http.MethodPost,
+			path:   "/api/v1/admin/api-keys",
+			call:   handler.Generate,
+			claims: true,
+			role:   "role_admin",
+			want:   http.StatusForbidden,
+		},
+		{
+			name:   "revoke tenant admin",
+			method: http.MethodDelete,
+			path:   "/api/v1/admin/api-keys/pfx",
+			call:   handler.Revoke,
+			claims: true,
+			role:   "role_admin",
+			want:   http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if tt.method == http.MethodDelete {
+				req.SetPathValue("prefix", "pfx")
+			}
+			if tt.claims {
+				req = withClaims(req, "user1", "tenant1", tt.role, "user@test.com")
+			}
+			rr := httptest.NewRecorder()
+
+			tt.call(rr, req)
+
+			if rr.Code != tt.want {
+				t.Fatalf("expected %d, got %d: %s", tt.want, rr.Code, rr.Body.String())
+			}
+		})
 	}
 }

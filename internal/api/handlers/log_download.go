@@ -44,7 +44,7 @@ func (h *LogDownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 	}
 	defer reader.Close()
 
-	filename := fmt.Sprintf("%s-logs-%s.txt", appID[:8], time.Now().Format("20060102-150405"))
+	filename := fmt.Sprintf("%s-logs-%s.txt", core.ShortID(appID, 8), time.Now().Format("20060102-150405"))
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename="+safeFilename(filename))
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -47,6 +48,31 @@ func TestSnapshot_Create_Success(t *testing.T) {
 	}
 	if resp.ID == "" {
 		t.Error("expected non-empty snapshot ID")
+	}
+}
+
+func TestSnapshot_Create_ShortAppID(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "a", TenantID: "tenant1", Name: "Test"})
+	handler := NewSnapshotHandler(store, &mockContainerRuntime{}, testCore().Events)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/a/snapshots", nil)
+	req.SetPathValue("id", "a")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp SnapshotInfo
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !strings.HasPrefix(resp.Image, "monster-snapshot/a:") {
+		t.Fatalf("image = %q, want short app ID prefix", resp.Image)
 	}
 }
 

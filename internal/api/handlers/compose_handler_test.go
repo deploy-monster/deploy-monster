@@ -94,6 +94,34 @@ func TestComposeDeploy_AutoGeneratesName(t *testing.T) {
 	}
 }
 
+func TestComposeDeploy_BlockedDuringFreezeWindow(t *testing.T) {
+	store := newMockStore()
+	events := testCore().Events
+	bolt := newMockBoltStore()
+	if err := seedActiveDeployFreeze(bolt, "tenant1"); err != nil {
+		t.Fatalf("seed freeze: %v", err)
+	}
+	handler := NewComposeHandler(store, nil, events)
+	handler.SetDeployFreezeStore(bolt)
+
+	body, _ := json.Marshal(map[string]string{
+		"name": "my-stack",
+		"yaml": validComposeYAML,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/stacks", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Deploy(rr, req)
+
+	if rr.Code != http.StatusLocked {
+		t.Fatalf("expected 423, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if len(store.apps) != 0 {
+		t.Fatalf("deploy should not create apps during freeze, got %d", len(store.apps))
+	}
+}
+
 func TestComposeDeploy_NoClaims(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events

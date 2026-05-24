@@ -40,12 +40,10 @@ inconsistent.
 2. Copy the current database aside for analysis:
    ```bash
    sudo cp /var/lib/deploymonster/deploymonster.db /tmp/dm-migfail-$(date +%FT%H-%M).db
-   sudo cp /var/lib/deploymonster/deploymonster.bolt /tmp/dm-migfail-$(date +%FT%H-%M).bolt
    ```
 3. Restore the pre-upgrade backup from the upgrade's step-2 snapshot:
    ```bash
    sudo cp /var/lib/deploymonster/deploymonster.db.bak /var/lib/deploymonster/deploymonster.db
-   sudo cp /var/lib/deploymonster/deploymonster.bolt.bak /var/lib/deploymonster/deploymonster.bolt
    ```
 4. Put the previous binary back (you kept it, per the upgrade
    checklist):

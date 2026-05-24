@@ -115,6 +115,33 @@ func (s *SQLiteDB) Close() error {
 	return s.db.Close()
 }
 
+// ListMigrations returns the applied schema migrations in version order.
+func (s *SQLiteDB) ListMigrations(ctx context.Context) ([]core.MigrationStatus, error) {
+	ctx, cancel := s.withTimeout(ctx)
+	defer cancel()
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT version, name, strftime('%Y-%m-%dT%H:%M:%SZ', applied_at)
+		 FROM _migrations ORDER BY version`)
+	if err != nil {
+		return nil, fmt.Errorf("list migrations: %w", err)
+	}
+	defer rows.Close()
+
+	var migrations []core.MigrationStatus
+	for rows.Next() {
+		var m core.MigrationStatus
+		if err := rows.Scan(&m.Version, &m.Name, &m.AppliedAt); err != nil {
+			return nil, fmt.Errorf("scan migration: %w", err)
+		}
+		migrations = append(migrations, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate migrations: %w", err)
+	}
+	return migrations, nil
+}
+
 // Tx runs a function within a database transaction.
 // The transaction is automatically rolled back on error, committed on success.
 // If a query timeout is configured, the context is wrapped with that deadline.

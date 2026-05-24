@@ -43,11 +43,11 @@ type AgentClient struct {
 	// TLS configuration for mutual TLS. When certFile and keyFile are
 	// set the client presents a certificate and verifies the server
 	// using caFile (or system CAs if caFile is empty).
-	certFile string
-	keyFile  string
-	caFile   string
+	certFile  string
+	keyFile   string
+	caFile    string
 	tlsConfig *tls.Config
-	buildMod *build.Module
+	buildMod  *build.Module
 }
 
 // NewAgentClient creates a new agent-side client.
@@ -102,6 +102,13 @@ func (c *AgentClient) SetDefaultPort(port int) {
 // Only agents that want to execute builds (not just container operations) need this.
 func (c *AgentClient) SetBuildModule(buildMod *build.Module) {
 	c.buildMod = buildMod
+}
+
+func (c *AgentClient) requireRuntime() (core.ContainerRuntime, error) {
+	if c.runtime == nil {
+		return nil, fmt.Errorf("container runtime not configured on agent")
+	}
+	return c.runtime, nil
 }
 
 // Connect establishes a connection to the master and enters the message loop.
@@ -184,7 +191,7 @@ func (c *AgentClient) dial(ctx context.Context) error {
 	var conn net.Conn
 	var err error
 	if c.tlsConfig != nil {
-		var d tls.Dialer
+		d := tls.Dialer{Config: c.tlsConfig}
 		conn, err = d.DialContext(ctx, "tcp", host)
 		if err != nil {
 			return fmt.Errorf("tls dial %s: %w", host, err)
@@ -295,14 +302,22 @@ func (c *AgentClient) handleMessage(ctx context.Context, msg core.AgentMessage) 
 }
 
 func (c *AgentClient) handleContainerCreate(ctx context.Context, msg core.AgentMessage) (string, error) {
+	rt, err := c.requireRuntime()
+	if err != nil {
+		return "", err
+	}
 	opts, err := decodePayload[core.ContainerOpts](msg.Payload)
 	if err != nil {
 		return "", fmt.Errorf("decode container opts: %w", err)
 	}
-	return c.runtime.CreateAndStart(ctx, opts)
+	return rt.CreateAndStart(ctx, opts)
 }
 
 func (c *AgentClient) handleContainerStop(ctx context.Context, msg core.AgentMessage) error {
+	rt, err := c.requireRuntime()
+	if err != nil {
+		return err
+	}
 	var p struct {
 		ContainerID string `json:"container_id"`
 		TimeoutSec  int    `json:"timeout_sec"`
@@ -310,10 +325,14 @@ func (c *AgentClient) handleContainerStop(ctx context.Context, msg core.AgentMes
 	if err := decodeInto(msg.Payload, &p); err != nil {
 		return fmt.Errorf("decode container stop payload: %w", err)
 	}
-	return c.runtime.Stop(ctx, p.ContainerID, p.TimeoutSec)
+	return rt.Stop(ctx, p.ContainerID, p.TimeoutSec)
 }
 
 func (c *AgentClient) handleContainerRemove(ctx context.Context, msg core.AgentMessage) error {
+	rt, err := c.requireRuntime()
+	if err != nil {
+		return err
+	}
 	var p struct {
 		ContainerID string `json:"container_id"`
 		Force       bool   `json:"force"`
@@ -321,30 +340,42 @@ func (c *AgentClient) handleContainerRemove(ctx context.Context, msg core.AgentM
 	if err := decodeInto(msg.Payload, &p); err != nil {
 		return fmt.Errorf("decode container remove payload: %w", err)
 	}
-	return c.runtime.Remove(ctx, p.ContainerID, p.Force)
+	return rt.Remove(ctx, p.ContainerID, p.Force)
 }
 
 func (c *AgentClient) handleContainerRestart(ctx context.Context, msg core.AgentMessage) error {
+	rt, err := c.requireRuntime()
+	if err != nil {
+		return err
+	}
 	var p struct {
 		ContainerID string `json:"container_id"`
 	}
 	if err := decodeInto(msg.Payload, &p); err != nil {
 		return fmt.Errorf("decode container restart payload: %w", err)
 	}
-	return c.runtime.Restart(ctx, p.ContainerID)
+	return rt.Restart(ctx, p.ContainerID)
 }
 
 func (c *AgentClient) handleContainerList(ctx context.Context, msg core.AgentMessage) ([]core.ContainerInfo, error) {
+	rt, err := c.requireRuntime()
+	if err != nil {
+		return nil, err
+	}
 	var p struct {
 		Labels map[string]string `json:"labels"`
 	}
 	if err := decodeInto(msg.Payload, &p); err != nil {
 		return nil, fmt.Errorf("decode container list payload: %w", err)
 	}
-	return c.runtime.ListByLabels(ctx, p.Labels)
+	return rt.ListByLabels(ctx, p.Labels)
 }
 
 func (c *AgentClient) handleContainerLogs(ctx context.Context, msg core.AgentMessage) (string, error) {
+	rt, err := c.requireRuntime()
+	if err != nil {
+		return "", err
+	}
 	var p struct {
 		ContainerID string `json:"container_id"`
 		Tail        string `json:"tail"`
@@ -353,7 +384,7 @@ func (c *AgentClient) handleContainerLogs(ctx context.Context, msg core.AgentMes
 		return "", fmt.Errorf("decode container logs payload: %w", err)
 	}
 
-	reader, err := c.runtime.Logs(ctx, p.ContainerID, p.Tail, false)
+	reader, err := rt.Logs(ctx, p.ContainerID, p.Tail, false)
 	if err != nil {
 		return "", fmt.Errorf("fetch logs for %s: %w", p.ContainerID, err)
 	}
@@ -365,6 +396,10 @@ func (c *AgentClient) handleContainerLogs(ctx context.Context, msg core.AgentMes
 }
 
 func (c *AgentClient) handleContainerExec(ctx context.Context, msg core.AgentMessage) (string, error) {
+	rt, err := c.requireRuntime()
+	if err != nil {
+		return "", err
+	}
 	var p struct {
 		ContainerID string   `json:"container_id"`
 		Cmd         []string `json:"cmd"`
@@ -372,17 +407,21 @@ func (c *AgentClient) handleContainerExec(ctx context.Context, msg core.AgentMes
 	if err := decodeInto(msg.Payload, &p); err != nil {
 		return "", fmt.Errorf("decode container exec payload: %w", err)
 	}
-	return c.runtime.Exec(ctx, p.ContainerID, p.Cmd)
+	return rt.Exec(ctx, p.ContainerID, p.Cmd)
 }
 
 func (c *AgentClient) handleImagePull(ctx context.Context, msg core.AgentMessage) error {
+	rt, err := c.requireRuntime()
+	if err != nil {
+		return err
+	}
 	var p struct {
 		Image string `json:"image"`
 	}
 	if err := decodeInto(msg.Payload, &p); err != nil {
 		return fmt.Errorf("decode image pull payload: %w", err)
 	}
-	return c.runtime.ImagePull(ctx, p.Image)
+	return rt.ImagePull(ctx, p.Image)
 }
 
 func (c *AgentClient) handleMetricsCollect(ctx context.Context, _ core.AgentMessage) (core.ServerMetrics, error) {
@@ -448,10 +487,10 @@ func (c *AgentClient) handleBuildTask(ctx context.Context, msg core.AgentMessage
 		"server_id", c.serverID)
 
 	return map[string]any{
-		"status":     "accepted",
-		"deploy_id":  payload.DeployID,
-		"server_id":  c.serverID,
-		"timestamp":  time.Now(),
+		"status":    "accepted",
+		"deploy_id": payload.DeployID,
+		"server_id": c.serverID,
+		"timestamp": time.Now(),
 	}, nil
 }
 

@@ -54,7 +54,7 @@ func (h *UsageHistoryHandler) Hourly(w http.ResponseWriter, r *http.Request) {
 		count = 24
 	}
 
-	// Try to load real usage data from BBolt
+	// Try to load real usage data from KV storage.
 	bucketKey := claims.TenantID + ":" + period
 	var stored usageHistory
 	if err := h.bolt.Get("usage_history", bucketKey, &stored); err == nil && len(stored.Buckets) > 0 {

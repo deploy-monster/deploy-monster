@@ -778,6 +778,33 @@ func TestTerminal_SendCommand_ExecSuccess(t *testing.T) {
 	}
 }
 
+func TestTerminal_SendCommand_ShortContainerID(t *testing.T) {
+	runtime := &mockRuntime{
+		containers: []core.ContainerInfo{{ID: "short"}},
+		execOutput: "ok",
+	}
+	store := &mockStore{app: &core.Application{ID: "app-1"}}
+	term := NewTerminal(runtime, store, discardLogger())
+
+	body := strings.NewReader(`{"command":"ls"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app-1/terminal", body)
+	req.SetPathValue("id", "app-1")
+	w := httptest.NewRecorder()
+
+	term.SendCommand(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp["container_id"] != "short" {
+		t.Fatalf("container_id = %q, want short", resp["container_id"])
+	}
+}
+
 func TestTerminal_SendCommand_ExecError(t *testing.T) {
 	runtime := &mockRuntime{
 		containers: []core.ContainerInfo{

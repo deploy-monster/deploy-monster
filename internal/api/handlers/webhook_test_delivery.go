@@ -48,7 +48,7 @@ func (h *WebhookTestDeliveryHandler) TestDeliver(w http.ResponseWriter, r *http.
 			"full_name": "test/repo",
 		},
 		"head_commit": map[string]string{
-			"id":      "test-" + deliveryID[:8],
+			"id":      "test-" + core.ShortID(deliveryID, 8),
 			"message": "Test webhook delivery from DeployMonster",
 		},
 	}

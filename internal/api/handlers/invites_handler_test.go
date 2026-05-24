@@ -19,6 +19,10 @@ func TestInviteCreate_Success(t *testing.T) {
 		ID:              "role_owner",
 		TenantID:        "tenant1",
 		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	}, core.Role{
+		ID:              "role_member",
+		TenantID:        "tenant1",
+		PermissionsJSON: `[]`,
 	})
 	events := core.NewEventBus(nil)
 	handler := NewInviteHandler(store, events)
@@ -59,6 +63,103 @@ func TestInviteCreate_Success(t *testing.T) {
 	}
 }
 
+func TestInviteCreate_RejectsUnknownRole(t *testing.T) {
+	store := newMockStore()
+	store.roles["tenant1"] = append(store.roles["tenant1"], core.Role{
+		ID:              "role_owner",
+		TenantID:        "tenant1",
+		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	}, core.Role{
+		ID:              "role_member",
+		TenantID:        "tenant1",
+		PermissionsJSON: `[]`,
+	})
+	events := core.NewEventBus(nil)
+	handler := NewInviteHandler(store, events)
+
+	body, _ := json.Marshal(inviteRequest{
+		Email:  "newuser@example.com",
+		RoleID: "role_missing",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/team/invites", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "admin@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestInviteCreate_RejectsCrossTenantMembership(t *testing.T) {
+	store := newMockStore()
+	store.addUser(&core.User{ID: "user1", Email: "admin@example.com"}, &core.TeamMember{
+		ID:       "tm-1",
+		UserID:   "user1",
+		TenantID: "tenant2",
+		RoleID:   "role_owner",
+		Status:   "active",
+	})
+	store.roles["tenant2"] = append(store.roles["tenant2"], core.Role{
+		ID:              "role_owner",
+		TenantID:        "tenant2",
+		PermissionsJSON: `["member.invite"]`,
+	})
+	events := core.NewEventBus(nil)
+	handler := NewInviteHandler(store, events)
+
+	body, _ := json.Marshal(inviteRequest{
+		Email:  "newuser@example.com",
+		RoleID: "role_member",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/team/invites", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "admin@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestInviteCreate_RejectsTargetRoleWithExtraPermissions(t *testing.T) {
+	store := newMockStore()
+	store.addUser(&core.User{ID: "user1", Email: "dev@example.com"}, &core.TeamMember{
+		ID:       "tm-1",
+		UserID:   "user1",
+		TenantID: "tenant1",
+		RoleID:   "role_developer",
+		Status:   "active",
+	})
+	store.roles["tenant1"] = append(store.roles["tenant1"], core.Role{
+		ID:              "role_developer",
+		TenantID:        "tenant1",
+		PermissionsJSON: `["member.invite","app.view"]`,
+	}, core.Role{
+		ID:              "role_powerful_custom",
+		TenantID:        "tenant1",
+		PermissionsJSON: `["member.invite","app.delete"]`,
+	})
+	events := core.NewEventBus(nil)
+	handler := NewInviteHandler(store, events)
+
+	body, _ := json.Marshal(inviteRequest{
+		Email:  "newuser@example.com",
+		RoleID: "role_powerful_custom",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/team/invites", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_developer", "dev@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestInviteCreate_NoClaims(t *testing.T) {
 	store := newMockStore()
 	events := core.NewEventBus(nil)
@@ -85,6 +186,10 @@ func TestInviteCreate_InvalidJSON(t *testing.T) {
 		ID:              "role_owner",
 		TenantID:        "tenant1",
 		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	}, core.Role{
+		ID:              "role_member",
+		TenantID:        "tenant1",
+		PermissionsJSON: `[]`,
 	})
 	events := core.NewEventBus(nil)
 	handler := NewInviteHandler(store, events)
@@ -176,6 +281,10 @@ func TestInviteCreate_TokenIsUnique(t *testing.T) {
 		ID:              "role_owner",
 		TenantID:        "tenant1",
 		PermissionsJSON: `["member.invite","member.list","member.remove"]`,
+	}, core.Role{
+		ID:              "role_member",
+		TenantID:        "tenant1",
+		PermissionsJSON: `[]`,
 	})
 	events := core.NewEventBus(nil)
 	handler := NewInviteHandler(store, events)

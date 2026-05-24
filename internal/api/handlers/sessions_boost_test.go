@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 func TestSessionHandler_GetUserSessions(t *testing.T) {
@@ -78,6 +80,16 @@ func (s *testAuthServicesWithTOTP) TOTP() *auth.TOTPService {
 	return s.totp
 }
 
+type testTOTPVault struct{}
+
+func (testTOTPVault) Encrypt(value string) (string, error) {
+	return "enc:" + value, nil
+}
+
+func (testTOTPVault) Decrypt(value string) (string, error) {
+	return strings.TrimPrefix(value, "enc:"), nil
+}
+
 func TestSessionHandler_EnableTOTPRejectsMalformedJSON(t *testing.T) {
 	store := newMockStore()
 	h := NewSessionHandler(store, nil, &testAuthServicesWithTOTP{
@@ -93,6 +105,61 @@ func TestSessionHandler_EnableTOTPRejectsMalformedJSON(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for malformed JSON, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestSessionHandler_TOTPInternalErrorsAreSanitized(t *testing.T) {
+	store := newMockStore()
+	store.errGetUser = errors.New("db connection string leaked")
+	totp := auth.NewTOTPService(store)
+	totp.SetVault(testTOTPVault{})
+	h := NewSessionHandler(store, nil, &testAuthServicesWithTOTP{
+		jwt:  testJWT(),
+		totp: totp,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/totp/enroll", nil)
+	req = withClaims(req, "user-1", "tenant-1", "role_admin", "admin@example.com")
+	rr := httptest.NewRecorder()
+
+	h.EnableTOTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", rr.Code, rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), "db connection") || strings.Contains(rr.Body.String(), "get user") {
+		t.Fatalf("response leaked internal error: %s", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "failed to update TOTP settings") {
+		t.Fatalf("response = %s, want generic TOTP failure", rr.Body.String())
+	}
+}
+
+func TestSessionHandler_TOTPUserErrorsRemainUserFacing(t *testing.T) {
+	store := newMockStore()
+	store.addUser(&core.User{
+		ID:         "user-1",
+		Email:      "admin@example.com",
+		TOTPSecret: "enc:JBSWY3DPEHPK3PXP",
+	}, &core.TeamMember{UserID: "user-1", TenantID: "tenant-1", RoleID: "role_admin"})
+	totp := auth.NewTOTPService(store)
+	totp.SetVault(testTOTPVault{})
+	h := NewSessionHandler(store, nil, &testAuthServicesWithTOTP{
+		jwt:  testJWT(),
+		totp: totp,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/totp/enroll", strings.NewReader(`{"code":"000000"}`))
+	req = withClaims(req, "user-1", "tenant-1", "role_admin", "admin@example.com")
+	rr := httptest.NewRecorder()
+
+	h.EnableTOTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "invalid TOTP code") {
+		t.Fatalf("response = %s, want validation message", rr.Body.String())
 	}
 }
 
@@ -145,6 +212,23 @@ func TestSessionHandler_ListSessions(t *testing.T) {
 	json.Unmarshal(rr.Body.Bytes(), &resp)
 	if int(resp["count"].(float64)) != 1 {
 		t.Errorf("expected 1 session, got %v", resp["count"])
+	}
+}
+
+func TestSessionHandler_ListSessions_ShortJTI(t *testing.T) {
+	bolt := newMockBoltStore()
+	h := NewSessionHandler(newMockStore(), bolt, nil)
+
+	bolt.Set("user_sessions", "user-1:jti", SessionTrackingInfo{UserID: "user-1", JTI: "jti", IP: "127.0.0.1", UserAgent: "TestAgent", CreatedAt: time.Now()}, 0)
+
+	req := httptest.NewRequest("GET", "/api/v1/auth/sessions", nil)
+	req = withClaims(req, "user-1", "t1", "role_admin", "admin@test.com")
+	req.Header.Set("User-Agent", "TestAgent")
+	rr := httptest.NewRecorder()
+	h.ListSessions(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 }
 

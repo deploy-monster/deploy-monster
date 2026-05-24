@@ -1116,7 +1116,22 @@ func TestRemoteExecutor_Exec(t *testing.T) {
 	re, agentLoop, cleanup := setupRemoteTest(t)
 	defer cleanup()
 
+	errCh := make(chan error, 1)
 	go agentLoop(func(msg core.AgentMessage) core.AgentMessage {
+		payload, ok := msg.Payload.(map[string]any)
+		if !ok {
+			errCh <- fmt.Errorf("payload = %T, want map", msg.Payload)
+			return core.AgentMessage{Type: core.AgentMsgResult, Payload: "exec output"}
+		}
+		cmd, ok := payload["cmd"].([]any)
+		if !ok {
+			errCh <- fmt.Errorf("cmd payload = %T, want []any", payload["cmd"])
+			return core.AgentMessage{Type: core.AgentMsgResult, Payload: "exec output"}
+		}
+		if len(cmd) != 2 || cmd[0] != "ls" || cmd[1] != "-la" {
+			errCh <- fmt.Errorf("cmd payload = %v", cmd)
+			return core.AgentMessage{Type: core.AgentMsgResult, Payload: "exec output"}
+		}
 		return core.AgentMessage{Type: core.AgentMsgResult, Payload: "exec output"}
 	})
 
@@ -1129,6 +1144,23 @@ func TestRemoteExecutor_Exec(t *testing.T) {
 	}
 	if output != "exec output" {
 		t.Errorf("output = %q", output)
+	}
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+}
+
+func TestRemoteExecutor_Exec_BlocksShellEval(t *testing.T) {
+	re, _, cleanup := setupRemoteTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if _, err := re.Exec(ctx, "bash -c id"); err == nil {
+		t.Fatal("expected blocked command error")
 	}
 }
 

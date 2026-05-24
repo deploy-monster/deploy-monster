@@ -43,6 +43,7 @@ import { useAuthStore } from '../../stores/auth';
 import { useThemeStore } from '../../stores/theme';
 import { useApi } from '../../hooks';
 import type { PaginatedResponse } from '@/api/client';
+import { ROLE_SUPER_ADMIN } from '@/lib/roles';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +55,7 @@ interface NavItem {
   label: string;
   /** Static count or API key for dynamic badge */
   badge?: number | string;
+  roles?: string[];
 }
 
 interface NavGroup {
@@ -102,7 +104,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: '/team', icon: Users, label: 'Team' },
       { to: '/billing', icon: CreditCard, label: 'Billing' },
-      { to: '/admin', icon: Shield, label: 'Admin' },
+      { to: '/admin', icon: Shield, label: 'Admin', roles: [ROLE_SUPER_ADMIN] },
     ],
   },
 ];
@@ -190,6 +192,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     return counts[badge];
   };
 
+  const canShowItem = (item: NavItem): boolean => {
+    if (!item.roles) return true;
+    return !!user?.role && item.roles.includes(user.role);
+  };
+
   // ----------------------------------
   // Sidebar content
   // ----------------------------------
@@ -271,7 +278,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                     isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100',
                   )}
                 >
-                  {group.items.map(({ to, icon: Icon, label, badge }) => {
+                  {group.items.filter(canShowItem).map(({ to, icon: Icon, label, badge }) => {
                     const count = resolveBadge(badge);
 
                     return (

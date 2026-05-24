@@ -14,188 +14,12 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// Allowed commands for container exec. These are passed as exec arguments
-// (no shell interpretation), so the allowlist is a defense-in-depth measure.
-var allowedCommands = map[string]struct{}{
-	// File and directory operations
-	"ls":     {},
-	"ll":     {},
-	"la":     {},
-	"dir":    {},
-	"find":   {},
-	"stat":   {},
-	"cat":    {},
-	"head":   {},
-	"tail":   {},
-	"grep":   {},
-	"egrep":  {},
-	"awk":    {},
-	"sed":    {},
-	"cut":    {},
-	"sort":   {},
-	"uniq":   {},
-	"wc":     {},
-	"tr":     {},
-	"base64": {},
-
-	// Navigation and info
-	"pwd":      {},
-	"cd":       {},
-	"echo":     {},
-	"printf":   {},
-	"env":      {},
-	"printenv": {},
-	"id":       {},
-	"whoami":   {},
-	"hostname": {},
-	"uname":    {},
-	"uptime":   {},
-	"date":     {},
-
-	// Process and system info
-	"ps":      {},
-	"top":     {},
-	"htop":    {},
-	"kill":    {},
-	"pkill":   {},
-	"killall": {},
-	"sleep":   {},
-	"watch":   {},
-
-	// Network utilities
-	"ping":     {},
-	"ping6":    {},
-	"curl":     {},
-	"wget":     {},
-	"nc":       {},
-	"netcat":   {},
-	"ssh":      {},
-	"scp":      {},
-	"rsync":    {},
-	"dig":      {},
-	"nslookup": {},
-	"host":     {},
-
-	// Disk and filesystem
-	"df":     {},
-	"du":     {},
-	"mount":  {},
-	"umount": {},
-	"ln":     {},
-	"mkdir":  {},
-	"touch":  {},
-	"file":   {},
-	"tar":    {},
-	"gzip":   {},
-	"gunzip": {},
-	"zip":    {},
-	"unzip":  {},
-
-	// Package managers (read-only introspection)
-	"apt":     {},
-	"apt-get": {},
-	"yum":     {},
-	"dnf":     {},
-	"apk":     {},
-	"pacman":  {},
-
-	// Interpreter/shell (pass through to user)
-	"sh":      {},
-	"bash":    {},
-	"zsh":     {},
-	"fish":    {},
-	"python":  {},
-	"python3": {},
-	"node":    {},
-	"ruby":    {},
-	"perl":    {},
-	"php":     {},
-	"lua":     {},
-
-	// Text editors (interactive - but allowed as exec)
-	"vi":    {},
-	"vim":   {},
-	"nano":  {},
-	"emacs": {},
-	"ed":    {},
-
-	// Utility commands (commonly used in scripts and testing)
-	"true":  {}, // Returns exit code 0
-	"false": {}, // Returns exit code 1 (used in testing)
-	"yes":   {}, // Print continuous output
-	"seq":   {}, // Generate sequences
-	"expr":  {}, // Evaluate expressions
-	"test":  {}, // Shell built-in test command
+func areCommandTokensSafe(tokens []string) bool {
+	return core.CommandTokensSafe(tokens)
 }
 
-// isCommandSafe validates the primary command against the allowlist.
-// splitCommand already provides shell-injection protection by passing tokens
-// as exec arguments (no shell interpretation). This function is an additional
-// defense-in-depth layer.
-func isCommandSafe(cmd string) bool {
-	tokens := splitCommand(cmd)
-	if len(tokens) == 0 {
-		return false
-	}
-	// Extract the base command name (strip any leading path)
-	base := tokens[0]
-	if idx := strings.LastIndex(base, "/"); idx >= 0 {
-		base = base[idx+1:]
-	}
-	if _, ok := allowedCommands[strings.ToLower(base)]; !ok {
-		return false
-	}
-	// Block patterns that might appear as arguments even with allowlist
-	cmdLower := strings.ToLower(cmd)
-	blockedSuffixes := []string{
-		"&&", "||", "|", ";",
-		"$(", "`",
-	}
-	for _, suffix := range blockedSuffixes {
-		if strings.Contains(cmdLower, suffix) {
-			return false
-		}
-	}
-	return true
-}
-
-// splitCommand splits a command string into tokens, respecting single/double
-// quotes. This replaces "sh -c" injection by passing each token as a direct
-// exec argument. Shell operators (&&, ||, |, $, subshells) are treated as
-// data by the exec binary rather than interpreted.
 func splitCommand(cmd string) []string {
-	var tokens []string
-	var current strings.Builder
-	inQuote := rune(0)
-	for i := 0; i < len(cmd); i++ {
-		ch := rune(cmd[i])
-		if inQuote != 0 {
-			if ch == inQuote {
-				inQuote = 0
-			} else {
-				current.WriteRune(ch)
-			}
-		} else {
-			switch ch {
-			case '\'', '"':
-				inQuote = ch
-			case ' ', '\t', '\n', '\r':
-				if current.Len() > 0 {
-					tokens = append(tokens, current.String())
-					current.Reset()
-				}
-			default:
-				current.WriteRune(ch)
-			}
-		}
-	}
-	if current.Len() > 0 {
-		tokens = append(tokens, current.String())
-	}
-	if len(tokens) == 0 {
-		return []string{"/bin/true"}
-	}
-	return tokens
+	return core.SplitCommand(cmd)
 }
 
 // ExecHandler handles container exec endpoints.
@@ -301,8 +125,18 @@ func (h *ExecHandler) Exec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Security: Validate command against blocked patterns
-	if !isCommandSafe(req.Command) {
+	// Build the command slice. If args are provided explicitly, use them.
+	// Otherwise, split the command string into tokens and pass directly to
+	// exec — this avoids shell interpretation (no &&, ||, $, subshells).
+	var cmd []string
+	if len(req.Args) > 0 {
+		cmd = append([]string{req.Command}, req.Args...)
+	} else {
+		cmd = splitCommand(req.Command)
+	}
+
+	// Security: validate the full argv, including explicit args.
+	if !areCommandTokensSafe(cmd) {
 		h.logger.Warn("blocked dangerous exec command",
 			"app_id", appID,
 			"command", req.Command,
@@ -335,16 +169,6 @@ func (h *ExecHandler) Exec(w http.ResponseWriter, r *http.Request) {
 	}
 
 	containerID := containers[0].ID
-
-	// Build the command slice. If args are provided explicitly, use them.
-	// Otherwise, split the command string into tokens and pass directly to
-	// exec — this avoids shell interpretation (no &&, ||, $, subshells).
-	var cmd []string
-	if len(req.Args) > 0 {
-		cmd = append([]string{req.Command}, req.Args...)
-	} else {
-		cmd = splitCommand(req.Command)
-	}
 
 	// Execute the command inside the container
 	output, err := h.runtime.Exec(r.Context(), containerID, cmd)

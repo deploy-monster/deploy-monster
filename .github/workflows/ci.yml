@@ -20,9 +20,9 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: '1.26'
           cache: true
@@ -61,7 +61,7 @@ jobs:
         run: COVERAGE_PROFILE=coverage.out ./scripts/check-readme-coverage.sh
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: coverage
           path: coverage.out
@@ -82,13 +82,13 @@ jobs:
     name: React Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ac6db6d3c1f721f886538a378a2d73e85697340a
         with:
           package_json_file: web/package.json
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -129,18 +129,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: '1.26'
           cache: true
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ac6db6d3c1f721f886538a378a2d73e85697340a
         with:
           package_json_file: web/package.json
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -198,7 +198,7 @@ jobs:
           E2E_BASE_URL: http://localhost:8443
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: playwright-report
@@ -213,7 +213,7 @@ jobs:
           fi
 
       - name: Upload server log
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: e2e-server-log
@@ -227,7 +227,7 @@ jobs:
     steps:
       # fetch-depth: 0 gives us full history for the main-branch scan and
       # for PR log-opts that reference origin/<base_ref>.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
@@ -279,9 +279,9 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: '1.26'
           cache: true
@@ -310,9 +310,9 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: '1.26'
           cache: true
@@ -373,9 +373,9 @@ jobs:
           --health-timeout=5s
           --health-retries=10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: '1.26'
           cache: true
@@ -411,18 +411,18 @@ jobs:
         goos: [linux, darwin]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: '1.26'
           cache: true
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ac6db6d3c1f721f886538a378a2d73e85697340a
         with:
           package_json_file: web/package.json
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -453,7 +453,7 @@ jobs:
             ./cmd/deploymonster
 
       - name: Upload binary
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: deploymonster-${{ matrix.goos }}-${{ matrix.goarch }}
           path: bin/deploymonster-*
@@ -463,7 +463,7 @@ jobs:
     needs: [test, test-react, lint]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Build Docker image (full build from source)
         run: docker build -t deploymonster:latest -f deployments/Dockerfile .

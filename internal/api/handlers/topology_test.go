@@ -168,6 +168,44 @@ func TestTopologyHandler_Deploy(t *testing.T) {
 	}
 }
 
+func TestTopologyHandler_DeployBlockedDuringFreezeWindow(t *testing.T) {
+	store := newMockStore()
+	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"})
+	bolt := newMockBoltStore()
+	if err := seedActiveDeployFreeze(bolt, "tenant-1"); err != nil {
+		t.Fatalf("seed freeze: %v", err)
+	}
+	c := &core.Core{DB: &core.Database{Bolt: bolt}}
+	h := NewTopologyHandler(store, c)
+
+	req := TopologyDeployRequest{
+		Nodes: []TopologyNode{{
+			ID:       "app-1",
+			Type:     "app",
+			Position: Position{X: 100, Y: 100},
+			Data: map[string]any{
+				"name":     "api-server",
+				"gitUrl":   "https://github.com/user/api",
+				"branch":   "main",
+				"port":     3000,
+				"replicas": 1,
+			},
+		}},
+		ProjectID:   "proj-1",
+		Environment: "production",
+	}
+	body, _ := json.Marshal(req)
+	httpReq := httptest.NewRequest("POST", "/api/v1/topology/deploy", bytes.NewReader(body))
+	httpReq = withClaims(httpReq, "user-1", "tenant-1", "admin", "admin@test.local")
+
+	w := httptest.NewRecorder()
+	h.Deploy(w, httpReq)
+
+	if w.Code != http.StatusLocked {
+		t.Fatalf("expected status 423, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestTopologyHandler_DeployEmptyNodes(t *testing.T) {
 	store := newMockStore()
 	bolt := newMockBoltStore()

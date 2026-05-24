@@ -56,6 +56,56 @@ func TestSQLite_UpdateTOTPEnabled(t *testing.T) {
 	}
 }
 
+func TestSQLite_UpdateTOTPBackupCodes(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	user := &core.User{
+		ID:           "totp-backup-user",
+		Email:        "totp-backup@example.com",
+		PasswordHash: "hash",
+		Name:         "TOTP Backup User",
+		Status:       "active",
+	}
+	if err := db.CreateUser(ctx, user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	if err := db.UpdateTOTPBackupCodes(ctx, user.ID, []string{"hash1", "hash2"}); err != nil {
+		t.Fatalf("UpdateTOTPBackupCodes: %v", err)
+	}
+
+	got, err := db.GetUser(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("GetUser: %v", err)
+	}
+	if len(got.TOTPBackupCodes) != 2 || got.TOTPBackupCodes[0] != "hash1" || got.TOTPBackupCodes[1] != "hash2" {
+		t.Fatalf("TOTPBackupCodes = %#v, want [hash1 hash2]", got.TOTPBackupCodes)
+	}
+}
+
+func TestSQLite_ListMigrations(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	migrations, err := db.ListMigrations(ctx)
+	if err != nil {
+		t.Fatalf("ListMigrations: %v", err)
+	}
+	if len(migrations) == 0 {
+		t.Fatal("ListMigrations returned no applied migrations")
+	}
+	if migrations[0].Version != 1 {
+		t.Fatalf("first migration version = %d, want 1", migrations[0].Version)
+	}
+	if migrations[0].Name == "" {
+		t.Fatal("first migration name is empty")
+	}
+	if migrations[0].AppliedAt == "" {
+		t.Fatal("first migration applied_at is empty")
+	}
+}
+
 // TestSQLite_TeamMember_ListAndRemove walks the two TeamMember helpers
 // that had 0% coverage. Seeding goes through CreateUserWithMembership
 // so we exercise the same insert path the runtime uses.

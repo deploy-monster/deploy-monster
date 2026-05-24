@@ -41,6 +41,10 @@ func (h *InviteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "not authorized to invite members")
 		return
 	}
+	if member.TenantID != claims.TenantID {
+		writeError(w, http.StatusForbidden, "not authorized to invite members")
+		return
+	}
 	role, err := h.store.GetRole(r.Context(), member.RoleID)
 	if err != nil {
 		writeError(w, http.StatusForbidden, "not authorized to invite members")
@@ -62,8 +66,14 @@ func (h *InviteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	targetRole, err := h.store.GetRole(r.Context(), req.RoleID)
+	if err != nil || (targetRole.TenantID != "" && targetRole.TenantID != claims.TenantID) {
+		writeError(w, http.StatusBadRequest, "role_id is invalid")
+		return
+	}
+
 	// Role hierarchy check: inviter cannot assign a role higher than their own.
-	if !auth.CanAssignRole(member.RoleID, req.RoleID) {
+	if !canInviteWithRole(role, targetRole) {
 		writeError(w, http.StatusForbidden, "cannot invite with a role higher than your own")
 		return
 	}
@@ -103,6 +113,26 @@ func (h *InviteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		"token_hash": tokenHash,
 		"expires_at": expiresAt,
 	})
+}
+
+func canInviteWithRole(inviterRole, targetRole *core.Role) bool {
+	if inviterRole == nil || targetRole == nil {
+		return false
+	}
+	if !auth.CanAssignRole(inviterRole.ID, targetRole.ID) {
+		return false
+	}
+
+	var targetPerms []string
+	if err := json.Unmarshal([]byte(targetRole.PermissionsJSON), &targetPerms); err != nil {
+		return false
+	}
+	for _, permission := range targetPerms {
+		if !inviterRole.HasPermission(permission) {
+			return false
+		}
+	}
+	return true
 }
 
 // List handles GET /api/v1/team/invites

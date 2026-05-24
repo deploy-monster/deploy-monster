@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -66,6 +67,17 @@ func TestParse_EmptyServices(t *testing.T) {
 	_, err := Parse([]byte(`version: "3"`))
 	if err == nil {
 		t.Error("expected error for empty services")
+	}
+}
+
+func TestParse_RejectsOversizedYAML(t *testing.T) {
+	data := []byte("services:\n  web:\n    image: nginx\n    environment:\n      BIG: " + strings.Repeat("a", MaxComposeYAMLSize))
+	_, err := Parse(data)
+	if err == nil {
+		t.Fatal("expected error for oversized compose yaml")
+	}
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("error = %v, want exceeds", err)
 	}
 }
 

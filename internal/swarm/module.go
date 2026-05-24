@@ -65,7 +65,7 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 		token = core.GenerateSecret(32)
 		// Only log a prefix for operator reference — never log the full secret
 		m.logger.Info("generated agent join token (set swarm.join_token in config to persist)",
-			"token_prefix", token[:8]+"...")
+			"token_prefix", core.ShortID(token, 8)+"...")
 	}
 
 	// Create the agent server
@@ -125,7 +125,9 @@ func (m *Module) startWithElection(ctx context.Context) error {
 	m.isLeader = true
 	m.logger.Info("won master leadership, activating swarm")
 	if err := m.startMaster(); err != nil {
-		m.elector.Resign(context.Background(), "deploymonster:leader")
+		if resignErr := m.elector.Resign(context.Background(), "deploymonster:leader"); resignErr != nil {
+			m.logger.Warn("failed to resign swarm leadership after start failure", "error", resignErr)
+		}
 		return err
 	}
 

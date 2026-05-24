@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -749,6 +751,70 @@ func TestAlertEngine_Evaluate_NilState(t *testing.T) {
 		RAMTotalMB: 1000,
 	}
 	ae.Evaluate(context.Background(), metrics)
+}
+
+func TestAlertmanagerClient_Send(t *testing.T) {
+	var attempts int
+	var gotContentType string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		gotContentType = r.Header.Get("Content-Type")
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		if attempts == 1 {
+			http.Error(w, "try again", http.StatusBadGateway)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+
+	c := NewAlertmanagerClient(srv.URL, testLogger())
+	c.retries = 2
+	err := c.Send(context.Background(), []AlertmanagerAlert{{
+		Labels:   map[string]string{"alertname": "high_cpu"},
+		StartsAt: time.Now(),
+	}})
+	if err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+	if gotContentType != "application/json" {
+		t.Fatalf("Content-Type = %q, want application/json", gotContentType)
+	}
+}
+
+func TestAlertmanagerClient_SendEmptyURLNoopAndFailure(t *testing.T) {
+	if err := NewAlertmanagerClient("", nil).Send(context.Background(), nil); err != nil {
+		t.Fatalf("empty URL Send should be noop: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "nope", http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	c := NewAlertmanagerClient(srv.URL, testLogger())
+	c.retries = 1
+	if err := c.Send(context.Background(), []AlertmanagerAlert{{Labels: map[string]string{"alertname": "x"}}}); err == nil {
+		t.Fatal("expected non-2xx response to fail")
+	}
+}
+
+func TestAlertEngine_SetAlertmanagerClient(t *testing.T) {
+	ae := NewAlertEngine(core.NewEventBus(testLogger()), testLogger())
+	client := NewAlertmanagerClient("", testLogger())
+
+	ae.SetAlertmanagerClient(client)
+
+	ae.mu.RLock()
+	defer ae.mu.RUnlock()
+	if ae.amClient != client {
+		t.Fatal("alertmanager client was not stored")
+	}
 }
 
 // =====================================================

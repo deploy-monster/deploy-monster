@@ -57,16 +57,28 @@ export function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [totpRequired, setTOTPRequired] = useState(false);
+  const [totpCode, setTOTPCode] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (totpRequired && !totpCode) {
+      setError('Authentication code required');
+      return;
+    }
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, totpRequired ? totpCode : undefined);
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      const message = err instanceof Error ? err.message : 'Login failed';
+      if (/TOTP code required/i.test(message)) {
+        setTOTPRequired(true);
+        setError('');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -205,7 +217,7 @@ export function Login() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="admin@deploy.monster"
+                      placeholder="admin@example.com"
                       autoComplete="email"
                       autoFocus
                       className="pl-10"
@@ -241,6 +253,22 @@ export function Login() {
                     </button>
                   </div>
                 </div>
+
+                {totpRequired && (
+                  <div className="space-y-2">
+                    <Label htmlFor="totp-code">Authentication code</Label>
+                    <Input
+                      id="totp-code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={totpCode}
+                      onChange={(e) => setTOTPCode(e.target.value)}
+                      placeholder="123456"
+                      className="font-mono tracking-widest"
+                    />
+                  </div>
+                )}
 
                 <Button type="submit" className="w-full cursor-pointer" size="lg" disabled={loading}>
                   {loading ? (

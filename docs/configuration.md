@@ -31,7 +31,7 @@ All environment variables use the `MONSTER_` prefix.
 | `MONSTER_REGISTRATION_MODE` | `registration.mode` | `open` | User registration mode (see below) |
 | `MONSTER_LOG_LEVEL` | `server.log_level` | `info` | Log level (debug, info, warn, error) |
 | `MONSTER_LOG_FORMAT` | `server.log_format` | `text` | Log format: `text` (human-readable) or `json` (structured) |
-| `MONSTER_ADMIN_EMAIL` | — | `admin@deploymonster.local` | Initial admin email (first-run setup only) |
+| `MONSTER_ADMIN_EMAIL` | — | Auto-generated `admin-<random>@deploymonster.local` | Initial admin email (first-run setup only) |
 | `MONSTER_ADMIN_PASSWORD` | — | _(auto-generated and logged once)_ | Initial admin password (first-run setup only) |
 
 ## YAML Configuration Sections

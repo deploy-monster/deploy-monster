@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
+	"github.com/deploy-monster/deploy-monster/internal/billing"
 	"github.com/deploy-monster/deploy-monster/internal/build"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/deploy"
@@ -115,12 +117,10 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enforce per-tenant app quota (Config.Limits.MaxAppsPerTenant).
-	// Zero/negative is treated as unlimited so existing deployments that
-	// leave the field unset keep working. This is the app-count half of
-	// Phase 3.3.6 quota enforcement — the CPU/RAM half lives in the
-	// deploy pipeline where live container stats are already aggregated.
-	if limit := h.core.Config.Limits.MaxAppsPerTenant; limit > 0 {
+	// Enforce the stricter of the operator-wide app cap and the tenant's
+	// billing plan cap. Zero/negative config remains "no operator cap",
+	// but plan limits still apply when the tenant can be loaded.
+	if limit := h.effectiveAppLimit(r.Context(), claims.TenantID); limit > 0 {
 		_, total, err := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 1, 0)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to check app quota")
@@ -162,6 +162,41 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, http.StatusCreated, app)
+}
+
+func (h *AppHandler) effectiveAppLimit(ctx context.Context, tenantID string) int {
+	limit := 0
+	if h.core != nil && h.core.Config != nil {
+		limit = h.core.Config.Limits.MaxAppsPerTenant
+	}
+	if tenant, err := h.store.GetTenant(ctx, tenantID); err == nil {
+		if planLimit, ok := builtinPlanAppLimit(tenant.PlanID); ok {
+			limit = stricterPositiveLimit(limit, planLimit)
+		}
+	}
+	return limit
+}
+
+func builtinPlanAppLimit(planID string) (int, bool) {
+	for _, plan := range billing.BuiltinPlans {
+		if plan.ID == planID {
+			return plan.MaxApps, true
+		}
+	}
+	return 0, false
+}
+
+func stricterPositiveLimit(a, b int) int {
+	if a <= 0 {
+		return b
+	}
+	if b <= 0 {
+		return a
+	}
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // Get handles GET /api/v1/apps/{id}

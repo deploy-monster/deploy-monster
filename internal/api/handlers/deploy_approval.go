@@ -78,32 +78,35 @@ func (h *DeployApprovalHandler) Approve(w http.ResponseWriter, r *http.Request) 
 
 	h.mu.Lock()
 	req, exists := h.pending[approvalID]
-	h.mu.Unlock()
 
 	if !exists {
+		h.mu.Unlock()
 		writeError(w, http.StatusNotFound, "approval request not found")
 		return
 	}
 	if req.Status != "pending" {
+		h.mu.Unlock()
 		writeError(w, http.StatusConflict, "approval already processed")
 		return
 	}
 
 	// Tenant isolation: only the owning tenant can approve its own deploys
 	if req.TenantID != claims.TenantID {
+		h.mu.Unlock()
 		writeError(w, http.StatusForbidden, "not authorized to approve this request")
 		return
 	}
 
-	h.mu.Lock()
 	now := time.Now()
 	req.Status = "approved"
 	req.ReviewedBy = claims.UserID
 	req.ReviewedAt = &now
 	h.mu.Unlock()
 
-	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.approved", "api",
-		map[string]string{"approval_id": approvalID, "approved_by": claims.UserID}))
+	if h.events != nil {
+		h.events.PublishAsync(r.Context(), core.NewEvent("deploy.approved", "api",
+			map[string]string{"approval_id": approvalID, "approved_by": claims.UserID}))
+	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
 		"approval_id": approvalID,
@@ -132,24 +135,25 @@ func (h *DeployApprovalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 
 	h.mu.Lock()
 	req, exists := h.pending[approvalID]
-	h.mu.Unlock()
 
 	if !exists {
+		h.mu.Unlock()
 		writeError(w, http.StatusNotFound, "approval request not found")
 		return
 	}
 	if req.Status != "pending" {
+		h.mu.Unlock()
 		writeError(w, http.StatusConflict, "approval already processed")
 		return
 	}
 
 	// Tenant isolation: only the owning tenant can reject its own deploys
 	if req.TenantID != claims.TenantID {
+		h.mu.Unlock()
 		writeError(w, http.StatusForbidden, "not authorized to reject this request")
 		return
 	}
 
-	h.mu.Lock()
 	now := time.Now()
 	req.Status = "rejected"
 	req.Reason = body.Reason
@@ -157,8 +161,10 @@ func (h *DeployApprovalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	req.ReviewedAt = &now
 	h.mu.Unlock()
 
-	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.rejected", "api",
-		map[string]string{"approval_id": approvalID, "reason": body.Reason}))
+	if h.events != nil {
+		h.events.PublishAsync(r.Context(), core.NewEvent("deploy.rejected", "api",
+			map[string]string{"approval_id": approvalID, "reason": body.Reason}))
+	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
 		"approval_id": approvalID,

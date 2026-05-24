@@ -109,6 +109,15 @@ func TestEventBus_Publish_SetsID(t *testing.T) {
 	}
 }
 
+func TestEvent_DebugString_ShortID(t *testing.T) {
+	e := Event{ID: "abc", Type: "test.event", Source: "test"}
+
+	got := e.DebugString()
+	if got == "" {
+		t.Fatal("expected debug string")
+	}
+}
+
 func TestEventBus_SubscribeAsync(t *testing.T) {
 	eb := NewEventBus(slog.Default())
 	var called atomic.Bool

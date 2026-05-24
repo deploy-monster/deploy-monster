@@ -185,6 +185,9 @@ func (m *mockSecretStore) UpdateBackupStatus(_ context.Context, _, _ string, _ i
 func (m *mockSecretStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
 	return nil
 }
+func (m *mockSecretStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, error) {
+	return nil, nil
+}
 
 func (m *mockSecretStore) Close() error                 { return nil }
 func (m *mockSecretStore) Ping(_ context.Context) error { return nil }

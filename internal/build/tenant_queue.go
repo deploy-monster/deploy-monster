@@ -15,7 +15,7 @@ import (
 // WorkerPool so callers can test either queue with a common pattern.
 var ErrTenantQueueClosed = errors.New("tenant build queue is closed")
 
-// buildJob is the unit stored in BBolt for durable queue persistence.
+// buildJob is the unit stored in KV storage for durable queue persistence.
 // The FnBytes field stores serializable job metadata (JSON) so jobs
 // can be recovered and re-submitted after a process restart.
 type buildJob struct {
@@ -60,23 +60,23 @@ type buildJob struct {
 // shuts down: WorkerPool and TenantQueue each drain themselves.
 //
 // When a BoltStorer is provided, all queued jobs are also written to
-// the "build_queue" BBolt bucket so they survive process restarts.
+// the "build_queue" KV bucket so they survive process restarts.
 // On startup, any job with status="re-queued" is re-submitted to the
 // fresh in-memory queue.
 type TenantQueue struct {
-	globalCap   int
-	perTenant   int
-	logger      *slog.Logger
-	bolt        core.BoltStorer
-	workerMod   *Module // for re-submitting recovered jobs
+	globalCap int
+	perTenant int
+	logger    *slog.Logger
+	bolt      core.BoltStorer
+	workerMod *Module // for re-submitting recovered jobs
 
 	// in-memory semaphores (not durable — reset on restart)
-	global    chan struct{}
-	mu        sync.Mutex
-	tenant    map[string]chan struct{}
-	closed    bool
-	stopCh    chan struct{}
-	wg        sync.WaitGroup
+	global chan struct{}
+	mu     sync.Mutex
+	tenant map[string]chan struct{}
+	closed bool
+	stopCh chan struct{}
+	wg     sync.WaitGroup
 }
 
 // NewTenantQueue constructs a queue with the given global cap and
@@ -95,16 +95,16 @@ func NewTenantQueue(globalCap, perTenantCap int, logger *slog.Logger) *TenantQue
 		logger = slog.Default()
 	}
 	return &TenantQueue{
-		globalCap:   globalCap,
-		perTenant:   perTenantCap,
-		logger:      logger,
-		global:      make(chan struct{}, globalCap),
-		tenant:      make(map[string]chan struct{}),
-		stopCh:      make(chan struct{}),
+		globalCap: globalCap,
+		perTenant: perTenantCap,
+		logger:    logger,
+		global:    make(chan struct{}, globalCap),
+		tenant:    make(map[string]chan struct{}),
+		stopCh:    make(chan struct{}),
 	}
 }
 
-// SetBolt wires a BBolt store for durable job persistence. Must be
+// SetBolt wires a KV store for durable job persistence. Must be
 // called before any jobs are submitted. When set, jobs are serialized
 // to the "build_queue" bucket and recovered on startup.
 func (q *TenantQueue) SetBolt(bolt core.BoltStorer) {
@@ -117,7 +117,7 @@ func (q *TenantQueue) SetWorkerModule(mod *Module) {
 	q.workerMod = mod
 }
 
-// RecoverJobs reads all "re-queued" jobs from BBolt and re-submits them
+// RecoverJobs reads all "re-queued" jobs from KV storage and re-submits them
 // to the fresh in-memory queue. Called at module startup when bolt is set.
 func (q *TenantQueue) RecoverJobs(ctx context.Context) error {
 	if q.bolt == nil {
@@ -168,7 +168,7 @@ func (q *TenantQueue) tenantSlot(tenantID string) chan struct{} {
 // so RecoverJobs can re-submit without the module re-deserializing.
 type buildFn struct {
 	fnBytes []byte
-	mod    *Module
+	mod     *Module
 }
 
 func (bf *buildFn) Do() {

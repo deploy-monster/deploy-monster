@@ -397,6 +397,24 @@ func TestLocalStorage_Upload_SubDirectory(t *testing.T) {
 	}
 }
 
+func TestLocalStorage_Upload_RejectsSymlinkTarget(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.tar")
+	link := filepath.Join(dir, "linked.tar")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlink not available: %v", err)
+	}
+	ls := NewLocalStorage(dir, nil)
+
+	err := ls.Upload(context.Background(), "linked.tar", strings.NewReader("overwrite"), 9)
+	if err == nil {
+		t.Fatal("expected Upload to reject symlink target")
+	}
+	if _, statErr := os.Stat(outside); !os.IsNotExist(statErr) {
+		t.Fatalf("outside target was created or stat failed unexpectedly: %v", statErr)
+	}
+}
+
 func TestLocalStorage_Download(t *testing.T) {
 	dir := t.TempDir()
 	ls := NewLocalStorage(dir, nil)
@@ -417,6 +435,22 @@ func TestLocalStorage_Download(t *testing.T) {
 	}
 	if !bytes.Equal(got, data) {
 		t.Error("downloaded content mismatch")
+	}
+}
+
+func TestLocalStorage_Download_RejectsSymlinkTarget(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(outside, []byte("outside"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "linked.tar")); err != nil {
+		t.Skipf("symlink not available: %v", err)
+	}
+	ls := NewLocalStorage(dir, nil)
+
+	if _, err := ls.Download(context.Background(), "linked.tar"); err == nil {
+		t.Fatal("expected Download to reject symlink target")
 	}
 }
 

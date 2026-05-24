@@ -61,12 +61,62 @@ describe('Login page', () => {
     await waitFor(() => {
       expect(loginMock).toHaveBeenCalledWith(
         'admin@deploy.monster',
-        'correct-horse-battery-staple'
+        'correct-horse-battery-staple',
+        undefined
       );
     });
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith('/');
     });
+  });
+
+  it('prompts for a TOTP code and resubmits with the code when required', async () => {
+    loginMock
+      .mockRejectedValueOnce(new Error('TOTP code required'))
+      .mockResolvedValueOnce(undefined);
+    renderLogin();
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'admin@deploy.monster' },
+    });
+    fireEvent.change(screen.getByLabelText(/password/i), {
+      target: { value: 'correct-horse-battery-staple' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    const codeInput = await screen.findByLabelText(/authentication code/i);
+    fireEvent.change(codeInput, { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await waitFor(() => {
+      expect(loginMock).toHaveBeenLastCalledWith(
+        'admin@deploy.monster',
+        'correct-horse-battery-staple',
+        '123456'
+      );
+    });
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith('/');
+    });
+  });
+
+  it('requires a TOTP code after the TOTP step is shown', async () => {
+    loginMock.mockRejectedValueOnce(new Error('TOTP code required'));
+    renderLogin();
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'admin@deploy.monster' },
+    });
+    fireEvent.change(screen.getByLabelText(/password/i), {
+      target: { value: 'correct-horse-battery-staple' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await screen.findByLabelText(/authentication code/i);
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    expect(await screen.findByText(/authentication code required/i)).toBeInTheDocument();
+    expect(loginMock).toHaveBeenCalledTimes(1);
   });
 
   it('shows the error message from login() when it throws', async () => {

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // TOTPService handles TOTP MFA operations.
@@ -19,6 +20,10 @@ type TOTPService struct {
 		Decrypt(string) (string, error)
 	}
 	logger *slog.Logger
+}
+
+type totpBackupCodeStore interface {
+	UpdateTOTPBackupCodes(ctx context.Context, userID string, hashes []string) error
 }
 
 // NewTOTPService creates a new TOTP service.
@@ -109,7 +114,10 @@ func (s *TOTPService) Validate(userID, code string) bool {
 
 // ValidateContext validates a TOTP code using the caller's context for store I/O.
 func (s *TOTPService) ValidateContext(ctx context.Context, userID, code string) bool {
-	return s.validateStoredSecret(ctx, userID, code, true)
+	if s.validateStoredSecret(ctx, userID, code, true) {
+		return true
+	}
+	return s.consumeBackupCode(ctx, userID, code)
 }
 
 func (s *TOTPService) validateStoredSecret(ctx context.Context, userID, code string, requireEnabled bool) bool {
@@ -134,6 +142,33 @@ func (s *TOTPService) validateStoredSecret(ctx context.Context, userID, code str
 
 	// Validate the TOTP code against the decrypted secret
 	return ValidateTOTP(code, secret)
+}
+
+func (s *TOTPService) consumeBackupCode(ctx context.Context, userID, code string) bool {
+	if code == "" {
+		return false
+	}
+	backupStore, ok := s.store.(totpBackupCodeStore)
+	if !ok {
+		return false
+	}
+	user, err := s.store.GetUser(ctx, userID)
+	if err != nil || !user.TOTPEnabled || len(user.TOTPBackupCodes) == 0 {
+		return false
+	}
+	for i, hash := range user.TOTPBackupCodes {
+		if bcrypt.CompareHashAndPassword([]byte(hash), []byte(code)) != nil {
+			continue
+		}
+		remaining := append([]string{}, user.TOTPBackupCodes[:i]...)
+		remaining = append(remaining, user.TOTPBackupCodes[i+1:]...)
+		if err := backupStore.UpdateTOTPBackupCodes(ctx, userID, remaining); err != nil {
+			s.logger.Warn("failed to consume TOTP backup code", "user_id", userID, "error", err)
+			return false
+		}
+		return true
+	}
+	return false
 }
 
 // Disable disables TOTP for a user after validating the provided code.
@@ -179,12 +214,26 @@ func (s *TOTPService) StatusContext(ctx context.Context, userID string) (enabled
 // GenerateBackupCodes generates a new set of backup codes for a user.
 // The plain text codes are returned once for display to the user.
 func (s *TOTPService) GenerateBackupCodes(ctx context.Context, userID string) (*BackupCodes, error) {
+	backupStore, ok := s.store.(totpBackupCodeStore)
+	if !ok {
+		return nil, fmt.Errorf("TOTP backup code storage not configured")
+	}
+	user, err := s.store.GetUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+	if !user.TOTPEnabled {
+		return nil, fmt.Errorf("TOTP is not enabled")
+	}
+
 	codes, err := GenerateBackupCodes()
 	if err != nil {
 		return nil, err
 	}
 
-	// Store the hashed codes in the user's record or a separate table
-	// For now, return both hashes and plain codes
+	if err := backupStore.UpdateTOTPBackupCodes(ctx, userID, codes.Hashes); err != nil {
+		return nil, fmt.Errorf("store TOTP backup codes: %w", err)
+	}
+
 	return codes, nil
 }

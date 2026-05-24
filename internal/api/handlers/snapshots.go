@@ -44,7 +44,7 @@ func (h *SnapshotHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, SnapshotInfo{
 		ID:        snapshotID,
 		AppID:     app.ID,
-		Image:     "monster-snapshot/" + app.ID[:8] + ":" + snapshotID[:8],
+		Image:     "monster-snapshot/" + core.ShortID(app.ID, 8) + ":" + core.ShortID(snapshotID, 8),
 		CreatedAt: time.Now(),
 	})
 }

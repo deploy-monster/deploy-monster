@@ -19,7 +19,7 @@ const VaultSaltLen = 32
 
 // legacyVaultSaltSeed is the hardcoded seed used before per-deployment
 // salts were introduced. It stays in the binary for upgrade paths: if
-// a BBolt database already contains secrets encrypted with this salt
+// a KV store already contains secrets encrypted with this salt
 // but no persisted `vault/salt` entry, the module re-encrypts with a
 // newly generated per-deployment salt on first boot.
 const legacyVaultSaltSeed = "deploymonster-vault-salt-v1"

@@ -18,6 +18,7 @@ type MarketplaceDeployHandler struct {
 	runtime   core.ContainerRuntime
 	store     core.Store
 	events    *core.EventBus
+	freeze    core.BoltStorer
 	serverCtx context.Context
 }
 
@@ -27,6 +28,9 @@ func NewMarketplaceDeployHandler(registry *marketplace.TemplateRegistry, runtime
 
 // SetServerContext sets the server-lifetime context used by background goroutines.
 func (h *MarketplaceDeployHandler) SetServerContext(ctx context.Context) { h.serverCtx = ctx }
+
+// SetDeployFreezeStore enables deploy-freeze enforcement for marketplace deploys.
+func (h *MarketplaceDeployHandler) SetDeployFreezeStore(bolt core.BoltStorer) { h.freeze = bolt }
 
 type deployTemplateRequest struct {
 	Slug   string            `json:"slug"`
@@ -39,6 +43,11 @@ func (h *MarketplaceDeployHandler) Deploy(w http.ResponseWriter, r *http.Request
 	claims := auth.ClaimsFromContext(r.Context())
 	if claims == nil {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if activeDeployFreeze(h.freeze, claims.TenantID) {
+		writeError(w, http.StatusLocked, "deployments are currently frozen")
 		return
 	}
 

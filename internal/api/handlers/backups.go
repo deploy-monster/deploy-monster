@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -49,9 +50,43 @@ func requireTenantBackupKey(w http.ResponseWriter, key, tenantID string) bool {
 		writeError(w, http.StatusBadRequest, "invalid backup key")
 		return false
 	}
+	if !isStrictBackupKey(key) {
+		writeError(w, http.StatusBadRequest, "invalid backup key")
+		return false
+	}
 	if !strings.HasPrefix(key, tenantBackupPrefix(tenantID)) {
 		writeError(w, http.StatusNotFound, "backup not found")
 		return false
+	}
+	return true
+}
+
+func isStrictBackupKey(key string) bool {
+	decoded := key
+	for i := 0; i < 2; i++ {
+		next, err := url.PathUnescape(decoded)
+		if err != nil {
+			return false
+		}
+		if next == decoded {
+			break
+		}
+		decoded = next
+	}
+	if decoded != key || strings.Contains(key, "//") || strings.HasSuffix(key, "/") {
+		return false
+	}
+
+	for _, part := range strings.Split(key, "/") {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+		for _, r := range part {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+				continue
+			}
+			return false
+		}
 	}
 	return true
 }

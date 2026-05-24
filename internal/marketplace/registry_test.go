@@ -1,6 +1,9 @@
 package marketplace
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestTemplateRegistry_AddAndGet(t *testing.T) {
 	r := NewTemplateRegistry()
@@ -84,5 +87,55 @@ func TestBuiltins_Loaded(t *testing.T) {
 	}
 	if wp.ComposeYAML == "" {
 		t.Error("wordpress should have compose YAML")
+	}
+}
+
+func TestTemplateRegistry_AddSanitizesWeakSecretDefaults(t *testing.T) {
+	r := NewTemplateRegistry()
+	r.Add(&Template{
+		Slug:        "weak-template",
+		Name:        "Weak Template",
+		Description: "test",
+		Category:    "test",
+		Author:      "test",
+		Version:     "1",
+		ComposeYAML: `services:
+  app:
+    image: example/app
+    environment:
+      DATABASE_URL: postgres://ghostfolio:ghostfolio@db:5432/ghostfolio
+      NC_DB: "pg://db?u=nocodb&p=nocodb&d=nocodb"
+      SECRET_KEY: ${SECRET_KEY:-changeme}
+      KEYCLOAK_ADMIN: admin
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: ghostfolio`,
+	})
+
+	tmpl := r.Get("weak-template")
+	if tmpl == nil {
+		t.Fatal("expected sanitized template")
+	}
+	for _, forbidden := range []string{
+		"postgres://ghostfolio:ghostfolio@",
+		"p=nocodb",
+		"${SECRET_KEY:-changeme}",
+		"POSTGRES_PASSWORD: ghostfolio",
+	} {
+		if strings.Contains(tmpl.ComposeYAML, forbidden) {
+			t.Fatalf("compose YAML still contains weak default %q:\n%s", forbidden, tmpl.ComposeYAML)
+		}
+	}
+	for _, required := range []string{
+		"postgres://ghostfolio:${DB_PASSWORD}@",
+		"p=${DB_PASSWORD}",
+		"SECRET_KEY: ${SECRET_KEY}",
+		"POSTGRES_PASSWORD: ${DB_PASSWORD}",
+		"KEYCLOAK_ADMIN: admin",
+	} {
+		if !strings.Contains(tmpl.ComposeYAML, required) {
+			t.Fatalf("compose YAML missing sanitized value %q:\n%s", required, tmpl.ComposeYAML)
+		}
 	}
 }

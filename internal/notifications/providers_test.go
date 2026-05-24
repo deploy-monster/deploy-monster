@@ -2,7 +2,9 @@ package notifications
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -233,6 +235,18 @@ func TestSlackProvider_Send_ServerError(t *testing.T) {
 	}
 }
 
+func TestSlackProvider_Send_BlocksUnsafeRedirect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Redirect(w, &http.Request{}, "https://127.0.0.1/internal", http.StatusFound)
+	}))
+	defer server.Close()
+
+	p := NewSlackProvider(server.URL)
+	if err := p.Send(context.Background(), "", "Test", "Body", "text"); err == nil {
+		t.Fatal("expected unsafe redirect to be blocked")
+	}
+}
+
 func TestDiscordProvider_Send_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -272,6 +286,51 @@ func TestDiscordProvider_Send_ServerError(t *testing.T) {
 	err := p.Send(context.Background(), "", "Test", "Body", "text")
 	if err == nil {
 		t.Fatal("expected error on 400 response")
+	}
+}
+
+func TestDiscordProvider_Send_BlocksUnsafeRedirect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Redirect(w, &http.Request{}, "https://127.0.0.1/internal", http.StatusFound)
+	}))
+	defer server.Close()
+
+	p := NewDiscordProvider(server.URL)
+	if err := p.Send(context.Background(), "", "Test", "Body", "text"); err == nil {
+		t.Fatal("expected unsafe redirect to be blocked")
+	}
+}
+
+func TestTelegramProvider_Send_EscapesHTMLMessageContent(t *testing.T) {
+	var payload map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode payload: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	p := &TelegramProvider{
+		BotToken: "token",
+		ChatID:   "chat",
+		client: &http.Client{
+			Transport: &redirectTransport{target: server.URL},
+		},
+	}
+
+	subject := `Deploy <b>done</b>`
+	body := `<a href="https://evil.example">link</a>`
+	if err := p.Send(context.Background(), "", subject, body, "text"); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	want := fmt.Sprintf("<b>%s</b>\n%s", html.EscapeString(subject), html.EscapeString(body))
+	if payload["text"] != want {
+		t.Fatalf("payload text = %q, want %q", payload["text"], want)
+	}
+	if payload["parse_mode"] != "HTML" {
+		t.Fatalf("parse_mode = %q, want HTML", payload["parse_mode"])
 	}
 }
 

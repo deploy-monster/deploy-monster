@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type totpServiceStore struct {
@@ -22,6 +23,11 @@ func (s *totpServiceStore) GetUser(_ context.Context, _ string) (*core.User, err
 func (s *totpServiceStore) UpdateTOTPEnabled(_ context.Context, _ string, enabled bool, secret string) error {
 	s.user.TOTPEnabled = enabled
 	s.user.TOTPSecret = secret
+	return nil
+}
+
+func (s *totpServiceStore) UpdateTOTPBackupCodes(_ context.Context, _ string, hashes []string) error {
+	s.user.TOTPBackupCodes = append([]string{}, hashes...)
 	return nil
 }
 
@@ -69,5 +75,33 @@ func TestTOTPService_EnrollRequiresConfirmationBeforeEnabled(t *testing.T) {
 	}
 	if !store.user.TOTPEnabled {
 		t.Fatal("TOTP should be enabled after confirming a valid generated code")
+	}
+}
+
+func TestTOTPService_ValidateConsumesBackupCode(t *testing.T) {
+	hash, err := bcrypt.GenerateFromPassword([]byte("ABCD1234"), 10)
+	if err != nil {
+		t.Fatalf("hash backup code: %v", err)
+	}
+	store := &totpServiceStore{
+		user: &core.User{
+			ID:              "u1",
+			Email:           "alice@example.com",
+			TOTPEnabled:     true,
+			TOTPSecret:      "bad-ciphertext",
+			TOTPBackupCodes: []string{string(hash)},
+		},
+	}
+	svc := NewTOTPService(store)
+	svc.SetVault(testTOTPVault{})
+
+	if !svc.ValidateContext(context.Background(), "u1", "ABCD1234") {
+		t.Fatal("expected backup code to validate")
+	}
+	if len(store.user.TOTPBackupCodes) != 0 {
+		t.Fatalf("backup code was not consumed: %d remaining", len(store.user.TOTPBackupCodes))
+	}
+	if svc.ValidateContext(context.Background(), "u1", "ABCD1234") {
+		t.Fatal("backup code must be one-time use")
 	}
 }

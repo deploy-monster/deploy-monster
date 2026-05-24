@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -65,6 +66,31 @@ func (p *PostgresDB) Close() error {
 // tests can touch raw SQL without reaching into unexported fields.
 func (p *PostgresDB) DB() *sql.DB {
 	return p.db
+}
+
+// ListMigrations returns the applied schema migrations in version order.
+func (p *PostgresDB) ListMigrations(ctx context.Context) ([]core.MigrationStatus, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT version, name,
+		        to_char(applied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+		 FROM _migrations ORDER BY version`)
+	if err != nil {
+		return nil, fmt.Errorf("list migrations: %w", err)
+	}
+	defer rows.Close()
+
+	var migrations []core.MigrationStatus
+	for rows.Next() {
+		var m core.MigrationStatus
+		if err := rows.Scan(&m.Version, &m.Name, &m.AppliedAt); err != nil {
+			return nil, fmt.Errorf("scan migration: %w", err)
+		}
+		migrations = append(migrations, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate migrations: %w", err)
+	}
+	return migrations, nil
 }
 
 // migrate applies all pending Postgres migrations from the embedded
@@ -220,28 +246,42 @@ func (p *PostgresDB) CreateUser(ctx context.Context, u *core.User) error {
 
 func (p *PostgresDB) GetUser(ctx context.Context, id string) (*core.User, error) {
 	u := &core.User{}
+	var totpSecret sql.NullString
+	var backupCodes sql.NullString
 	err := p.db.QueryRowContext(ctx,
-		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, last_login_at, created_at, updated_at
+		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, totp_secret_enc, totp_backup_codes_json, last_login_at, created_at, updated_at
 		 FROM users WHERE id = $1`, id,
 	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.AvatarURL, &u.Status,
-		&u.TOTPEnabled, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt)
+		&u.TOTPEnabled, &totpSecret, &backupCodes, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, core.ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return nil, err
+	}
+	u.TOTPSecret = totpSecret.String
+	u.TOTPBackupCodes = decodeTOTPBackupCodes(backupCodes.String)
+	return u, nil
 }
 
 func (p *PostgresDB) GetUserByEmail(ctx context.Context, email string) (*core.User, error) {
 	u := &core.User{}
+	var totpSecret sql.NullString
+	var backupCodes sql.NullString
 	err := p.db.QueryRowContext(ctx,
-		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, last_login_at, created_at, updated_at
+		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, totp_secret_enc, totp_backup_codes_json, last_login_at, created_at, updated_at
 		 FROM users WHERE email = $1`, email,
 	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.AvatarURL, &u.Status,
-		&u.TOTPEnabled, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt)
+		&u.TOTPEnabled, &totpSecret, &backupCodes, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, core.ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return nil, err
+	}
+	u.TOTPSecret = totpSecret.String
+	u.TOTPBackupCodes = decodeTOTPBackupCodes(backupCodes.String)
+	return u, nil
 }
 
 func (p *PostgresDB) UpdateUser(ctx context.Context, u *core.User) error {
@@ -281,6 +321,19 @@ func (p *PostgresDB) UpdateTOTPEnabled(ctx context.Context, userID string, enabl
 	_, err := p.db.ExecContext(ctx,
 		`UPDATE users SET totp_enabled=$1, totp_secret_enc=$2, updated_at=NOW() WHERE id=$3`,
 		totpEnabled, totpSecretEnc, userID,
+	)
+	return err
+}
+
+// UpdateTOTPBackupCodes replaces the user's hashed TOTP backup codes.
+func (p *PostgresDB) UpdateTOTPBackupCodes(ctx context.Context, userID string, hashes []string) error {
+	encoded, err := json.Marshal(hashes)
+	if err != nil {
+		return fmt.Errorf("marshal totp backup codes: %w", err)
+	}
+	_, err = p.db.ExecContext(ctx,
+		`UPDATE users SET totp_backup_codes_json=$1, updated_at=NOW() WHERE id=$2`,
+		string(encoded), userID,
 	)
 	return err
 }

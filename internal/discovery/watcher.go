@@ -220,7 +220,7 @@ func ParseLabelsToRoute(labels map[string]string, containerID string) *ingress.R
 	}
 
 	// Build backend address using container ID network alias
-	backend := containerID[:12] + ":" + port
+	backend := core.ShortID(containerID, 12) + ":" + port
 
 	// Middlewares
 	var middlewares []string

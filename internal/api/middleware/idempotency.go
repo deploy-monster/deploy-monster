@@ -2,9 +2,13 @@ package middleware
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -30,7 +34,6 @@ var inFlightMu sync.Mutex
 // IdempotencyMiddleware replays cached responses for duplicate requests
 // identified by the Idempotency-Key header. Only applies to POST/PUT/PATCH methods.
 // Keys are stored in BoltDB with a 24-hour TTL.
-// SECURITY FIX (RACE-003): Added mutex locking to prevent race conditions.
 func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler {
 	// Previously declared as `var logger *slog.Logger` and never
 	// assigned, which made the cache-write Error log on line 102 dead
@@ -39,8 +42,7 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 	logger := slog.Default()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Only intercept state-changing methods
-			if r.Method != http.MethodPost && r.Method != http.MethodPut && r.Method != http.MethodPatch {
+			if !idempotencyMethod(r.Method) || skipIdempotencyPath(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -51,8 +53,15 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 				return
 			}
 
-			// Scope key to method+path to prevent cross-endpoint collisions
-			scopedKey := r.Method + ":" + r.URL.Path + ":" + key
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				writeErrorJSON(w, http.StatusBadRequest, "failed to read request body")
+				return
+			}
+			_ = r.Body.Close()
+			r.Body = io.NopCloser(bytes.NewReader(body))
+
+			scopedKey := scopedIdempotencyKey(r, key, body)
 
 			// SECURITY FIX (RACE-003): Lock to prevent race condition on read-modify-write
 			inFlightMu.Lock()
@@ -74,7 +83,7 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 
 			// Check for cached response
 			var cached idempotencyEntry
-			err := bolt.Get(idempotencyBucket, scopedKey, &cached)
+			err = bolt.Get(idempotencyBucket, scopedKey, &cached)
 			if err == nil {
 				// Replay cached response
 				for k, v := range cached.Headers {
@@ -120,6 +129,39 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 			}
 		})
 	}
+}
+
+func idempotencyMethod(method string) bool {
+	return method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch
+}
+
+func skipIdempotencyPath(path string) bool {
+	return strings.HasPrefix(path, "/api/v1/auth/")
+}
+
+func scopedIdempotencyKey(r *http.Request, key string, body []byte) string {
+	bodyHash := sha256.Sum256(body)
+	authHash := sha256.Sum256([]byte(idempotencyAuthScope(r)))
+	return strings.Join([]string{
+		r.Method,
+		r.URL.Path,
+		key,
+		"auth=" + hex.EncodeToString(authHash[:]),
+		"body=" + hex.EncodeToString(bodyHash[:]),
+	}, ":")
+}
+
+func idempotencyAuthScope(r *http.Request) string {
+	if v := r.Header.Get("Authorization"); v != "" {
+		return "authorization:" + v
+	}
+	if v := r.Header.Get("X-API-Key"); v != "" {
+		return "api-key:" + v
+	}
+	if v := r.Header.Get("Cookie"); v != "" {
+		return "cookie:" + v
+	}
+	return "anonymous"
 }
 
 // idempotencyRecorder captures the response while writing through to the client.

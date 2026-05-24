@@ -31,6 +31,7 @@ func TestAdminAPIKeyHandler_List_EmptyIndex(t *testing.T) {
 	h := NewAdminAPIKeyHandler(newMockStore(), bolt)
 
 	req := httptest.NewRequest("GET", "/api/v1/admin/api-keys", nil)
+	req = withClaims(req, "u1", "t1", "role_super_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 
@@ -53,6 +54,7 @@ func TestAdminAPIKeyHandler_List_WithKeys(t *testing.T) {
 
 	h := NewAdminAPIKeyHandler(newMockStore(), bolt)
 	req := httptest.NewRequest("GET", "/api/v1/admin/api-keys", nil)
+	req = withClaims(req, "u1", "t1", "role_super_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 
@@ -73,6 +75,7 @@ func TestAdminAPIKeyHandler_List_MissingKeyRecord(t *testing.T) {
 
 	h := NewAdminAPIKeyHandler(newMockStore(), bolt)
 	req := httptest.NewRequest("GET", "/api/v1/admin/api-keys", nil)
+	req = withClaims(req, "u1", "t1", "role_super_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
 	h.List(rr, req)
 
@@ -1715,6 +1718,10 @@ func (m *errorBoltStore) Set(_, _ string, _ any, _ int64) error {
 	return io.EOF
 }
 
+func (m *errorBoltStore) Mutate(_, _ string, _ any, _ int64, _ func(bool) error) error {
+	return io.EOF
+}
+
 func TestAppMiddlewareHandler_Update_BoltError(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
@@ -2490,6 +2497,8 @@ func TestIsPathSafe_PathTraversal(t *testing.T) {
 		{"../etc/passwd", false},
 		{"/app/../etc/passwd", false},
 		{"/app/../../etc/passwd", false},
+		{"%2e%2e/etc/passwd", false},
+		{"%252e%252e%252fetc%252fpasswd", false},
 		{"/..", false},
 		{"/app/..", false},
 	}

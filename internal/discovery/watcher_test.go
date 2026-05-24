@@ -262,6 +262,24 @@ func TestParseLabelsToRoute_ShortContainerID(t *testing.T) {
 	}
 }
 
+func TestParseLabelsToRoute_TinyContainerID(t *testing.T) {
+	labels := map[string]string{
+		"monster.app.id":                           "app-tiny",
+		"monster.app.name":                         "tinyid",
+		"monster.http.routers.tinyid.rule":         "Host(`tiny.com`)",
+		"monster.http.services.tinyid.server.port": "8080",
+	}
+
+	route := ParseLabelsToRoute(labels, "abc")
+	if route == nil {
+		t.Fatal("expected route, got nil")
+	}
+
+	if route.Backends[0] != "abc:8080" {
+		t.Errorf("backend = %q, want abc:8080", route.Backends[0])
+	}
+}
+
 func TestParseLabelsToRoute_WildcardHost(t *testing.T) {
 	labels := map[string]string{
 		"monster.app.id":                     "app-wildcard",

@@ -63,15 +63,15 @@ describe('Register page', () => {
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: 'ada@example.com' },
     });
-    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-8' } });
-    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-8' } });
+    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-12' } });
+    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-12' } });
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     await waitFor(() => {
       // Register store takes (email, password, name) — order matters.
       expect(registerMock).toHaveBeenCalledWith(
         'ada@example.com',
-        'Valid-Pass-8',
+        'Valid-Pass-12',
         'Ada Lovelace'
       );
     });
@@ -87,7 +87,7 @@ describe('Register page', () => {
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: 'ada@example.com' },
     });
-    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-8' } });
+    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-12' } });
     fireEvent.change(getConfirmInput(), { target: { value: 'Different!' } });
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
@@ -100,7 +100,7 @@ describe('Register page', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('rejects passwords shorter than 8 characters', async () => {
+  it('rejects passwords shorter than 12 characters', async () => {
     renderRegister();
 
     fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Ada' } });
@@ -112,7 +112,24 @@ describe('Register page', () => {
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     expect(
-      await screen.findByText(/password must be at least 8 characters/i)
+      await screen.findByText(/password must be at least 12 characters/i)
+    ).toBeInTheDocument();
+    expect(registerMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects passwords without all required character classes', async () => {
+    renderRegister();
+
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Ada' } });
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'ada@example.com' },
+    });
+    fireEvent.change(getPasswordInput(), { target: { value: 'NoSpecial1234' } });
+    fireEvent.change(getConfirmInput(), { target: { value: 'NoSpecial1234' } });
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }));
+
+    expect(
+      await screen.findByText('Password must contain uppercase, lowercase, digit, and special character')
     ).toBeInTheDocument();
     expect(registerMock).not.toHaveBeenCalled();
   });
@@ -125,8 +142,8 @@ describe('Register page', () => {
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: 'ada@example.com' },
     });
-    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-8' } });
-    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-8' } });
+    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-12' } });
+    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-12' } });
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     expect(await screen.findByText('email already taken')).toBeInTheDocument();
@@ -141,8 +158,8 @@ describe('Register page', () => {
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: 'ada@example.com' },
     });
-    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-8' } });
-    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-8' } });
+    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-12' } });
+    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-12' } });
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     expect(await screen.findByText('Registration failed')).toBeInTheDocument();
@@ -162,8 +179,8 @@ describe('Register page', () => {
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: 'ada@example.com' },
     });
-    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-8' } });
-    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-8' } });
+    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-12' } });
+    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-12' } });
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     const loadingBtn = await screen.findByRole('button', { name: /creating account/i });
@@ -202,7 +219,7 @@ describe('Register page', () => {
   it('shows inline "Passwords do not match" under the confirm field while typing', () => {
     renderRegister();
 
-    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-8' } });
+    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-12' } });
     fireEvent.change(getConfirmInput(), { target: { value: 'Val' } });
 
     // Only the inline field-level message should be visible — the top alert
@@ -210,7 +227,7 @@ describe('Register page', () => {
     const matches = screen.getAllByText(/passwords do not match/i);
     expect(matches.length).toBe(1);
 
-    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-8' } });
+    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-12' } });
     expect(screen.queryByText(/passwords do not match/i)).not.toBeInTheDocument();
   });
 });

@@ -1,10 +1,14 @@
 package middleware
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 func TestRecovery(t *testing.T) {
@@ -48,6 +52,12 @@ func TestCORS(t *testing.T) {
 
 	if rr2.Header().Get("Access-Control-Allow-Methods") == "" {
 		t.Error("missing allowed methods header")
+	}
+	allowedHeaders := rr2.Header().Get("Access-Control-Allow-Headers")
+	for _, header := range []string{"X-CSRF-Token", "Idempotency-Key"} {
+		if !strings.Contains(allowedHeaders, header) {
+			t.Fatalf("allowed headers %q missing %s", allowedHeaders, header)
+		}
 	}
 }
 
@@ -111,5 +121,81 @@ func TestAuditPath(t *testing.T) {
 		if action != tt.wantAction {
 			t.Errorf("%s %s: action = %q, want %q", tt.method, tt.path, action, tt.wantAction)
 		}
+	}
+}
+
+func TestAPIVersion(t *testing.T) {
+	handler := APIVersion("1.2.3")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("code = %d, want 202", rr.Code)
+	}
+	if rr.Header().Get("X-DeployMonster-Version") != "1.2.3" {
+		t.Fatalf("missing deploymonster version header")
+	}
+	if rr.Header().Get("X-API-Version") != "v1" {
+		t.Fatalf("missing API version header")
+	}
+}
+
+func TestIPAllowlist(t *testing.T) {
+	allowed := NewIPAllowlist([]string{" 127.0.0.0/8 ", "", "bad-cidr"}, slog.Default())
+	handler := allowed.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "127.0.0.1:1234"
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("allowed code = %d, want 204", rr.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.1:1234"
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("blocked code = %d, want 403", rr.Code)
+	}
+
+	open := NewIPAllowlist(nil, nil).Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "not-an-ip"
+	rr = httptest.NewRecorder()
+	open.ServeHTTP(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("empty allowlist should pass, got %d", rr.Code)
+	}
+}
+
+func TestTracingNoTracerAndParentID(t *testing.T) {
+	ctx := WithParentID(context.Background(), "parent")
+	if got, _ := ctx.Value(parentIDKey{}).(string); got != "parent" {
+		t.Fatalf("parent id = %q", got)
+	}
+
+	startCtx, end := StartSpan(ctx, &core.Core{})
+	if startCtx != ctx {
+		t.Fatal("StartSpan without tracer should return original context")
+	}
+	end()
+
+	var seen bool
+	handler := Tracing(&core.Core{})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		seen = true
+	}))
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	if !seen {
+		t.Fatal("tracing middleware did not invoke next handler")
 	}
 }

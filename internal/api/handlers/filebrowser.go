@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/url"
 	stdpath "path"
 	"strings"
 
@@ -30,6 +31,17 @@ type FileEntry struct {
 // Rejects .. components, null bytes, non-printable chars, Windows drive
 // letters, and any path that does not resolve to an absolute location.
 func isPathSafe(p string) bool {
+	for i := 0; i < 2; i++ {
+		next, err := url.PathUnescape(p)
+		if err != nil {
+			return false
+		}
+		if next == p {
+			break
+		}
+		p = next
+	}
+
 	// Block null bytes and non-printable characters early
 	for i := 0; i < len(p); i++ {
 		if p[i] == 0 || p[i] < 32 {
@@ -97,7 +109,7 @@ func (h *FileBrowserHandler) List(w http.ResponseWriter, r *http.Request) {
 	// For now, return structural response
 	writeJSON(w, http.StatusOK, map[string]any{
 		"app_id":       appID,
-		"container_id": containers[0].ID[:12],
+		"container_id": shortResourceID(containers[0].ID),
 		"path":         path,
 		"files":        []FileEntry{},
 	})

@@ -182,6 +182,7 @@ func TestAdminAPIKeys_GenerateThenList(t *testing.T) {
 	}
 
 	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/admin/api-keys", nil)
+	req2 = withClaims(req2, "user1", "tenant1", "role_super_admin", "admin@test.com")
 	rr2 := httptest.NewRecorder()
 	handler.List(rr2, req2)
 

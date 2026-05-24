@@ -508,7 +508,7 @@ export function Settings() {
                   placeholder="Enter new password"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Minimum 8 characters with uppercase, lowercase, and numbers.
+                  Minimum 12 characters with uppercase, lowercase, digit, and special character.
                 </p>
               </div>
               <Button

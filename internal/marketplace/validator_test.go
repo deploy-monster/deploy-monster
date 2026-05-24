@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/compose"
 )
 
 // helper: make a minimally-valid template, then let callers mutate it.
@@ -123,6 +125,19 @@ func TestValidateTemplate_NoServices(t *testing.T) {
 	var ve *ValidationError
 	if !errors.As(err, &ve) || !containsIssue(ve.Issues, "no services") {
 		t.Errorf("expected no-services issue, got %v", err)
+	}
+}
+
+func TestValidateTemplate_ComposeYAMLTooLarge(t *testing.T) {
+	tmpl := validTemplate()
+	tmpl.ComposeYAML = "services:\n  web:\n    image: nginx\n    environment:\n      BIG: " + strings.Repeat("a", compose.MaxComposeYAMLSize)
+	err := ValidateTemplate(tmpl)
+	if err == nil {
+		t.Fatal("expected error for oversized compose_yaml")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) || !containsIssue(ve.Issues, "compose_yaml exceeds") {
+		t.Errorf("expected compose_yaml size issue, got %v", err)
 	}
 }
 

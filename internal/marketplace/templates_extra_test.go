@@ -2,6 +2,7 @@ package marketplace
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -56,6 +57,27 @@ func TestBuiltinTemplates_NoWeakSecretFallbacks(t *testing.T) {
 			}
 			if isSensitiveTemplateEnvKey(match[1]) && isWeakTemplateSecretDefault(match[2]) {
 				t.Fatalf("template %s contains weak secret fallback %q", tmpl.Slug, match[0])
+			}
+		}
+		for _, line := range strings.SplitAfter(tmpl.ComposeYAML, "\n") {
+			if _, _, ok := weakSensitiveScalarDefault(line); ok {
+				t.Fatalf("template %s contains hardcoded weak secret %q", tmpl.Slug, line)
+			}
+		}
+		for _, match := range composeURLPasswordExpr.FindAllStringSubmatch(tmpl.ComposeYAML, -1) {
+			if len(match) != 4 {
+				continue
+			}
+			if isWeakTemplateSecretDefault(match[2]) {
+				t.Fatalf("template %s contains weak URL password %q", tmpl.Slug, match[0])
+			}
+		}
+		for _, match := range composeQueryPasswordExpr.FindAllStringSubmatch(tmpl.ComposeYAML, -1) {
+			if len(match) != 3 {
+				continue
+			}
+			if isWeakTemplateSecretDefault(match[2]) {
+				t.Fatalf("template %s contains weak query password %q", tmpl.Slug, match[0])
 			}
 		}
 	}

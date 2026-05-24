@@ -18,15 +18,15 @@ jobs:
     name: GoReleaser
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ac6db6d3c1f721f886538a378a2d73e85697340a
         with:
           package_json_file: web/package.json
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '22'
           cache: pnpm
@@ -43,25 +43,25 @@ jobs:
           rm -rf internal/api/static/*
           cp -r web/dist/* internal/api/static/
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: '1.26'
           cache: true
 
-      - uses: anchore/sbom-action/download-syft@v0
+      - uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610
         with:
           syft-version: v1.18.1
 
       - name: Log in to GHCR
         if: github.event_name != 'workflow_dispatch'
-        uses: docker/login-action@v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89
         with:
           distribution: goreleaser
           version: v2.15.2

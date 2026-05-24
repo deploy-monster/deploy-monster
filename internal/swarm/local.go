@@ -2,6 +2,7 @@ package swarm
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -57,9 +58,12 @@ func (l *LocalExecutor) ListByLabels(ctx context.Context, labels map[string]stri
 
 func (l *LocalExecutor) Exec(ctx context.Context, command string) (string, error) {
 	// For local execution, run through the container runtime exec
-	// using a utility container or directly via the host shell.
-	// For now, delegate to the runtime's exec with a shell wrapper.
-	return l.runtime.Exec(ctx, "", []string{"sh", "-c", command})
+	// using a direct argv command. No shell is invoked.
+	cmd := core.SplitCommand(command)
+	if !core.CommandTokensSafe(cmd) {
+		return "", fmt.Errorf("node command blocked by security policy")
+	}
+	return l.runtime.Exec(ctx, "", cmd)
 }
 
 func (l *LocalExecutor) Metrics(ctx context.Context) (*core.ServerMetrics, error) {

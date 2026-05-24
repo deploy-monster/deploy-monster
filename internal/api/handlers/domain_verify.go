@@ -30,7 +30,7 @@ type VerifyResult struct {
 	CheckedAt string   `json:"checked_at"`
 }
 
-// domainVerifyRecord persisted in BBolt for audit/history.
+// domainVerifyRecord persisted in KV storage for audit/history.
 type domainVerifyRecord struct {
 	DomainID  string `json:"domain_id"`
 	FQDN      string `json:"fqdn"`

@@ -61,11 +61,34 @@ describe('authStore', () => {
 
       await useAuthStore.getState().login('test@example.com', 'password');
 
+      expect(authAPI.login).toHaveBeenCalledWith({
+        email: 'test@example.com',
+        password: 'password',
+        totp_code: undefined,
+      });
       const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(true);
       expect(state.user?.id).toBe('u1');
       expect(state.user?.email).toBe('test@example.com');
       expect(state.user?.tenant_id).toBe('t1');
+    });
+
+    it('passes the TOTP code to the login API when provided', async () => {
+      vi.mocked(authAPI.login).mockResolvedValue(fakeTokenPair({}));
+      vi.mocked(api.get).mockResolvedValue({
+        user: { id: 'u1', email: 'test@example.com', name: 'Test User' },
+        membership: { role_id: 'admin', tenant_id: 't1' },
+        role_id: 'admin',
+        tenant_id: 't1',
+      });
+
+      await useAuthStore.getState().login('test@example.com', 'password', '123456');
+
+      expect(authAPI.login).toHaveBeenCalledWith({
+        email: 'test@example.com',
+        password: 'password',
+        totp_code: '123456',
+      });
     });
 
     it('propagates API errors', async () => {

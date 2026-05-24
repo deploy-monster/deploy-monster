@@ -14,6 +14,9 @@ import (
 // ─── List Volumes ────────────────────────────────────────────────────────────
 
 func TestListVolumes_Success(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Web App"})
+	store.addApp(&core.Application{ID: "app2", TenantID: "tenant1", Name: "API Server"})
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{
 			{
@@ -37,9 +40,10 @@ func TestListVolumes_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewVolumeHandler(runtime, testCore().Events)
+	handler := NewVolumeHandler(runtime, store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/volumes", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -63,9 +67,10 @@ func TestListVolumes_Success(t *testing.T) {
 }
 
 func TestListVolumes_NilRuntime(t *testing.T) {
-	handler := NewVolumeHandler(nil, testCore().Events)
+	handler := NewVolumeHandler(nil, newMockStore(), testCore().Events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/volumes", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -84,13 +89,15 @@ func TestListVolumes_NilRuntime(t *testing.T) {
 }
 
 func TestListVolumes_RuntimeError(t *testing.T) {
+	store := newMockStore()
 	runtime := &mockContainerRuntime{
 		listErr: errors.New("docker unavailable"),
 	}
 
-	handler := NewVolumeHandler(runtime, testCore().Events)
+	handler := NewVolumeHandler(runtime, store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/volumes", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -102,6 +109,8 @@ func TestListVolumes_RuntimeError(t *testing.T) {
 }
 
 func TestListVolumes_DeduplicatesApps(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Web App"})
 	runtime := &mockContainerRuntime{
 		containers: []core.ContainerInfo{
 			{
@@ -125,9 +134,10 @@ func TestListVolumes_DeduplicatesApps(t *testing.T) {
 		},
 	}
 
-	handler := NewVolumeHandler(runtime, testCore().Events)
+	handler := NewVolumeHandler(runtime, store, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/volumes", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.List(rr, req)
@@ -145,10 +155,61 @@ func TestListVolumes_DeduplicatesApps(t *testing.T) {
 	}
 }
 
+func TestListVolumes_FiltersCrossTenantApps(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "tenant-app", TenantID: "tenant1", Name: "Visible"})
+	store.addApp(&core.Application{ID: "other-app", TenantID: "tenant2", Name: "Hidden"})
+	runtime := &mockContainerRuntime{
+		containers: []core.ContainerInfo{
+			{
+				ID: "tenant-container",
+				Labels: map[string]string{
+					"monster.enable":   "true",
+					"monster.app.id":   "tenant-app",
+					"monster.app.name": "Visible",
+				},
+			},
+			{
+				ID: "other-container",
+				Labels: map[string]string{
+					"monster.enable":   "true",
+					"monster.app.id":   "other-app",
+					"monster.app.name": "Hidden",
+				},
+			},
+		},
+	}
+	handler := NewVolumeHandler(runtime, store, testCore().Events)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/volumes", nil)
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.List(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if int(resp["total"].(float64)) != 1 {
+		t.Fatalf("expected one visible volume, got %v", resp["total"])
+	}
+	data := resp["data"].([]any)
+	got := data[0].(map[string]any)
+	if got["app_id"] != "tenant-app" {
+		t.Fatalf("visible app_id = %v, want tenant-app", got["app_id"])
+	}
+}
+
 // ─── Create Volume ───────────────────────────────────────────────────────────
 
 func TestCreateVolume_Success(t *testing.T) {
-	handler := NewVolumeHandler(nil, testCore().Events)
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Web App"})
+	handler := NewVolumeHandler(nil, store, testCore().Events)
 
 	body, _ := json.Marshal(createVolumeRequest{
 		Name:      "my-volume",
@@ -157,6 +218,7 @@ func TestCreateVolume_Success(t *testing.T) {
 		SizeMB:    512,
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/volumes", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -189,9 +251,10 @@ func TestCreateVolume_Success(t *testing.T) {
 }
 
 func TestCreateVolume_InvalidJSON(t *testing.T) {
-	handler := NewVolumeHandler(nil, testCore().Events)
+	handler := NewVolumeHandler(nil, nil, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/volumes", bytes.NewReader([]byte("{")))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -203,13 +266,14 @@ func TestCreateVolume_InvalidJSON(t *testing.T) {
 }
 
 func TestCreateVolume_MissingName(t *testing.T) {
-	handler := NewVolumeHandler(nil, testCore().Events)
+	handler := NewVolumeHandler(nil, nil, testCore().Events)
 
 	body, _ := json.Marshal(createVolumeRequest{
 		AppID:     "app1",
 		MountPath: "/data",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/volumes", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Create(rr, req)
@@ -218,4 +282,42 @@ func TestCreateVolume_MissingName(t *testing.T) {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 	assertErrorMessage(t, rr, "name is required")
+}
+
+func TestCreateVolume_Unauthorized(t *testing.T) {
+	handler := NewVolumeHandler(nil, nil, testCore().Events)
+
+	body, _ := json.Marshal(createVolumeRequest{Name: "my-volume"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/volumes", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "unauthorized")
+}
+
+func TestCreateVolume_CrossTenantAppRejected(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant2", Name: "Hidden"})
+	handler := NewVolumeHandler(nil, store, testCore().Events)
+
+	body, _ := json.Marshal(createVolumeRequest{
+		Name:      "my-volume",
+		AppID:     "app1",
+		MountPath: "/data",
+		SizeMB:    512,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/volumes", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertErrorMessage(t, rr, "app not found")
 }

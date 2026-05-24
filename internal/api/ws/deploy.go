@@ -80,7 +80,7 @@ type DeployHub struct {
 	clients        map[string]map[*websocket.Conn]*clientConn // projectID -> connections
 	mu             sync.RWMutex
 	logger         *slog.Logger
-	allowedOrigins string // comma-separated allowed origins, "*" for all
+	allowedOrigins string // comma-separated allowed origins; "*" is rejected
 
 	wg       sync.WaitGroup // tracks in-flight ServeWS handlers
 	stopOnce sync.Once
@@ -97,7 +97,8 @@ func NewDeployHub() *DeployHub {
 }
 
 // SetAllowedOrigins configures which origins may open WebSocket connections.
-// Pass "*" to allow all, or a comma-separated list of origins.
+// Pass a comma-separated list of exact origins. "*" is intentionally not
+// accepted for WebSockets because browsers send cookies during the upgrade.
 func (h *DeployHub) SetAllowedOrigins(origins string) {
 	h.allowedOrigins = origins
 }
@@ -105,9 +106,6 @@ func (h *DeployHub) SetAllowedOrigins(origins string) {
 func (h *DeployHub) upgrader() websocket.Upgrader {
 	return websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
-			if h.allowedOrigins == "*" {
-				return true
-			}
 			origin := r.Header.Get("Origin")
 			// SECURITY FIX: Empty origin header no longer allowed
 			// This prevents cross-origin WebSocket connections from tools that don't send Origin headers
@@ -116,7 +114,12 @@ func (h *DeployHub) upgrader() websocket.Upgrader {
 				return false
 			}
 			for _, allowed := range strings.Split(h.allowedOrigins, ",") {
-				if strings.TrimSpace(allowed) == origin {
+				allowed = strings.TrimSpace(allowed)
+				if allowed == "*" {
+					h.logger.Warn("WebSocket wildcard origin rejected")
+					continue
+				}
+				if allowed == origin {
 					return true
 				}
 			}

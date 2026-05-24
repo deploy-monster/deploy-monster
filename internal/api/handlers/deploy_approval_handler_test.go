@@ -122,6 +122,31 @@ func TestDeployApproval_Approve_Success(t *testing.T) {
 	}
 }
 
+func TestDeployApproval_Approve_AlreadyProcessedConflict(t *testing.T) {
+	handler := NewDeployApprovalHandler(newMockStore(), nil)
+	handler.pending["appr1"] = &ApprovalRequest{
+		ID:         "appr1",
+		AppID:      "app1",
+		TenantID:   "tenant1",
+		Status:     "rejected",
+		ReviewedBy: "reviewer1",
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/approvals/appr1/approve", nil)
+	req.SetPathValue("id", "appr1")
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+
+	handler.Approve(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if got := handler.pending["appr1"].Status; got != "rejected" {
+		t.Fatalf("status changed to %q, want rejected", got)
+	}
+}
+
 func TestDeployApproval_Approve_NoClaims(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
@@ -175,6 +200,32 @@ func TestDeployApproval_Reject_Success(t *testing.T) {
 	}
 	if resp["reason"] != "not ready for production" {
 		t.Errorf("expected reason='not ready for production', got %q", resp["reason"])
+	}
+}
+
+func TestDeployApproval_Reject_AlreadyProcessedConflict(t *testing.T) {
+	handler := NewDeployApprovalHandler(newMockStore(), nil)
+	handler.pending["appr1"] = &ApprovalRequest{
+		ID:         "appr1",
+		AppID:      "app1",
+		TenantID:   "tenant1",
+		Status:     "approved",
+		ReviewedBy: "reviewer1",
+	}
+
+	body, _ := json.Marshal(map[string]string{"reason": "too late"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/approvals/appr1/reject", bytes.NewReader(body))
+	req.SetPathValue("id", "appr1")
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+
+	handler.Reject(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if got := handler.pending["appr1"].Status; got != "approved" {
+		t.Fatalf("status changed to %q, want approved", got)
 	}
 }
 

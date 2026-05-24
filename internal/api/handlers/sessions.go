@@ -303,7 +303,7 @@ func (h *SessionHandler) EnableTOTP(w http.ResponseWriter, r *http.Request) {
 
 	if req.Code != "" {
 		if err := h.authMod.TOTP().ConfirmEnrollment(r.Context(), claims.UserID, req.Code); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeTOTPError(w, err, "failed to update TOTP settings")
 			return
 		}
 		writeJSON(w, http.StatusOK, totpEnrollResponse{Status: "enabled"})
@@ -312,7 +312,7 @@ func (h *SessionHandler) EnableTOTP(w http.ResponseWriter, r *http.Request) {
 
 	uri, err := h.authMod.TOTP().Enroll(r.Context(), claims.UserID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeTOTPError(w, err, "failed to update TOTP settings")
 		return
 	}
 
@@ -374,7 +374,7 @@ func (h *SessionHandler) DisableTOTP(w http.ResponseWriter, r *http.Request) {
 
 	err := h.authMod.TOTP().Disable(r.Context(), claims.UserID, req.Code)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeTOTPError(w, err, "failed to update TOTP settings")
 		return
 	}
 
@@ -397,13 +397,26 @@ func (h *SessionHandler) GenerateBackupCodes(w http.ResponseWriter, r *http.Requ
 
 	codes, err := h.authMod.TOTP().GenerateBackupCodes(r.Context(), claims.UserID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to generate backup codes")
+		writeTOTPError(w, err, "failed to generate backup codes")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"backup_codes": codes.Plain,
 	})
+}
+
+func writeTOTPError(w http.ResponseWriter, err error, internalMessage string) {
+	msg := err.Error()
+	switch msg {
+	case "TOTP is already enabled",
+		"TOTP enrollment has not been started",
+		"invalid TOTP code",
+		"TOTP is not enabled":
+		writeError(w, http.StatusBadRequest, msg)
+	default:
+		writeError(w, http.StatusInternalServerError, internalMessage)
+	}
 }
 
 // SESS-005: Invalidate all sessions for the current user
@@ -471,7 +484,7 @@ func (h *SessionHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 		isCurrent := s.IP == currentIP && s.UserAgent == currentUA
 
 		sessionInfos = append(sessionInfos, SessionInfo{
-			ID:        s.JTI[:8] + "...", // Truncated for security
+			ID:        core.ShortID(s.JTI, 8) + "...", // Truncated for security
 			IPAddress: s.IP,
 			UserAgent: s.UserAgent,
 			CreatedAt: s.CreatedAt,

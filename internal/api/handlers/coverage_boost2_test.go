@@ -1213,7 +1213,7 @@ func TestWebhookReplayHandler_Replay(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestWebhookRotateHandler_New(t *testing.T) {
-	h := NewWebhookRotateHandler(newMockStore(), core.NewEventBus(nil))
+	h := NewWebhookRotateHandler(newMockStore(), core.NewEventBus(nil), newMockBoltStore())
 	if h == nil {
 		t.Fatal("NewWebhookRotateHandler returned nil")
 	}
@@ -1222,7 +1222,8 @@ func TestWebhookRotateHandler_New(t *testing.T) {
 func TestWebhookRotateHandler_Rotate(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
-	h := NewWebhookRotateHandler(store, core.NewEventBus(slog.Default()))
+	bolt := newMockBoltStore()
+	h := NewWebhookRotateHandler(store, core.NewEventBus(slog.Default()), bolt)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/webhooks/rotate", nil)
 	req.SetPathValue("id", "app-1")
@@ -1232,6 +1233,24 @@ func TestWebhookRotateHandler_Rotate(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
+	}
+
+	var resp struct {
+		NewSecret string `json:"new_secret"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.NewSecret == "" {
+		t.Fatal("expected response to include one-time webhook secret")
+	}
+
+	got, err := bolt.GetWebhookSecret("app-1")
+	if err != nil {
+		t.Fatalf("GetWebhookSecret: %v", err)
+	}
+	if got != resp.NewSecret {
+		t.Fatalf("persisted secret = %q, want response secret", got)
 	}
 }
 

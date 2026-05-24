@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -59,6 +60,12 @@ type mockStore struct {
 	auditLogs      map[string][]core.AuditEntry // keyed by tenantID
 	auditLogsTotal map[string]int               // keyed by tenantID
 
+	// Usage records
+	usageRecords []core.UsageRecord
+
+	// Migrations
+	migrations []core.MigrationStatus
+
 	// Secrets
 	secrets map[string][]core.Secret // keyed by tenantID
 
@@ -103,6 +110,7 @@ type mockStore struct {
 	errCreateInvite             error
 	errListInvitesByTenant      error
 	errListAllTenants           error
+	errListMigrations           error
 
 	// Capture calls for assertions.
 	lastLoginUserID  string
@@ -828,14 +836,33 @@ func (m *mockStore) ListAllTenants(_ context.Context, limit, offset int) ([]core
 // ─── Store top-level methods ─────────────────────────────────────────────────
 
 func (m *mockStore) CreateUsageRecord(_ context.Context, _ *core.UsageRecord) error { return nil }
-func (m *mockStore) ListUsageRecordsByTenant(_ context.Context, _ string, _, _ int) ([]core.UsageRecord, int, error) {
-	return nil, 0, nil
+func (m *mockStore) ListUsageRecordsByTenant(_ context.Context, tenantID string, _, _ int) ([]core.UsageRecord, int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	records := make([]core.UsageRecord, 0, len(m.usageRecords))
+	for _, record := range m.usageRecords {
+		if record.TenantID == tenantID {
+			records = append(records, record)
+		}
+	}
+	return records, len(records), nil
 }
 func (m *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
 func (m *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
 func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+
+func (m *mockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, error) {
+	if m.errListMigrations != nil {
+		return nil, m.errListMigrations
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]core.MigrationStatus, len(m.migrations))
+	copy(out, m.migrations)
+	return out, nil
+}
 
 func (m *mockStore) Close() error                 { return nil }
 func (m *mockStore) Ping(_ context.Context) error { return nil }
@@ -944,6 +971,10 @@ type mockContainerRuntime struct {
 	listErr      error
 	logsData     string
 	logsErr      error
+	execCmd      []string
+	execCalls    int
+	execOutput   string
+	execErr      error
 	imageList    []core.ImageInfo
 	imageListErr error
 	stopErr      error
@@ -982,8 +1013,10 @@ func (m *mockContainerRuntime) ListByLabels(_ context.Context, _ map[string]stri
 	return m.containers, nil
 }
 
-func (m *mockContainerRuntime) Exec(_ context.Context, _ string, _ []string) (string, error) {
-	return "", nil
+func (m *mockContainerRuntime) Exec(_ context.Context, _ string, cmd []string) (string, error) {
+	m.execCalls++
+	m.execCmd = append([]string(nil), cmd...)
+	return m.execOutput, m.execErr
 }
 
 func (m *mockContainerRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
@@ -1021,6 +1054,17 @@ func newMockBoltStore() *mockBoltStore {
 	return &mockBoltStore{data: make(map[string]map[string][]byte)}
 }
 
+func seedActiveDeployFreeze(bolt *mockBoltStore, tenantID string) error {
+	now := time.Now()
+	return bolt.Set("deploy_freeze", tenantID, freezeWindowList{Windows: []FreezeWindow{{
+		ID:       "freeze-1",
+		Reason:   "maintenance",
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(time.Hour),
+		Active:   true,
+	}}}, 0)
+}
+
 func (m *mockBoltStore) Set(bucket, key string, value any, _ int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -1038,6 +1082,39 @@ func (m *mockBoltStore) BatchSet(items []core.BoltBatchItem) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (m *mockBoltStore) Mutate(bucket, key string, dest any, _ int64, mutate func(exists bool) error) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if mutate == nil {
+		return fmt.Errorf("mutate callback is required")
+	}
+
+	exists := false
+	if bkt, ok := m.data[bucket]; ok {
+		if raw, ok := bkt[key]; ok {
+			if err := json.Unmarshal(raw, dest); err != nil {
+				return err
+			}
+			exists = true
+		}
+	}
+
+	if err := mutate(exists); err != nil {
+		return err
+	}
+
+	if m.data[bucket] == nil {
+		m.data[bucket] = make(map[string][]byte)
+	}
+	raw, err := json.Marshal(dest)
+	if err != nil {
+		return err
+	}
+	m.data[bucket][key] = raw
 	return nil
 }
 
@@ -1110,7 +1187,9 @@ func (m *mockBoltStore) GetWebhookSecret(webhookID string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("webhook not found")
 	}
-	var wh models.Webhook
+	var wh struct {
+		SecretHash string `json:"secret_hash"`
+	}
 	if err := json.Unmarshal(raw, &wh); err != nil {
 		return "", err
 	}

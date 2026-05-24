@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -27,15 +28,20 @@ func (h *DBBackupHandler) Backup(w http.ResponseWriter, r *http.Request) {
 		dbPath = "deploymonster.db"
 	}
 
-	f, err := os.Open(dbPath)
+	filename := fmt.Sprintf("deploymonster-backup-%s.db", time.Now().Format("20060102-150405"))
+	f, cleanup, err := h.openBackupFile(r, dbPath, filename)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "database file not accessible")
 		return
 	}
+	defer cleanup()
 	defer f.Close()
 
-	info, _ := f.Stat()
-	filename := fmt.Sprintf("deploymonster-backup-%s.db", time.Now().Format("20060102-150405"))
+	info, err := f.Stat()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "database file not accessible")
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename="+safeFilename(filename))
@@ -57,6 +63,33 @@ func (h *DBBackupHandler) Backup(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+}
+
+func (h *DBBackupHandler) openBackupFile(r *http.Request, dbPath, filename string) (*os.File, func(), error) {
+	if h.core.DB != nil && h.core.DB.Snapshotter != nil {
+		dir, err := os.MkdirTemp("", "deploymonster-db-backup-*")
+		if err != nil {
+			return nil, func() {}, err
+		}
+		cleanup := func() { _ = os.RemoveAll(dir) }
+		snapshotPath := filepath.Join(dir, filename)
+		if err := h.core.DB.Snapshotter.SnapshotBackup(r.Context(), snapshotPath); err != nil {
+			cleanup()
+			return nil, func() {}, err
+		}
+		f, err := os.Open(snapshotPath)
+		if err != nil {
+			cleanup()
+			return nil, func() {}, err
+		}
+		return f, cleanup, nil
+	}
+
+	f, err := os.Open(dbPath)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	return f, func() {}, nil
 }
 
 // Status handles GET /api/v1/admin/db/status. Authorized by

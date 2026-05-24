@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/billing"
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -52,6 +53,13 @@ func TestGetUsage_Success(t *testing.T) {
 		{ID: "app2", TenantID: "tenant1", Name: "App Two"},
 	}
 	store.appTotal = 2
+	older := time.Now().Add(-time.Hour)
+	newer := time.Now()
+	store.usageRecords = []core.UsageRecord{
+		{TenantID: "tenant1", MetricType: "containers", Value: 2, HourBucket: older},
+		{TenantID: "tenant1", MetricType: "ram_mb", Value: 384, HourBucket: newer},
+		{TenantID: "tenant1", MetricType: "containers", Value: 4, HourBucket: newer},
+	}
 
 	handler := NewBillingHandler(store)
 
@@ -79,6 +87,11 @@ func TestGetUsage_Success(t *testing.T) {
 	if resp["quota"] == nil {
 		t.Error("expected quota in response")
 	}
+	for _, field := range []string{"containers_used", "containers_limit", "ram_used_mb", "ram_limit_mb"} {
+		if _, ok := resp[field]; !ok {
+			t.Errorf("expected %s in response", field)
+		}
+	}
 
 	// Verify apps_used is correct.
 	appsUsed, ok := resp["apps_used"].(float64)
@@ -87,6 +100,29 @@ func TestGetUsage_Success(t *testing.T) {
 	}
 	if int(appsUsed) != 2 {
 		t.Errorf("expected apps_used 2, got %d", int(appsUsed))
+	}
+	containersUsed, ok := resp["containers_used"].(float64)
+	if !ok {
+		t.Fatalf("expected containers_used to be a number, got %T", resp["containers_used"])
+	}
+	if int(containersUsed) != 4 {
+		t.Errorf("expected containers_used 4, got %d", int(containersUsed))
+	}
+	ramUsed, ok := resp["ram_used_mb"].(float64)
+	if !ok {
+		t.Fatalf("expected ram_used_mb to be a number, got %T", resp["ram_used_mb"])
+	}
+	if int(ramUsed) != 384 {
+		t.Errorf("expected ram_used_mb 384, got %d", int(ramUsed))
+	}
+	quota, ok := resp["quota"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected quota object, got %T", resp["quota"])
+	}
+	for _, field := range []string{"apps_ok", "containers_ok", "ram_ok"} {
+		if _, ok := quota[field]; !ok {
+			t.Errorf("expected quota.%s in response", field)
+		}
 	}
 }
 

@@ -421,21 +421,6 @@ func (s *Scheduler) backupTenant(ctx context.Context, tenant core.Tenant, storag
 // shutdown signal aborts the run at the next boundary.
 func (s *Scheduler) backupApp(ctx context.Context, tenant core.Tenant, app core.Application, storage core.BackupStorage, storageName string) bool {
 	backupID := core.GenerateID()
-	backup := &core.Backup{
-		ID:            backupID,
-		TenantID:      tenant.ID,
-		SourceType:    "config",
-		SourceID:      app.ID,
-		StorageTarget: storageName,
-		Status:        "pending",
-		Scheduled:     true,
-		RetentionDays: 30,
-	}
-	if err := s.store.CreateBackup(ctx, backup); err != nil {
-		s.logger.Error("failed to create backup record", "app", app.ID, "error", err)
-		return false
-	}
-
 	payload, err := json.MarshalIndent(app, "", "  ")
 	if err != nil {
 		s.markFailed(ctx, backupID, "marshal error", err)
@@ -454,26 +439,44 @@ func (s *Scheduler) backupApp(ctx context.Context, tenant core.Tenant, app core.
 
 	// Check if we already have a recent backup with the same hash — if so,
 	// record this as an incremental backup (no payload uploaded) to save
-	// bandwidth and storage. We look at the last backup for this app.
+	// bandwidth and storage. We persist the preceding full backup path so
+	// restore can still resolve a concrete archive from metadata-only rows.
 	incremental := false
+	key := fmt.Sprintf("%s/%s/%s.json", tenant.ID, app.ID, backupID)
 	if s.store != nil {
 		if lastBackup, found := s.findLastBackupForApp(ctx, tenant.ID, app.ID); found {
-			if lastBackup.BackupType == "full" && lastBackup.Encryption != "" {
-				if lastBackup.Encryption == hash {
-					incremental = true
-				}
+			if lastBackup.Encryption == hash && lastBackup.FilePath != "" {
+				incremental = true
+				key = lastBackup.FilePath
 			}
 		}
 	}
 
-	var key string
+	backup := &core.Backup{
+		ID:            backupID,
+		TenantID:      tenant.ID,
+		SourceType:    "config",
+		SourceID:      app.ID,
+		StorageTarget: storageName,
+		FilePath:      key,
+		SizeBytes:     backupSize,
+		Encryption:    hash,
+		Status:        "pending",
+		Scheduled:     true,
+		RetentionDays: 30,
+	}
 	if incremental {
 		backup.BackupType = "incremental"
-		key = fmt.Sprintf("%s/%s/%s.incremental", tenant.ID, app.ID, backupID)
 	} else {
 		backup.BackupType = "full"
-		key = fmt.Sprintf("%s/%s/%s.json", tenant.ID, app.ID, backupID)
-		backup.Encryption = hash // store hash for future incremental comparisons
+	}
+
+	if err := s.store.CreateBackup(ctx, backup); err != nil {
+		s.logger.Error("failed to create backup record", "app", app.ID, "error", err)
+		return false
+	}
+
+	if !incremental {
 		if err := storage.Upload(ctx, key, bytes.NewReader(payload), backupSize); err != nil {
 			s.logger.Error("failed to upload backup", "app", app.ID, "error", err)
 			s.markFailed(ctx, backupID, "upload failed", err)
@@ -585,6 +588,18 @@ func findBackupLister(store interface{}) func(context.Context, string, int, int)
 	}
 	if v.IsNil() {
 		return nil
+	}
+	if lister, ok := store.(interface {
+		ListBackupsByTenant(context.Context, string, int, int) ([]core.Backup, int, error)
+	}); ok {
+		return func(ctx context.Context, tenantID string, limit, offset int) (backups []core.Backup, total int, err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					backups, total, err = nil, 0, fmt.Errorf("ListBackupsByTenant unavailable: %v", r)
+				}
+			}()
+			return lister.ListBackupsByTenant(ctx, tenantID, limit, offset)
+		}
 	}
 	// Walk the struct's anonymous fields looking for one that implements
 	// the method and is non-nil.

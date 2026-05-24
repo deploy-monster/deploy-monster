@@ -223,6 +223,13 @@ func TestMergeSets(t *testing.T) {
 	}
 }
 
+func TestCountInAllowlist(t *testing.T) {
+	allow := map[string]struct{}{"a": {}, "c": {}}
+	if got := countInAllowlist([]string{"a", "b", "c", "d"}, allow); got != 2 {
+		t.Fatalf("countInAllowlist = %d, want 2", got)
+	}
+}
+
 func TestRouteSetKeysSorted(t *testing.T) {
 	s := routeSet{}
 	s.add(route{Method: "POST", Path: "/b"})

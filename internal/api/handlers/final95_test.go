@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/marketplace"
-	_ "modernc.org/sqlite"
 )
 
 // =============================================================================
@@ -147,24 +145,10 @@ func TestFinal95_DomainVerify_NoFQDNAnywhere(t *testing.T) {
 // =============================================================================
 
 func TestFinal95_MigrationHandler_Status_WithDB(t *testing.T) {
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	defer db.Close()
-
-	// Create _migrations table and insert test data
-	_, err = db.Exec(`CREATE TABLE _migrations (version INTEGER, name TEXT, applied_at TEXT)`)
-	if err != nil {
-		t.Fatalf("create table: %v", err)
-	}
-	_, err = db.Exec(`INSERT INTO _migrations (version, name, applied_at) VALUES (1, 'initial', '2026-01-01T00:00:00Z')`)
-	if err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-	_, err = db.Exec(`INSERT INTO _migrations (version, name, applied_at) VALUES (2, 'add_users', '2026-01-02T00:00:00Z')`)
-	if err != nil {
-		t.Fatalf("insert: %v", err)
+	store := newMockStore()
+	store.migrations = []core.MigrationStatus{
+		{Version: 1, Name: "initial", AppliedAt: "2026-01-01T00:00:00Z"},
+		{Version: 2, Name: "add_users", AppliedAt: "2026-01-02T00:00:00Z"},
 	}
 
 	c := &core.Core{
@@ -174,7 +158,7 @@ func TestFinal95_MigrationHandler_Status_WithDB(t *testing.T) {
 		Events:   core.NewEventBus(slog.Default()),
 		Services: core.NewServices(),
 		Logger:   slog.Default(),
-		DB:       &core.Database{SQL: db},
+		Store:    store,
 		Registry: core.NewRegistry(),
 	}
 	h := NewMigrationHandler(c)
@@ -208,13 +192,9 @@ func TestFinal95_MigrationHandler_Status_WithDB(t *testing.T) {
 // =============================================================================
 
 func TestFinal95_MigrationHandler_Status_QueryError(t *testing.T) {
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	defer db.Close()
+	store := newMockStore()
+	store.errListMigrations = fmt.Errorf("query failed")
 
-	// Do NOT create _migrations table so the query fails
 	c := &core.Core{
 		Config: &core.Config{
 			Database: core.DatabaseConfig{Driver: "sqlite"},
@@ -222,7 +202,7 @@ func TestFinal95_MigrationHandler_Status_QueryError(t *testing.T) {
 		Events:   core.NewEventBus(slog.Default()),
 		Services: core.NewServices(),
 		Logger:   slog.Default(),
-		DB:       &core.Database{SQL: db},
+		Store:    store,
 		Registry: core.NewRegistry(),
 	}
 	h := NewMigrationHandler(c)
@@ -238,16 +218,15 @@ func TestFinal95_MigrationHandler_Status_QueryError(t *testing.T) {
 }
 
 // =============================================================================
-// MigrationHandler.Status — DB.SQL is nil (DB struct exists but SQL is nil)
+// MigrationHandler.Status — Store is nil
 // =============================================================================
 
-func TestFinal95_MigrationHandler_Status_NilSQL(t *testing.T) {
+func TestFinal95_MigrationHandler_Status_NilStore(t *testing.T) {
 	c := &core.Core{
 		Config:   &core.Config{},
 		Events:   core.NewEventBus(slog.Default()),
 		Services: core.NewServices(),
 		Logger:   slog.Default(),
-		DB:       &core.Database{SQL: nil},
 		Registry: core.NewRegistry(),
 	}
 	h := NewMigrationHandler(c)
@@ -267,17 +246,6 @@ func TestFinal95_MigrationHandler_Status_NilSQL(t *testing.T) {
 // =============================================================================
 
 func TestFinal95_MigrationHandler_Status_EmptyTable(t *testing.T) {
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	defer db.Close()
-
-	_, err = db.Exec(`CREATE TABLE _migrations (version INTEGER, name TEXT, applied_at TEXT)`)
-	if err != nil {
-		t.Fatalf("create table: %v", err)
-	}
-
 	c := &core.Core{
 		Config: &core.Config{
 			Database: core.DatabaseConfig{Driver: "sqlite"},
@@ -285,7 +253,7 @@ func TestFinal95_MigrationHandler_Status_EmptyTable(t *testing.T) {
 		Events:   core.NewEventBus(slog.Default()),
 		Services: core.NewServices(),
 		Logger:   slog.Default(),
-		DB:       &core.Database{SQL: db},
+		Store:    newMockStore(),
 		Registry: core.NewRegistry(),
 	}
 	h := NewMigrationHandler(c)
@@ -1431,6 +1399,10 @@ type boltGetOkSetFail struct {
 }
 
 func (b *boltGetOkSetFail) Set(_, _ string, _ any, _ int64) error {
+	return fmt.Errorf("bolt set error")
+}
+
+func (b *boltGetOkSetFail) Mutate(_, _ string, _ any, _ int64, _ func(bool) error) error {
 	return fmt.Errorf("bolt set error")
 }
 

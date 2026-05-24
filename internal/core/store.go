@@ -30,6 +30,7 @@ type Store interface {
 	UsageRecordStore
 	BackupStore
 	ServerStore
+	MigrationStore
 	Close() error
 	Ping(ctx context.Context) error
 }
@@ -143,6 +144,11 @@ type InviteStore interface {
 	ListAllTenants(ctx context.Context, limit, offset int) ([]Tenant, int, error)
 }
 
+// MigrationStore exposes applied database migration metadata.
+type MigrationStore interface {
+	ListMigrations(ctx context.Context) ([]MigrationStatus, error)
+}
+
 // =====================================================
 // STORE DATA MODELS
 // DB-agnostic data models used by Store interface.
@@ -166,17 +172,25 @@ type Tenant struct {
 
 // User represents a platform user.
 type User struct {
-	ID           string     `json:"id"`
-	Email        string     `json:"email"`
-	PasswordHash string     `json:"-"`
-	Name         string     `json:"name"`
-	AvatarURL    string     `json:"avatar_url"`
-	Status       string     `json:"status"`
-	TOTPEnabled  bool       `json:"totp_enabled"`
-	TOTPSecret   string     `json:"-"`
-	LastLoginAt  *time.Time `json:"last_login_at,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID              string     `json:"id"`
+	Email           string     `json:"email"`
+	PasswordHash    string     `json:"-"`
+	Name            string     `json:"name"`
+	AvatarURL       string     `json:"avatar_url"`
+	Status          string     `json:"status"`
+	TOTPEnabled     bool       `json:"totp_enabled"`
+	TOTPSecret      string     `json:"-"`
+	TOTPBackupCodes []string   `json:"-"`
+	LastLoginAt     *time.Time `json:"last_login_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+// MigrationStatus describes one applied database migration.
+type MigrationStatus struct {
+	Version   int    `json:"version"`
+	Name      string `json:"name"`
+	AppliedAt string `json:"applied_at"`
 }
 
 // Application represents a deployed application.
@@ -394,17 +408,17 @@ type UsageRecordStore interface {
 
 // Backup represents a backup record.
 type Backup struct {
-	ID            string     `json:"id"`
-	TenantID      string     `json:"tenant_id"`
-	SourceType    string     `json:"source_type"`
-	SourceID      string     `json:"source_id"`
-	StorageTarget string     `json:"storage_target"`
-	FilePath      string     `json:"file_path"`
-	SizeBytes     int64      `json:"size_bytes"`
-	Encryption    string     `json:"encryption"`
-	Status        string     `json:"status"`
-	Scheduled     bool       `json:"scheduled"`
-	RetentionDays int        `json:"retention_days"`
+	ID            string `json:"id"`
+	TenantID      string `json:"tenant_id"`
+	SourceType    string `json:"source_type"`
+	SourceID      string `json:"source_id"`
+	StorageTarget string `json:"storage_target"`
+	FilePath      string `json:"file_path"`
+	SizeBytes     int64  `json:"size_bytes"`
+	Encryption    string `json:"encryption"`
+	Status        string `json:"status"`
+	Scheduled     bool   `json:"scheduled"`
+	RetentionDays int    `json:"retention_days"`
 	// BackupType is "full" for a complete snapshot or "incremental" when
 	// no payload was uploaded because the app config had not changed since
 	// the previous backup (hash match).

@@ -95,7 +95,6 @@ func TestTier77_Hub_Register_RejectedAfterShutdown(t *testing.T) {
 
 func TestTier77_Hub_ServeWS_RejectedAfterShutdown(t *testing.T) {
 	hub := NewDeployHub()
-	hub.SetAllowedOrigins("*")
 	if err := hub.Shutdown(context.Background()); err != nil {
 		t.Fatalf("Shutdown: %v", err)
 	}
@@ -127,7 +126,6 @@ func TestTier77_Hub_ServeWS_RejectedAfterShutdown(t *testing.T) {
 // kept running after the API module was stopped.
 func TestTier77_Hub_Shutdown_ClosesRegisteredConnections(t *testing.T) {
 	hub := NewDeployHub()
-	hub.SetAllowedOrigins("*")
 
 	handlerExited := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -135,12 +133,9 @@ func TestTier77_Hub_Shutdown_ClosesRegisteredConnections(t *testing.T) {
 		close(handlerExited)
 	}))
 	defer srv.Close()
+	hub.SetAllowedOrigins(srv.URL)
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
-	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
+	ws := dialWS(t, wsURL(srv.URL), srv.URL)
 	defer ws.Close()
 
 	// Wait until ServeWS has actually registered the client.
