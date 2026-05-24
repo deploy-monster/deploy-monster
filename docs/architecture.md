@@ -44,7 +44,7 @@ DeployMonster is a **modular monolith** — a single 22MB binary containing ever
 │  ┌─────────────────────────────────┴────────────────────────────────────┐  │
 │  │                          Infrastructure Layer                          │  │
 │  │  ┌─────────────┐ ┌──────────────┐ ┌─────────────┐ ┌───────────────┐  │  │
-│  │  │ SQLite+BBolt│ │  Docker SDK  │ │  SSH Pool   │ │ HTTP Clients  │  │  │
+│  │  │ SQLite + KV │ │  Docker SDK  │ │  SSH Pool   │ │ HTTP Clients  │  │  │
 │  │  └─────────────┘ └──────────────┘ └─────────────┘ └───────────────┘  │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -128,7 +128,7 @@ The core engine manages module lifecycle in dependency order:
 
 | Module | ID | Purpose | Dependencies |
 |--------|-----|---------|--------------|
-| **db** | `core.db` | SQLite + BBolt storage | none |
+| **db** | `core.db` | SQLite + SQLite-backed KV storage | none |
 | **auth** | `auth` | JWT, TOTP, OAuth, sessions | `core.db` |
 | **secrets** | `secrets` | AES-256-GCM vault | `core.db` |
 | **deploy** | `deploy` | Docker orchestration | `core.db` |
@@ -421,7 +421,7 @@ Custom reverse proxy — **no Traefik/Nginx required**.
 │         ↓                                                       │
 │  4. DNS-01 challenge (via Cloudflare API)                       │
 │         ↓                                                       │
-│  5. Certificate issued, stored in BBolt                         │
+│  5. Certificate issued, stored in KV storage                    │
 │         ↓                                                       │
 │  6. Auto-renewal 30 days before expiry                          │
 │                                                                 │
@@ -744,7 +744,7 @@ AES-256-GCM encrypted secrets with scope-based resolution.
 │                                         └─────────────┘
 │
 ├─────────────────────────────────────────────────────────────────────────┤
-│                        BBolt Buckets                                     │
+│                        KV Buckets                                        │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │   config.{key}         → Platform configuration                         │
@@ -830,7 +830,7 @@ DeployMonster/
 │   │   ├── config.go           # Configuration
 │   │   └── ...
 │   │
-│   ├── db/                     # SQLite + BBolt storage
+│   ├── db/                     # SQLite + KV storage
 │   │   ├── sqlite.go
 │   │   ├── bolt.go
 │   │   └── models/
@@ -893,7 +893,7 @@ DeployMonster is a **modular monolith** that packs enterprise-grade PaaS capabil
 | Feature | Implementation |
 |---------|---------------|
 | **Architecture** | Modular monolith, 20 auto-registered modules |
-| **Data** | SQLite + BBolt (PostgreSQL planned) |
+| **Data** | SQLite + SQLite-backed KV (PostgreSQL planned) |
 | **API** | 224 REST endpoints |
 | **Auth** | JWT + bcrypt + TOTP + OAuth |
 | **Ingress** | Custom reverse proxy (no Traefik/Nginx) |

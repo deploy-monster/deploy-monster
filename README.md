@@ -81,7 +81,7 @@ tenant checks at one layer.
   least-conn, IP-hash, random, weighted + canary).
 - **Secret vault** — AES-256-GCM with Argon2id KDF, scoped hierarchy
   (global → tenant → project → app), `${SECRET:name}` template syntax
-  for env vars and compose files. Per-deployment salt stored in BBolt;
+  for env vars and compose files. Per-deployment salt stored in KV storage;
   legacy installs migrate on first boot. See ADR 0008.
 - **Managed databases** — PostgreSQL, MySQL, MariaDB, Redis, MongoDB.
 - **Backups** — local + S3/MinIO/R2, cron schedules, retention.
@@ -122,7 +122,7 @@ tenant checks at one layer.
 │  auth │ deploy │ build │ ingress │ dns │ secrets │ billing │   │
 │  db   │ backup │ vps   │ swarm   │ marketplace │ notifications │
 ├─────────────────────────────────────────────────────────────────┤
-│   SQLite + BBolt   │   Docker SDK   │   EventBus   │   Store   │
+│   SQLite + KV      │   Docker SDK   │   EventBus   │   Store   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -170,7 +170,7 @@ Full reference: [`docs/configuration.md`](docs/configuration.md).
 |-----------|-----------|
 | Backend | Go 1.26+ |
 | Frontend | React 19 + Vite 8 + Tailwind 4 + shadcn/ui, Zustand for client state, custom `useApi` hook for data (ADR 0010) |
-| Database | SQLite (default, pure-Go driver per ADR 0004) + BBolt KV, PostgreSQL optional (same Store interface, ADR 0009) |
+| Database | SQLite (default, pure-Go driver per ADR 0004) + SQLite-backed KV, PostgreSQL optional (same Store interface, ADR 0009) |
 | Container | Docker Engine SDK |
 | Auth | JWT (HS256, 32-char min secret) + bcrypt cost 13 + TOTP 2FA + OAuth SSO |
 | Encryption | AES-256-GCM + Argon2id (ADR 0008) |

@@ -19,9 +19,9 @@ var (
 	ErrInvalidToken  = errors.New("invalid token")
 	ErrUnavailable   = errors.New("unavailable")
 
-	// ErrBoltNotFound is returned by BoltStorer.Get when the key or
-	// bucket is missing. Distinct from ErrNotFound (which the SQL/PG
-	// store layer uses) so callers can tell "row missing" from
+	// ErrBoltNotFound is returned by the legacy BoltStorer KV interface
+	// when the key or bucket is missing. Distinct from ErrNotFound (which
+	// the SQL/PG store layer uses) so callers can tell "row missing" from
 	// "KV missing" — handlers that intentionally treat a missing KV
 	// entry as a fresh state can match this sentinel via errors.Is
 	// without false-positive matching every store-level miss.

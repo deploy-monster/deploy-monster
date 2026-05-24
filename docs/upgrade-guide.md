@@ -98,7 +98,7 @@ applies.
 ### During upgrade (service stopped)
 
 - [ ] `sudo systemctl stop deploymonster`.
-- [ ] Cold-copy the database and BBolt store to a backup path
+- [ ] Cold-copy the database and KV store to a backup path
       (see step 2 of the General upgrade procedure).
 - [ ] Swap the binary into `/usr/local/bin/deploymonster` with the
       correct ownership and `0755` permissions.
@@ -156,20 +156,39 @@ Look for:
 # Stop any in-flight backups first so the snapshot is consistent
 sudo systemctl stop deploymonster
 
-# Copy the database file and the secrets vault
+# Copy the database file and any legacy KV file
 sudo cp /var/lib/deploy-monster/deploy-monster.db /var/lib/deploy-monster/deploy-monster.db.bak
-sudo cp /var/lib/deploy-monster/deploy-monster.bolt /var/lib/deploy-monster/deploy-monster.bolt.bak
+test ! -f /var/lib/deploy-monster/deploy-monster.bolt || \
+  sudo cp /var/lib/deploy-monster/deploy-monster.bolt /var/lib/deploy-monster/deploy-monster.bolt.bak
 
 # (Optional) keep a copy offsite
+legacy_kv_args=()
+if [ -f /var/lib/deploy-monster/deploy-monster.bolt ]; then
+  legacy_kv_args=(/var/lib/deploy-monster/deploy-monster.bolt)
+fi
 tar czf deploymonster-backup-$(date +%F).tar.gz \
-  /var/lib/deploymonster/*.db \
-  /var/lib/deploymonster/*.bolt \
+  /var/lib/deploy-monster/*.db \
+  "${legacy_kv_args[@]}" \
   /etc/deploymonster/monster.yaml
 ```
 
 Do **not** skip this step. Migrations are designed to be safe, but a
 failed upgrade is much easier to recover from with a cold copy of the
 database.
+
+### 2a. Legacy KV direct transfer
+
+If the instance still has a pre-SQLite-KV `deploymonster.bolt` file,
+transfer it once while the service is stopped:
+
+```bash
+scripts/transfer-bbolt-to-sqlite-kv.sh \
+  /var/lib/deploy-monster/deploy-monster.bolt \
+  /var/lib/deploy-monster/deploy-monster.db
+```
+
+This is a direct data copy into `kv_store` / `kv_buckets`; it is not part
+of the application startup path and does not add a runtime dependency.
 
 ### 3. Dry-run the new version
 
@@ -273,7 +292,8 @@ sudo systemctl stop deploymonster
 
 # Restore the database from your step-2 backup
 sudo cp /var/lib/deploy-monster/deploy-monster.db.bak /var/lib/deploy-monster/deploy-monster.db
-sudo cp /var/lib/deploy-monster/deploy-monster.bolt.bak /var/lib/deploy-monster/deploy-monster.bolt
+test ! -f /var/lib/deploy-monster/deploy-monster.bolt.bak || \
+  sudo cp /var/lib/deploy-monster/deploy-monster.bolt.bak /var/lib/deploy-monster/deploy-monster.bolt
 
 # Put the old binary back
 sudo mv /usr/local/bin/deploymonster.previous /usr/local/bin/deploymonster
@@ -411,7 +431,7 @@ silently on larger gaps.
   first boot with the post-0.0.1 binary runs `migrateLegacyVault()`
   (`internal/secrets/module.go:176-213`). This generates a fresh
   random vault salt, re-encrypts every existing secret version, and
-  persists the salt in BBolt under `vault/salt`. Idempotent on
+  persists the salt in KV storage under `vault/salt`. Idempotent on
   restart. See [ADR 0008](adr/0008-encryption-key-strategy.md) for
   the full key-management story.
 - **Custom `useApi` hook** remains the frontend data-fetch pattern —

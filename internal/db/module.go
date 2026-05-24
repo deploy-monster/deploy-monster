@@ -15,7 +15,7 @@ func init() {
 }
 
 // Module implements the database module for DeployMonster.
-// It manages SQLite/PostgreSQL (relational) and BBolt (KV) stores.
+// It manages SQLite/PostgreSQL relational storage and SQLite-backed KV storage.
 type Module struct {
 	core     *core.Core
 	sqlite   *SQLiteDB
@@ -62,6 +62,13 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 		c.Store = sqliteDB
 		m.logger.Info("sqlite initialized", "path", c.Config.Database.Path, "query_timeout", queryTimeout)
 
+		kvStore, err := NewSQLiteKVStoreFromDB(sqliteDB.DB())
+		if err != nil {
+			return fmt.Errorf("sqlite kv: %w", err)
+		}
+		m.bolt = kvStore
+		m.logger.Info("sqlite kv initialized", "path", c.Config.Database.Path, "shared_connection", true)
+
 	case "postgres", "postgresql":
 		pgDB, err := NewPostgres(c.Config.Database.URL)
 		if err != nil {
@@ -71,22 +78,21 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 		c.Store = pgDB
 		m.logger.Info("postgres initialized")
 
+		kvPath := filepath.Join(filepath.Dir(c.Config.Database.Path), "deploymonster-kv.db")
+		kvStore, err := NewSQLiteKVStore(kvPath)
+		if err != nil {
+			return fmt.Errorf("sqlite kv: %w", err)
+		}
+		m.bolt = kvStore
+		m.logger.Info("sqlite kv initialized", "path", kvPath, "shared_connection", false)
+
 	default:
 		return fmt.Errorf("unsupported database driver: %s (supported: sqlite, postgres)", m.driver)
 	}
 
-	// Initialize BBolt KV store
-	boltPath := filepath.Join(filepath.Dir(c.Config.Database.Path), "deploymonster.bolt")
-	boltStore, err := NewBoltStore(boltPath)
-	if err != nil {
-		return fmt.Errorf("bbolt: %w", err)
-	}
-	m.bolt = boltStore
-	m.logger.Info("bbolt initialized", "path", boltPath)
-
 	// Set the shared database reference on core
 	c.DB = &core.Database{
-		Bolt: boltStore,
+		Bolt: m.bolt,
 	}
 	if m.sqlite != nil {
 		c.DB.SQL = m.sqlite.DB()
@@ -121,7 +127,7 @@ func (m *Module) Stop(_ context.Context) error {
 	}
 	if m.bolt != nil {
 		if err := m.bolt.Close(); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("bbolt close: %w", err)
+			firstErr = fmt.Errorf("sqlite kv close: %w", err)
 		}
 	}
 	return firstErr
@@ -165,7 +171,8 @@ func (m *Module) SQLite() *SQLiteDB {
 	return m.sqlite
 }
 
-// Bolt returns the underlying BBolt store.
+// Bolt returns the underlying KV store. The method name is retained for
+// compatibility with older handler code.
 func (m *Module) Bolt() *BoltStore {
 	return m.bolt
 }

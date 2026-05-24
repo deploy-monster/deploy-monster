@@ -256,10 +256,9 @@ first so the historical schema is flattened correctly.
   `scripts/ci-local.sh` rewritten to use `pnpm install --frozen-lockfile`
   instead of `npm ci`, and `.gitignore` updated to ignore
   `web/package-lock.json` so the drift can't reintroduce itself. Remaining
-  3 alerts are all upstream-blocked (`fixed=null`): 2 against
-  `github.com/docker/docker` (daemon-side CVEs, duplicates of R-001) and 1
-  against `go.etcd.io/bbolt` (GHSA-6jwv-w5xf-7j27, no upstream fix published
-  yet).
+  2 alerts remain upstream-blocked (`fixed=null`) against
+  `github.com/docker/docker` daemon-side CVEs; the previous BBolt alert was
+  removed by replacing the KV implementation with SQLite-backed storage.
 - **`go.opentelemetry.io/otel*` bumped `1.42.0 → 1.43.0`** — CVE-2026-39882
   (OTLP HTTP exporter reads unbounded HTTP response body).
 - **`vite` bumped `8.0.3 → 8.0.8`** (direct devDep) — GHSA-p9ff-h696-f583,
@@ -302,7 +301,7 @@ first so the historical schema is flattened correctly.
   broken auth pipeline instead of silent-skip (Tier 105). Full list in
   `docs/security-audit.md`.
 - **Argon2id + AES-256-GCM vault** with per-install random salt persisted in
-  BBolt at `vault/salt`. Legacy-salt migration path via `migrateLegacyVault()`
+  KV storage at `vault/salt`. Legacy-salt migration path via `migrateLegacyVault()`
   for pre-Phase-2 installs (idempotent). Documented in
   [ADR 0008](docs/adr/0008-encryption-key-strategy.md).
 - **`Module.RotateEncryptionKey`** — single-step re-encryption of every secret
@@ -740,14 +739,14 @@ miscredited to an aspirational 1.6 entry)
 - Docker image management (pull, list, remove, cleanup dangling)
 - Docker network and volume listing APIs
 - Deploy pipeline: webhook → build → deploy orchestration
-- BBolt KV persistence for 30+ config/state buckets
+- SQLite-backed KV persistence for config/state buckets
 - React component tests: Button, Card, Badge, Input (50 tests total)
 - 7 Go fuzz tests for security-critical packages
 - 38 Go benchmark functions
 - OpenAPI 3.0.3 specification (docs/openapi.yaml)
 
 ### Changed
-- All 115 handlers now use real services (SQLite Store, BBolt KV, Docker SDK)
+- All 115 handlers now use real services (SQLite Store, SQLite-backed KV, Docker SDK)
 - React UI completely redesigned with shadcn/ui components
 - Login: gradient branding, glass-effect features, password toggle
 - Dashboard: greeting banner, stat cards with trends, quick actions

@@ -233,7 +233,7 @@ type Services struct {
 
 But `SSH` field is documented as type `SSHClient` — this interface is not defined or documented anywhere. The actual service interface hierarchy is unclear.
 
-### 3.3 BBolt Bucket List Incomplete
+### 3.3 KV Bucket List Incomplete
 
 **Section 8.2 documents 7 buckets:**
 - `idempotency`, `rate_limit`, `metrics_ring`, `api_keys`, `csrf_tokens`, `vault`, `webhooks`
@@ -485,7 +485,7 @@ discovery ──────┘                               │            │
 
 ## 7. Performance Concerns
 
-### 7.1 BBolt Metrics Bucket
+### 7.1 KV Metrics Bucket
 
 **Issue:** `metrics_ring` bucket stores time-series container metrics. With high container counts, this bucket could grow large.
 
@@ -590,7 +590,7 @@ Based on code complexity, these areas likely lack coverage:
 8. **Create REFACTOR.md** ✓
 9. **Standardize error response format** ✓ (write_json.go with APIError struct)
 10. **Create handler base class** ✓ (helpers.go already has common utilities)
-11. **Document BBolt bucket structure** ✓ (26 buckets documented)
+11. **Document KV bucket structure** ✓ (26 buckets documented)
 12. **Add configuration validation** ✓ (CIDR, TracingURL validation added)
 13. **Create integration test documentation** ✓ (section 14.7 added)
 14. **Document secrets rotation procedure** ✓ (section 13.4 added)
@@ -674,7 +674,7 @@ DeployMonster documentation has been **substantially improved**. All critical an
 | Event types | 55 | 55 | ✓ Complete |
 | API routes | ~250 | ~250 (via openapi.yaml) | ✓ Complete |
 | Middleware | 16 | 16 | ✓ Complete |
-| BBolt buckets | 26 | 26 | ✓ Complete |
+| KV buckets | 26 | 26 | ✓ Complete |
 | CSRF implementation | Implemented | Documented | ✓ Complete |
 | Secret rotation | Implemented | Documented | ✓ Complete |
 | Integration tests | Implemented | Documented | ✓ Complete |

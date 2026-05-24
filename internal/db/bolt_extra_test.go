@@ -177,7 +177,7 @@ func TestBoltExtra_NonexistentBucket_Delete(t *testing.T) {
 func TestBoltExtra_Delete_NonexistentKey(t *testing.T) {
 	store := testBolt(t)
 
-	// Deleting a key that does not exist should not error (bbolt behavior)
+	// Deleting a key that does not exist should not error.
 	err := store.Delete("sessions", "never-existed")
 	if err != nil {
 		t.Errorf("Delete of nonexistent key should not error, got: %v", err)

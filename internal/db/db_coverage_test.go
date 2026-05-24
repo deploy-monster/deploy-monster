@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
-	bolt "go.etcd.io/bbolt"
 )
 
 // =============================================================================
@@ -33,16 +32,16 @@ func TestPostgresDB_NewPostgres_InvalidDSN_Timeout(t *testing.T) {
 }
 
 // =============================================================================
-// Module — Init with postgres driver + invalid bolt path
+// Module — Init with sqlite driver + invalid database path
 // =============================================================================
 
-func TestModule_Init_SQLite_InvalidBoltPath(t *testing.T) {
+func TestModule_Init_SQLite_InvalidPath(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
 
-	// Create a directory at the bolt location so NewBoltStore fails
-	boltPath := filepath.Join(dir, "deploymonster.bolt")
-	os.MkdirAll(filepath.Join(boltPath, "subdir"), 0755)
+	if err := os.MkdirAll(filepath.Join(dbPath, "subdir"), 0755); err != nil {
+		t.Fatalf("mkdir invalid db path: %v", err)
+	}
 
 	m := New()
 	c := &core.Core{
@@ -57,7 +56,7 @@ func TestModule_Init_SQLite_InvalidBoltPath(t *testing.T) {
 
 	err := m.Init(context.Background(), c)
 	if err == nil {
-		t.Error("expected error when bolt path is invalid")
+		t.Error("expected error when sqlite path is invalid")
 	}
 	// Ensure cleanup happens even on failure
 	m.Stop(context.TODO())
@@ -873,19 +872,13 @@ func TestBoltStore_Set_WithTTL(t *testing.T) {
 }
 
 // =============================================================================
-// BoltStore — List with mixed expired entries via direct bolt write
+// BoltStore — List with mixed expired entries via direct raw write
 // =============================================================================
 
 func TestBoltStore_List_SkipsExpiredDirect(t *testing.T) {
 	store := testBolt(t)
 
-	// Write an entry with past expiration directly
-	store.db.Update(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket([]byte("sessions"))
-		// Entry with expired timestamp
-		bkt.Put([]byte("expired-direct"), []byte(`{"d":"\"val\"","e":1}`))
-		return nil
-	})
+	insertKVRaw(t, store, "sessions", "expired-direct", `"val"`, 1)
 
 	// Write a valid entry
 	store.Set("sessions", "valid", "val", 0)

@@ -41,7 +41,7 @@ DeployMonster transforms any VPS with Docker into a multi-tenant deployment plat
 |-------|------------|
 | Language | Go 1.26+ |
 | Frontend | React 19, TypeScript, Vite, Tailwind v4, shadcn/ui, Zustand |
-| Database | SQLite (default), PostgreSQL (enterprise), BBolt KV |
+| Database | SQLite (default), PostgreSQL (enterprise), SQLite-backed KV |
 | Container | Docker SDK |
 | Reverse Proxy | Custom (net/http/httputil) | Label-based routing, built-in ACME |
 | Authentication | JWT (HS256), API Keys |
@@ -67,7 +67,7 @@ DeployMonster transforms any VPS with Docker into a multi-tenant deployment plat
 │  Docker SDK ←→ Docker Engine     │  VPS Providers (SSH + API)     │
 │  Local / Swarm / Compose         │  Hetzner│DO│Vultr│Linode│AWS   │
 ├──────────────────────────────────┴────────────────────────────────┤
-│          Embedded DB (SQLite/BBolt) + Event Bus                   │
+│          Embedded DB (SQLite + KV) + Event Bus                    │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -76,7 +76,7 @@ DeployMonster transforms any VPS with Docker into a multi-tenant deployment plat
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Language | Go 1.26+ | Single binary, native concurrency, Docker SDK |
-| Database | SQLite (CGo) + BBolt (pure Go) | SQLite for relational, BBolt for KV/sessions |
+| Database | SQLite + SQLite-backed KV | SQLite for relational data and JSON KV state |
 | Web UI | React 19 + Vite + Tailwind v4 + shadcn/ui | Embedded in binary via `embed.FS` |
 | API | REST + WebSocket | REST for CRUD, WS for real-time logs/events |
 | Auth | JWT + API Keys | Stateless, multi-tenant |
@@ -164,7 +164,7 @@ flowchart LR
 
 | Module ID | Name | Dependencies | Purpose |
 |-----------|------|-------------|---------|
-| `core.db` | Database | — | SQLite/PostgreSQL + BBolt KV store |
+| `core.db` | Database | — | SQLite/PostgreSQL + SQLite-backed KV store |
 | `core.auth` | Authentication | `core.db` | JWT, password hashing, sessions |
 | `api` | REST API | `core.db`, `core.auth`, `marketplace`, `billing` | HTTP server, routes, middleware |
 | `deploy` | Deploy Engine | `core.db` | Docker container management |
@@ -209,7 +209,7 @@ type Core struct {
     Registry   *Registry  // Module registry
     Events     *EventBus  // Central event system
     Scheduler  *Scheduler // Cron-like scheduler
-    DB         *Database // SQLite + BBolt wrappers
+    DB         *Database // SQL + KV wrappers
     Store      Store     // Unified data access
     Services   *Services  // Service provider registry (Container, Secrets, Notifications, DNS, Backup, VPS, Git)
     Logger     *slog.Logger
@@ -337,7 +337,7 @@ classDiagram
 |----------------|------|---------|
 | SQLite | `internal/db/sqlite.go` | Default relational store |
 | PostgreSQL | `internal/db/postgres.go` | Enterprise relational |
-| BBolt | `internal/db/bolt.go` | KV store (rate limits, API keys, metrics) |
+| SQLite KV | `internal/db/bolt.go` | KV store (rate limits, API keys, metrics) |
 
 ---
 
@@ -515,7 +515,7 @@ flowchart LR
     --> MID12["Request Logger<br/>Slow request >5s warn"]
     --> MID13["CORS<br/>Allowlist mode"]
     --> MID14["CSRF Protect<br/>Double-submit cookie"]
-    --> MID15["Idempotency<br/>BBolt-backed deduplication"]
+    --> MID15["Idempotency<br/>KV-backed deduplication"]
     --> MID16["Audit Log<br/>Store-backed request log"]
     --> Handler["API Handler"]
 ```
@@ -573,7 +573,7 @@ graph TB
         SQL["SQLite or PostgreSQL"]
     end
     
-    subgraph "BBolt KV Store"
+    subgraph "SQLite-backed KV Store"
         Idempotency["idempotency bucket"]
         RateLimit["rate_limit bucket"]
         Metrics["metrics_ring bucket"]
@@ -583,18 +583,18 @@ graph TB
     end
     
     SQL --> Store["Store Interface"]
-    Idempotency --> BBolt["BBolt KV"]
-    RateLimit --> BBolt
-    Metrics --> BBolt
-    APIKeys --> BBolt
-    CSRF --> BBolt
-    Vault --> BBolt
-    WebhookSecrets --> BBolt
+    Idempotency --> KV["SQLite KV"]
+    RateLimit --> KV
+    Metrics --> KV
+    APIKeys --> KV
+    CSRF --> KV
+    Vault --> KV
+    WebhookSecrets --> KV
 ```
 
-### 8.2 BBolt Buckets
+### 8.2 KV Buckets
 
-The BBolt KV store uses 26 buckets for various purposes:
+The SQLite-backed KV store uses buckets for various purposes:
 
 | Bucket | Purpose |
 |--------|---------|
@@ -636,10 +636,10 @@ The `metrics_ring` bucket stores time-series metrics with automatic cleanup:
 | Cleanup | Automatic trimming on insert |
 
 **How it works:**
-1. `appendPoint(key, point)` reads existing ring from BBolt
+1. `appendPoint(key, point)` reads existing ring from KV storage
 2. Appends new data point
 3. Trims to maxRingPoints (288) if exceeded — oldest points dropped
-4. Writes back to BBolt atomically via `BatchSet()`
+4. Writes back to KV storage atomically via `BatchSet()`
 
 **Data retention:**
 - Server metrics: key format `server:{serverID}:24h`
@@ -1063,7 +1063,7 @@ flowchart LR
 - `internal/webhooks/receiver.go` — Inbound webhook endpoint, signature verification, payload parsing
 - `internal/api/handlers/webhook_auto_deploy.go` — Subscribes to `EventWebhookReceived`, triggers builds/deploys
 - `internal/api/handlers/webhook_crud.go` — Webhook CRUD API (Create, List, Get, Update, Delete)
-- `internal/db/bolt.go` — `GetWebhook()` and `GetWebhookSecret()` for BBolt webhook storage
+- `internal/db/bolt.go` — `GetWebhook()` and `GetWebhookSecret()` for KV webhook storage
 
 **Branch Filter Patterns:**
 - Exact: `main`, `develop`
@@ -1179,7 +1179,7 @@ flowchart TD
     AES --> Encrypted["Encrypted Secret"]
 
     subgraph "Storage"
-        Meta["Metadata (BBolt vault bucket)"]
+        Meta["Metadata (KV vault bucket)"]
         Data["Encrypted Data"]
     end
 
@@ -1233,7 +1233,7 @@ MONSTER_PREVIOUS_SECRET_KEYS=key1,key2,key3  # comma-separated list
 - Per-IP global limit (default: 120/min)
 - Per-tenant limits
 - Per-endpoint limits
-- BBolt-backed counters
+- KV-backed counters
 
 ### 13.5 Input Validation
 
@@ -1297,7 +1297,7 @@ sequenceDiagram
 Mutating requests include `Idempotency-Key` header:
 
 ```go
-// Stored in BBolt idempotency bucket
+// Stored in KV idempotency bucket
 // Prevents duplicate operations on retry
 ```
 
@@ -1427,8 +1427,8 @@ Key source files (see actual file for current line counts):
 | `internal/api/middleware/*.go` | Rate limiting, metrics, CSRF, idempotency, audit |
 | `internal/api/handlers/webhook_auto_deploy.go` | Webhook auto-deploy event handler |
 | `internal/api/handlers/webhook_crud.go` | Webhook CRUD API |
-| `internal/db/module.go` | SQLite/Postgres/BBolt initialization |
-| `internal/db/bolt.go` | BBolt KV store, GetWebhook, GetWebhookSecret |
+| `internal/db/module.go` | SQLite/Postgres/KV initialization |
+| `internal/db/bolt.go` | SQLite-backed KV store, GetWebhook, GetWebhookSecret |
 | `internal/webhooks/receiver.go` | Inbound webhook endpoint + signature verification |
 | `internal/deploy/module.go` | Docker container management |
 | `internal/secrets/module.go` | AES-256-GCM encrypted vault |

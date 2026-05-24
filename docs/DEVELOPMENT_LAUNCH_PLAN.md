@@ -20,7 +20,7 @@ dependency: do not add major features until the earlier gates are green.
   actions.
 - Topology save/deploy now verifies that `project_id` belongs to the caller's
   tenant before writing topology state or compiling deployment output.
-- Registry connections and credentials are tenant-scoped in BBolt, and backup
+- Registry connections and credentials are tenant-scoped in KV storage, and backup
   list/restore/download operations are constrained to the caller's tenant
   prefix.
 - Pending deployment approvals are now listed only for the caller's tenant,

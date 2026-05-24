@@ -6,7 +6,7 @@
 
 ## Context
 
-DeployMonster keeps short-lived runtime state in BBolt (rate-limit
+DeployMonster keeps short-lived runtime state in SQLite-backed KV storage (rate-limit
 counters, idempotency cache, session tracking, per-tenant config).
 The `core.BoltStorer` interface returns plain `error` values; before
 this ADR every implementation produced ad-hoc messages — `"key not
@@ -32,7 +32,7 @@ Two field defects forced the issue:
    silently unreachable in production. Auditing the rate-limit code
    for the lockout fix surfaced both.
 
-Operators had no visibility into BBolt corruption: a damaged entry
+Operators had no visibility into KV corruption: a damaged entry
 on any of the four KV-backed paths (account-RL, auth-IP RL,
 tenant-RL, idempotency) silently degraded into the default-or-fresh
 behaviour with zero log signal.
@@ -113,7 +113,7 @@ users are not wedged. Only operator visibility changes.
   a future `core.Logger` injection convention would do; the
   duplication is acceptable today because each component already
   manages its own lifecycle and there is no umbrella DI container.
-- Sentinel adoption is opt-in: most BBolt callers are pure
+- Sentinel adoption is opt-in: most KV callers are pure
   read-with-default and gain nothing from matching the sentinel.
   Future contributors must consciously choose between "I care about
   the distinction" (use `errors.Is`) and "I don't" (keep the

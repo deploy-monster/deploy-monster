@@ -290,7 +290,7 @@ else
         # Check if server is running
         if curl -s http://localhost:8443/health >/dev/null 2>&1; then
             echo -e "  ${BLUE}Running Playwright E2E tests...${NC}"
-            if (cd web && pnpm test:e2e 2>&1); then
+            if (cd web && CI=1 pnpm test:e2e 2>&1); then
                 pass "Playwright E2E tests passed"
             else
                 fail "Playwright E2E tests failed"

@@ -60,7 +60,7 @@ No external broker is required or supported for internal events.
 
 - **No persistence.** If the server crashes mid-handler, the event is
   lost. We mitigate this for durability-critical actions by:
-  - Persisting to SQLite/BBolt *before* publishing the event, so a crash
+  - Persisting to SQLite/KV storage *before* publishing the event, so a crash
     replay can recover state.
   - Using `core.Retry` with exponential backoff for external webhook
     deliveries (`internal/webhooks/outbound.go`).

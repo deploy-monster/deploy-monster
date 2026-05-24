@@ -59,7 +59,7 @@ The original event bus spawned an unbounded goroutine per async event. Under hig
 The initial implementation used a hard-coded fallback salt for the secrets vault. A stolen database backup could therefore be brute-forced offline by anyone who read the source code.
 
 ### Behavior
-- On first boot, `secrets.Module` generates a 32-byte random salt and persists it in BBolt (`_config` bucket, key `vault.salt`).
+- On first boot, `secrets.Module` generates a 32-byte random salt and persists it in KV storage (`_config` bucket, key `vault.salt`).
 - The salt is combined with the operator-supplied `MONSTER_SECRET` via HKDF-SHA256 to derive the vault KEK.
 - Legacy installations that lack a persisted salt are transparently migrated: the old hard-coded salt is used to decrypt existing secrets, then a new random salt is generated and all secrets are re-encrypted.
 - If `MONSTER_SECRET` is rotated, the operator must run `deploymonster vault rotate --old-key=... --new-key=...` manually; there is no automatic rotation on config change.

@@ -61,7 +61,7 @@ Events()        → return []EventHandler for event subscriptions
 ### Key Interfaces (in `internal/core/`)
 - `Store` — DB-agnostic repository composing 12 sub-interfaces (TenantStore, UserStore, AppStore, DeploymentStore, DomainStore, ProjectStore, RoleStore, AuditStore, SecretStore, InviteStore, UsageRecordStore, BackupStore). **Never use `*db.SQLiteDB` directly.**
 - `ContainerRuntime` — Docker operations (CreateAndStart, Stop, Remove, Restart, Logs, Exec, Stats, ImagePull, etc.)
-- `BoltStorer` — BBolt KV (Set, Get, Delete, List, Close). Used for config, state, metrics, API keys, webhook secrets
+- `BoltStorer` — legacy-named SQLite-backed KV (Set, Get, Delete, List, Close). Used for config, state, metrics, API keys, webhook secrets
 - `Services` — Factory registry for pluggable providers (DNS, Backup, VPS, Git)
 - Other: `VPSProvisioner`, `BackupStorage`, `DNSProvider`, `GitProvider`, `SecretResolver`, `NotificationSender`, `OutboundWebhookSender`
 
@@ -82,7 +82,7 @@ In-process pub/sub with the EventBus on `core.Core`:
 
 ### Database
 - **SQLite** (`modernc.org/sqlite` pure Go) — default, file-based
-- **BBolt KV** — 26 buckets for config, state, metrics, API keys, webhooks, etc.
+- **SQLite-backed KV** — buckets for config, state, metrics, API keys, webhooks, etc.
 - **PostgreSQL** — planned via `core.Store` interface (enterprise)
 - All data access through `core.Store` interface only
 

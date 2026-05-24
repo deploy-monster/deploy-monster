@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
-	bolt "go.etcd.io/bbolt"
 )
 
 // =============================================================================
@@ -659,23 +658,16 @@ func TestModule_Accessors(t *testing.T) {
 }
 
 // =============================================================================
-// BoltStore — Get with corrupt raw bytes (unmarshal entry error path)
+// BoltStore — Get with corrupt raw bytes (unmarshal error path)
 // =============================================================================
 
 func TestBoltStore_Get_CorruptRawBytes(t *testing.T) {
 	store := testBolt(t)
 
-	// Write corrupt raw bytes directly to the bolt db
-	err := store.db.Update(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket([]byte("sessions"))
-		return bkt.Put([]byte("corrupt"), []byte("not valid json {{{"))
-	})
-	if err != nil {
-		t.Fatalf("write corrupt data: %v", err)
-	}
+	insertKVRaw(t, store, "sessions", "corrupt", "not valid json {{{", 0)
 
 	var dest string
-	err = store.Get("sessions", "corrupt", &dest)
+	err := store.Get("sessions", "corrupt", &dest)
 	if err == nil {
 		t.Error("expected error for corrupt entry data")
 	}
@@ -691,14 +683,7 @@ func TestBoltStore_List_SkipsCorruptEntries(t *testing.T) {
 	// Write a valid entry
 	store.Set("sessions", "valid-key", "value", 0)
 
-	// Write corrupt raw bytes directly
-	err := store.db.Update(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket([]byte("sessions"))
-		return bkt.Put([]byte("corrupt-key"), []byte("not json"))
-	})
-	if err != nil {
-		t.Fatalf("write corrupt data: %v", err)
-	}
+	insertKVRaw(t, store, "sessions", "corrupt-key", "not json", 0)
 
 	keys, err := store.List("sessions")
 	if err != nil {

@@ -59,8 +59,8 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# 5. Check BBolt buckets
-echo "Checking BBolt bucket documentation..."
+# 5. Check KV buckets
+echo "Checking KV bucket documentation..."
 BUCKETS_FOUND=0
 # Check for updated bucket names
 for bucket in sessions ratelimit buildcache metrics_ring cronjobs app_pins autoscale basic_auth api_keys deploy_freeze deploy_notify deploy_approval maintenance app_middleware container_metrics announcements certificates ssh_keys log_retention event_webhooks webhook_logs webhooks revoked_tokens vault git_provider_connections; do
@@ -75,9 +75,9 @@ for bucket in idempotency rate_limit csrf_tokens; do
     fi
 done
 if [ "$BUCKETS_FOUND" -ge 20 ]; then
-    echo -e "${GREEN}  [OK]${NC} BBolt buckets documented: $BUCKETS_FOUND (comprehensive)"
+    echo -e "${GREEN}  [OK]${NC} KV buckets documented: $BUCKETS_FOUND (comprehensive)"
 else
-    echo -e "${YELLOW}  [WARN]${NC} BBolt buckets documented: $BUCKETS_FOUND (expected 25+)"
+    echo -e "${YELLOW}  [WARN]${NC} KV buckets documented: $BUCKETS_FOUND (expected 25+)"
 fi
 
 # 6. Check agent route exists

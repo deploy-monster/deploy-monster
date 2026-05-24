@@ -2,253 +2,394 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
-	bolt "go.etcd.io/bbolt"
 )
 
-// Standard bucket names.
-var (
-	bucketSessions      = []byte("sessions")
-	bucketRateLimit     = []byte("ratelimit")
-	bucketBuildCache    = []byte("buildcache")
-	bucketMetricsRing   = []byte("metrics_ring")
-	bucketCronJobs      = []byte("cronjobs")
-	bucketAppPins       = []byte("app_pins")
-	bucketAutoscale     = []byte("autoscale")
-	bucketBasicAuth     = []byte("basic_auth")
-	bucketAPIKeys       = []byte("api_keys")
-	bucketFreeze        = []byte("deploy_freeze")
-	bucketNotify        = []byte("deploy_notify")
-	bucketApproval      = []byte("deploy_approval")
-	bucketMaintenance   = []byte("maintenance")
-	bucketMiddleware    = []byte("app_middleware")
-	bucketMetrics       = []byte("container_metrics")
-	bucketAnnouncements = []byte("announcements")
-	bucketCertificates  = []byte("certificates")
-	bucketSSHKeys       = []byte("ssh_keys")
-	bucketLogRetention  = []byte("log_retention")
-	bucketEventWebhooks = []byte("event_webhooks")
-	bucketWebhookLogs   = []byte("webhook_logs")
-	bucketWebhooks      = []byte("webhooks")
-	bucketRevokedTokens = []byte("revoked_tokens")
-	bucketVault         = []byte("vault")
-	bucketGitProviders  = []byte("git_provider_connections")
-)
-
-// BoltStore wraps a BBolt database for key-value operations with TTL support.
+// BoltStore is the legacy name for DeployMonster's KV store. It is backed by
+// SQLite. The name is kept to avoid churn in the large handler surface that
+// consumes core.BoltStorer.
 type BoltStore struct {
-	db *bolt.DB
+	db      *sql.DB
+	closeDB bool
 }
 
-// NewBoltStore opens a BBolt database and creates the default buckets.
+var defaultKVBuckets = []string{
+	"sessions",
+	"ratelimit",
+	"buildcache",
+	"metrics_ring",
+	"cronjobs",
+	"app_pins",
+	"autoscale",
+	"basic_auth",
+	"api_keys",
+	"deploy_freeze",
+	"deploy_notify",
+	"deploy_approval",
+	"maintenance",
+	"app_middleware",
+	"container_metrics",
+	"announcements",
+	"certificates",
+	"ssh_keys",
+	"log_retention",
+	"event_webhooks",
+	"webhook_logs",
+	"webhooks",
+	"revoked_tokens",
+	"vault",
+	"git_provider_connections",
+	"build_queue",
+}
+
+// NewSQLiteKVStore opens a standalone SQLite-backed KV store.
+func NewSQLiteKVStore(path string) (*BoltStore, error) {
+	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on&_synchronous=NORMAL", path)
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite kv: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	store := &BoltStore{db: db, closeDB: true}
+	if err := store.initSchema(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return store, nil
+}
+
+// NewSQLiteKVStoreFromDB uses an existing SQLite connection for KV storage.
+func NewSQLiteKVStoreFromDB(db *sql.DB) (*BoltStore, error) {
+	store := &BoltStore{db: db}
+	if err := store.initSchema(); err != nil {
+		return nil, err
+	}
+	return store, nil
+}
+
+// NewBoltStore is retained as a compatibility constructor. It returns a
+// SQLite-backed KV store.
 func NewBoltStore(path string) (*BoltStore, error) {
-	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: 5 * time.Second})
-	if err != nil {
-		return nil, fmt.Errorf("open bbolt: %w", err)
-	}
-
-	// Create default buckets
-	err = db.Update(func(tx *bolt.Tx) error {
-		for _, b := range [][]byte{
-			bucketSessions, bucketRateLimit, bucketBuildCache, bucketMetricsRing,
-			bucketCronJobs, bucketAppPins, bucketAutoscale, bucketBasicAuth,
-			bucketAPIKeys, bucketFreeze, bucketNotify,
-			bucketApproval, bucketMaintenance, bucketMiddleware, bucketMetrics,
-			bucketAnnouncements, bucketCertificates, bucketSSHKeys,
-			bucketLogRetention, bucketEventWebhooks, bucketWebhookLogs, bucketWebhooks,
-			bucketRevokedTokens, bucketVault, bucketGitProviders,
-		} {
-			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
-				return fmt.Errorf("create bucket %s: %w", string(b), err)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create buckets: %w", err)
-	}
-
-	return &BoltStore{db: db}, nil
+	return NewSQLiteKVStore(path)
 }
 
-// boltEntry wraps data with an optional expiration timestamp.
-type boltEntry struct {
+type kvEntry struct {
 	Data      json.RawMessage `json:"d"`
-	ExpiresAt int64           `json:"e"` // Unix timestamp, 0 = no expiry
+	ExpiresAt int64           `json:"e"`
 }
 
-// Set stores a value in the given bucket with an optional TTL (in seconds, 0 = no expiry).
+func (b *BoltStore) initSchema() error {
+	if b == nil || b.db == nil {
+		return fmt.Errorf("sqlite kv: nil database")
+	}
+	_, err := b.db.Exec(`
+		CREATE TABLE IF NOT EXISTS kv_store (
+			bucket TEXT NOT NULL,
+			key TEXT NOT NULL,
+			data BLOB NOT NULL,
+			expires_at INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY (bucket, key)
+		);
+		CREATE INDEX IF NOT EXISTS idx_kv_store_bucket ON kv_store(bucket);
+		CREATE TABLE IF NOT EXISTS kv_buckets (
+			name TEXT PRIMARY KEY
+		);
+	`)
+	if err != nil {
+		return fmt.Errorf("create sqlite kv schema: %w", err)
+	}
+	for _, bucket := range defaultKVBuckets {
+		if _, err := b.db.Exec(`INSERT OR IGNORE INTO kv_buckets(name) VALUES (?)`, bucket); err != nil {
+			return fmt.Errorf("create default sqlite kv bucket %s: %w", bucket, err)
+		}
+	}
+	if _, err := b.db.Exec(`INSERT OR IGNORE INTO kv_buckets(name) SELECT DISTINCT bucket FROM kv_store`); err != nil {
+		return fmt.Errorf("backfill sqlite kv buckets: %w", err)
+	}
+	return nil
+}
+
+// Set stores a value in the given bucket with an optional TTL in seconds.
 func (b *BoltStore) Set(bucket, key string, value any, ttlSeconds int64) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("marshal value: %w", err)
 	}
 
-	entry := boltEntry{Data: data}
+	expiresAt := int64(0)
 	if ttlSeconds > 0 {
-		entry.ExpiresAt = time.Now().Unix() + ttlSeconds
+		expiresAt = time.Now().Unix() + ttlSeconds
 	}
 
-	raw, err := json.Marshal(entry)
+	tx, err := b.db.Begin()
 	if err != nil {
-		return fmt.Errorf("marshal entry: %w", err)
+		return fmt.Errorf("begin sqlite kv set: %w", err)
 	}
+	defer func() { _ = tx.Rollback() }()
 
-	return b.db.Update(func(tx *bolt.Tx) error {
-		bkt, err := tx.CreateBucketIfNotExists([]byte(bucket))
-		if err != nil {
-			return fmt.Errorf("create bucket %q: %w", bucket, err)
-		}
-		return bkt.Put([]byte(key), raw)
-	})
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO kv_buckets(name) VALUES (?)`, bucket); err != nil {
+		return fmt.Errorf("create sqlite kv bucket %s: %w", bucket, err)
+	}
+	_, err = tx.Exec(`
+		INSERT INTO kv_store(bucket, key, data, expires_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(bucket, key) DO UPDATE SET
+			data = excluded.data,
+			expires_at = excluded.expires_at
+	`, bucket, key, data, expiresAt)
+	if err != nil {
+		return fmt.Errorf("sqlite kv set %s/%s: %w", bucket, key, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit sqlite kv set: %w", err)
+	}
+	return nil
 }
 
-// BatchSet writes multiple key-value pairs in a single transaction.
-// All items are committed atomically — if any write fails, the entire batch is rolled back.
+// BatchSet writes multiple key-value pairs in one SQLite transaction.
 func (b *BoltStore) BatchSet(items []core.BoltBatchItem) error {
 	if len(items) == 0 {
 		return nil
 	}
 
-	return b.db.Update(func(tx *bolt.Tx) error {
-		for _, item := range items {
-			bkt, err := tx.CreateBucketIfNotExists([]byte(item.Bucket))
-			if err != nil {
-				return fmt.Errorf("create bucket %q: %w", item.Bucket, err)
-			}
+	tx, err := b.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin sqlite kv batch: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
 
-			data, err := json.Marshal(item.Value)
-			if err != nil {
-				return fmt.Errorf("marshal value for %s/%s: %w", item.Bucket, item.Key, err)
-			}
+	bucketStmt, err := tx.Prepare(`INSERT OR IGNORE INTO kv_buckets(name) VALUES (?)`)
+	if err != nil {
+		return fmt.Errorf("prepare sqlite kv bucket batch: %w", err)
+	}
+	defer bucketStmt.Close()
 
-			entry := boltEntry{Data: data}
-			if item.TTL > 0 {
-				entry.ExpiresAt = time.Now().Unix() + item.TTL
-			}
+	stmt, err := tx.Prepare(`
+		INSERT INTO kv_store(bucket, key, data, expires_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(bucket, key) DO UPDATE SET
+			data = excluded.data,
+			expires_at = excluded.expires_at
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare sqlite kv batch: %w", err)
+	}
+	defer stmt.Close()
 
-			raw, err := json.Marshal(entry)
-			if err != nil {
-				return fmt.Errorf("marshal entry for %s/%s: %w", item.Bucket, item.Key, err)
-			}
-
-			if err := bkt.Put([]byte(item.Key), raw); err != nil {
-				return fmt.Errorf("put %s/%s: %w", item.Bucket, item.Key, err)
-			}
+	now := time.Now().Unix()
+	for _, item := range items {
+		data, err := json.Marshal(item.Value)
+		if err != nil {
+			return fmt.Errorf("marshal value for %s/%s: %w", item.Bucket, item.Key, err)
 		}
-		return nil
-	})
+		expiresAt := int64(0)
+		if item.TTL > 0 {
+			expiresAt = now + item.TTL
+		}
+		if _, err := bucketStmt.Exec(item.Bucket); err != nil {
+			return fmt.Errorf("create sqlite kv bucket %s: %w", item.Bucket, err)
+		}
+		if _, err := stmt.Exec(item.Bucket, item.Key, data, expiresAt); err != nil {
+			return fmt.Errorf("put %s/%s: %w", item.Bucket, item.Key, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit sqlite kv batch: %w", err)
+	}
+	return nil
+}
+
+// Mutate loads, modifies, and writes a single key inside one SQLite transaction.
+func (b *BoltStore) Mutate(bucket, key string, dest any, ttlSeconds int64, mutate func(exists bool) error) error {
+	if mutate == nil {
+		return fmt.Errorf("mutate callback is required")
+	}
+
+	tx, err := b.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin sqlite kv mutate: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	exists := false
+	row := tx.QueryRow(`SELECT data, expires_at FROM kv_store WHERE bucket = ? AND key = ?`, bucket, key)
+	var data []byte
+	var expiresAt int64
+	switch err := row.Scan(&data, &expiresAt); {
+	case err == nil:
+		if expiresAt == 0 || time.Now().Unix() < expiresAt {
+			if err := json.Unmarshal(data, dest); err != nil {
+				return fmt.Errorf("unmarshal value: %w", err)
+			}
+			exists = true
+		}
+	case err == sql.ErrNoRows:
+	default:
+		return fmt.Errorf("read sqlite kv %s/%s: %w", bucket, key, err)
+	}
+
+	if err := mutate(exists); err != nil {
+		return err
+	}
+
+	data, err = json.Marshal(dest)
+	if err != nil {
+		return fmt.Errorf("marshal value: %w", err)
+	}
+	expiresAt = 0
+	if ttlSeconds > 0 {
+		expiresAt = time.Now().Unix() + ttlSeconds
+	}
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO kv_buckets(name) VALUES (?)`, bucket); err != nil {
+		return fmt.Errorf("create sqlite kv bucket %s: %w", bucket, err)
+	}
+	if _, err := tx.Exec(`
+		INSERT INTO kv_store(bucket, key, data, expires_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(bucket, key) DO UPDATE SET
+			data = excluded.data,
+			expires_at = excluded.expires_at
+	`, bucket, key, data, expiresAt); err != nil {
+		return fmt.Errorf("write sqlite kv %s/%s: %w", bucket, key, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit sqlite kv mutate: %w", err)
+	}
+	return nil
 }
 
 // Get retrieves a value from the given bucket and unmarshals it into dest.
-// Returns core.ErrBoltNotFound (wrapped) when the bucket or key is missing,
-// or when the entry has expired — callers can match the sentinel via
-// errors.Is to distinguish "no record yet" from a real read failure
-// (corrupted entry, json error). All other failures bubble unwrapped.
 func (b *BoltStore) Get(bucket, key string, dest any) error {
-	return b.db.View(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket([]byte(bucket))
-		if bkt == nil {
-			return fmt.Errorf("bucket %q: %w", bucket, core.ErrBoltNotFound)
-		}
-
-		raw := bkt.Get([]byte(key))
-		if raw == nil {
-			return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
-		}
-
-		var entry boltEntry
-		if err := json.Unmarshal(raw, &entry); err != nil {
-			return fmt.Errorf("unmarshal entry: %w", err)
-		}
-
-		if entry.ExpiresAt > 0 && time.Now().Unix() >= entry.ExpiresAt {
-			return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
-		}
-
-		return json.Unmarshal(entry.Data, dest)
-	})
+	var data []byte
+	var expiresAt int64
+	err := b.db.QueryRow(`SELECT data, expires_at FROM kv_store WHERE bucket = ? AND key = ?`, bucket, key).Scan(&data, &expiresAt)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
+	}
+	if err != nil {
+		return fmt.Errorf("sqlite kv get %s/%s: %w", bucket, key, err)
+	}
+	if expiresAt > 0 && time.Now().Unix() >= expiresAt {
+		return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
+	}
+	if err := json.Unmarshal(data, dest); err != nil {
+		return fmt.Errorf("unmarshal value: %w", err)
+	}
+	return nil
 }
 
 // Delete removes a key from the given bucket.
 func (b *BoltStore) Delete(bucket, key string) error {
-	return b.db.Update(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket([]byte(bucket))
-		if bkt == nil {
-			return fmt.Errorf("bucket %q not found", bucket)
-		}
-		return bkt.Delete([]byte(key))
-	})
+	exists, err := b.bucketExists(bucket)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("bucket %q: %w", bucket, core.ErrBoltNotFound)
+	}
+	if _, err := b.db.Exec(`DELETE FROM kv_store WHERE bucket = ? AND key = ?`, bucket, key); err != nil {
+		return fmt.Errorf("sqlite kv delete %s/%s: %w", bucket, key, err)
+	}
+	return nil
 }
 
 // List returns all non-expired keys in the given bucket.
 func (b *BoltStore) List(bucket string) ([]string, error) {
-	var keys []string
-	err := b.db.View(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket([]byte(bucket))
-		if bkt == nil {
-			return fmt.Errorf("bucket %q not found", bucket)
+	rows, err := b.db.Query(`SELECT key, data FROM kv_store WHERE bucket = ? AND (expires_at = 0 OR expires_at > ?)`, bucket, time.Now().Unix())
+	if err != nil {
+		return nil, fmt.Errorf("sqlite kv list %s: %w", bucket, err)
+	}
+	defer rows.Close()
+
+	keys := make([]string, 0)
+	for rows.Next() {
+		var key string
+		var data []byte
+		if err := rows.Scan(&key, &data); err != nil {
+			return nil, fmt.Errorf("scan sqlite kv key: %w", err)
 		}
-		now := time.Now().Unix()
-		return bkt.ForEach(func(k, v []byte) error {
-			var entry boltEntry
-			if err := json.Unmarshal(v, &entry); err != nil {
-				return nil // skip corrupt entries
-			}
-			if entry.ExpiresAt > 0 && now >= entry.ExpiresAt {
-				return nil // skip expired
-			}
-			keys = append(keys, string(k))
-			return nil
-		})
-	})
-	return keys, err
+		if !json.Valid(data) {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sqlite kv keys: %w", err)
+	}
+	if len(keys) == 0 {
+		exists, err := b.bucketExists(bucket)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, fmt.Errorf("bucket %q: %w", bucket, core.ErrBoltNotFound)
+		}
+	}
+	return keys, nil
 }
 
-// Close closes the BBolt database.
+func (b *BoltStore) bucketExists(bucket string) (bool, error) {
+	var one int
+	err := b.db.QueryRow(`SELECT 1 FROM kv_buckets WHERE name = ?`, bucket).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("sqlite kv bucket lookup %s: %w", bucket, err)
+	}
+	return true, nil
+}
+
+// Close closes the standalone SQLite KV database. Stores created from the main
+// SQLite connection are closed by SQLiteDB.
 func (b *BoltStore) Close() error {
+	if b == nil || b.db == nil || !b.closeDB {
+		return nil
+	}
 	return b.db.Close()
 }
 
 // GetAPIKeyByPrefix retrieves an API key by its stored key prefix.
-// Used for API key validation in middleware.
 func (b *BoltStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*models.APIKey, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	var key models.APIKey
-	err := b.db.View(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket(bucketAPIKeys)
-		if bkt == nil {
-			return fmt.Errorf("bucket api_keys not found")
-		}
 
-		// Iterate to find key with matching prefix
-		c := bkt.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			apiKey, err := decodeAPIKeyRecord(v)
-			if err != nil {
-				continue
-			}
-			if apiKey.KeyPrefix == prefix {
-				key = *apiKey
-				return nil
-			}
-		}
-		return fmt.Errorf("api key not found")
-	})
+	rows, err := b.db.QueryContext(ctx, `SELECT data FROM kv_store WHERE bucket = ?`, "api_keys")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query api keys: %w", err)
 	}
-	return &key, nil
+	defer rows.Close()
+
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, fmt.Errorf("scan api key: %w", err)
+		}
+		apiKey, err := decodeAPIKeyRecord(raw)
+		if err != nil {
+			continue
+		}
+		if apiKey.KeyPrefix == prefix {
+			return apiKey, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate api keys: %w", err)
+	}
+	return nil, fmt.Errorf("api key not found")
 }
 
-type apiKeyBoltRecord struct {
+type apiKeyKVRecord struct {
 	ID        string     `json:"id"`
 	UserID    string     `json:"user_id"`
 	TenantID  string     `json:"tenant_id"`
@@ -264,12 +405,12 @@ type apiKeyBoltRecord struct {
 }
 
 func decodeAPIKeyRecord(raw []byte) (*models.APIKey, error) {
-	var entry boltEntry
-	if err := json.Unmarshal(raw, &entry); err == nil && len(entry.Data) > 0 {
-		raw = entry.Data
+	var legacy kvEntry
+	if err := json.Unmarshal(raw, &legacy); err == nil && len(legacy.Data) > 0 {
+		raw = legacy.Data
 	}
 
-	var rec apiKeyBoltRecord
+	var rec apiKeyKVRecord
 	if err := json.Unmarshal(raw, &rec); err != nil {
 		return nil, err
 	}
@@ -313,31 +454,29 @@ func decodeAPIKeyRecord(raw []byte) (*models.APIKey, error) {
 }
 
 // GetWebhookSecret retrieves the webhook secret hash for signature verification.
-// Returns the secret hash stored for the given webhook ID.
 func (b *BoltStore) GetWebhookSecret(webhookID string) (string, error) {
-	var secret string
-	err := b.db.View(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket(bucketWebhooks)
-		if bkt == nil {
-			return fmt.Errorf("webhooks bucket not found")
-		}
-
-		// Look up webhook by ID
-		data := bkt.Get([]byte(webhookID))
-		if data == nil {
-			return fmt.Errorf("webhook not found")
-		}
-
-		var wh models.Webhook
-		if err := json.Unmarshal(data, &wh); err != nil {
-			return fmt.Errorf("unmarshal webhook: %w", err)
-		}
-
-		secret = wh.SecretHash
-		return nil
-	})
-	if err != nil {
-		return "", err
+	var raw []byte
+	err := b.db.QueryRow(`SELECT data FROM kv_store WHERE bucket = ? AND key = ?`, "webhooks", webhookID).Scan(&raw)
+	if err == sql.ErrNoRows {
+		return "", fmt.Errorf("webhook secret not found")
 	}
-	return secret, nil
+	if err != nil {
+		return "", fmt.Errorf("query webhook secret: %w", err)
+	}
+
+	var legacy kvEntry
+	if err := json.Unmarshal(raw, &legacy); err == nil && len(legacy.Data) > 0 {
+		raw = legacy.Data
+	}
+
+	var rec struct {
+		SecretHash string `json:"secret_hash"`
+	}
+	if err := json.Unmarshal(raw, &rec); err != nil {
+		return "", fmt.Errorf("unmarshal webhook: %w", err)
+	}
+	if rec.SecretHash == "" {
+		return "", fmt.Errorf("webhook secret not found")
+	}
+	return rec.SecretHash, nil
 }

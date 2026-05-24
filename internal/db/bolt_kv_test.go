@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	bolt "go.etcd.io/bbolt"
-
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
@@ -18,12 +16,8 @@ func TestBoltKV_GetAPIKeyByPrefix_Found(t *testing.T) {
 	store := testBolt(t)
 
 	// Insert raw JSON directly since APIKey.KeyHash has json:"-" tag
-	store.db.Update(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket(bucketAPIKeys)
-		// Use raw JSON with key_hash field to bypass json:"-" tag
-		rawJSON := `{"id":"ak-123","user_id":"user-1","tenant_id":"tenant-1","name":"Test Key","key_hash":"hashed-secret-key","key_prefix":"dm_test","scopes_json":"[]","created_at":"2024-01-01T00:00:00Z"}`
-		return bkt.Put([]byte("ak-123"), []byte(rawJSON))
-	})
+	rawJSON := `{"id":"ak-123","user_id":"user-1","tenant_id":"tenant-1","name":"Test Key","key_hash":"hashed-secret-key","key_prefix":"dm_test","scopes_json":"[]","created_at":"2024-01-01T00:00:00Z"}`
+	insertKVRaw(t, store, "api_keys", "ak-123", rawJSON, 0)
 
 	ctx := context.Background()
 	got, err := store.GetAPIKeyByPrefix(ctx, "dm_test")
@@ -55,11 +49,7 @@ func TestBoltKV_GetAPIKeyByPrefix_NotFound(t *testing.T) {
 func TestBoltKV_GetAPIKeyByPrefix_CorruptJSON(t *testing.T) {
 	store := testBolt(t)
 
-	// Insert corrupt JSON
-	store.db.Update(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket(bucketAPIKeys)
-		return bkt.Put([]byte("ak-corrupt"), []byte("not valid json {{"))
-	})
+	insertKVRaw(t, store, "api_keys", "ak-corrupt", "not valid json {{", 0)
 
 	ctx := context.Background()
 	_, err := store.GetAPIKeyByPrefix(ctx, "any-prefix")
@@ -73,12 +63,8 @@ func TestBoltKV_GetAPIKeyByPrefix_MultipleKeys(t *testing.T) {
 	store := testBolt(t)
 
 	// Insert multiple API keys
-	store.db.Update(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket(bucketAPIKeys)
-		bkt.Put([]byte("ak-1"), []byte(`{"id":"ak-1","key_prefix":"dm_alpha","user_id":"user-1","tenant_id":"t1","name":"Key 1","scopes_json":"[]","created_at":"2024-01-01T00:00:00Z"}`))
-		bkt.Put([]byte("ak-2"), []byte(`{"id":"ak-2","key_prefix":"dm_beta","user_id":"user-2","tenant_id":"t1","name":"Key 2","scopes_json":"[]","created_at":"2024-01-01T00:00:00Z"}`))
-		return nil
-	})
+	insertKVRaw(t, store, "api_keys", "ak-1", `{"id":"ak-1","key_prefix":"dm_alpha","user_id":"user-1","tenant_id":"t1","name":"Key 1","scopes_json":"[]","created_at":"2024-01-01T00:00:00Z"}`, 0)
+	insertKVRaw(t, store, "api_keys", "ak-2", `{"id":"ak-2","key_prefix":"dm_beta","user_id":"user-2","tenant_id":"t1","name":"Key 2","scopes_json":"[]","created_at":"2024-01-01T00:00:00Z"}`, 0)
 
 	ctx := context.Background()
 
@@ -108,23 +94,46 @@ func TestBoltKV_GetAPIKeyByPrefix_MultipleKeys(t *testing.T) {
 func TestBoltKV_GetWebhookSecret_Found(t *testing.T) {
 	store := testBolt(t)
 
-	// Insert raw JSON directly since Webhook.SecretHash has json:"-" tag
-	store.db.Update(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket(bucketWebhooks)
-		// Use raw JSON - note: secret_hash won't be unmarshaled due to json:"-" tag
-		// The function returns wh.SecretHash which is always empty from JSON unmarshal
-		rawJSON := `{"id":"wh-123","app_id":"app-1","secret_hash":"super-secret-hash-abc","events_json":"[\"push\"]","branch_filter":"main","auto_deploy":true,"status":"active","created_at":"2024-01-01T00:00:00Z"}`
-		return bkt.Put([]byte("wh-123"), []byte(rawJSON))
-	})
+	// Insert raw JSON directly. GetWebhookSecret also supports normal
+	// BoltStore.Set records.
+	rawJSON := `{"id":"wh-123","app_id":"app-1","secret_hash":"super-secret-hash-abc","events_json":"[\"push\"]","branch_filter":"main","auto_deploy":true,"status":"active","created_at":"2024-01-01T00:00:00Z"}`
+	insertKVRaw(t, store, "webhooks", "wh-123", rawJSON, 0)
 
 	got, err := store.GetWebhookSecret("wh-123")
 	if err != nil {
 		t.Fatalf("GetWebhookSecret: %v", err)
 	}
 
-	// Note: Due to json:"-" tag on SecretHash, the returned value will be empty
-	// This tests the actual behavior of the function
-	_ = got // Function executes successfully, returns empty string (known limitation)
+	if got != "super-secret-hash-abc" {
+		t.Fatalf("secret = %q, want super-secret-hash-abc", got)
+	}
+}
+
+func TestBoltKV_GetWebhookSecret_SetRecord(t *testing.T) {
+	store := testBolt(t)
+
+	record := struct {
+		ID         string `json:"id"`
+		AppID      string `json:"app_id"`
+		SecretHash string `json:"secret_hash"`
+		Status     string `json:"status"`
+	}{
+		ID:         "wh-set",
+		AppID:      "app-1",
+		SecretHash: "rotated-secret",
+		Status:     "active",
+	}
+	if err := store.Set("webhooks", "wh-set", record, 0); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	got, err := store.GetWebhookSecret("wh-set")
+	if err != nil {
+		t.Fatalf("GetWebhookSecret: %v", err)
+	}
+	if got != "rotated-secret" {
+		t.Fatalf("secret = %q, want rotated-secret", got)
+	}
 }
 
 func TestBoltKV_GetWebhookSecret_NotFound(t *testing.T) {
@@ -139,15 +148,28 @@ func TestBoltKV_GetWebhookSecret_NotFound(t *testing.T) {
 func TestBoltKV_GetWebhookSecret_CorruptJSON(t *testing.T) {
 	store := testBolt(t)
 
-	// Insert corrupt JSON
-	store.db.Update(func(tx *bolt.Tx) error {
-		bkt := tx.Bucket(bucketWebhooks)
-		return bkt.Put([]byte("wh-corrupt"), []byte("not valid json {{"))
-	})
+	insertKVRaw(t, store, "webhooks", "wh-corrupt", "not valid json {{", 0)
 
 	_, err := store.GetWebhookSecret("wh-corrupt")
 	if err == nil {
 		t.Fatal("expected error for corrupt JSON")
+	}
+}
+
+func insertKVRaw(t *testing.T, store *BoltStore, bucket, key, raw string, expiresAt int64) {
+	t.Helper()
+	if _, err := store.db.Exec(`INSERT OR IGNORE INTO kv_buckets(name) VALUES (?)`, bucket); err != nil {
+		t.Fatalf("insert raw kv bucket %s: %v", bucket, err)
+	}
+	_, err := store.db.Exec(`
+		INSERT INTO kv_store(bucket, key, data, expires_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(bucket, key) DO UPDATE SET
+			data = excluded.data,
+			expires_at = excluded.expires_at
+	`, bucket, key, []byte(raw), expiresAt)
+	if err != nil {
+		t.Fatalf("insert raw kv %s/%s: %v", bucket, key, err)
 	}
 }
 

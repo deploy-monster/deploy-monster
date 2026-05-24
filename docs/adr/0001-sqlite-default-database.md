@@ -19,7 +19,7 @@ Candidate datastores considered:
 | **SQLite** | Zero setup, file-based, embedded, WAL concurrency, mature, single binary distribution, no daemon to manage | Writer-single concurrency, limited horizontal scale |
 | **PostgreSQL** | Strong concurrency, rich SQL, horizontal scale | Extra daemon to install/update/secure, adds operational surface |
 | **MySQL/MariaDB** | Popular, mature | Same daemon cost as Postgres, no advantage over it for us |
-| **BadgerDB/BBolt alone** | Embedded, fast | No SQL, relational queries get painful across ~40 tables |
+| **Embedded KV alone** | Embedded, fast | No SQL, relational queries get painful across ~40 tables |
 
 ## Decision
 
@@ -34,9 +34,9 @@ Key enabling choices:
 - All data access goes through the `core.Store` interface — no package
   imports `*db.SQLiteDB` directly. This is what makes Postgres a clean
   alternative rather than a rewrite.
-- BBolt is used alongside SQLite for KV-shaped state (rate limiter state,
-  API keys, webhook secrets, token families, config snapshots) where a
-  relational schema adds no value and hurts hot-path latency.
+- KV-shaped runtime state (rate limiter state, API keys, webhook secrets,
+  token families, config snapshots) is stored in SQLite-backed JSON KV
+  tables where a full relational schema adds no value.
 
 ## Consequences
 
@@ -69,5 +69,5 @@ Key enabling choices:
 - We ship a hosted offering where a shared Postgres cluster is more economical
   than per-tenant SQLite files.
 - We add features that genuinely need multi-writer semantics (e.g., global
-  rate limiting across multiple nodes — currently handled via BBolt store
+  rate limiting across multiple nodes — currently handled via KV store
   persistence + re-sync).

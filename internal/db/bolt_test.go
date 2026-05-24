@@ -9,7 +9,7 @@ import (
 func testBolt(t *testing.T) *BoltStore {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "test.bolt")
+	path := filepath.Join(dir, "test-kv.db")
 
 	store, err := NewBoltStore(path)
 	if err != nil {
@@ -104,6 +104,38 @@ func TestBolt_Delete(t *testing.T) {
 	err := store.Get("sessions", "todelete", &got)
 	if err == nil {
 		t.Error("expected error after delete")
+	}
+}
+
+func TestBolt_Mutate_UpdatesInsideSingleTransaction(t *testing.T) {
+	store := testBolt(t)
+
+	type list struct {
+		Items []string `json:"items"`
+	}
+
+	if err := store.Set("sessions", "list", list{Items: []string{"a"}}, 0); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	var current list
+	err := store.Mutate("sessions", "list", &current, 0, func(exists bool) error {
+		if !exists {
+			t.Fatal("expected existing value")
+		}
+		current.Items = append(current.Items, "b")
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Mutate: %v", err)
+	}
+
+	var got list
+	if err := store.Get("sessions", "list", &got); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(got.Items) != 2 || got.Items[0] != "a" || got.Items[1] != "b" {
+		t.Fatalf("items = %#v, want [a b]", got.Items)
 	}
 }
 

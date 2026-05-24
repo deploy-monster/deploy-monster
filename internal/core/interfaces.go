@@ -233,7 +233,7 @@ type JobQueue interface {
 // JobMessage is the wire format for all job queue messages.
 type JobMessage struct {
 	ID        string `json:"id"`
-	Type      string `json:"type"`    // e.g. "build", "deploy", "cleanup"
+	Type      string `json:"type"` // e.g. "build", "deploy", "cleanup"
 	TenantID  string `json:"tenant_id"`
 	Payload   []byte `json:"payload"` // JSON-encoded job data
 	RetryMax  int    `json:"retry_max"`
@@ -375,10 +375,10 @@ type GitRepo struct {
 // DATABASE ACCESS
 // =====================================================
 
-// Database wraps the SQLite and BBolt stores as a unified data access layer.
+// Database wraps the SQL and JSON KV stores as a unified data access layer.
 type Database struct {
 	SQL         *sql.DB
-	Bolt        BoltStorer
+	Bolt        BoltStorer    // legacy field name for the KV store
 	Snapshotter DBSnapshotter // optional, set when the DB supports snapshot backup
 }
 
@@ -396,7 +396,8 @@ type BoltBatchItem struct {
 	TTL    int64 // seconds, 0 = no expiry
 }
 
-// BoltStorer is the interface for BBolt key-value operations.
+// BoltStorer is the legacy interface name for JSON key-value operations.
+// The production implementation is SQLite-backed.
 type BoltStorer interface {
 	Set(bucket, key string, value any, ttlSeconds int64) error
 	BatchSet(items []BoltBatchItem) error // write multiple keys in one transaction
