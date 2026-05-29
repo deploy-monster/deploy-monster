@@ -138,7 +138,7 @@ func TestAuthHandler_IncrementPerAccountRateLimit_RecordsFirstAttempt(t *testing
 }
 
 func TestAuthHandler_IncrementPerAccountRateLimit_NonNotFoundErrorSkipsWrite(t *testing.T) {
-	// A Get error that is not core.ErrBoltNotFound (corrupted entry,
+	// A Get error that is not core.ErrKVNotFound (corrupted entry,
 	// missing bucket on the production path) must skip the write path
 	// rather than reset the counter to FailedCount=1. The sentinel
 	// distinction lets the handler treat "no record yet" and
@@ -162,7 +162,7 @@ func TestAuthHandler_IncrementPerAccountRateLimit_NonNotFoundErrorSkipsWrite(t *
 	// must still allow the increment path to run, even via fmt.Errorf
 	// chaining. This guards against a future refactor that bypasses
 	// errors.Is checks.
-	stub.getErr = fmt.Errorf("wrapped: %w", core.ErrBoltNotFound)
+	stub.getErr = fmt.Errorf("wrapped: %w", core.ErrKVNotFound)
 	h.incrementPerAccountRateLimit(context.Background(), "b@example.com")
 	if _, ok := stub.mockBoltStore.data["account_rl"]; !ok {
 		t.Fatal("wrapped ErrBoltNotFound must be treated as a fresh state")

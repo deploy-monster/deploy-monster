@@ -865,6 +865,10 @@ func (m *mockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, e
 }
 
 func (m *mockStore) Close() error                 { return nil }
+func (m *mockStore) CreateDeploymentAtomicVersion(_ context.Context, _ *core.Deployment) error { return nil }
+func (m *mockStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) { return nil, nil }
+func (m *mockStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) { return nil, nil }
+func (m *mockStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) { return nil, nil }
 func (m *mockStore) Ping(_ context.Context) error { return nil }
 
 // ─── Test Helpers ────────────────────────────────────────────────────────────
@@ -1123,11 +1127,11 @@ func (m *mockBoltStore) Get(bucket, key string, dest any) error {
 	defer m.mu.Unlock()
 	bkt, ok := m.data[bucket]
 	if !ok {
-		return fmt.Errorf("bucket %q: %w", bucket, core.ErrBoltNotFound)
+		return fmt.Errorf("bucket %q: %w", bucket, core.ErrKVNotFound)
 	}
 	raw, ok := bkt[key]
 	if !ok {
-		return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
+		return fmt.Errorf("key %q: %w", key, core.ErrKVNotFound)
 	}
 	return json.Unmarshal(raw, dest)
 }
