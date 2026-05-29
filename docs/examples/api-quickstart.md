@@ -64,12 +64,15 @@ curl /api/v1/marketplace \
 curl -X POST /api/v1/marketplace/deploy \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"slug": "wordpress", "name": "my-blog"}'
+  -d '{"slug": "wordpress", "name": "my-blog", "domain": "blog.example.com"}'
 ```
 
 If the template generates missing sensitive values, the response includes a
 one-time `generated_secrets` object. Save those values before closing the
 response; they are not retrievable later.
+
+For multi-service templates, `domain_service` and `domain_port` can override
+the default route target when the public HTTP service is not obvious.
 
 ## Manage Apps
 
@@ -138,7 +141,7 @@ curl -X POST /api/v1/databases \
 
 ```bash
 # Configure webhook endpoint in GitHub/GitLab
-# URL: https://your-domain:8443/api/v1/webhooks/{app_id}
+# URL: https://your-domain:8443/hooks/v1/{app_id}
 # Secret: your-webhook-secret
 ```
 

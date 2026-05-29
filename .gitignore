@@ -21,7 +21,12 @@ backups/
 # Test coverage
 *.out
 coverage.html
+coverage/
 gosec-results.json
+
+# Point-in-time scan / audit output — not source. Keep findings in CI
+# artifacts or the wiki, not the tree.
+security-report/
 
 # IDE
 .idea/
@@ -58,6 +63,7 @@ openapi-gen.exe
 
 # Load test output
 loadtest-results.json
+loadtest-results-*/
 
 # Playwright
 .playwright-mcp/

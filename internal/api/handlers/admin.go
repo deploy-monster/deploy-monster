@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"runtime"
 
@@ -66,8 +65,7 @@ func (h *AdminHandler) SystemInfo(w http.ResponseWriter, _ *http.Request) {
 // UpdateSettings handles PATCH /api/v1/admin/settings
 func (h *AdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var settings map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &settings) {
 		return
 	}
 

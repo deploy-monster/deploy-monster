@@ -76,6 +76,10 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 			"cpu_quota", c.Config.Docker.DefaultCPUQuota,
 			"memory_mb", c.Config.Docker.DefaultMemoryMB)
 	}
+	if err := docker.SetRegistryAuth(c.Config.Docker.BuildRegistryUsername, c.Config.Docker.BuildRegistryPassword); err != nil {
+		_ = docker.Close()
+		return fmt.Errorf("configure docker registry auth: %w", err)
+	}
 
 	// Register container runtime in service registry
 	c.Services.Container = docker

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -47,7 +48,7 @@ func (h *DeploymentHandler) GetLatest(w http.ResponseWriter, r *http.Request) {
 
 	dep, err := h.store.GetLatestDeployment(r.Context(), app.ID)
 	if err != nil {
-		if err == core.ErrNotFound {
+		if errors.Is(err, core.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "no deployments found")
 			return
 		}

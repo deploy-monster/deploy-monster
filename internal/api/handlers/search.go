@@ -57,12 +57,18 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Search domains for the current tenant's applications only.
+	// Batch-fetch domains for all apps in a single query to avoid N+1.
+	appIDs := make([]string, len(apps))
+	for i, app := range apps {
+		appIDs[i] = app.ID
+	}
+	domainsByApp, err := h.store.ListDomainsByAppIDs(r.Context(), appIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
 	for _, app := range apps {
-		domains, err := h.store.ListDomainsByApp(r.Context(), app.ID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "internal error")
-			return
-		}
+		domains := domainsByApp[app.ID]
 		for _, d := range domains {
 			if strings.Contains(strings.ToLower(d.FQDN), query) {
 				results = append(results, SearchResult{

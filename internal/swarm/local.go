@@ -56,6 +56,16 @@ func (l *LocalExecutor) ListByLabels(ctx context.Context, labels map[string]stri
 	return l.runtime.ListByLabels(ctx, labels)
 }
 
+func (l *LocalExecutor) EnsureNetwork(ctx context.Context, name string) error {
+	nr, ok := l.runtime.(interface {
+		EnsureNetwork(context.Context, string) error
+	})
+	if !ok {
+		return fmt.Errorf("container runtime does not support network ensure")
+	}
+	return nr.EnsureNetwork(ctx, name)
+}
+
 func (l *LocalExecutor) Exec(ctx context.Context, command string) (string, error) {
 	// For local execution, run through the container runtime exec
 	// using a direct argv command. No shell is invoked.

@@ -117,7 +117,9 @@ func NewApp(cfg *Config, build BuildInfo) (*Core, error) {
 		}
 	}
 
-	registerAllModules(c)
+	if err := registerAllModules(c); err != nil {
+		return nil, err
+	}
 
 	return c, nil
 }
@@ -263,10 +265,17 @@ func (c *Core) ReloadConfig() error {
 // registerAllModules registers all application modules.
 // Modules are registered in approximate priority order; actual initialization
 // order is determined by dependency resolution in Registry.Resolve().
-func registerAllModules(c *Core) {
+// Returns an error if any module fails to register.
+func registerAllModules(c *Core) error {
+	var errs []error
 	for _, factory := range moduleFactories {
 		if err := c.Registry.Register(factory()); err != nil {
 			c.Logger.Error("failed to register module", "error", err)
+			errs = append(errs, err)
 		}
 	}
+	if len(errs) > 0 {
+		return fmt.Errorf("module registration failed: %v", errs)
+	}
+	return nil
 }

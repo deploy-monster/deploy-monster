@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -24,8 +23,7 @@ type cloneRequest struct {
 // Clone handles POST /api/v1/apps/{id}/clone
 func (h *CloneHandler) Clone(w http.ResponseWriter, r *http.Request) {
 	var req cloneRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 

@@ -209,6 +209,7 @@ export function Servers() {
 
   const remoteServers = servers.filter((s) => s.id !== 'local' && s.provider !== 'local');
   const activeCount = remoteServers.filter((s) => s.status === 'active' || s.status === 'running').length;
+  const connectedCount = remoteServers.filter((s) => s.connected).length;
 
   return (
     <div className="space-y-8">
@@ -221,6 +222,7 @@ export function Servers() {
               <Badge variant="secondary" className="text-xs font-normal">
                 {remoteServers.length + 1} server{remoteServers.length !== 0 ? 's' : ''}
                 {' \u00b7 '}{activeCount + 1} active
+                {' \u00b7 '}{connectedCount + 1} connected
               </Badge>
             </div>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
@@ -420,7 +422,7 @@ export function Servers() {
           {/* Remote servers */}
           {remoteServers.map((s) => {
             const providerCfg = getProviderConfig(s.provider);
-            const isActive = s.status === 'active' || s.status === 'running';
+            const isConnected = s.connected === true;
 
             return (
               <Card
@@ -443,18 +445,18 @@ export function Servers() {
                         <CardDescription className="font-mono text-xs">{s.ip_address}</CardDescription>
                       </div>
                     </div>
-                    {isActive ? (
+                    {isConnected ? (
                       <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 gap-1.5">
                         <span className="relative flex size-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                           <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
                         </span>
-                        Active
+                        Connected
                       </Badge>
                     ) : (
                       <Badge variant="secondary" className="gap-1.5">
                         <span className="size-2 rounded-full bg-muted-foreground" />
-                        {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                        {s.agent_status === 'disconnected' ? 'Agent offline' : s.status.charAt(0).toUpperCase() + s.status.slice(1)}
                       </Badge>
                     )}
                   </div>

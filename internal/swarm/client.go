@@ -25,6 +25,10 @@ import (
 // no explicit port. It matches the historical DeployMonster HTTPS port.
 const defaultAgentPort = 8443
 
+// maxConcurrentHandlers limits how many handleMessage goroutines run concurrently.
+// Each handler may shell out to Docker, so we bound memory and resource usage.
+const maxConcurrentHandlers = 32
+
 // AgentClient connects to the master server and executes commands
 // received over the hijacked HTTP connection. This runs on agent nodes.
 type AgentClient struct {
@@ -48,6 +52,9 @@ type AgentClient struct {
 	caFile    string
 	tlsConfig *tls.Config
 	buildMod  *build.Module
+
+	// sem limits concurrent handleMessage goroutines.
+	sem chan struct{}
 }
 
 // NewAgentClient creates a new agent-side client.
@@ -66,6 +73,7 @@ func NewAgentClient(masterURL, serverID, token, version string, rt core.Containe
 		certFile:    certFile,
 		keyFile:     keyFile,
 		caFile:      caFile,
+		sem:         make(chan struct{}, maxConcurrentHandlers),
 	}
 	if certFile != "" && keyFile != "" {
 		c.tlsConfig = &tls.Config{
@@ -251,12 +259,21 @@ func (c *AgentClient) readLoop(ctx context.Context) error {
 			return fmt.Errorf("read from master: %w", err)
 		}
 
+		c.sem <- struct{}{}
 		go c.handleMessage(ctx, msg)
 	}
 }
 
 // handleMessage dispatches a command from the master.
 func (c *AgentClient) handleMessage(ctx context.Context, msg core.AgentMessage) {
+	defer func() { <-c.sem }()
+
+	if r := recover(); r != nil {
+		c.logger.Error("handleMessage panicked", "panic", r)
+		c.sendResponse(msg.ID, core.AgentMsgError, fmt.Sprintf("handler panicked: %v", r))
+		return
+	}
+
 	c.logger.Debug("received command", "type", msg.Type, "id", msg.ID)
 
 	var result any
@@ -283,6 +300,8 @@ func (c *AgentClient) handleMessage(ctx context.Context, msg core.AgentMessage) 
 		result, err = c.handleContainerExec(ctx, msg)
 	case core.AgentMsgImagePull:
 		err = c.handleImagePull(ctx, msg)
+	case core.AgentMsgNetworkCreate:
+		err = c.handleNetworkCreate(ctx, msg)
 	case core.AgentMsgMetricsCollect:
 		result, err = c.handleMetricsCollect(ctx, msg)
 	case core.AgentMsgHealthCheck:
@@ -422,6 +441,29 @@ func (c *AgentClient) handleImagePull(ctx context.Context, msg core.AgentMessage
 		return fmt.Errorf("decode image pull payload: %w", err)
 	}
 	return rt.ImagePull(ctx, p.Image)
+}
+
+func (c *AgentClient) handleNetworkCreate(ctx context.Context, msg core.AgentMessage) error {
+	rt, err := c.requireRuntime()
+	if err != nil {
+		return err
+	}
+	nr, ok := rt.(interface {
+		EnsureNetwork(context.Context, string) error
+	})
+	if !ok {
+		return fmt.Errorf("container runtime does not support network ensure")
+	}
+	var p struct {
+		Name string `json:"name"`
+	}
+	if err := decodeInto(msg.Payload, &p); err != nil {
+		return fmt.Errorf("decode network create payload: %w", err)
+	}
+	if p.Name == "" {
+		return fmt.Errorf("network name is required")
+	}
+	return nr.EnsureNetwork(ctx, p.Name)
 }
 
 func (c *AgentClient) handleMetricsCollect(ctx context.Context, _ core.AgentMessage) (core.ServerMetrics, error) {

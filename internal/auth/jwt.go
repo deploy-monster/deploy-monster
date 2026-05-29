@@ -78,11 +78,14 @@ func NewJWTService(secret string, previousSecrets ...string) (*JWTService, error
 
 	prev := make([][]byte, 0, len(previousSecrets))
 	added := make([]time.Time, 0, len(previousSecrets))
-	now := time.Now()
 	for _, s := range previousSecrets {
 		if s != "" {
 			prev = append(prev, []byte(s))
-			added = append(added, now) // assume all provided previous keys are fresh
+			// P2-2: Do NOT stamp with time.Now() — that resets the grace window
+			// on every restart. Use zero time so keys loaded from config are
+			// treated as already outside their grace period. The real rotation
+			// timestamp is set by AddPreviousKey() during key rotation.
+			added = append(added, time.Time{})
 		}
 	}
 	return &JWTService{

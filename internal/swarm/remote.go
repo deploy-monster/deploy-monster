@@ -94,6 +94,13 @@ func (r *RemoteExecutor) ListByLabels(ctx context.Context, labels map[string]str
 	return containers, nil
 }
 
+func (r *RemoteExecutor) EnsureNetwork(ctx context.Context, name string) error {
+	_, err := r.sendCommand(ctx, core.AgentMsgNetworkCreate, map[string]any{
+		"name": name,
+	})
+	return err
+}
+
 func (r *RemoteExecutor) Exec(ctx context.Context, command string) (string, error) {
 	cmd := core.SplitCommand(command)
 	if !core.CommandTokensSafe(cmd) {

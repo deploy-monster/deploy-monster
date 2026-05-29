@@ -52,14 +52,24 @@ func (h *ImageTagHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build a set of allowed image names from the tenant's deployments
+	// Batch-fetch all latest deployments in a single query to avoid N+1.
 	allowedImages := make(map[string]bool)
-	for _, app := range apps {
-		// Get the latest deployment for this app
-		deploy, err := h.store.GetLatestDeployment(r.Context(), app.ID)
-		if err == nil && deploy != nil && deploy.Image != "" {
-			// Extract base image name without tag
-			parts := strings.SplitN(deploy.Image, ":", 2)
-			allowedImages[parts[0]] = true
+	if len(apps) > 0 {
+		appIDs := make([]string, len(apps))
+		for i, app := range apps {
+			appIDs[i] = app.ID
+		}
+		deployments, err := h.store.GetLatestDeploymentsByAppIDs(r.Context(), appIDs)
+		if err != nil {
+			internalError(w, "failed to load deployments", err)
+			return
+		}
+		for _, deploy := range deployments {
+			if deploy != nil && deploy.Image != "" {
+				// Extract base image name without tag
+				parts := strings.SplitN(deploy.Image, ":", 2)
+				allowedImages[parts[0]] = true
+			}
 		}
 	}
 

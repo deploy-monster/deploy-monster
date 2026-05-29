@@ -131,7 +131,7 @@ func (rl *AuthRateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 		now := time.Now().Unix()
 
 		err := rl.bolt.Get("ratelimit", key, &entry)
-		if err != nil && !errors.Is(err, core.ErrBoltNotFound) {
+		if err != nil && !errors.Is(err, core.ErrKVNotFound) {
 			// A non-NotFound failure (corrupted entry, unexpected
 			// bolt error) drops us into the same fresh-window path
 			// as a real miss, which silently resets the counter to

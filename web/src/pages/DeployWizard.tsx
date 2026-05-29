@@ -14,15 +14,19 @@ import {
   Globe,
   Layers,
   Hash,
+  Server,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/api/client';
+import type { ServerNode } from '@/api/servers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Select } from '@/components/ui/select';
+import { useApi } from '@/hooks/useApi';
 
 // ---------------------------------------------------------------------------
 // Types & Config
@@ -65,6 +69,7 @@ const REVIEW_ICONS: Record<string, typeof Box> = {
   URL:    Globe,
   Branch: GitBranch,
   Port:   Hash,
+  Target: Server,
 };
 
 // ---------------------------------------------------------------------------
@@ -73,6 +78,10 @@ const REVIEW_ICONS: Record<string, typeof Box> = {
 
 export function DeployWizard() {
   const navigate = useNavigate();
+  const { data: serversResp } = useApi<{ data: ServerNode[]; total: number } | ServerNode[]>('/servers');
+  const servers = Array.isArray(serversResp) ? serversResp : serversResp?.data ?? [];
+  const remoteServers = servers.filter((server) => server.id !== 'local' && server.provider !== 'local');
+  const deployableServers = remoteServers.filter((server) => server.connected !== false);
   const [step, setStep] = useState(0);
   const [sourceType, setSourceType] = useState<SourceType | null>(null);
   const [config, setConfig] = useState({
@@ -80,6 +89,7 @@ export function DeployWizard() {
     sourceURL: '',
     branch: 'main',
     port: '3000',
+    serverID: 'local',
   });
   const [deploying, setDeploying] = useState(false);
   const [error, setError] = useState('');
@@ -93,6 +103,7 @@ export function DeployWizard() {
         source_type: sourceType || 'image',
         source_url: config.sourceURL,
         branch: config.branch,
+        server_id: config.serverID === 'local' ? undefined : config.serverID,
       });
       navigate(`/apps/${app.id}`);
     } catch (err) {
@@ -106,6 +117,12 @@ export function DeployWizard() {
     { label: 'Source', value: sourceType },
     ...(config.sourceURL ? [{ label: 'URL', value: config.sourceURL }] : []),
     ...(sourceType === 'git' ? [{ label: 'Branch', value: config.branch }] : []),
+    {
+      label: 'Target',
+      value: config.serverID === 'local'
+        ? 'Local server'
+        : remoteServers.find((server) => server.id === config.serverID)?.hostname || config.serverID,
+    },
     { label: 'Port', value: config.port },
   ];
 
@@ -289,6 +306,30 @@ export function DeployWizard() {
                   </div>
                 </>
               )}
+
+              <Separator />
+
+              <div className="space-y-1.5">
+                <Label htmlFor="target-server">Target Server</Label>
+                <Select
+                  id="target-server"
+                  value={config.serverID}
+                  onChange={(e) => setConfig({ ...config, serverID: e.target.value })}
+                >
+                  <option value="local">Local server</option>
+                  {remoteServers.map((server) => (
+                    <option key={server.id} value={server.id} disabled={server.connected === false}>
+                      {server.hostname || server.id}
+                      {server.connected === false ? ' (agent disconnected)' : ''}
+                    </option>
+                  ))}
+                </Select>
+                {deployableServers.length === 0 && remoteServers.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Remote servers are listed after their agents connect.
+                  </p>
+                )}
+              </div>
 
               <Separator />
 

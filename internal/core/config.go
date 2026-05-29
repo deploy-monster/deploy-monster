@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -13,24 +14,24 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	Server          ServerConfig          `yaml:"server"`
-	Database        DatabaseConfig        `yaml:"database"`
-	Ingress         IngressConfig         `yaml:"ingress"`
-	ACME            ACMEConfig            `yaml:"acme"`
-	DNS             DNSConfig             `yaml:"dns"`
-	Docker          DockerConfig          `yaml:"docker"`
-	Backup          BackupConfig          `yaml:"backup"`
-	Notifications   NotificationConfig     `yaml:"notifications"`
-	Swarm           SwarmConfig           `yaml:"swarm"`
-	VPSProviders    VPSProvidersConfig    `yaml:"vps_providers"`
-	GitSources      GitSourcesConfig      `yaml:"git_sources"`
-	Marketplace     MarketplaceConfig      `yaml:"marketplace"`
-	Registration    RegistrationConfig     `yaml:"registration"`
-	Secrets         SecretsConfig         `yaml:"secrets"`
-	Billing         BillingConfig          `yaml:"billing"`
-	Limits          LimitsConfig           `yaml:"limits"`
-	Enterprise      EnterpriseConfig       `yaml:"enterprise"`
-	Observability   ObservabilityConfig   `yaml:"observability"`
+	Server        ServerConfig        `yaml:"server"`
+	Database      DatabaseConfig      `yaml:"database"`
+	Ingress       IngressConfig       `yaml:"ingress"`
+	ACME          ACMEConfig          `yaml:"acme"`
+	DNS           DNSConfig           `yaml:"dns"`
+	Docker        DockerConfig        `yaml:"docker"`
+	Backup        BackupConfig        `yaml:"backup"`
+	Notifications NotificationConfig  `yaml:"notifications"`
+	Swarm         SwarmConfig         `yaml:"swarm"`
+	VPSProviders  VPSProvidersConfig  `yaml:"vps_providers"`
+	GitSources    GitSourcesConfig    `yaml:"git_sources"`
+	Marketplace   MarketplaceConfig   `yaml:"marketplace"`
+	Registration  RegistrationConfig  `yaml:"registration"`
+	Secrets       SecretsConfig       `yaml:"secrets"`
+	Billing       BillingConfig       `yaml:"billing"`
+	Limits        LimitsConfig        `yaml:"limits"`
+	Enterprise    EnterpriseConfig    `yaml:"enterprise"`
+	Observability ObservabilityConfig `yaml:"observability"`
 }
 
 // ServerConfig holds the HTTP server configuration.
@@ -45,7 +46,7 @@ type ServerConfig struct {
 	LogLevel           string   `yaml:"log_level"`             // debug, info, warn, error (default: info)
 	LogFormat          string   `yaml:"log_format"`            // text or json (default: text)
 	RateLimitPerMinute int      `yaml:"rate_limit_per_minute"` // global per-IP rate limit; 0 = disabled (default: 120)
-	AllowedCIDRs      []string `yaml:"allowed_cidrs"`          // CIDR ranges allowed to access the API; empty = allow all
+	AllowedCIDRs       []string `yaml:"allowed_cidrs"`         // CIDR ranges allowed to access the API; empty = allow all
 }
 
 // DatabaseConfig holds database configuration.
@@ -54,7 +55,7 @@ type DatabaseConfig struct {
 	Path            string `yaml:"path"`
 	URL             string `yaml:"url"`
 	QueryTimeoutSec int    `yaml:"query_timeout_sec"` // per-query timeout in seconds; 0 = 5s default
-	SSLMode         string `yaml:"ssl_mode"`           // postgres only: disable, allow, require, verify-ca, verify-full (default: require)
+	SSLMode         string `yaml:"ssl_mode"`          // postgres only: disable, allow, require, verify-ca, verify-full (default: require)
 	// ReplicationMode enables PostgreSQL streaming replication for read replicas.
 	// Off by default. Set to "streaming" to enable.
 	ReplicationMode string `yaml:"replication_mode"`
@@ -93,11 +94,15 @@ type DNSConfig struct {
 
 // DockerConfig holds Docker connection configuration.
 type DockerConfig struct {
-	Host            string `yaml:"host"`
-	APIVersion      string `yaml:"api_version"`
-	TLSVerify       bool   `yaml:"tls_verify"`
-	DefaultCPUQuota int64  `yaml:"default_cpu_quota"` // Default CPU quota per container (microseconds per 100ms period, 100000 = 1 core)
-	DefaultMemoryMB int64  `yaml:"default_memory_mb"` // Default memory limit per container in MB
+	Host                  string `yaml:"host"`
+	APIVersion            string `yaml:"api_version"`
+	TLSVerify             bool   `yaml:"tls_verify"`
+	BuildImageRegistry    string `yaml:"build_image_registry"`    // Optional registry/repository prefix for built app images, e.g. ghcr.io/org
+	BuildImagePush        bool   `yaml:"build_image_push"`        // Push built images after docker build
+	BuildRegistryUsername string `yaml:"build_registry_username"` // Optional Docker registry username for build/push auth
+	BuildRegistryPassword string `yaml:"build_registry_password"` // Optional Docker registry password/token for build/push auth
+	DefaultCPUQuota       int64  `yaml:"default_cpu_quota"`       // Default CPU quota per container (microseconds per 100ms period, 100000 = 1 core)
+	DefaultMemoryMB       int64  `yaml:"default_memory_mb"`       // Default memory limit per container in MB
 }
 
 // BackupConfig holds backup configuration.
@@ -161,14 +166,18 @@ type SwarmConfig struct {
 	// When TLSCertFile and TLSKeyFile are set, the agent uses TLS and
 	// presents a client certificate. TLSCACertFile verifies the server
 	// certificate. Token is sent via X-Agent-Token header (not URL).
-	TLSCertFile string `yaml:"tls_cert_file"`
-	TLSKeyFile  string `yaml:"tls_key_file"`
+	TLSCertFile   string `yaml:"tls_cert_file"`
+	TLSKeyFile    string `yaml:"tls_key_file"`
 	TLSCACertFile string `yaml:"tls_ca_cert_file"`
 }
 
 // VPSProvidersConfig holds VPS provider configuration.
 type VPSProvidersConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled           bool   `yaml:"enabled"`
+	HetznerToken      string `yaml:"hetzner_token"`
+	DigitalOceanToken string `yaml:"digitalocean_token"`
+	VultrToken        string `yaml:"vultr_token"`
+	LinodeToken       string `yaml:"linode_token"`
 }
 
 // GitSourcesConfig holds git source configuration.
@@ -219,10 +228,10 @@ type EnterpriseConfig struct {
 
 // ObservabilityConfig holds metrics, tracing, and log aggregation settings.
 type ObservabilityConfig struct {
-	LokiURL    string `yaml:"loki_url"`    // Loki endpoint for structured logs
+	LokiURL     string `yaml:"loki_url"`     // Loki endpoint for structured logs
 	LokiTimeout int    `yaml:"loki_timeout"` // seconds (default: 5)
-	LogFormat  string `yaml:"log_format"`  // text, json, loki
-	TracingURL string `yaml:"tracing_url"` // OTLP/gRPC endpoint for OpenTelemetry traces (e.g., localhost:4317)
+	LogFormat   string `yaml:"log_format"`   // text, json, loki
+	TracingURL  string `yaml:"tracing_url"`  // OTLP/gRPC endpoint for OpenTelemetry traces (e.g., localhost:4317)
 	ServiceName string `yaml:"service_name"` // service name for traces (default: deploymonster)
 }
 
@@ -344,6 +353,12 @@ func (c *Config) Validate() error {
 	if c.Ingress.HTTPSPort < 1 || c.Ingress.HTTPSPort > 65535 {
 		return fmt.Errorf("config: ingress.https_port %d out of range (1-65535)", c.Ingress.HTTPSPort)
 	}
+	if c.Server.Port == c.Ingress.HTTPPort {
+		return fmt.Errorf("config: API port (%d) conflicts with ingress.http_port", c.Server.Port)
+	}
+	if c.Server.Port == c.Ingress.HTTPSPort {
+		return fmt.Errorf("config: API port (%d) conflicts with ingress.https_port", c.Server.Port)
+	}
 
 	// ACME
 	if c.ACME.Email != "" {
@@ -372,6 +387,15 @@ func (c *Config) Validate() error {
 	}
 
 	// Docker resource defaults
+	if strings.Contains(c.Docker.BuildImageRegistry, "://") {
+		return fmt.Errorf("config: docker.build_image_registry must be a Docker image prefix without scheme")
+	}
+	if c.Docker.BuildImagePush && c.Docker.BuildImageRegistry == "" {
+		return fmt.Errorf("config: docker.build_image_registry is required when docker.build_image_push is true")
+	}
+	if (c.Docker.BuildRegistryUsername == "") != (c.Docker.BuildRegistryPassword == "") {
+		return fmt.Errorf("config: docker.build_registry_username and docker.build_registry_password must be set together")
+	}
 	if c.Docker.DefaultCPUQuota < 0 {
 		return fmt.Errorf("config: docker.default_cpu_quota must be non-negative")
 	}
@@ -464,6 +488,11 @@ func (c *Config) AuditSecrets() []string {
 		{"backup.s3.secret_key", c.Backup.S3.SecretKey, "MONSTER_S3_SECRET_KEY"},
 		{"backup.encryption_key", c.Backup.EncryptionKey, "MONSTER_BACKUP_ENCRYPTION_KEY"},
 		{"swarm.join_token", c.Swarm.JoinToken, "MONSTER_JOIN_TOKEN"},
+		{"docker.build_registry_password", c.Docker.BuildRegistryPassword, "MONSTER_BUILD_REGISTRY_PASSWORD"},
+		{"vps_providers.hetzner_token", c.VPSProviders.HetznerToken, "MONSTER_HETZNER_TOKEN"},
+		{"vps_providers.digitalocean_token", c.VPSProviders.DigitalOceanToken, "MONSTER_DIGITALOCEAN_TOKEN"},
+		{"vps_providers.vultr_token", c.VPSProviders.VultrToken, "MONSTER_VULTR_TOKEN"},
+		{"vps_providers.linode_token", c.VPSProviders.LinodeToken, "MONSTER_LINODE_TOKEN"},
 	}
 
 	var warnings []string
@@ -510,143 +539,93 @@ func applyDefaults(cfg *Config) {
 }
 
 func applyEnvOverrides(cfg *Config) {
-	if v := os.Getenv("MONSTER_HOST"); v != "" {
-		cfg.Server.Host = v
-	}
-	if v := os.Getenv("MONSTER_PORT"); v != "" {
-		if port, err := strconv.Atoi(v); err == nil {
-			cfg.Server.Port = port
+	for _, e := range []struct {
+		key    string
+		target func(string)
+	}{
+		{"MONSTER_HOST", func(v string) { cfg.Server.Host = v }},
+		{"MONSTER_PORT", func(v string) {
+			if port, err := strconv.Atoi(v); err == nil {
+				cfg.Server.Port = port
+			} else {
+				slog.Warn("config: MONSTER_PORT value not an integer, ignoring", "value", v, "error", err)
+			}
+		}},
+		{"MONSTER_DOMAIN", func(v string) { cfg.Server.Domain = v }},
+		{"MONSTER_SECRET", func(v string) { cfg.Server.SecretKey = v }},
+		{"MONSTER_PREVIOUS_SECRET_KEYS", func(v string) { cfg.Server.PreviousSecretKeys = strings.Split(v, ",") }},
+		{"MONSTER_DB_PATH", func(v string) { cfg.Database.Path = v }},
+		{"MONSTER_DB_URL", func(v string) {
+			cfg.Database.URL = v
+			cfg.Database.Driver = "postgres"
+		}},
+		{"MONSTER_DB_SSL_MODE", func(v string) { cfg.Database.SSLMode = v }},
+		{"MONSTER_DOCKER_HOST", func(v string) { cfg.Docker.Host = v }},
+		{"MONSTER_BUILD_IMAGE_REGISTRY", func(v string) { cfg.Docker.BuildImageRegistry = strings.Trim(v, "/") }},
+		{"MONSTER_BUILD_IMAGE_PUSH", func(v string) { cfg.Docker.BuildImagePush = v == "true" }},
+		{"MONSTER_BUILD_REGISTRY_USERNAME", func(v string) { cfg.Docker.BuildRegistryUsername = v }},
+		{"MONSTER_BUILD_REGISTRY_PASSWORD", func(v string) { cfg.Docker.BuildRegistryPassword = v }},
+		{"MONSTER_DOCKER_CPU_QUOTA", func(v string) {
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+				cfg.Docker.DefaultCPUQuota = n
+			}
+		}},
+		{"MONSTER_DOCKER_MEMORY_MB", func(v string) {
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+				cfg.Docker.DefaultMemoryMB = n
+			}
+		}},
+		{"MONSTER_LOG_LEVEL", func(v string) { cfg.Server.LogLevel = v }},
+		{"MONSTER_LOG_FORMAT", func(v string) { cfg.Server.LogFormat = v }},
+		{"MONSTER_ACME_EMAIL", func(v string) { cfg.ACME.Email = v }},
+		{"MONSTER_REGISTRATION_MODE", func(v string) { cfg.Registration.Mode = v }},
+		{"MONSTER_JOIN_TOKEN", func(v string) { cfg.Swarm.JoinToken = v }},
+		{"MONSTER_AGENT_CERT_FILE", func(v string) { cfg.Swarm.TLSCertFile = v }},
+		{"MONSTER_AGENT_KEY_FILE", func(v string) { cfg.Swarm.TLSKeyFile = v }},
+		{"MONSTER_AGENT_CA_FILE", func(v string) { cfg.Swarm.TLSCACertFile = v }},
+		{"MONSTER_CORS_ORIGINS", func(v string) { cfg.Server.CORSOrigins = v }},
+		{"MONSTER_RATE_LIMIT_PER_MINUTE", func(v string) {
+			if n, err := strconv.Atoi(v); err == nil {
+				cfg.Server.RateLimitPerMinute = n
+			}
+		}},
+		{"MONSTER_ENABLE_PPROF", func(v string) { cfg.Server.EnablePprof = v == "true" }},
+		// Secret-bearing fields
+		{"MONSTER_CLOUDFLARE_TOKEN", func(v string) { cfg.DNS.CloudflareToken = v }},
+		{"MONSTER_GITHUB_CLIENT_SECRET", func(v string) { cfg.GitSources.GitHubClientSecret = v }},
+		{"MONSTER_GITLAB_CLIENT_SECRET", func(v string) { cfg.GitSources.GitLabClientSecret = v }},
+		{"MONSTER_ENCRYPTION_KEY", func(v string) { cfg.Secrets.EncryptionKey = v }},
+		{"MONSTER_STRIPE_SECRET_KEY", func(v string) { cfg.Billing.StripeSecretKey = v }},
+		{"MONSTER_STRIPE_WEBHOOK_KEY", func(v string) { cfg.Billing.StripeWebhookKey = v }},
+		{"MONSTER_LICENSE_KEY", func(v string) { cfg.Enterprise.LicenseKey = v }},
+		{"MONSTER_SLACK_WEBHOOK", func(v string) { cfg.Notifications.SlackWebhook = v }},
+		{"MONSTER_DISCORD_WEBHOOK", func(v string) { cfg.Notifications.DiscordWebhook = v }},
+		{"MONSTER_TELEGRAM_TOKEN", func(v string) { cfg.Notifications.TelegramToken = v }},
+		{"MONSTER_SMTP_HOST", func(v string) { cfg.Notifications.SMTP.Host = v }},
+		{"MONSTER_SMTP_PORT", func(v string) {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				cfg.Notifications.SMTP.Port = n
+			}
+		}},
+		{"MONSTER_SMTP_USERNAME", func(v string) { cfg.Notifications.SMTP.Username = v }},
+		{"MONSTER_SMTP_PASSWORD", func(v string) { cfg.Notifications.SMTP.Password = v }},
+		{"MONSTER_SMTP_FROM", func(v string) { cfg.Notifications.SMTP.From = v }},
+		{"MONSTER_SMTP_FROM_NAME", func(v string) { cfg.Notifications.SMTP.FromName = v }},
+		{"MONSTER_SMTP_USE_TLS", func(v string) { cfg.Notifications.SMTP.UseTLS = v == "true" }},
+		{"MONSTER_S3_ACCESS_KEY", func(v string) { cfg.Backup.S3.AccessKey = v }},
+		{"MONSTER_S3_SECRET_KEY", func(v string) { cfg.Backup.S3.SecretKey = v }},
+		{"MONSTER_BACKUP_ENCRYPTION_KEY", func(v string) { cfg.Backup.EncryptionKey = v }},
+		{"MONSTER_ALERTMANAGER_URL", func(v string) { cfg.Backup.AlertmanagerURL = v }},
+		{"MONSTER_LOKI_URL", func(v string) { cfg.Observability.LokiURL = v }},
+		{"MONSTER_TRACING_URL", func(v string) { cfg.Observability.TracingURL = v }},
+		{"MONSTER_SERVICE_NAME", func(v string) { cfg.Observability.ServiceName = v }},
+		{"MONSTER_HETZNER_TOKEN", func(v string) { cfg.VPSProviders.HetznerToken = v }},
+		{"MONSTER_DIGITALOCEAN_TOKEN", func(v string) { cfg.VPSProviders.DigitalOceanToken = v }},
+		{"MONSTER_VULTR_TOKEN", func(v string) { cfg.VPSProviders.VultrToken = v }},
+		{"MONSTER_LINODE_TOKEN", func(v string) { cfg.VPSProviders.LinodeToken = v }},
+	} {
+		if v := os.Getenv(e.key); v != "" {
+			e.target(v)
 		}
-	}
-	if v := os.Getenv("MONSTER_DOMAIN"); v != "" {
-		cfg.Server.Domain = v
-	}
-	if v := os.Getenv("MONSTER_SECRET"); v != "" {
-		cfg.Server.SecretKey = v
-	}
-	if v := os.Getenv("MONSTER_PREVIOUS_SECRET_KEYS"); v != "" {
-		cfg.Server.PreviousSecretKeys = strings.Split(v, ",")
-	}
-	if v := os.Getenv("MONSTER_DB_PATH"); v != "" {
-		cfg.Database.Path = v
-	}
-	if v := os.Getenv("MONSTER_DB_URL"); v != "" {
-		cfg.Database.URL = v
-		cfg.Database.Driver = "postgres"
-	}
-	if v := os.Getenv("MONSTER_DB_SSL_MODE"); v != "" {
-		cfg.Database.SSLMode = v
-	}
-	if v := os.Getenv("MONSTER_DOCKER_HOST"); v != "" {
-		cfg.Docker.Host = v
-	}
-	if v := os.Getenv("MONSTER_DOCKER_CPU_QUOTA"); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-			cfg.Docker.DefaultCPUQuota = n
-		}
-	}
-	if v := os.Getenv("MONSTER_DOCKER_MEMORY_MB"); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-			cfg.Docker.DefaultMemoryMB = n
-		}
-	}
-	if v := os.Getenv("MONSTER_LOG_LEVEL"); v != "" {
-		cfg.Server.LogLevel = v
-	}
-	if v := os.Getenv("MONSTER_LOG_FORMAT"); v != "" {
-		cfg.Server.LogFormat = v
-	}
-	if v := os.Getenv("MONSTER_ACME_EMAIL"); v != "" {
-		cfg.ACME.Email = v
-	}
-	if v := os.Getenv("MONSTER_REGISTRATION_MODE"); v != "" {
-		cfg.Registration.Mode = v
-	}
-	if v := os.Getenv("MONSTER_CORS_ORIGINS"); v != "" {
-		cfg.Server.CORSOrigins = v
-	}
-	if v := os.Getenv("MONSTER_RATE_LIMIT_PER_MINUTE"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			cfg.Server.RateLimitPerMinute = n
-		}
-	}
-	if os.Getenv("MONSTER_ENABLE_PPROF") == "true" {
-		cfg.Server.EnablePprof = true
-	}
-
-	// Secret-bearing fields — env vars replace plaintext YAML values
-	if v := os.Getenv("MONSTER_CLOUDFLARE_TOKEN"); v != "" {
-		cfg.DNS.CloudflareToken = v
-	}
-	if v := os.Getenv("MONSTER_GITHUB_CLIENT_SECRET"); v != "" {
-		cfg.GitSources.GitHubClientSecret = v
-	}
-	if v := os.Getenv("MONSTER_GITLAB_CLIENT_SECRET"); v != "" {
-		cfg.GitSources.GitLabClientSecret = v
-	}
-	if v := os.Getenv("MONSTER_ENCRYPTION_KEY"); v != "" {
-		cfg.Secrets.EncryptionKey = v
-	}
-	if v := os.Getenv("MONSTER_STRIPE_SECRET_KEY"); v != "" {
-		cfg.Billing.StripeSecretKey = v
-	}
-	if v := os.Getenv("MONSTER_STRIPE_WEBHOOK_KEY"); v != "" {
-		cfg.Billing.StripeWebhookKey = v
-	}
-	if v := os.Getenv("MONSTER_LICENSE_KEY"); v != "" {
-		cfg.Enterprise.LicenseKey = v
-	}
-	if v := os.Getenv("MONSTER_SLACK_WEBHOOK"); v != "" {
-		cfg.Notifications.SlackWebhook = v
-	}
-	if v := os.Getenv("MONSTER_DISCORD_WEBHOOK"); v != "" {
-		cfg.Notifications.DiscordWebhook = v
-	}
-	if v := os.Getenv("MONSTER_TELEGRAM_TOKEN"); v != "" {
-		cfg.Notifications.TelegramToken = v
-	}
-	if v := os.Getenv("MONSTER_SMTP_HOST"); v != "" {
-		cfg.Notifications.SMTP.Host = v
-	}
-	if v := os.Getenv("MONSTER_SMTP_PORT"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			cfg.Notifications.SMTP.Port = n
-		}
-	}
-	if v := os.Getenv("MONSTER_SMTP_USERNAME"); v != "" {
-		cfg.Notifications.SMTP.Username = v
-	}
-	if v := os.Getenv("MONSTER_SMTP_PASSWORD"); v != "" {
-		cfg.Notifications.SMTP.Password = v
-	}
-	if v := os.Getenv("MONSTER_SMTP_FROM"); v != "" {
-		cfg.Notifications.SMTP.From = v
-	}
-	if v := os.Getenv("MONSTER_SMTP_FROM_NAME"); v != "" {
-		cfg.Notifications.SMTP.FromName = v
-	}
-	if os.Getenv("MONSTER_SMTP_USE_TLS") == "true" {
-		cfg.Notifications.SMTP.UseTLS = true
-	}
-	if v := os.Getenv("MONSTER_S3_ACCESS_KEY"); v != "" {
-		cfg.Backup.S3.AccessKey = v
-	}
-	if v := os.Getenv("MONSTER_S3_SECRET_KEY"); v != "" {
-		cfg.Backup.S3.SecretKey = v
-	}
-	if v := os.Getenv("MONSTER_BACKUP_ENCRYPTION_KEY"); v != "" {
-		cfg.Backup.EncryptionKey = v
-	}
-	if v := os.Getenv("MONSTER_ALERTMANAGER_URL"); v != "" {
-		cfg.Backup.AlertmanagerURL = v
-	}
-	if v := os.Getenv("MONSTER_LOKI_URL"); v != "" {
-		cfg.Observability.LokiURL = v
-	}
-	if v := os.Getenv("MONSTER_TRACING_URL"); v != "" {
-		cfg.Observability.TracingURL = v
-	}
-	if v := os.Getenv("MONSTER_SERVICE_NAME"); v != "" {
-		cfg.Observability.ServiceName = v
 	}
 }

@@ -1,48 +1,22 @@
 package middleware
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/api/apierr"
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// errorCodeMap maps HTTP status codes to machine-readable error codes.
-var errorCodeMap = map[int]string{
-	http.StatusBadRequest:          "bad_request",
-	http.StatusUnauthorized:        "unauthorized",
-	http.StatusForbidden:           "forbidden",
-	http.StatusNotFound:            "not_found",
-	http.StatusConflict:            "conflict",
-	http.StatusTooManyRequests:     "rate_limited",
-	http.StatusInternalServerError: "internal_error",
-	http.StatusServiceUnavailable:  "unavailable",
-}
-
-// writeErrorJSON writes a structured JSON error response matching the handler error format.
+// writeErrorJSON writes the canonical structured JSON error response. It
+// delegates to the shared apierr package so middleware- and handler-emitted
+// errors share one wire format and status→code mapping.
 func writeErrorJSON(w http.ResponseWriter, status int, message string) {
-	code := errorCodeMap[status]
-	if code == "" {
-		code = "error"
-	}
-	resp := map[string]any{
-		"success": false,
-		"error": map[string]string{
-			"code":    code,
-			"message": message,
-		},
-	}
-	if rid := w.Header().Get("X-Request-ID"); rid != "" {
-		resp["request_id"] = rid
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(resp)
+	apierr.Write(w, status, message)
 }
 
 // Chain applies middlewares in order (last applied runs first).
@@ -185,6 +159,25 @@ func originAllowed(origin string, allowlist []string) bool {
 	return false
 }
 
+// validateJWTAndServe validates a JWT access token, rejects a revoked token,
+// and on success attaches the claims to the context and calls next. It always
+// fully handles the request (serves it or writes a 401), so the caller returns
+// immediately after. Shared by the Authorization-header and cookie paths.
+func validateJWTAndServe(w http.ResponseWriter, r *http.Request, next http.Handler, jwtSvc *auth.JWTService, bolt core.BoltStorer, tokenStr string) {
+	claims, err := jwtSvc.ValidateAccessToken(tokenStr)
+	if err != nil {
+		writeErrorJSON(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+	// SECURITY FIX: Check if access token is revoked
+	if jwtSvc.IsAccessTokenRevoked(bolt, claims.ID) {
+		writeErrorJSON(w, http.StatusUnauthorized, "token has been revoked")
+		return
+	}
+	ctx := auth.ContextWithClaims(r.Context(), claims)
+	next.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // RequireAuth returns middleware that validates JWT from the Authorization header,
 // dm_access cookie, or X-API-Key header (in that priority order).
 func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer, store core.Store) func(http.Handler) http.Handler {
@@ -193,36 +186,13 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer, store core.Store
 			// Try JWT from Authorization header
 			header := r.Header.Get("Authorization")
 			if strings.HasPrefix(header, "Bearer ") {
-				tokenStr := strings.TrimPrefix(header, "Bearer ")
-				claims, err := jwtSvc.ValidateAccessToken(tokenStr)
-				if err != nil {
-					writeErrorJSON(w, http.StatusUnauthorized, "invalid token")
-					return
-				}
-				// SECURITY FIX: Check if access token is revoked
-				if jwtSvc.IsAccessTokenRevoked(bolt, claims.ID) {
-					writeErrorJSON(w, http.StatusUnauthorized, "token has been revoked")
-					return
-				}
-				ctx := auth.ContextWithClaims(r.Context(), claims)
-				next.ServeHTTP(w, r.WithContext(ctx))
+				validateJWTAndServe(w, r, next, jwtSvc, bolt, strings.TrimPrefix(header, "Bearer "))
 				return
 			}
 
 			// Try JWT from httpOnly cookie
 			if c, err := r.Cookie("dm_access"); err == nil && c.Value != "" {
-				claims, err := jwtSvc.ValidateAccessToken(c.Value)
-				if err != nil {
-					writeErrorJSON(w, http.StatusUnauthorized, "invalid token")
-					return
-				}
-				// SECURITY FIX: Check if access token is revoked
-				if jwtSvc.IsAccessTokenRevoked(bolt, claims.ID) {
-					writeErrorJSON(w, http.StatusUnauthorized, "token has been revoked")
-					return
-				}
-				ctx := auth.ContextWithClaims(r.Context(), claims)
-				next.ServeHTTP(w, r.WithContext(ctx))
+				validateJWTAndServe(w, r, next, jwtSvc, bolt, c.Value)
 				return
 			}
 
@@ -324,12 +294,25 @@ func (sw *statusWriter) Flush() {
 	}
 }
 
+// Unwrap exposes the underlying ResponseWriter so http.ResponseController
+// (and any caller doing a Hijacker/Flusher type assertion) can reach
+// interfaces this wrapper does not implement directly. Without it, WebSocket
+// upgrades (deploy + topology progress) that run through this middleware
+// chain can fail because *statusWriter does not satisfy http.Hijacker.
+func (sw *statusWriter) Unwrap() http.ResponseWriter {
+	return sw.ResponseWriter
+}
+
+// realIP returns the client IP used for audit logs and request logging.
+//
+// SECURITY FIX: it uses the direct connection address only (RemoteAddr) and
+// intentionally does NOT trust X-Forwarded-For / X-Real-IP. Any client can
+// forge those headers, and this value feeds the audit log — trusting them
+// enabled audit-log forgery/repudiation (and could poison any IP-keyed logic).
+// This matches the stance already taken by the rate limiters and the IP
+// allowlist, which all call safeClientIP(r, false). If DeployMonster runs
+// behind a trusted reverse proxy that needs the real client IP in audit logs,
+// add an explicit trusted-proxy config and thread it through safeClientIP.
 func realIP(r *http.Request) string {
-	if ip := r.Header.Get("X-Real-IP"); ip != "" {
-		return ip
-	}
-	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
-		return ip
-	}
-	return r.RemoteAddr
+	return safeClientIP(r, false)
 }

@@ -2,6 +2,8 @@ package build
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -18,16 +20,19 @@ import (
 
 // BuildOpts holds options for a build.
 type BuildOpts struct {
-	AppID      string
-	AppName    string
-	SourceURL  string
-	Branch     string
-	CommitSHA  string
-	Token      string // Git auth token
-	Dockerfile string // Custom Dockerfile path (empty = auto-detect)
-	EnvVars    map[string]string
-	ImageTag   string // Target image tag
-	Timeout    time.Duration
+	AppID            string
+	AppName          string
+	SourceURL        string
+	Branch           string
+	CommitSHA        string
+	Token            string // Git auth token
+	Dockerfile       string // Custom Dockerfile path (empty = auto-detect)
+	EnvVars          map[string]string
+	ImageTag         string // Target image tag
+	Push             bool   // Push image after build using Docker's configured registry auth
+	RegistryUsername string // Optional Docker registry username for build/push auth
+	RegistryPassword string // Optional Docker registry password/token for build/push auth
+	Timeout          time.Duration
 }
 
 // BuildResult holds the result of a build.
@@ -162,9 +167,23 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	}
 
 	_, _ = fmt.Fprintf(logWriter, "==> Building image %s\n", imageTag)
-	if err := dockerBuild(ctx, buildDir, dockerfilePath, imageTag, opts.EnvVars, logWriter); err != nil {
+	dockerEnv, cleanupDockerAuth, err := dockerAuthEnv(imageTag, opts.RegistryUsername, opts.RegistryPassword)
+	if err != nil {
+		b.emitFailed(ctx, opts.AppID, err)
+		return nil, fmt.Errorf("docker auth: %w", err)
+	}
+	defer cleanupDockerAuth()
+
+	if err := dockerBuild(ctx, buildDir, dockerfilePath, imageTag, opts.EnvVars, dockerEnv, logWriter); err != nil {
 		b.emitFailed(ctx, opts.AppID, err)
 		return nil, fmt.Errorf("docker build: %w", err)
+	}
+	if opts.Push {
+		_, _ = fmt.Fprintf(logWriter, "==> Pushing image %s\n", imageTag)
+		if err := dockerPush(ctx, imageTag, dockerEnv, logWriter); err != nil {
+			b.emitFailed(ctx, opts.AppID, err)
+			return nil, fmt.Errorf("docker push: %w", err)
+		}
 	}
 
 	duration := time.Since(start)
@@ -466,7 +485,7 @@ func redactURL(raw string) string {
 // running with a read-only root filesystem:
 //
 //	docker build --cap-drop=ALL --read-only
-func dockerBuild(ctx context.Context, contextDir, dockerfile, tag string, buildArgs map[string]string, logWriter io.Writer) error {
+func dockerBuild(ctx context.Context, contextDir, dockerfile, tag string, buildArgs map[string]string, extraEnv []string, logWriter io.Writer) error {
 	// Validate image tag format
 	if err := validateDockerImageTag(tag); err != nil {
 		return fmt.Errorf("invalid image tag: %w", err)
@@ -485,10 +504,74 @@ func dockerBuild(ctx context.Context, contextDir, dockerfile, tag string, buildA
 	args = append(args, contextDir)
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
+	if len(extraEnv) > 0 {
+		cmd.Env = append(os.Environ(), extraEnv...)
+	}
 	cmd.Stdout = logWriter
 	cmd.Stderr = logWriter
 
 	return cmd.Run()
+}
+
+func dockerPush(ctx context.Context, tag string, extraEnv []string, logWriter io.Writer) error {
+	if err := validateDockerImageTag(tag); err != nil {
+		return fmt.Errorf("invalid image tag: %w", err)
+	}
+	cmd := exec.CommandContext(ctx, "docker", "push", tag)
+	if len(extraEnv) > 0 {
+		cmd.Env = append(os.Environ(), extraEnv...)
+	}
+	cmd.Stdout = logWriter
+	cmd.Stderr = logWriter
+	return cmd.Run()
+}
+
+func dockerAuthEnv(imageTag, username, password string) ([]string, func(), error) {
+	if username == "" && password == "" {
+		return nil, func() {}, nil
+	}
+	if username == "" || password == "" {
+		return nil, func() {}, fmt.Errorf("registry username and password must both be set")
+	}
+	registry := registryHostFromImage(imageTag)
+	if registry == "" {
+		return nil, func() {}, fmt.Errorf("image tag %q does not include a registry host for auth", imageTag)
+	}
+
+	dir, err := os.MkdirTemp("", "monster-docker-auth-*")
+	if err != nil {
+		return nil, func() {}, fmt.Errorf("create docker auth dir: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(dir) }
+
+	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+	cfg := map[string]any{
+		"auths": map[string]any{
+			registry: map[string]string{"auth": auth},
+		},
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		cleanup()
+		return nil, func() {}, fmt.Errorf("marshal docker config: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), data, 0600); err != nil {
+		cleanup()
+		return nil, func() {}, fmt.Errorf("write docker config: %w", err)
+	}
+	return []string{"DOCKER_CONFIG=" + dir}, cleanup, nil
+}
+
+func registryHostFromImage(ref string) string {
+	idx := strings.IndexRune(ref, '/')
+	if idx <= 0 {
+		return ""
+	}
+	first := ref[:idx]
+	if first == "localhost" || strings.ContainsAny(first, ".:") {
+		return first
+	}
+	return ""
 }
 
 func resolveDockerfilePath(buildDir, dockerfile string) (string, error) {

@@ -32,13 +32,39 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	m.core = c
 	m.store = c.Store
 	m.logger = c.Logger.With("module", m.ID())
+	if c.Services == nil {
+		c.Services = core.NewServices()
+	}
 
-	// Register built-in provider factories
-	for name := range providers.Registry {
-		m.logger.Debug("VPS provider available", "provider", name)
+	for name, factory := range providers.Registry {
+		token := m.providerToken(name)
+		if name == "custom" || token != "" {
+			c.Services.RegisterVPSProvisioner(name, factory(token))
+			m.logger.Debug("VPS provider registered", "provider", name)
+			continue
+		}
+		m.logger.Debug("VPS provider available but not configured", "provider", name)
 	}
 
 	return nil
+}
+
+func (m *Module) providerToken(name string) string {
+	if m.core == nil || m.core.Config == nil {
+		return ""
+	}
+	switch name {
+	case "hetzner":
+		return m.core.Config.VPSProviders.HetznerToken
+	case "digitalocean":
+		return m.core.Config.VPSProviders.DigitalOceanToken
+	case "vultr":
+		return m.core.Config.VPSProviders.VultrToken
+	case "linode":
+		return m.core.Config.VPSProviders.LinodeToken
+	default:
+		return ""
+	}
 }
 
 func (m *Module) Start(_ context.Context) error {

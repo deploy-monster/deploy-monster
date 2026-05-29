@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -74,8 +73,7 @@ func (h *GPUHandler) Update(w http.ResponseWriter, r *http.Request) {
 	appID := app.ID
 
 	var cfg GPUConfig
-	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &cfg) {
 		return
 	}
 

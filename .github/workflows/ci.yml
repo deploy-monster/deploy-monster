@@ -295,6 +295,12 @@ jobs:
       - name: Go vet (pgintegration tag)
         run: go vet -tags pgintegration ./...
 
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@7c5a5c6a6748b92682c1a49f030f8499b0433a7a
+        with:
+          version: v1.64.8
+          args: --timeout=5m
+
       - name: Go build
         run: go build ./...
 

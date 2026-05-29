@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -111,4 +113,38 @@ func (s *SQLiteDB) DeleteDomain(ctx context.Context, id string) error {
 		_, err := tx.ExecContext(ctx, `DELETE FROM domains WHERE id = ?`, id)
 		return err
 	})
+}
+
+// ListDomainsByAppIDs retrieves domains for multiple apps in a single query.
+// Returns a map from appID to its domains.
+func (s *SQLiteDB) ListDomainsByAppIDs(ctx context.Context, appIDs []string) (map[string][]core.Domain, error) {
+	if len(appIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(appIDs))
+	placeholders = placeholders[:len(placeholders)-1]
+	query := fmt.Sprintf(
+		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
+		 FROM domains WHERE app_id IN (%s) ORDER BY created_at`,
+		placeholders,
+	)
+	args := make([]any, len(appIDs))
+	for i, id := range appIDs {
+		args[i] = id
+	}
+	rows, err := s.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string][]core.Domain)
+	for rows.Next() {
+		var d core.Domain
+		if err := rows.Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider,
+			&d.DNSSynced, &d.Verified, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		result[d.AppID] = append(result[d.AppID], d)
+	}
+	return result, rows.Err()
 }

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -95,8 +94,7 @@ func (h *DeployFreezeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		StartsAt string `json:"starts_at"`
 		EndsAt   string `json:"ends_at"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 

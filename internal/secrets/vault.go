@@ -55,11 +55,14 @@ type Vault struct {
 	key []byte // 32-byte AES key derived from master password
 }
 
-// NewVault creates a vault with a key derived from the master secret
+// newLegacyVault creates a vault with a key derived from the master secret
 // using the legacy hardcoded salt. Retained for pre-Phase-2 call
-// sites and test fixtures — new call sites MUST use NewVaultWithSalt
-// so every deployment has a unique KDF salt.
-func NewVault(masterSecret string) *Vault {
+// sites and the module's own migration path — new call sites MUST use
+// NewVaultWithSalt so every deployment has a unique KDF salt.
+//
+// Deprecated: unexported to prevent regression of CRYPTO-001. Use
+// NewVaultWithSalt for all new code.
+func newLegacyVault(masterSecret string) *Vault {
 	return NewVaultWithSalt(masterSecret, LegacyVaultSalt())
 }
 

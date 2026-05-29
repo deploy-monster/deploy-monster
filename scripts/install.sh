@@ -2,10 +2,12 @@
 # DeployMonster installer — curl-pipe entry point (GitHub-first)
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.0.1/scripts/install.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.0.1/scripts/install.sh | bash -s -- --version=v0.0.1
-#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.0.1/scripts/install.sh | bash -s -- --force
-#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.0.1/scripts/install.sh | bash -s -- uninstall
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- --version=v0.1.8
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- --force
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | MONSTER_JOIN_TOKEN=join-token bash -s -- --version=v0.1.8
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- --agent --master=http://master:8443 --token=join-token
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- uninstall
 #
 # Design notes:
 # - Downloads a goreleaser archive from a tagged GitHub release, verifies
@@ -32,8 +34,13 @@ ENV_DIR="/etc/deploymonster"
 ENV_FILE="${ENV_DIR}/deploymonster.env"
 
 MODE="install"
+ROLE="server"
 VERSION=""
 FORCE=0
+AGENT_MASTER_URL="${MONSTER_MASTER_URL:-}"
+AGENT_JOIN_TOKEN="${MONSTER_JOIN_TOKEN:-}"
+AGENT_SERVER_ID="${MONSTER_SERVER_ID:-}"
+AGENT_MASTER_PORT="${MONSTER_MASTER_PORT:-}"
 
 # Populated by generate_config() for the systemd unit
 GENERATED_ADMIN_EMAIL=""
@@ -68,8 +75,18 @@ parse_args() {
     while [ $# -gt 0 ]; do
         case "$1" in
             install|uninstall) MODE="$1" ;;
+            --agent) ROLE="agent" ;;
+            --server) ROLE="server" ;;
+            --master=*) AGENT_MASTER_URL="${1#--master=}" ;;
+            --master) [ $# -gt 1 ] || error "--master requires a value"; shift; AGENT_MASTER_URL="$1" ;;
+            --token=*) AGENT_JOIN_TOKEN="${1#--token=}" ;;
+            --token) [ $# -gt 1 ] || error "--token requires a value"; shift; AGENT_JOIN_TOKEN="$1" ;;
+            --server-id=*) AGENT_SERVER_ID="${1#--server-id=}" ;;
+            --server-id) [ $# -gt 1 ] || error "--server-id requires a value"; shift; AGENT_SERVER_ID="$1" ;;
+            --master-port=*) AGENT_MASTER_PORT="${1#--master-port=}" ;;
+            --master-port) [ $# -gt 1 ] || error "--master-port requires a value"; shift; AGENT_MASTER_PORT="$1" ;;
             --version=*) VERSION="${1#--version=}" ;;
-            --version) shift; VERSION="${1:-}" ;;
+            --version) [ $# -gt 1 ] || error "--version requires a value"; shift; VERSION="$1" ;;
             --force) FORCE=1 ;;
             --help|-h)
                 sed -n '2,14p' "$0"
@@ -311,17 +328,24 @@ generate_config() {
         fi
     fi
 
-    # Always use 8443 for HTTP-only mode (no SSL headaches)
+    # The platform API/UI listener is plain HTTP on :8443. The ingress
+    # listeners on :80/:443 are for deployed applications and ACME.
     local server_port=8443
 
     # Generate secret key if not provided
-    local secret_key="${MONSTER_SECRET_KEY:-}"
+    local secret_key="${MONSTER_SECRET:-${MONSTER_SECRET_KEY:-}}"
     if [ -z "$secret_key" ]; then
         secret_key=$(openssl rand -hex 32 2>/dev/null || tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 64 || echo "")
     fi
 
     # Detect IP for CORS
     local server_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")
+    local cors_origin
+    if [ -n "$domain" ]; then
+        cors_origin="http://${domain}:${server_port}"
+    else
+        cors_origin="http://${server_ip}:${server_port}"
+    fi
 
     local sudo_cmd=""
     if [ ! -d "$DATA_DIR" ]; then
@@ -342,8 +366,7 @@ server:
   port: ${server_port}
   domain: "${domain}"
   secret_key: "${secret_key}"
-  # Allow all origins for HTTP-only mode
-  cors_origins: "*"
+  cors_origins: "${cors_origin}"
 
 database:
   driver: sqlite
@@ -352,16 +375,14 @@ database:
 ingress:
   http_port: 80
   https_port: 443
-  # DISABLED: HTTPS causes CORS issues, use HTTP-only
-  enable_https: false
-  force_https: false
+  # Application ingress. The platform UI itself is served on server.port.
+  enable_https: true
+  force_https: true
 
 acme:
   email: "${acme_email}"
   staging: false
   provider: http-01
-  # DISABLED: Self-signed certs cause browser warnings
-  disable_auto_https: true
 
 docker:
   host: unix:///var/run/docker.sock
@@ -391,15 +412,113 @@ EOF
 write_admin_env_file() {
     local sudo_cmd="sudo"
     require_cmd sudo
+    local join_token="${MONSTER_JOIN_TOKEN:-$AGENT_JOIN_TOKEN}"
 
     $sudo_cmd mkdir -p "$ENV_DIR"
     $sudo_cmd chmod 700 "$ENV_DIR"
     {
         printf 'MONSTER_ADMIN_EMAIL=%s\n' "$(systemd_quote "${GENERATED_ADMIN_EMAIL:-admin@local.host}")"
         printf 'MONSTER_ADMIN_PASSWORD=%s\n' "$(systemd_quote "${GENERATED_ADMIN_PASSWORD:-}")"
+        if [ -n "${MONSTER_BUILD_IMAGE_REGISTRY:-}" ]; then
+            printf 'MONSTER_BUILD_IMAGE_REGISTRY=%s\n' "$(systemd_quote "${MONSTER_BUILD_IMAGE_REGISTRY}")"
+        fi
+        if [ -n "${MONSTER_BUILD_IMAGE_PUSH:-}" ]; then
+            printf 'MONSTER_BUILD_IMAGE_PUSH=%s\n' "$(systemd_quote "${MONSTER_BUILD_IMAGE_PUSH}")"
+        fi
+        if [ -n "${MONSTER_BUILD_REGISTRY_USERNAME:-}" ]; then
+            printf 'MONSTER_BUILD_REGISTRY_USERNAME=%s\n' "$(systemd_quote "${MONSTER_BUILD_REGISTRY_USERNAME}")"
+        fi
+        if [ -n "${MONSTER_BUILD_REGISTRY_PASSWORD:-}" ]; then
+            printf 'MONSTER_BUILD_REGISTRY_PASSWORD=%s\n' "$(systemd_quote "${MONSTER_BUILD_REGISTRY_PASSWORD}")"
+        fi
+        if [ -n "$join_token" ]; then
+            printf 'MONSTER_JOIN_TOKEN=%s\n' "$(systemd_quote "${join_token}")"
+        fi
     } | $sudo_cmd tee "$ENV_FILE" > /dev/null
     $sudo_cmd chmod 600 "$ENV_FILE"
     info "Admin bootstrap credentials written to ${ENV_FILE}"
+}
+
+generate_agent_config() {
+    local config_path="${DATA_DIR}/monster.yaml"
+    local sudo_cmd=""
+
+    if [ -z "$AGENT_MASTER_URL" ]; then
+        if [ -t 0 ]; then
+            read -rp "Master URL (e.g., http://master.example.com:8443): " AGENT_MASTER_URL
+        fi
+    fi
+    if [ -z "$AGENT_JOIN_TOKEN" ]; then
+        if [ -t 0 ]; then
+            read -rsp "Agent join token: " AGENT_JOIN_TOKEN
+            echo >&2
+        fi
+    fi
+    if [ -z "$AGENT_SERVER_ID" ] && [ -t 0 ]; then
+        local default_id
+        default_id="$(hostname 2>/dev/null || echo "")"
+        read -rp "Agent server ID [${default_id}]: " AGENT_SERVER_ID
+        AGENT_SERVER_ID="${AGENT_SERVER_ID:-$default_id}"
+    fi
+
+    [ -n "$AGENT_MASTER_URL" ] || error "Agent install requires --master or MONSTER_MASTER_URL"
+    [ -n "$AGENT_JOIN_TOKEN" ] || error "Agent install requires --token or MONSTER_JOIN_TOKEN"
+
+    if [ -f "$config_path" ] && [ "$FORCE" -ne 1 ]; then
+        warn "Configuration already exists at ${config_path}"
+        warn "Pass --force to regenerate it during install"
+        return
+    fi
+
+    if [ ! -d "$DATA_DIR" ]; then
+        if [ ! -w "$(dirname "$DATA_DIR")" ]; then
+            require_cmd sudo
+            sudo_cmd="sudo"
+        fi
+        $sudo_cmd mkdir -p "$DATA_DIR"
+        $sudo_cmd chmod 750 "$DATA_DIR"
+    elif [ ! -w "$DATA_DIR" ]; then
+        require_cmd sudo
+        sudo_cmd="sudo"
+    fi
+
+    $sudo_cmd tee "$config_path" > /dev/null <<EOF
+server:
+  host: 127.0.0.1
+  port: 8443
+
+docker:
+  host: unix:///var/run/docker.sock
+EOF
+
+    $sudo_cmd chmod 600 "$config_path"
+    info "Agent config written to ${config_path}"
+}
+
+write_agent_env_file() {
+    local sudo_cmd="sudo"
+    require_cmd sudo
+
+    $sudo_cmd mkdir -p "$ENV_DIR"
+    $sudo_cmd chmod 700 "$ENV_DIR"
+    {
+        printf 'MONSTER_MASTER_URL=%s\n' "$(systemd_quote "${AGENT_MASTER_URL}")"
+        printf 'MONSTER_JOIN_TOKEN=%s\n' "$(systemd_quote "${AGENT_JOIN_TOKEN}")"
+        if [ -n "$AGENT_SERVER_ID" ]; then
+            printf 'MONSTER_SERVER_ID=%s\n' "$(systemd_quote "${AGENT_SERVER_ID}")"
+        fi
+        if [ -n "$AGENT_MASTER_PORT" ]; then
+            printf 'MONSTER_MASTER_PORT=%s\n' "$(systemd_quote "${AGENT_MASTER_PORT}")"
+        fi
+        if [ -n "${MONSTER_BUILD_REGISTRY_USERNAME:-}" ]; then
+            printf 'MONSTER_BUILD_REGISTRY_USERNAME=%s\n' "$(systemd_quote "${MONSTER_BUILD_REGISTRY_USERNAME}")"
+        fi
+        if [ -n "${MONSTER_BUILD_REGISTRY_PASSWORD:-}" ]; then
+            printf 'MONSTER_BUILD_REGISTRY_PASSWORD=%s\n' "$(systemd_quote "${MONSTER_BUILD_REGISTRY_PASSWORD}")"
+        fi
+    } | $sudo_cmd tee "$ENV_FILE" > /dev/null
+    $sudo_cmd chmod 600 "$ENV_FILE"
+    info "Agent connection settings written to ${ENV_FILE}"
 }
 
 # ─── Data dir + systemd unit ────────────────────────────────────────────────
@@ -421,19 +540,27 @@ setup_service() {
 
     require_cmd sudo
 
-    write_admin_env_file
+    local exec_start="/usr/local/bin/deploymonster serve"
+    local service_description="DeployMonster PaaS"
+    if [ "$ROLE" = "agent" ]; then
+        write_agent_env_file
+        exec_start="/usr/local/bin/deploymonster serve --agent"
+        service_description="DeployMonster Agent"
+    else
+        write_admin_env_file
+    fi
 
     # Build unit file dynamically.
     local unit_content=""
     unit_content="[Unit]
-Description=DeployMonster PaaS
+Description=${service_description}
 Documentation=https://github.com/deploy-monster/deploy-monster
 After=network-online.target docker.service
 Wants=network-online.target docker.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/deploymonster serve
+ExecStart=${exec_start}
 EnvironmentFile=-${ENV_FILE}
 Restart=always
 RestartSec=5
@@ -503,12 +630,16 @@ main() {
     else
         warn "Docker not found — DeployMonster needs it to deploy applications."
         warn "Install Docker first: https://docs.docker.com/engine/install/"
-	fi
+    fi
 
-	get_latest_version
-	install_binary
-	generate_config
-	setup_service
+    get_latest_version
+    install_binary
+    if [ "$ROLE" = "agent" ]; then
+        generate_agent_config
+    else
+        generate_config
+    fi
+    setup_service
 
     # Reload systemd unit with the freshly generated config if service exists
     if [ "$OS" = "linux" ] && command -v systemctl >/dev/null 2>&1; then
@@ -519,7 +650,7 @@ main() {
 
     local access_url
     if [ -n "${domain:-}" ]; then
-        access_url="https://${domain}"
+        access_url="http://${domain}:8443"
     else
         access_url="http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):8443"
     fi
@@ -529,6 +660,17 @@ main() {
 ${GREEN}[INFO]${NC} DeployMonster ${VERSION} installed successfully.
 
   Config file:    ${DATA_DIR}/monster.yaml
+OUTRO
+
+    if [ "$ROLE" = "agent" ]; then
+        cat <<OUTRO
+  Role:           agent
+  Master URL:     ${AGENT_MASTER_URL}
+  Server ID:      ${AGENT_SERVER_ID:-<hostname>}
+
+OUTRO
+    else
+        cat <<OUTRO
   Admin email:    ${GENERATED_ADMIN_EMAIL:-admin@local.host}
   Admin password: ${GENERATED_ADMIN_PASSWORD:-<not set>}
 
@@ -536,7 +678,9 @@ ${GREEN}[INFO]${NC} DeployMonster ${VERSION} installed successfully.
 
 OUTRO
 
-    if [ -n "${domain:-}" ]; then
+    fi
+
+    if [ "$ROLE" != "agent" ] && [ -n "${domain:-}" ]; then
         cat <<SSLTIP
   SSL:            Automatic via Let's Encrypt (HTTP-01)
   Make sure:
@@ -546,21 +690,33 @@ OUTRO
 SSLTIP
     fi
 
+    local service_label="server"
+    if [ "$ROLE" = "agent" ]; then
+        service_label="agent"
+    fi
+
     cat <<OUTRO
-  Start the server:
+  Start the ${service_label}:
     sudo systemctl start deploymonster
 
-  Stop the server:
+  Stop the ${service_label}:
     sudo systemctl stop deploymonster
 
   View logs:
     sudo journalctl -u deploymonster -f
+OUTRO
 
+    if [ "$ROLE" != "agent" ]; then
+        cat <<OUTRO
   Run setup wizard later:
     deploymonster setup
 
+OUTRO
+    fi
+
+    cat <<OUTRO
   Uninstall:
-    curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.0.1/scripts/install.sh | bash -s -- uninstall
+    curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- uninstall
 
 OUTRO
 
@@ -569,8 +725,10 @@ OUTRO
         read -rp "Start DeployMonster now? [Y/n]: " start_now
         if [[ "${start_now:-Y}" =~ ^[Yy]$ ]]; then
             sudo systemctl start deploymonster
-            info "DeployMonster is starting..."
-            info "Open ${access_url} in your browser when ready."
+            info "DeployMonster ${service_label} is starting..."
+            if [ "$ROLE" != "agent" ]; then
+                info "Open ${access_url} in your browser when ready."
+            fi
         fi
     fi
 }

@@ -62,8 +62,17 @@ func GenerateTOTPSecret(userID, email string) (secret string, provisioningURI st
 // Supports compatibility with Google Authenticator, Authy, and other TOTP apps.
 // Returns true if the token is valid within a window of ±1 period (for clock drift).
 func ValidateTOTP(token string, secret string) bool {
+	_, ok := ValidateTOTPStep(token, secret)
+	return ok
+}
+
+// ValidateTOTPStep validates a TOTP token and, on success, returns the matched
+// time-step counter (unix/period). Callers use the returned step to enforce
+// single-use of a code (anti-replay): a step must be strictly greater than the
+// last one accepted for that user. Returns (0, false) when the token is invalid.
+func ValidateTOTPStep(token string, secret string) (int64, bool) {
 	if len(token) != 6 && len(token) != 8 {
-		return false
+		return 0, false
 	}
 
 	secret = strings.ToUpper(strings.TrimSpace(secret))
@@ -72,7 +81,7 @@ func ValidateTOTP(token string, secret string) bool {
 		// Try standard encoding with padding
 		secretBytes, err = base32.StdEncoding.DecodeString(secret + "==")
 		if err != nil {
-			return false
+			return 0, false
 		}
 	}
 
@@ -83,13 +92,14 @@ func ValidateTOTP(token string, secret string) bool {
 
 	// Check current and adjacent periods
 	for offset := -window; offset <= window; offset++ {
-		expected := generateTOTP(secretBytes, now+int64(offset*period), period, len(token))
+		t := now + int64(offset*period)
+		expected := generateTOTP(secretBytes, t, period, len(token))
 		if constantTimeCompare(token, expected) {
-			return true
+			return t / int64(period), true
 		}
 	}
 
-	return false
+	return 0, false
 }
 
 // generateTOTP generates a TOTP value using HMAC-SHA1 (RFC 6238).

@@ -32,6 +32,10 @@ dns:
 docker:
   host: unix:///var/run/docker.sock
   # api_version: ""             # Docker API version (auto-negotiated)
+  # build_image_registry: ""    # e.g. ghcr.io/acme/deploymonster; used for remote git deploy image tags
+  # build_image_push: false     # Requires build_image_registry when true
+  # build_registry_username: "" # Optional registry username for build/push auth
+  # build_registry_password: "" # Optional registry password/token; prefer MONSTER_BUILD_REGISTRY_PASSWORD
 
 git_sources:
   # Local filesystem repository paths are disabled by default.
@@ -57,6 +61,9 @@ swarm:
   enabled: false
   # manager_ip: ""
   # join_token: ""
+  # tls_cert_file: ""
+  # tls_key_file: ""
+  # tls_ca_cert_file: ""
 
 registration:
   mode: open                    # open, invite_only, approval, disabled
@@ -68,6 +75,13 @@ billing:
   enabled: false
   # stripe_secret_key: ""
   # stripe_webhook_key: ""
+
+vps_providers:
+  enabled: false
+  # hetzner_token: ""
+  # digitalocean_token: ""
+  # vultr_token: ""
+  # linode_token: ""
 
 limits:
   max_apps_per_tenant: 100

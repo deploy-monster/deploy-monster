@@ -140,15 +140,6 @@ func runServe() {
 		os.Exit(1)
 	}
 
-	// Validate configuration
-	if err := core.ValidateConfig(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "config validation error: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Configure structured logger before anything else uses slog
-	core.SetupLogger(cfg.Server.LogLevel, cfg.Server.LogFormat, cfg.Observability.LokiURL, "", "", 5*time.Second)
-
 	// Audit config for plaintext secrets
 	if warnings := cfg.AuditSecrets(); len(warnings) > 0 {
 		for _, w := range warnings {
@@ -159,6 +150,7 @@ func runServe() {
 	bi := core.BuildInfo{Version: version, Commit: commit, Date: date}
 
 	if *agentMode {
+		*agentToken, *agentCertFile, *agentKeyFile, *agentCAFile = resolveAgentConfig(cfg, *agentToken, *agentCertFile, *agentKeyFile, *agentCAFile)
 		runAgent(ctx, bi, cfg, *masterURL, *agentToken, *masterPort, *agentCertFile, *agentKeyFile, *agentCAFile)
 		return
 	}
@@ -221,6 +213,10 @@ func runAgent(ctx context.Context, bi core.BuildInfo, cfg *core.Config, masterUR
 	defer func() { _ = runtime.Close() }()
 	if cfg.Docker.DefaultCPUQuota > 0 || cfg.Docker.DefaultMemoryMB > 0 {
 		runtime.SetResourceDefaults(cfg.Docker.DefaultCPUQuota, cfg.Docker.DefaultMemoryMB)
+	}
+	if err := runtime.SetRegistryAuth(cfg.Docker.BuildRegistryUsername, cfg.Docker.BuildRegistryPassword); err != nil {
+		fmt.Fprintf(os.Stderr, "agent docker registry auth invalid: %v\n", err)
+		os.Exit(1)
 	}
 
 	client := swarm.NewAgentClient(masterURL, serverID, token, bi.Version, runtime, logger, certFile, keyFile, caFile)
@@ -362,6 +358,25 @@ func runRotateKeys() {
 	fmt.Println("Update your config to use the new encryption key and restart the server.")
 }
 
+func resolveAgentConfig(cfg *core.Config, token, certFile, keyFile, caFile string) (string, string, string, string) {
+	if cfg == nil {
+		return token, certFile, keyFile, caFile
+	}
+	if token == "" {
+		token = cfg.Swarm.JoinToken
+	}
+	if certFile == "" {
+		certFile = cfg.Swarm.TLSCertFile
+	}
+	if keyFile == "" {
+		keyFile = cfg.Swarm.TLSKeyFile
+	}
+	if caFile == "" {
+		caFile = cfg.Swarm.TLSCACertFile
+	}
+	return token, certFile, keyFile, caFile
+}
+
 // envInt reads an int-valued environment variable with a default fallback.
 // Non-integer values fall back to def rather than failing flag parsing.
 func envInt(key string, def int) int {
@@ -470,9 +485,6 @@ func runSetup() {
 	if domain != "" {
 		cfg.Server.Domain = domain
 		cfg.Server.CORSOrigins = "" // derive later
-		if cfg.Server.Port == 8443 {
-			cfg.Server.Port = 443
-		}
 	}
 	if email != "" {
 		cfg.ACME.Email = email
@@ -497,10 +509,9 @@ func runSetup() {
 
 	// Derive CORS origins from new domain/port
 	if cfg.Server.CORSOrigins == "" && cfg.Server.Domain != "" {
-		origin := "https://" + cfg.Server.Domain
-		if cfg.Ingress.HTTPSPort != 443 {
-			origin = fmt.Sprintf("https://%s:%d", cfg.Server.Domain, cfg.Ingress.HTTPSPort)
-		}
+		// The platform API/UI listener is plain HTTP on server.port.
+		// ingress.{http,https}_port is for hosted application traffic.
+		origin := fmt.Sprintf("http://%s:%d", cfg.Server.Domain, cfg.Server.Port)
 		cfg.Server.CORSOrigins = origin
 	}
 
@@ -565,14 +576,19 @@ func runSetup() {
 	fmt.Println("\nNext steps:")
 	if cfg.Server.Domain != "" {
 		fmt.Println("  1. Ensure your domain's A/AAAA record points to this server's public IP")
-		fmt.Println("  2. Open ports 80 and 443 in your firewall")
+		fmt.Printf("  2. Open ports %d, %d, and %d in your firewall\n", cfg.Server.Port, cfg.Ingress.HTTPPort, cfg.Ingress.HTTPSPort)
 	}
 	if unitUpdated {
 		fmt.Println("  3. Run: sudo systemctl daemon-reload && sudo systemctl restart deploymonster")
 	} else {
 		fmt.Println("  3. Run: deploymonster serve --config=" + configPath)
 	}
-	fmt.Printf("\nAdmin login: %s / %s\n", adminEmail, adminPassword)
+	if cfg.Server.Domain != "" {
+		fmt.Printf("\nPlatform URL: http://%s:%d\n", cfg.Server.Domain, cfg.Server.Port)
+	} else {
+		fmt.Printf("\nPlatform URL: http://<server-ip>:%d\n", cfg.Server.Port)
+	}
+	fmt.Printf("Admin login: %s / %s\n", adminEmail, adminPassword)
 }
 
 func printUsage() {
@@ -595,11 +611,14 @@ Flags (serve):
   --master        Master server URL (agent mode, or MONSTER_MASTER_URL)
   --token         Join token for agent auth (agent mode, or MONSTER_JOIN_TOKEN)
   --master-port   Fallback port if --master URL has none (agent mode, or MONSTER_MASTER_PORT)
+  --agent-cert    Agent mTLS client certificate file
+  --agent-key     Agent mTLS client private key file
+  --agent-ca      CA file used by the agent to verify the master certificate
   --config        Path to monster.yaml config file
 
 Examples:
   deploymonster                                          Start server with defaults
-  deploymonster serve --agent --master=host:8443 --token=xxx  Start as agent
+  deploymonster serve --agent --master=http://host:8443 --token=xxx  Start as agent
   deploymonster version                                  Show version
   deploymonster config                                   Check configuration
   deploymonster health                                   Check local server health

@@ -3,6 +3,7 @@ package deploy
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ type DockerManager struct {
 	cli          *client.Client
 	defaultCPU   int64 // Default CPU quota (microseconds per 100ms period)
 	defaultMemMB int64 // Default memory limit in MB
+	registryAuth string
 }
 
 // NewDockerManager creates a new Docker manager with API version negotiation.
@@ -52,6 +54,27 @@ func NewDockerManager(host string) (*DockerManager, error) {
 func (d *DockerManager) SetResourceDefaults(cpuQuota, memoryMB int64) {
 	d.defaultCPU = cpuQuota
 	d.defaultMemMB = memoryMB
+}
+
+// SetRegistryAuth configures credentials used for Docker image pulls.
+func (d *DockerManager) SetRegistryAuth(username, password string) error {
+	if username == "" && password == "" {
+		d.registryAuth = ""
+		return nil
+	}
+	if username == "" || password == "" {
+		return fmt.Errorf("registry username and password must both be set")
+	}
+	auth := map[string]string{
+		"username": username,
+		"password": password,
+	}
+	data, err := json.Marshal(auth)
+	if err != nil {
+		return fmt.Errorf("marshal registry auth: %w", err)
+	}
+	d.registryAuth = base64.URLEncoding.EncodeToString(data)
+	return nil
 }
 
 // Ping verifies the Docker connection.
@@ -84,7 +107,7 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 	// Pull image with 5-minute timeout to prevent hanging daemon from blocking API
 	pullCtx, pullCancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer pullCancel()
-	reader, err := d.cli.ImagePull(pullCtx, opts.Image, client.ImagePullOptions{})
+	reader, err := d.cli.ImagePull(pullCtx, opts.Image, client.ImagePullOptions{RegistryAuth: d.registryAuth})
 	if err != nil {
 		return "", fmt.Errorf("pull image %s: %w", opts.Image, err)
 	}
@@ -348,7 +371,7 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 func (d *DockerManager) ImagePull(ctx context.Context, img string) error {
 	pullCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	reader, err := d.cli.ImagePull(pullCtx, img, client.ImagePullOptions{})
+	reader, err := d.cli.ImagePull(pullCtx, img, client.ImagePullOptions{RegistryAuth: d.registryAuth})
 	if err != nil {
 		return fmt.Errorf("pull image %s: %w", img, err)
 	}

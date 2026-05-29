@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -173,7 +174,7 @@ func (h *SecretHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := store.DeleteSecret(r.Context(), claims.TenantID, id); err != nil {
-		if err == core.ErrNotFound {
+		if errors.Is(err, core.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "secret not found")
 		} else {
 			writeError(w, http.StatusInternalServerError, "failed to delete secret")

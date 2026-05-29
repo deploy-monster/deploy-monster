@@ -39,6 +39,8 @@ export interface MarketplaceResponse {
 interface DeployTemplateRequest {
   slug: string;
   name: string;
+  domain?: string;
+  server_id?: string;
   config?: Record<string, string>;
 }
 

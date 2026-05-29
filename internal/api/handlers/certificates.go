@@ -3,8 +3,8 @@ package handlers
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -90,8 +90,7 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req uploadCertRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -172,11 +171,11 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 func (h *CertificateHandler) requireTenantCertificateDomain(w http.ResponseWriter, r *http.Request, domainRef, tenantID string) (*core.Domain, bool) {
 	domain, err := h.store.GetDomain(r.Context(), domainRef)
 	if err != nil {
-		if err == core.ErrNotFound {
+		if errors.Is(err, core.ErrNotFound) {
 			domain, err = h.store.GetDomainByFQDN(r.Context(), domainRef)
 		}
 		if err != nil {
-			if err == core.ErrNotFound {
+			if errors.Is(err, core.ErrNotFound) {
 				writeError(w, http.StatusNotFound, "domain not found")
 				return nil, false
 			}

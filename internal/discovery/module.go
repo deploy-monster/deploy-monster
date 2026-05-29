@@ -82,6 +82,9 @@ func (m *Module) Start(_ context.Context) error {
 				"container_id", data.ContainerID,
 			)
 		}
+		if m.watcher != nil {
+			m.watcher.syncRoutes(ctx)
+		}
 		return nil
 	})
 

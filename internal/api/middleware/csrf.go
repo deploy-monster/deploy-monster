@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"net/http"
 )
@@ -48,9 +49,12 @@ func CSRFProtect(next http.Handler) http.Handler {
 			return
 		}
 
-		// Validate: X-CSRF-Token header must match the cookie value
+		// Validate: X-CSRF-Token header must match the cookie value.
+		// Use a constant-time compare so the match doesn't leak timing on a
+		// security token (lengths are pre-checked to keep the compare safe).
 		headerToken := r.Header.Get(csrfHeaderName)
-		if headerToken == "" || headerToken != cookie.Value {
+		if headerToken == "" || len(headerToken) != len(cookie.Value) ||
+			subtle.ConstantTimeCompare([]byte(headerToken), []byte(cookie.Value)) != 1 {
 			writeErrorJSON(w, http.StatusForbidden, "CSRF token mismatch")
 			return
 		}

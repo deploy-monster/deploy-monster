@@ -3,7 +3,6 @@ package handlers
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -131,7 +130,7 @@ func mutateBoltValue(bolt core.BoltStorer, bucket, key string, dest any, ttlSeco
 
 	exists := true
 	if err := bolt.Get(bucket, key, dest); err != nil {
-		if !errors.Is(err, core.ErrBoltNotFound) {
+		if !errors.Is(err, core.ErrKVNotFound) {
 			return err
 		}
 		exists = false
@@ -180,8 +179,7 @@ func (h *EventWebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Secret string   `json:"secret,omitempty"`
 		Events []string `json:"events"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 

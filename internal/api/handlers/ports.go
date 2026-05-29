@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -51,8 +50,7 @@ func (h *PortHandler) Update(w http.ResponseWriter, r *http.Request) {
 	appID := app.ID
 
 	var ports []PortMapping
-	if err := json.NewDecoder(r.Body).Decode(&ports); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body — expected array of port mappings")
+	if !decodeJSONInto(w, r, &ports) {
 		return
 	}
 

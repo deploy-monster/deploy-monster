@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -54,8 +53,7 @@ func (h *AnnouncementHandler) List(w http.ResponseWriter, _ *http.Request) {
 // middleware.RequireSuperAdmin at the router.
 func (h *AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var a Announcement
-	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &a) {
 		return
 	}
 

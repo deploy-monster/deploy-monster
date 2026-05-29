@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -49,15 +50,32 @@ func (h *TeamHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if len(members) == 0 {
+			writeJSON(w, http.StatusOK, map[string]any{"data": []TeamMemberView{}, "total": 0})
+			return
+		}
+
+		// Batch-fetch all users in a single query to avoid N+1
+		userIDs := make([]string, len(members))
+		for i, member := range members {
+			userIDs[i] = member.UserID
+		}
+		users, err := h.store.GetUsersByIDs(r.Context(), userIDs)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load member users")
+			return
+		}
+		// Index users by ID for O(1) lookup
+		userMap := make(map[string]*core.User, len(users))
+		for i := range users {
+			userMap[users[i].ID] = &users[i]
+		}
+
 		views := make([]TeamMemberView, 0, len(members))
 		for _, member := range members {
-			user, err := h.store.GetUser(r.Context(), member.UserID)
-			if err != nil {
-				if err == core.ErrNotFound {
-					continue
-				}
-				writeError(w, http.StatusInternalServerError, "failed to load member user")
-				return
+			user, ok := userMap[member.UserID]
+			if !ok {
+				continue // user deleted or not found
 			}
 			views = append(views, TeamMemberView{
 				ID:        member.ID,
@@ -78,7 +96,7 @@ func (h *TeamHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.store.GetUser(r.Context(), claims.UserID)
 	if err != nil {
-		if err == core.ErrNotFound {
+		if errors.Is(err, core.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "user not found")
 		} else {
 			writeError(w, http.StatusInternalServerError, "failed to load user")
@@ -148,7 +166,7 @@ func (h *TeamHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := memberStore.RemoveTeamMember(r.Context(), claims.TenantID, memberID); err != nil {
-		if err == core.ErrNotFound {
+		if errors.Is(err, core.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "member not found")
 		} else {
 			writeError(w, http.StatusInternalServerError, "failed to remove member")

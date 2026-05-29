@@ -51,6 +51,8 @@ import {
 } from '@/components/ui/table';
 import { Tooltip } from '@/components/ui/tooltip';
 import { AlertDialog } from '@/components/ui/alert-dialog';
+import { Select } from '@/components/ui/select';
+import type { ServerNode } from '@/api/servers';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -182,6 +184,9 @@ function buildMetricCards(
 export function AppDetail() {
   const { id } = useParams();
   const { data: app, loading: appLoading, refetch: refetchApp } = useApi<App>(`/apps/${id}`);
+  const { data: serversResp } = useApi<{ data: ServerNode[]; total: number } | ServerNode[]>('/servers');
+  const servers = Array.isArray(serversResp) ? serversResp : serversResp?.data ?? [];
+  const remoteServers = servers.filter((server) => server.id !== 'local' && server.provider !== 'local');
   const { data: deploymentsData } = useApi<PaginatedResponse<Deployment>>(`/apps/${id}/deployments`);
   const deployments = deploymentsData?.data ?? [];
 
@@ -211,38 +216,45 @@ export function AppDetail() {
   const [settingsNameDraft, setSettingsNameDraft] = useState<string | null>(null);
   const [settingsBranchDraft, setSettingsBranchDraft] = useState<string | null>(null);
   const [settingsSourceURLDraft, setSettingsSourceURLDraft] = useState<string | null>(null);
+  const [settingsServerIDDraft, setSettingsServerIDDraft] = useState<string | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
 
   const settingsName = settingsNameDraft ?? app?.name ?? '';
   const settingsBranch = settingsBranchDraft ?? app?.branch ?? '';
   const settingsSourceURL = settingsSourceURLDraft ?? app?.source_url ?? '';
+  const settingsServerID = settingsServerIDDraft ?? app?.server_id ?? 'local';
 
   const settingsDirty =
     !!app &&
     (settingsName !== app.name ||
       settingsBranch !== (app.branch ?? '') ||
-      settingsSourceURL !== (app.source_url ?? ''));
+      settingsSourceURL !== (app.source_url ?? '') ||
+      settingsServerID !== (app.server_id || 'local'));
 
   const handleSettingsSave = useCallback(async () => {
     if (!id || !app) return;
     setSettingsSaving(true);
     try {
-      const patch: { name?: string; branch?: string; source_url?: string } = {};
+      const patch: { name?: string; branch?: string; source_url?: string; server_id?: string } = {};
       if (settingsName && settingsName !== app.name) patch.name = settingsName;
       if (settingsBranch !== (app.branch ?? '')) patch.branch = settingsBranch;
       if (settingsSourceURL !== (app.source_url ?? '')) patch.source_url = settingsSourceURL;
+      if (settingsServerID !== (app.server_id || 'local')) {
+        patch.server_id = settingsServerID === 'local' ? '' : settingsServerID;
+      }
       await appsAPI.update(id, patch);
       toast.success('Settings saved');
       await refetchApp();
       setSettingsNameDraft(null);
       setSettingsBranchDraft(null);
       setSettingsSourceURLDraft(null);
+      setSettingsServerIDDraft(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save settings');
     } finally {
       setSettingsSaving(false);
     }
-  }, [id, app, settingsName, settingsBranch, settingsSourceURL, refetchApp]);
+  }, [id, app, settingsName, settingsBranch, settingsSourceURL, settingsServerID, refetchApp]);
 
   /* -- Actions ---------------------------------------------------- */
 
@@ -915,6 +927,24 @@ export function AppDetail() {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="settings-server" className="mb-1.5">Target Server</Label>
+                  <Select
+                    id="settings-server"
+                    value={settingsServerID}
+                    onChange={(e) => setSettingsServerIDDraft(e.target.value)}
+                  >
+                    <option value="local">Local server</option>
+                    {remoteServers.map((server) => (
+                      <option key={server.id} value={server.id} disabled={server.connected === false}>
+                        {server.hostname || server.id}
+                        {server.connected === false ? ' (agent disconnected)' : ''}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
                   <Label htmlFor="settings-branch" className="mb-1.5">Branch</Label>
                   <Input
                     id="settings-branch"
@@ -923,8 +953,6 @@ export function AppDetail() {
                     placeholder="main"
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="mb-1.5">Created</Label>
                   <Input
@@ -950,6 +978,7 @@ export function AppDetail() {
                     setSettingsNameDraft(null);
                     setSettingsBranchDraft(null);
                     setSettingsSourceURLDraft(null);
+                    setSettingsServerIDDraft(null);
                   }}
                   disabled={!settingsDirty || settingsSaving}
                   className="cursor-pointer"

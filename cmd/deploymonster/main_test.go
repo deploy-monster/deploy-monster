@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 func TestInjectSystemdEnvironmentFile(t *testing.T) {
@@ -56,6 +58,34 @@ func TestEnvInt(t *testing.T) {
 	t.Setenv("DM_TEST_INT", "not-an-int")
 	if got := envInt("DM_TEST_INT", 7); got != 7 {
 		t.Fatalf("invalid env = %d, want default", got)
+	}
+}
+
+func TestResolveAgentConfigFallsBackToSwarmConfig(t *testing.T) {
+	cfg := &core.Config{}
+	cfg.Swarm.JoinToken = "config-token"
+	cfg.Swarm.TLSCertFile = "/etc/dm/agent.crt"
+	cfg.Swarm.TLSKeyFile = "/etc/dm/agent.key"
+	cfg.Swarm.TLSCACertFile = "/etc/dm/ca.crt"
+
+	token, certFile, keyFile, caFile := resolveAgentConfig(cfg, "", "", "", "")
+
+	if token != "config-token" || certFile != "/etc/dm/agent.crt" || keyFile != "/etc/dm/agent.key" || caFile != "/etc/dm/ca.crt" {
+		t.Fatalf("unexpected fallback values: token=%q cert=%q key=%q ca=%q", token, certFile, keyFile, caFile)
+	}
+}
+
+func TestResolveAgentConfigKeepsExplicitValues(t *testing.T) {
+	cfg := &core.Config{}
+	cfg.Swarm.JoinToken = "config-token"
+	cfg.Swarm.TLSCertFile = "/etc/dm/agent.crt"
+	cfg.Swarm.TLSKeyFile = "/etc/dm/agent.key"
+	cfg.Swarm.TLSCACertFile = "/etc/dm/ca.crt"
+
+	token, certFile, keyFile, caFile := resolveAgentConfig(cfg, "flag-token", "flag.crt", "flag.key", "flag-ca.crt")
+
+	if token != "flag-token" || certFile != "flag.crt" || keyFile != "flag.key" || caFile != "flag-ca.crt" {
+		t.Fatalf("explicit values were not preserved: token=%q cert=%q key=%q ca=%q", token, certFile, keyFile, caFile)
 	}
 }
 

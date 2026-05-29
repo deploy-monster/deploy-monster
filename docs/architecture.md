@@ -496,14 +496,15 @@ Custom reverse proxy — **no Traefik/Nginx required**.
 │      │                                                                    │
 │      ▼                                                                    │
 │   ┌──────────────────────────────────────────────────────────────────┐   │
-│   │   Push to Registry                                                │   │
-│   │   docker push ghcr.io/user/app:v1                                │   │
+│   │   Deploy                                                          │   │
+│   │   Create new container from built image, persist deployment       │   │
+│   │   Stop old containers for the app                                 │   │
 │   └──────────────────────────────────────────────────────────────────┘   │
 │      │                                                                    │
 │      ▼                                                                    │
 │   ┌──────────────────────────────────────────────────────────────────┐   │
-│   │   Deploy                                                          │   │
-│   │   Create new container, stop old, update routing                  │   │
+│   │   Route Discovery                                                 │   │
+│   │   app.deployed event triggers immediate route sync                │   │
 │   └──────────────────────────────────────────────────────────────────┘   │
 │                                                                           │
 └───────────────────────────────────────────────────────────────────────────┘
@@ -543,7 +544,7 @@ Same binary, two modes:
 │   ┌─────────────────────────────────────────────────────────────────┐  │
 │   │                    WebSocket Protocol                            │  │
 │   │                                                                  │  │
-│   │   Agent connects: ws://master:8443/api/v1/agent/connect         │  │
+│   │   Agent connects: master:8443/api/v1/agent/ws                   │  │
 │   │                                                                  │  │
 │   │   Messages (JSON):                                               │  │
 │   │   { "type": "ping", "ts": 1234567890 }                          │  │
@@ -572,7 +573,7 @@ Same binary, two modes:
 │  3. Install Docker (if needed)                                  │
 │         ↓                                                       │
 │  4. Download DeployMonster binary                               │
-│     curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.0.1/scripts/install.sh | bash -s -- --version=v0.0.1  │
+│     curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- --version=v0.1.8  │
 │         ↓                                                       │
 │  5. Create systemd service                                      │
 │     /etc/systemd/system/deploymonster-agent.service            │
@@ -659,6 +660,15 @@ AES-256-GCM encrypted secrets with scope-based resolution.
 │   ├── POST   /                   # Add domain
 │   └── DELETE /:id                # Remove domain
 │
+├── stacks/
+│   ├── POST   /                   # Deploy compose stack, optional domain route
+│   └── POST   /validate           # Validate compose YAML
+│
+├── marketplace/
+│   ├── GET    /                   # List templates
+│   ├── GET    /:slug              # Template details
+│   └── POST   /deploy             # Deploy template, optional domain route
+│
 ├── secrets/
 │   ├── GET    /                   # List secrets (metadata only)
 │   ├── POST   /                   # Create secret
@@ -684,6 +694,9 @@ AES-256-GCM encrypted secrets with scope-based resolution.
     ├── GET    /users              # List all users
     └── GET    /audit              # Audit logs
 ```
+
+Inbound Git provider callbacks are mounted outside the authenticated API tree:
+`POST /hooks/v1/{webhookID}`.
 
 ---
 

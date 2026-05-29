@@ -273,13 +273,13 @@ func (b *BoltStore) Get(bucket, key string, dest any) error {
 	var expiresAt int64
 	err := b.db.QueryRow(`SELECT data, expires_at FROM kv_store WHERE bucket = ? AND key = ?`, bucket, key).Scan(&data, &expiresAt)
 	if err == sql.ErrNoRows {
-		return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
+		return fmt.Errorf("key %q: %w", key, core.ErrKVNotFound)
 	}
 	if err != nil {
 		return fmt.Errorf("sqlite kv get %s/%s: %w", bucket, key, err)
 	}
 	if expiresAt > 0 && time.Now().Unix() >= expiresAt {
-		return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
+		return fmt.Errorf("key %q: %w", key, core.ErrKVNotFound)
 	}
 	if err := json.Unmarshal(data, dest); err != nil {
 		return fmt.Errorf("unmarshal value: %w", err)
@@ -294,7 +294,7 @@ func (b *BoltStore) Delete(bucket, key string) error {
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("bucket %q: %w", bucket, core.ErrBoltNotFound)
+		return fmt.Errorf("bucket %q: %w", bucket, core.ErrKVNotFound)
 	}
 	if _, err := b.db.Exec(`DELETE FROM kv_store WHERE bucket = ? AND key = ?`, bucket, key); err != nil {
 		return fmt.Errorf("sqlite kv delete %s/%s: %w", bucket, key, err)
@@ -331,7 +331,7 @@ func (b *BoltStore) List(bucket string) ([]string, error) {
 			return nil, err
 		}
 		if !exists {
-			return nil, fmt.Errorf("bucket %q: %w", bucket, core.ErrBoltNotFound)
+			return nil, fmt.Errorf("bucket %q: %w", bucket, core.ErrKVNotFound)
 		}
 	}
 	return keys, nil

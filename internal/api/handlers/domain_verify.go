@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -100,8 +101,7 @@ func (h *DomainVerifyHandler) BatchVerify(w http.ResponseWriter, r *http.Request
 	var req struct {
 		FQDNs []string `json:"fqdns"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -128,7 +128,7 @@ func (h *DomainVerifyHandler) BatchVerify(w http.ResponseWriter, r *http.Request
 func (h *DomainVerifyHandler) requireTenantDomain(w http.ResponseWriter, r *http.Request, domainID, tenantID string) (*core.Domain, bool) {
 	domain, err := h.store.GetDomain(r.Context(), domainID)
 	if err != nil {
-		if err == core.ErrNotFound {
+		if errors.Is(err, core.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "domain not found")
 			return nil, false
 		}
@@ -155,14 +155,22 @@ func (h *DomainVerifyHandler) tenantDomainSet(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return nil, false
 	}
+	if len(apps) == 0 {
+		return make(map[string]bool), true
+	}
+	// Batch-fetch domains for all apps in a single query to avoid N+1.
+	appIDs := make([]string, len(apps))
+	for i, app := range apps {
+		appIDs[i] = app.ID
+	}
+	domainsByApp, err := h.store.ListDomainsByAppIDs(r.Context(), appIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return nil, false
+	}
 	allowed := make(map[string]bool)
 	for _, app := range apps {
-		domains, err := h.store.ListDomainsByApp(r.Context(), app.ID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "internal error")
-			return nil, false
-		}
-		for _, domain := range domains {
+		for _, domain := range domainsByApp[app.ID] {
 			allowed[domain.FQDN] = true
 		}
 	}

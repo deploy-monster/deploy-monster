@@ -13,12 +13,19 @@ import (
 // It provides enrollment, verification, and backup code management.
 // The TOTP secret is stored encrypted using the secrets vault for
 // secure storage and retrieval during validation.
+// totpReplayBucket stores the last accepted TOTP time-step per user so a code
+// cannot be replayed within its validity window (RFC 6238 single-use).
+const totpReplayBucket = "totp_last_step"
+
 type TOTPService struct {
 	store core.Store
 	vault interface {
 		Encrypt(string) (string, error)
 		Decrypt(string) (string, error)
 	}
+	// replay persists the last accepted TOTP step per user for anti-replay.
+	// Optional: when nil, validation still works but offers no replay defense.
+	replay core.BoltStorer
 	logger *slog.Logger
 }
 
@@ -38,6 +45,13 @@ func (s *TOTPService) SetVault(vault interface {
 	Decrypt(string) (string, error)
 }) {
 	s.vault = vault
+}
+
+// SetReplayStore wires the KV store used to track the last accepted TOTP step
+// per user (anti-replay). Called during module init; when unset, codes are
+// validated but not protected against replay within their window.
+func (s *TOTPService) SetReplayStore(store core.BoltStorer) {
+	s.replay = store
 }
 
 // Enroll starts TOTP enrollment for a user and returns the provisioning URI.
@@ -140,8 +154,30 @@ func (s *TOTPService) validateStoredSecret(ctx context.Context, userID, code str
 		return false
 	}
 
-	// Validate the TOTP code against the decrypted secret
-	return ValidateTOTP(code, secret)
+	// Validate the TOTP code against the decrypted secret.
+	step, ok := ValidateTOTPStep(code, secret)
+	if !ok {
+		return false
+	}
+
+	// Anti-replay (RFC 6238 single-use): on the real validation path, reject a
+	// code whose time-step has already been consumed, then record this step.
+	// Skipped for enrollment confirmation (requireEnabled=false), which is a
+	// one-shot setup action, and when no replay store is configured.
+	if requireEnabled && s.replay != nil {
+		var lastStep int64
+		if err := s.replay.Get(totpReplayBucket, userID, &lastStep); err == nil {
+			if step <= lastStep {
+				s.logger.Warn("rejected replayed TOTP code", "user_id", userID, "step", step, "last_step", lastStep)
+				return false
+			}
+		}
+		if err := s.replay.Set(totpReplayBucket, userID, step, 0); err != nil {
+			s.logger.Warn("failed to persist TOTP step for anti-replay", "user_id", userID, "error", err)
+		}
+	}
+
+	return true
 }
 
 func (s *TOTPService) consumeBackupCode(ctx context.Context, userID, code string) bool {

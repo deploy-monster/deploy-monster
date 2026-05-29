@@ -1,6 +1,9 @@
 package core
 
-import "context"
+import (
+	"context"
+	"net/http"
+)
 
 // HealthStatus represents the health state of a module.
 type HealthStatus int
@@ -25,6 +28,17 @@ func (h HealthStatus) String() string {
 	}
 }
 
+// Route describes a single HTTP route exposed by a module.
+// Deprecated: no module ever provides custom HTTP routes via the Module
+// interface — routes are registered directly on the API router in each
+// module's Init. This type is retained for compatibility with existing
+// module definitions that embed Routes() returning []Route(nil).
+type Route struct {
+	Method  string
+	Path    string
+	Handler http.Handler
+}
+
 // Module is the contract every subsystem implements.
 // Each feature of DeployMonster is a module that registers itself
 // with the core engine and participates in the lifecycle.
@@ -42,39 +56,4 @@ type Module interface {
 
 	// Observability
 	Health() HealthStatus
-
-	// HTTP integration
-	Routes() []Route
-	Events() []EventHandler
-}
-
-// AuthLevel defines the required authentication level for a route.
-type AuthLevel int
-
-const (
-	AuthNone       AuthLevel = iota // No authentication required
-	AuthAPIKey                      // Valid API key required
-	AuthJWT                         // Valid JWT required
-	AuthAdmin                       // Admin role required
-	AuthSuperAdmin                  // Super admin role required
-)
-
-// Route represents an HTTP endpoint a module registers.
-type Route struct {
-	Method  string
-	Path    string
-	Handler HandlerFunc
-	Auth    AuthLevel
-}
-
-// HandlerFunc is the handler signature for module routes.
-type HandlerFunc func(ctx *RequestContext) error
-
-// RequestContext wraps an HTTP request with parsed authentication claims
-// and tenant context for use by module handlers.
-type RequestContext struct {
-	UserID   string
-	TenantID string
-	RoleID   string
-	Email    string
 }

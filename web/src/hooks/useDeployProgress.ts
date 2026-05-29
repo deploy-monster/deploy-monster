@@ -64,6 +64,16 @@ export function useDeployProgress({
     setResult(null);
   }, []);
 
+  // Store callbacks in refs to avoid effect re-running on every render
+  const onCompleteRef = useRef(onComplete);
+  const onProgressRef = useRef(onProgress);
+
+  // Keep refs updated with latest callbacks
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onProgressRef.current = onProgress;
+  });
+
   useEffect(() => {
     const connect = () => {
       if (!enabled || !projectId) return;
@@ -94,7 +104,7 @@ export function useDeployProgress({
             setStatus(data.stage);
             setProgress(data.progress);
             setMessage(data.message);
-            onProgress?.(data);
+            onProgressRef.current?.(data);
           } else if (data.type === 'deploy_complete') {
             setStatus(data.success ? 'success' : 'error');
             setProgress(100);
@@ -109,7 +119,7 @@ export function useDeployProgress({
               errors: data.errors,
             };
             setResult(response);
-            onComplete?.(response);
+            onCompleteRef.current?.(response);
           }
         } catch (err) {
           console.error('Failed to parse deploy progress message:', err);
@@ -139,7 +149,7 @@ export function useDeployProgress({
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [enabled, projectId, onComplete, onProgress]);
+  }, [enabled, projectId]);
 
   return {
     status,

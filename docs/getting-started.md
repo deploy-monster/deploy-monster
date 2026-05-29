@@ -13,8 +13,30 @@ Deploy your first application in under 5 minutes.
 ### Option 1: Quick Install (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.0.1/scripts/install.sh | bash -s -- --version=v0.0.1
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh \
+  | bash -s -- --version=v0.1.8
 ```
+
+For a multi-server master, pass a stable join token during install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh \
+  | bash -s -- --version=v0.1.8 --token=JOIN_TOKEN
+```
+
+### Agent Node Install
+
+Run this on each worker server after the master is reachable and you have the shared join token:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh \
+  | bash -s -- --version=v0.1.8 --agent \
+      --master=http://MASTER_HOST:8443 \
+      --token=JOIN_TOKEN \
+      --server-id=worker-1
+```
+
+The installer creates the same `deploymonster` systemd service, but starts the binary in `serve --agent` mode and stores the master URL/join token in `/etc/deploymonster/deploymonster.env`.
 
 ### Option 2: Download Binary
 
@@ -33,7 +55,7 @@ docker run -d \
   -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  ghcr.io/deploy-monster/deploy-monster:latest
+  ghcr.io/deploy-monster/deploy-monster:v0.1.8
 ```
 
 ### Option 4: Build from Source
@@ -63,7 +85,7 @@ Run the interactive wizard and follow the prompts:
 deploymonster setup
 ```
 
-This will ask for your domain, Let's Encrypt email, admin credentials, and write the configuration to `/var/lib/deploymonster/monster.yaml`. If a domain is provided, the setup automatically switches to port `443` and enables HTTPS redirect.
+This will ask for your domain, Let's Encrypt email, admin credentials, and write the configuration to `/var/lib/deploymonster/monster.yaml`. The platform UI/API stays on `http://<domain>:8443`; ports `80` and `443` are used by application ingress and automatic certificates for deployed apps.
 
 After setup:
 
@@ -75,7 +97,7 @@ After setup:
 sudo systemctl restart deploymonster
 ```
 
-4. Open `https://your-domain.com` — the first TLS handshake triggers automatic certificate provisioning via Let's Encrypt (HTTP-01 challenge).
+4. Open `http://your-domain.com:8443` for the platform UI. Deployed app domains use ports `80` and `443`; the first TLS handshake for an app domain triggers automatic certificate provisioning via Let's Encrypt (HTTP-01 challenge).
 
 ## Understanding Admin Roles
 

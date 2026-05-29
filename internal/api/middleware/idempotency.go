@@ -94,7 +94,7 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 				_, _ = w.Write(cached.Body)
 				return
 			}
-			if !errors.Is(err, core.ErrBoltNotFound) {
+			if !errors.Is(err, core.ErrKVNotFound) {
 				// A non-NotFound failure (corrupted entry, unmarshal
 				// error) triggers a re-execute, same as a cache miss.
 				// The request will still flow through and a fresh

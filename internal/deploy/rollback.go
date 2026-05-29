@@ -59,16 +59,11 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 	}
 
 	// Create new deployment version pointing to old image.
-	// RACE-002: atomic allocation — concurrent rollbacks would otherwise
-	// collide on the same version number.
-	newVersion, err := r.store.AtomicNextDeployVersion(ctx, appID)
-	if err != nil {
-		return nil, fmt.Errorf("allocate rollback version: %w", err)
-	}
+	// RACE-002b: allocate the version AND insert the row atomically so
+	// concurrent rollbacks/deploys cannot collide on the same version.
 	now := time.Now()
 	deployment := &core.Deployment{
 		AppID:         appID,
-		Version:       newVersion,
 		Image:         targetDeploy.Image,
 		Status:        "deploying",
 		CommitSHA:     targetDeploy.CommitSHA,
@@ -77,16 +72,11 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 		Strategy:      "recreate",
 		StartedAt:     &now,
 	}
-	if err := r.store.CreateDeployment(ctx, deployment); err != nil {
+	if err := r.store.CreateDeploymentAtomicVersion(ctx, deployment); err != nil {
 		return nil, fmt.Errorf("create rollback deployment: %w", err)
 	}
+	newVersion := deployment.Version
 	_ = r.store.UpdateAppStatus(ctx, appID, "deploying")
-
-	// Stop old container
-	if oldContainerID != "" && r.runtime != nil {
-		_ = r.runtime.Stop(ctx, oldContainerID, 30)
-		_ = r.runtime.Remove(ctx, oldContainerID, true)
-	}
 
 	// Get domains for routing labels
 	domains, _ := r.store.ListDomainsByApp(ctx, appID)
@@ -112,10 +102,11 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 		labels[fmt.Sprintf("monster.http.services.%s.loadbalancer.server.port", routerName)] = fmt.Sprintf("%d", port)
 	}
 
-	// Start new container with old image
+	// Start new container with old image (create BEFORE removing old to avoid downtime)
+	var newContainerID string
 	if r.runtime != nil {
 		containerName := fmt.Sprintf("dm-%s-%d", app.ID, newVersion)
-		containerID, err := r.runtime.CreateAndStart(ctx, core.ContainerOpts{
+		newContainerID, err = r.runtime.CreateAndStart(ctx, core.ContainerOpts{
 			Name:          containerName,
 			Image:         targetDeploy.Image,
 			Labels:        labels,
@@ -135,7 +126,47 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 			_ = r.runtime.Remove(ctx, containerName, true)
 			return nil, fmt.Errorf("rollback deploy: %w", err)
 		}
-		deployment.ContainerID = containerID
+		deployment.ContainerID = newContainerID
+	}
+
+	// P1-8: Verify new container is running before removing the old one.
+	// If health check fails, the old container keeps serving traffic.
+	if r.runtime != nil && newContainerID != "" {
+		healthy := false
+		for i := 0; i < 10; i++ {
+			stats, err := r.runtime.Stats(ctx, newContainerID)
+			if err == nil && stats != nil && stats.Running {
+				healthy = true
+				break
+			}
+			if err == nil && stats != nil && !stats.Running {
+				// Container exists but is not running — fail fast rather than retry
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		if !healthy && newContainerID != "" {
+			// Final check: if container no longer exists (removed externally) or never became healthy
+			stats, err := r.runtime.Stats(ctx, newContainerID)
+			if err != nil || stats == nil || !stats.Running {
+				// New container didn't become healthy; rollback failed.
+				// Clean up the new container and keep old one running.
+				_ = r.runtime.Stop(ctx, newContainerID, 10)
+				_ = r.runtime.Remove(ctx, newContainerID, true)
+				deployment.Status = "failed"
+				failed := time.Now()
+				deployment.FinishedAt = &failed
+				_ = r.store.UpdateDeployment(ctx, deployment)
+				_ = r.store.UpdateAppStatus(ctx, appID, "running")
+				return nil, fmt.Errorf("new container failed health check during rollback")
+			}
+		}
+	}
+
+	// Stop and remove old container only after new one is healthy
+	if oldContainerID != "" && r.runtime != nil {
+		_ = r.runtime.Stop(ctx, oldContainerID, 30)
+		_ = r.runtime.Remove(ctx, oldContainerID, true)
 	}
 
 	deployment.Status = "running"

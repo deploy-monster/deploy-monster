@@ -6,6 +6,8 @@ export interface ServerNode {
   region: string;
   size: string;
   status: string;
+  agent_status?: string;
+  connected?: boolean;
   role: string;
   created_at: string;
 }

@@ -26,9 +26,6 @@ export default defineConfig({
             if (id.includes('react-dom') || id.includes('react-router') || id.match(/\/react\//)) {
               return 'vendor-react'
             }
-            if (id.includes('@tanstack/react-query')) {
-              return 'vendor-query'
-            }
             if (id.includes('@xyflow') || id.includes('@dagrejs')) {
               return 'vendor-graph'
             }

@@ -105,13 +105,10 @@ func ValidatePasswordStrength(password string, minLength int) error {
 		return fmt.Errorf("password must contain uppercase, lowercase, digit, and special character")
 	}
 
-	// Check against common passwords blocklist.
-	// Case-insensitive, timing-attack safe comparison.
+	// Check against common passwords blocklist via O(1) map lookup.
 	lower := strings.ToLower(password)
-	for k := range commonPasswords {
-		if timingSafeEqual(lower, k) {
-			return fmt.Errorf("password is too common; choose a stronger password")
-		}
+	if _, ok := commonPasswords[lower]; ok {
+		return fmt.Errorf("password is too common; choose a stronger password")
 	}
 
 	return nil

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"sort"
 	"strconv"
@@ -114,8 +113,7 @@ func (h *GitSourceHandler) Connect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req connectGitProviderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 	providerType := strings.ToLower(strings.TrimSpace(req.Type))

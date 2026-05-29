@@ -46,7 +46,7 @@ const (
 	AgentMsgMetricsCollect   = "metrics.collect"
 	AgentMsgHealthCheck      = "health.check"
 	AgentMsgConfigUpdate     = "config.update"
-	AgentMsgBuildTask       = "build.task"
+	AgentMsgBuildTask        = "build.task"
 )
 
 // Agent message types (agent -> master)
@@ -115,11 +115,11 @@ type BuildTaskPayload struct {
 
 // BuildResultPayload is the payload for a build.result message sent back to master.
 type BuildResultPayload struct {
-	DeployID  string `json:"deploy_id"`
-	TenantID  string `json:"tenant_id"`
-	Success   bool   `json:"success"`
-	ImageTag  string `json:"image_tag,omitempty"`
-	Error     string `json:"error,omitempty"`
+	DeployID string `json:"deploy_id"`
+	TenantID string `json:"tenant_id"`
+	Success  bool   `json:"success"`
+	ImageTag string `json:"image_tag,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
 // =====================================================
@@ -144,6 +144,7 @@ type NodeExecutor interface {
 	Restart(ctx context.Context, containerID string) error
 	Logs(ctx context.Context, containerID string, tail string, follow bool) (io.ReadCloser, error)
 	ListByLabels(ctx context.Context, labels map[string]string) ([]ContainerInfo, error)
+	EnsureNetwork(ctx context.Context, name string) error
 
 	// Server operations
 	Exec(ctx context.Context, command string) (string, error)

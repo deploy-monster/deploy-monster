@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -65,8 +64,7 @@ func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 		req.YAML = string(body)
 		req.Name = r.URL.Query().Get("name")
 	} else {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+		if !decodeJSONInto(w, r, &req) {
 			return
 		}
 	}
@@ -144,8 +142,7 @@ func (h *ComposeHandler) Validate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		YAML string `json:"yaml"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 

@@ -15,8 +15,30 @@
 ### Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.0.1/scripts/install.sh | bash -s -- --version=v0.0.1
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh \
+  | bash -s -- --version=v0.1.8
 ```
+
+For a multi-server master, provide a stable join token during install so it is persisted in the systemd environment file:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh \
+  | bash -s -- --version=v0.1.8 --token=JOIN_TOKEN
+```
+
+### Agent Node Installation
+
+On worker nodes, use the same installer with `--agent`. The master must be reachable from the worker on the platform API port, and the token must match the master's `swarm.join_token` or `MONSTER_JOIN_TOKEN`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh \
+  | bash -s -- --version=v0.1.8 --agent \
+      --master=http://MASTER_HOST:8443 \
+      --token=JOIN_TOKEN \
+      --server-id=worker-1
+```
+
+Agent connection settings are written to `/etc/deploymonster/deploymonster.env`, and the generated systemd unit runs `/usr/local/bin/deploymonster serve --agent`.
 
 ### Systemd Service
 
@@ -36,7 +58,7 @@ The fastest way to configure a production instance is the built-in wizard:
 deploymonster setup
 ```
 
-This prompts for domain, Let's Encrypt email, ports, and admin credentials, then writes `/var/lib/deploymonster/monster.yaml` for you.
+This prompts for domain, Let's Encrypt email, ports, and admin credentials, then writes `/var/lib/deploymonster/monster.yaml` for you. The platform UI/API is served on `http://<domain>:8443`; application ingress uses ports `80` and `443`.
 
 ### Manual Configuration
 
@@ -167,19 +189,31 @@ Metrics available at `GET /metrics`:
 
 ## Scaling
 
-### Multi-Server (Docker Swarm)
+### Multi-Server (Agent Mode)
 
-1. Initialize swarm on master:
+1. Configure a stable join token on the master:
    ```bash
-   deploymonster serve
+   MONSTER_JOIN_TOKEN=<shared-secret> deploymonster serve
+   ```
+   For systemd installs, pass `--token=<shared-secret>` to `scripts/install.sh` or set `MONSTER_JOIN_TOKEN` before running the installer.
+
+2. Add worker nodes with the installer:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh \
+     | bash -s -- --agent \
+         --master=http://<master-host>:8443 \
+         --token=<shared-secret> \
+         --server-id=worker-1
    ```
 
-2. Add worker nodes:
-   - Go to **Servers** → **Add Server**
-   - Select provider (Hetzner, DO, Vultr, Linode)
-   - Or connect existing server via SSH
+   Or run the binary directly:
+   ```bash
+   deploymonster serve --agent \
+     --master=http://<master-host>:8443 \
+     --token=<shared-secret>
+   ```
 
-3. DeployMonster bootstraps the server: installs Docker, deploys agent, joins swarm.
+3. Connected agents appear through `/api/v1/agents`. Apps can target an agent by setting `server_id` through the create/update API or the UI target server selector. Remote git deploys require a registry-qualified build image path, usually configured with `MONSTER_BUILD_IMAGE_REGISTRY` and `MONSTER_BUILD_IMAGE_PUSH=true`.
 
 ## Security
 

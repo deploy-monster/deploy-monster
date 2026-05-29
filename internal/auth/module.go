@@ -56,6 +56,11 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	// Create TOTP service for MFA support
 	m.totp = NewTOTPService(m.store)
 
+	// Wire the KV store for TOTP anti-replay (last accepted time-step per user).
+	if c.DB != nil && c.DB.Bolt != nil {
+		m.totp.SetReplayStore(c.DB.Bolt)
+	}
+
 	// Set the secrets vault on TOTP service if available
 	if c.Registry != nil {
 		if secretsMod := c.Registry.Get("secrets"); secretsMod != nil {
@@ -159,7 +164,12 @@ func (m *Module) firstRunSetup(ctx context.Context) error {
 
 	m.logger.Info("super admin created", "email", email)
 	if generatedPassword {
-		m.logger.Warn("generated first-run admin password; save this value now", "email", email, "password", password)
+		// SECURITY FIX: never route the generated password through the
+		// structured logger — log sinks (journald, files, aggregators,
+		// backups) would expose super-admin credentials to anyone with log
+		// read access. Print once to stderr for the operator to capture.
+		m.logger.Warn("generated first-run admin password; printed to stderr once — save it now", "email", email)
+		fmt.Fprintf(os.Stderr, "\n=== DeployMonster first-run admin credentials (shown once) ===\n  email:    %s\n  password: %s\n=== Store this securely now; it will not be shown again ===\n\n", email, password)
 	}
 	m.cleanupBootstrapAdminCredentials()
 

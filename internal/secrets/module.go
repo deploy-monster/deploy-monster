@@ -84,7 +84,7 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	}
 
 	if usedLegacy {
-		m.vault = NewVault(secret)
+		m.vault = newLegacyVault(secret)
 		m.logger.Warn("vault booting with legacy salt — migration will run on Start",
 			"reason", "no persisted salt found but existing secrets present")
 	} else {
@@ -189,7 +189,7 @@ func (m *Module) migrateLegacyVault(ctx context.Context) error {
 		return err
 	}
 	newVault := NewVaultWithSalt(m.masterSecret, newSalt)
-	legacyVault := NewVault(m.masterSecret)
+	legacyVault := newLegacyVault(m.masterSecret)
 
 	versions, err := m.store.ListAllSecretVersions(ctx)
 	if err != nil {
@@ -315,12 +315,25 @@ func (m *Module) Resolve(scope, name string) (string, error) {
 // RotateEncryptionKey decrypts all secret versions with the current key and
 // re-encrypts them with a new key. Returns the number of versions rotated.
 // This is an admin-only offline operation (run during maintenance window).
+//
+// SECURITY FIX (CRYPTO-002): A fresh per-deployment salt is generated for the
+// new vault and persisted after a successful re-encrypt. Previously this used
+// NewVault (the legacy hardcoded salt), which silently downgraded at-rest
+// encryption back to the pre-migration weakness on every key rotation — two
+// installs sharing a master secret would derive the same AES key. The new salt
+// is persisted only after every version is re-encrypted, mirroring
+// migrateLegacyVault: a mid-rotation crash leaves the prior (salt, ciphertext)
+// pair intact so the next boot can still decrypt.
 func (m *Module) RotateEncryptionKey(ctx context.Context, newMasterSecret string) (int, error) {
 	if m.store == nil {
 		return 0, fmt.Errorf("store not initialized")
 	}
 
-	newVault := NewVault(newMasterSecret)
+	newSalt, err := GenerateVaultSalt()
+	if err != nil {
+		return 0, fmt.Errorf("generate vault salt: %w", err)
+	}
+	newVault := NewVaultWithSalt(newMasterSecret, newSalt)
 
 	versions, err := m.store.ListAllSecretVersions(ctx)
 	if err != nil {
@@ -349,8 +362,16 @@ func (m *Module) RotateEncryptionKey(ctx context.Context, newMasterSecret string
 		rotated++
 	}
 
-	// Switch to new vault for runtime
+	// Persist the new salt only after every version is re-encrypted, so a
+	// crash mid-rotation leaves the previous (salt, ciphertext) intact.
+	if err := m.persistSalt(newSalt); err != nil {
+		return rotated, fmt.Errorf("persist rotated salt: %w", err)
+	}
+
+	// Switch to new vault + master secret for runtime so a subsequent
+	// legacy-migration check on the next boot stays consistent.
 	m.vault = newVault
+	m.masterSecret = newMasterSecret
 
 	if m.logger != nil {
 		m.logger.Info("encryption key rotated", "versions_rotated", rotated)

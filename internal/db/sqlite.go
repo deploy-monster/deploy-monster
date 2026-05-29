@@ -48,7 +48,7 @@ func NewSQLite(path string) (*SQLiteDB, error) {
 
 	// SQLite single-writer connection pool
 	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(2)
+	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(10 * time.Minute)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 

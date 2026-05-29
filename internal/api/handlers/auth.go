@@ -181,8 +181,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	clearTokenCookies(w, r)
 
 	var req loginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -272,8 +271,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 // Register handles POST /api/v1/auth/register
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -435,6 +433,7 @@ type logoutRequest struct {
 // Logout handles POST /api/v1/auth/logout
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req logoutRequest
+	// Allow empty body — refresh token may be in cookie only
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
 	// Fall back to cookie if body didn't include refresh_token
@@ -643,7 +642,7 @@ func (h *AuthHandler) checkPerAccountRateLimit(email string) (bool, int64) {
 	var entry accountRateLimitEntry
 	err := h.bolt.Get("account_rl", email, &entry)
 	if err != nil {
-		if !errors.Is(err, core.ErrBoltNotFound) {
+		if !errors.Is(err, core.ErrKVNotFound) {
 			// Corrupted entry or unexpected bolt failure: fail open
 			// (treat as not locked) to avoid wedging legitimate
 			// logins, but surface it so operators notice.
@@ -673,7 +672,7 @@ func (h *AuthHandler) incrementPerAccountRateLimit(ctx context.Context, email st
 	// we cannot trust `entry`, so skip the write rather than reset a
 	// possibly-already-counted state to FailedCount=1.
 	err := h.bolt.Get("account_rl", email, &entry)
-	if err != nil && !errors.Is(err, core.ErrBoltNotFound) {
+	if err != nil && !errors.Is(err, core.ErrKVNotFound) {
 		// Corrupted entry or unexpected bolt failure: skip the write
 		// rather than reset a possibly-already-counted state, but
 		// surface it so the entry doesn't silently stop counting

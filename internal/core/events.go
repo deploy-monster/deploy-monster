@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -52,9 +53,10 @@ type EventBus struct {
 	asyncSem      chan struct{}  // semaphore bounding concurrent async handlers
 	asyncWG       sync.WaitGroup // tracks in-flight async handlers for graceful drain
 
-	// Metrics
-	publishCount int64
-	errorCount   int64
+	// Metrics — atomic so Publish need not take the write lock just to bump
+	// a counter while iterating the (already RLock-snapshotted) subscriptions.
+	publishCount atomic.Int64
+	errorCount   atomic.Int64
 }
 
 // NewEventBus creates a new EventBus with a bounded async worker pool.
@@ -146,9 +148,7 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 		event.Timestamp = time.Now()
 	}
 
-	eb.mu.Lock()
-	eb.publishCount++
-	eb.mu.Unlock()
+	eb.publishCount.Add(1)
 
 	for _, sub := range subs {
 		if sub.Async {
@@ -156,25 +156,43 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 			eb.asyncSem <- struct{}{} // acquire semaphore slot
 			eb.asyncWG.Add(1)
 			go func(s *Subscription) {
+				var slotReleased bool
 				defer eb.asyncWG.Done()
-				defer func() { <-eb.asyncSem }() // release slot
 				defer func() {
 					if r := recover(); r != nil {
-						eb.mu.Lock()
-						eb.errorCount++
-						eb.mu.Unlock()
+						eb.errorCount.Add(1)
 						eb.logger.Error("async event handler panicked",
 							"event", event.Type, "subscriber", s.ID,
 							"panic", fmt.Sprintf("%v", r))
 					}
+					// Release semaphore slot if not already released by retry logic.
+					if !slotReleased {
+						<-eb.asyncSem
+					}
 				}()
 				if err := s.handler(ctx, event); err != nil {
-					// Retry once after a short delay before giving up
-					time.Sleep(500 * time.Millisecond)
+					// Release the semaphore slot before sleeping so the pool stays
+					// responsive. A burst of failing handlers no longer blocks new
+					// publishes while waiting for the retry backoff.
+					<-eb.asyncSem
+					slotReleased = true
+
+					// Respect context cancellation during backoff.
+					select {
+					case <-time.After(500 * time.Millisecond):
+					case <-ctx.Done():
+						// Context cancelled; invoke error callback and abandon retry.
+						eb.errorCount.Add(1)
+						if eb.onError != nil {
+							eb.onError(event, s, ctx.Err())
+						}
+						return
+					}
+
+					// Re-acquire slot for the retry handler execution.
+					eb.asyncSem <- struct{}{}
 					if retryErr := s.handler(ctx, event); retryErr != nil {
-						eb.mu.Lock()
-						eb.errorCount++
-						eb.mu.Unlock()
+						eb.errorCount.Add(1)
 						if eb.onError != nil {
 							eb.onError(event, s, retryErr)
 						}
@@ -183,9 +201,7 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 			}(sub)
 		} else {
 			if err := sub.handler(ctx, event); err != nil {
-				eb.mu.Lock()
-				eb.errorCount++
-				eb.mu.Unlock()
+				eb.errorCount.Add(1)
 				if eb.onError != nil {
 					eb.onError(event, sub, err)
 				}
@@ -261,8 +277,8 @@ func (eb *EventBus) Stats() EventBusStats {
 	defer eb.mu.RUnlock()
 	return EventBusStats{
 		SubscriptionCount: len(eb.subscriptions),
-		PublishCount:      eb.publishCount,
-		ErrorCount:        eb.errorCount,
+		PublishCount:      eb.publishCount.Load(),
+		ErrorCount:        eb.errorCount.Load(),
 		AsyncPoolSize:     cap(eb.asyncSem),
 		AsyncPoolActive:   len(eb.asyncSem),
 	}
@@ -368,10 +384,10 @@ const (
 	EventInvoiceGenerated            = "invoice.generated"
 	EventPaymentReceived             = "payment.received"
 	EventPaymentFailed               = "payment.failed"
-	EventBillingSubscriptionUpdated  = "billing.subscription_updated"
-	EventBillingSubscriptionCanceled = "billing.subscription_canceled"
-	EventBillingCheckoutCompleted    = "billing.checkout_completed"
-	EventBillingUsageReported        = "billing.usage_reported"
+	EventBillingSubscriptionUpdated  = "billing.subscription.updated"
+	EventBillingSubscriptionCanceled = "billing.subscription.canceled"
+	EventBillingCheckoutCompleted    = "billing.checkout.completed"
+	EventBillingUsageReported        = "billing.usage.reported"
 
 	// Database
 	EventDatabaseCreated = "database.created"

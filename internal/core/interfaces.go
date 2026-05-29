@@ -396,8 +396,9 @@ type BoltBatchItem struct {
 	TTL    int64 // seconds, 0 = no expiry
 }
 
-// BoltStorer is the legacy interface name for JSON key-value operations.
-// The production implementation is SQLite-backed.
+// BoltStorer is the legacy interface name for the JSON key-value store.
+// Renaming to KVStorer is planned but deferred due to the large handler
+// surface that consumes this type. The production implementation is SQLite-backed.
 type BoltStorer interface {
 	Set(bucket, key string, value any, ttlSeconds int64) error
 	BatchSet(items []BoltBatchItem) error // write multiple keys in one transaction

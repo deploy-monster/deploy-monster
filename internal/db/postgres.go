@@ -410,9 +410,9 @@ func (p *PostgresDB) GetApp(ctx context.Context, id string) (*core.Application, 
 func (p *PostgresDB) UpdateApp(ctx context.Context, a *core.Application) error {
 	_, err := p.db.ExecContext(ctx,
 		`UPDATE applications SET name=$1, source_url=$2, branch=$3, dockerfile=$4,
-		 env_vars_enc=$5, labels_json=$6, replicas=$7, status=$8, updated_at=NOW() WHERE id=$9`,
+		 env_vars_enc=$5, labels_json=$6, replicas=$7, status=$8, server_id=$9, updated_at=NOW() WHERE id=$10`,
 		a.Name, a.SourceURL, a.Branch, a.Dockerfile,
-		a.EnvVarsEnc, a.LabelsJSON, a.Replicas, a.Status, a.ID,
+		a.EnvVarsEnc, a.LabelsJSON, a.Replicas, a.Status, a.ServerID, a.ID,
 	)
 	return err
 }
@@ -428,7 +428,7 @@ func (p *PostgresDB) ListAppsByTenant(ctx context.Context, tenantID string, limi
 
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
-		        status, replicas, created_at, updated_at
+		        status, replicas, COALESCE(server_id,''), created_at, updated_at
 		 FROM applications WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		tenantID, limit, offset,
 	)
@@ -441,7 +441,7 @@ func (p *PostgresDB) ListAppsByTenant(ctx context.Context, tenantID string, limi
 	for rows.Next() {
 		var a core.Application
 		if err := rows.Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType,
-			&a.SourceURL, &a.Branch, &a.Status, &a.Replicas, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			&a.SourceURL, &a.Branch, &a.Status, &a.Replicas, &a.ServerID, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		apps = append(apps, a)
@@ -452,7 +452,7 @@ func (p *PostgresDB) ListAppsByTenant(ctx context.Context, tenantID string, limi
 func (p *PostgresDB) ListAppsByProject(ctx context.Context, projectID string) ([]core.Application, error) {
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
-		        status, replicas, created_at, updated_at
+		        status, replicas, COALESCE(server_id,''), created_at, updated_at
 		 FROM applications WHERE project_id = $1 ORDER BY name LIMIT 1000`,
 		projectID,
 	)
@@ -465,7 +465,7 @@ func (p *PostgresDB) ListAppsByProject(ctx context.Context, projectID string) ([
 	for rows.Next() {
 		var a core.Application
 		if err := rows.Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType,
-			&a.SourceURL, &a.Branch, &a.Status, &a.Replicas, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			&a.SourceURL, &a.Branch, &a.Status, &a.Replicas, &a.ServerID, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, err
 		}
 		apps = append(apps, a)
@@ -538,7 +538,7 @@ func (p *PostgresDB) ListDeploymentsByStatus(ctx context.Context, status string)
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, app_id, version, image, container_id, status, commit_sha, commit_message,
 		        triggered_by, strategy, started_at, finished_at, created_at
-		 FROM deployments WHERE status = $1 ORDER BY created_at DESC`, status,
+		 FROM deployments WHERE status = $1 ORDER BY created_at DESC LIMIT 10000`, status,
 	)
 	if err != nil {
 		return nil, err
@@ -651,6 +651,158 @@ func (p *PostgresDB) AtomicNextDeployVersion(ctx context.Context, appID string) 
 	}
 
 	return nextVersion, nil
+}
+
+// CreateDeploymentAtomicVersion allocates the next version for d.AppID and
+// inserts the deployment row atomically. It takes the same per-app advisory
+// lock used by AtomicNextDeployVersion so the MAX(version) read and the insert
+// happen under exclusive serialization — no two concurrent deploys can claim
+// the same version. d.Version is set on return.
+func (p *PostgresDB) CreateDeploymentAtomicVersion(ctx context.Context, d *core.Deployment) error {
+	if d.ID == "" {
+		d.ID = core.GenerateID()
+	}
+	lockID := hashAppIDToLockID(d.AppID)
+
+	tx, err := p.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return fmt.Errorf("begin serializable tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, lockID); err != nil {
+		return fmt.Errorf("acquire advisory lock: %w", err)
+	}
+
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO deployments
+		   (id, app_id, version, image, container_id, status, build_log, commit_sha, commit_message, triggered_by, strategy, started_at)
+		 SELECT $1, $2, COALESCE(MAX(version), 0) + 1, $3, $4, $5, $6, $7, $8, $9, $10, $11
+		 FROM deployments WHERE app_id = $12
+		 RETURNING version`,
+		d.ID, d.AppID, d.Image, d.ContainerID, d.Status, d.BuildLog,
+		d.CommitSHA, d.CommitMessage, d.TriggeredBy, d.Strategy, d.StartedAt,
+		d.AppID,
+	).Scan(&d.Version)
+	if err != nil {
+		return fmt.Errorf("insert deployment with atomic version: %w", err)
+	}
+	return tx.Commit()
+}
+
+// GetUsersByIDs retrieves multiple users in a single query using $1, $2, ... placeholders.
+func (p *PostgresDB) GetUsersByIDs(ctx context.Context, ids []string) ([]core.User, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	// Build $1, $2, ... placeholders for IN clause
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	query := fmt.Sprintf(
+		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, totp_secret_enc, totp_backup_codes_json, last_login_at, created_at, updated_at
+		 FROM users WHERE id IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := p.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []core.User
+	for rows.Next() {
+		var u core.User
+		var totpSecret sql.NullString
+		var backupCodes sql.NullString
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.AvatarURL, &u.Status,
+			&u.TOTPEnabled, &totpSecret, &backupCodes, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		u.TOTPSecret = totpSecret.String
+		u.TOTPBackupCodes = decodeTOTPBackupCodes(backupCodes.String)
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// GetLatestDeploymentsByAppIDs retrieves the latest deployment for each app in a single query.
+// Returns a map from appID to its latest deployment (nil if no deployment found for that app).
+func (p *PostgresDB) GetLatestDeploymentsByAppIDs(ctx context.Context, appIDs []string) (map[string]*core.Deployment, error) {
+	if len(appIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, len(appIDs))
+	args := make([]any, len(appIDs))
+	for i, id := range appIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	query := fmt.Sprintf(
+		`SELECT d.id, d.app_id, d.version, d.image, d.container_id, d.status,
+		        d.commit_sha, d.commit_message, d.triggered_by, d.strategy,
+		        d.started_at, d.finished_at, d.created_at
+		 FROM deployments d
+		 INNER JOIN (
+		     SELECT app_id, MAX(version) as max_version
+		     FROM deployments
+		     WHERE app_id IN (%s)
+		     GROUP BY app_id
+		 ) latest ON d.app_id = latest.app_id AND d.version = latest.max_version`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := p.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string]*core.Deployment)
+	for rows.Next() {
+		var d core.Deployment
+		if err := rows.Scan(&d.ID, &d.AppID, &d.Version, &d.Image, &d.ContainerID, &d.Status,
+			&d.CommitSHA, &d.CommitMessage, &d.TriggeredBy, &d.Strategy,
+			&d.StartedAt, &d.FinishedAt, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		result[d.AppID] = &d
+	}
+	return result, rows.Err()
+}
+
+// ListDomainsByAppIDs retrieves domains for multiple apps in a single query.
+// Returns a map from appID to its domains.
+func (p *PostgresDB) ListDomainsByAppIDs(ctx context.Context, appIDs []string) (map[string][]core.Domain, error) {
+	if len(appIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, len(appIDs))
+	args := make([]any, len(appIDs))
+	for i, id := range appIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	query := fmt.Sprintf(
+		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
+		 FROM domains WHERE app_id IN (%s) ORDER BY created_at`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := p.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string][]core.Domain)
+	for rows.Next() {
+		var d core.Domain
+		if err := rows.Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider,
+			&d.DNSSynced, &d.Verified, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		result[d.AppID] = append(result[d.AppID], d)
+	}
+	return result, rows.Err()
 }
 
 // hashAppIDToLockID generates a stable int64 lock ID from an app ID string.

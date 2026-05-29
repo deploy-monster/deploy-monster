@@ -1057,26 +1057,28 @@ flowchart LR
     Webhook --> Verify["Signature Verification"]
     Verify --> Parse["parsePayload()"]
     Parse --> Emit["emit EventWebhookReceived"]
-    Emit --> Handler["WebhookAutoDeployHandler"]
-    Handler --> Lookup["KV GetWebhook()"]
-    Lookup --> Check["AutoDeploy && BranchFilter?"]
-    Check -->|image| ImageDeploy["triggerImageDeploy()"]
-    Check -->|git| GitBuild["triggerGitBuild(branch)"]
+    Emit --> Handler["DeployTriggerHandler.SubscribeWebhookDeploys"]
+    Handler --> Lookup["GetApp(webhookID as appID)"]
+    Lookup --> Check["git source && branch allowed && not frozen"]
+    Check --> GitBuild["deployGitApp(triggeredBy=webhook)"]
     GitBuild --> Builder["build.Builder.Build()"]
-    Builder --> Deploy["Deploy → Container Running"]
+    Builder --> Deploy["Create container, persist deployment"]
+    Deploy --> Discovery["Publish app.deployed → discovery syncRoutes"]
+    Discovery --> Route["Domain route live"]
 ```
 
 **Components:**
 - `internal/webhooks/receiver.go` — Inbound webhook endpoint, signature verification, payload parsing
-- `internal/api/router.go` — Wires inbound webhook receiver and delivery tracker
+- `internal/api/router.go` — Wires inbound webhook receiver, delivery tracker, and deploy trigger subscription
+- `internal/api/handlers/deploy_trigger.go` — Shared manual/webhook git build+deploy path, deployment persistence, old-container cleanup
 - `internal/api/handlers/event_webhooks.go` — Outbound event webhook CRUD API
 - `internal/api/handlers/webhook_rotate.go`, `webhook_test_delivery.go`, `webhook_logs.go`, `webhook_replay.go` — webhook operations
-- `internal/db/bolt.go` — `GetWebhook()` and `GetWebhookSecret()` for KV webhook storage
+- `internal/db/bolt.go` — legacy filename for SQLite-backed KV webhook secret storage
 
 **Branch Filter Patterns:**
-- Exact: `main`, `develop`
-- Glob prefix: `feature/*`, `release-*`
-- Multi-pattern: `main,develop,feature/*`
+- Current app-level webhook deploy uses exact branch matching against the app's
+  configured branch. Empty app branch or empty webhook branch does not block the
+  deploy.
 
 ---
 

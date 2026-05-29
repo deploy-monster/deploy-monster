@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -64,8 +63,7 @@ func (h *EnvironmentHandler) ApplyPreset(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		Environment string `json:"environment"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 

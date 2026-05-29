@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -133,6 +134,43 @@ func decodeTOTPBackupCodes(encoded string) []string {
 		return nil
 	}
 	return hashes
+}
+
+// GetUsersByIDs retrieves multiple users in a single query.
+func (s *SQLiteDB) GetUsersByIDs(ctx context.Context, ids []string) ([]core.User, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(ids))
+	placeholders = placeholders[:len(placeholders)-1]
+	query := fmt.Sprintf(
+		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, totp_secret_enc, totp_backup_codes_json, last_login_at, created_at, updated_at
+		 FROM users WHERE id IN (%s)`,
+		placeholders,
+	)
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []core.User
+	for rows.Next() {
+		var u core.User
+		var totpSecret sql.NullString
+		var backupCodes sql.NullString
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.AvatarURL, &u.Status,
+			&u.TOTPEnabled, &totpSecret, &backupCodes, &u.LastLoginAt, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		u.TOTPSecret = totpSecret.String
+		u.TOTPBackupCodes = decodeTOTPBackupCodes(backupCodes.String)
+		users = append(users, u)
+	}
+	return users, rows.Err()
 }
 
 // CountUsers returns the total number of users.

@@ -83,7 +83,7 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 		var cfg tenantRateLimitConfig
 		if err := trl.bolt.Get("tenant_ratelimit", tenantID, &cfg); err == nil && cfg.RequestsPerMinute > 0 {
 			rate = cfg.RequestsPerMinute
-		} else if err != nil && !errors.Is(err, core.ErrBoltNotFound) {
+		} else if err != nil && !errors.Is(err, core.ErrKVNotFound) {
 			// Corrupted config falls through to the default rate; surface
 			// it so operators notice instead of silently serving the
 			// default for what looks like a configured tenant.
@@ -101,7 +101,7 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 
 		var entry tenantRateLimitEntry
 		err := trl.bolt.Get("ratelimit", key, &entry)
-		if err != nil && !errors.Is(err, core.ErrBoltNotFound) {
+		if err != nil && !errors.Is(err, core.ErrKVNotFound) {
 			// Same fresh-window reset as a real miss; surface so a
 			// corrupted entry doesn't quietly let an attacker reset.
 			trl.log().Warn("tenant ratelimit read failed; resetting window",

@@ -45,8 +45,7 @@ func (h *LabelsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var labels map[string]string
-	if err := json.NewDecoder(r.Body).Decode(&labels); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body — expected JSON object")
+	if !decodeJSONInto(w, r, &labels) {
 		return
 	}
 

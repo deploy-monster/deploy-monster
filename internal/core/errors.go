@@ -19,13 +19,13 @@ var (
 	ErrInvalidToken  = errors.New("invalid token")
 	ErrUnavailable   = errors.New("unavailable")
 
-	// ErrBoltNotFound is returned by the legacy BoltStorer KV interface
+	// ErrKVNotFound is returned by the KV store interface (BoltStorer)
 	// when the key or bucket is missing. Distinct from ErrNotFound (which
 	// the SQL/PG store layer uses) so callers can tell "row missing" from
 	// "KV missing" — handlers that intentionally treat a missing KV
 	// entry as a fresh state can match this sentinel via errors.Is
 	// without false-positive matching every store-level miss.
-	ErrBoltNotFound = errors.New("bolt: key or bucket not found")
+	ErrKVNotFound = errors.New("bolt: key or bucket not found")
 )
 
 // AppError is a structured application error with an HTTP status code.

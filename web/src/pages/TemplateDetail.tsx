@@ -21,10 +21,12 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks';
 import { type Template } from '@/api/marketplace';
 import { marketplaceAPI } from '@/api/marketplace';
+import type { ServerNode } from '@/api/servers';
 import { generatedSecretEntries, formatGeneratedSecrets } from '@/lib/generatedSecrets';
 import { toast } from '@/stores/toastStore';
 
@@ -150,6 +152,8 @@ function PasswordInput({
 
 function DeployForm({ template, onDeployed }: { template: Template; onDeployed: (appId: string) => void }) {
   const [name, setName] = useState(template.slug);
+  const [domain, setDomain] = useState('');
+  const [serverID, setServerID] = useState('local');
   const [config, setConfig] = useState<Record<string, string>>(() => {
     const defaults: Record<string, string> = {};
     if (template.config_schema?.properties) {
@@ -164,6 +168,12 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
   const [generatedSecrets, setGeneratedSecrets] = useState<Record<string, string>>({});
   const [deployedAppId, setDeployedAppId] = useState('');
   const [credentialsReadyToLeave, setCredentialsReadyToLeave] = useState(false);
+  const { data: serversResp } = useApi<{ data: ServerNode[]; total: number } | ServerNode[]>('/servers');
+  const serverList = useMemo(
+    () => (Array.isArray(serversResp) ? serversResp : serversResp?.data || []),
+    [serversResp],
+  );
+  const remoteServers = serverList.filter((server) => server.id !== 'local');
 
   const configFields = useMemo(() => {
     if (!template.config_schema?.properties) return [];
@@ -193,7 +203,13 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
     setLoading(true);
     setError('');
     try {
-      const result = await marketplaceAPI.deploy({ slug: template.slug, name, config });
+      const result = await marketplaceAPI.deploy({
+        slug: template.slug,
+        name,
+        domain: domain.trim() || undefined,
+        server_id: serverID === 'local' ? undefined : serverID,
+        config,
+      });
       const secrets = result.generated_secrets || {};
       if (Object.keys(secrets).length > 0) {
         setGeneratedSecrets(secrets);
@@ -261,6 +277,37 @@ function DeployForm({ template, onDeployed }: { template: Template; onDeployed: 
           onChange={(e) => setName(e.target.value)}
           placeholder="my-app"
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="deploy-domain">Domain</Label>
+        <Input
+          id="deploy-domain"
+          type="text"
+          value={domain}
+          onChange={(e) => setDomain(e.target.value)}
+          placeholder="app.example.com"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Optional. Leave empty to add a domain later.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="deploy-server">Target Server</Label>
+        <Select
+          id="deploy-server"
+          value={serverID}
+          onChange={(e) => setServerID(e.target.value)}
+        >
+          <option value="local">Local server</option>
+          {remoteServers.map((server) => (
+            <option key={server.id} value={server.id} disabled={server.connected === false}>
+              {server.hostname || server.id}
+              {server.connected === false ? ' (agent disconnected)' : ''}
+            </option>
+          ))}
+        </Select>
       </div>
 
       {configFields.length > 0 && (

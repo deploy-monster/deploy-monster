@@ -69,7 +69,7 @@ func (s *SQLiteDB) ListAppsByTenant(ctx context.Context, tenantID string, limit,
 
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
-		        status, replicas, created_at, updated_at
+		        status, replicas, COALESCE(server_id,''), created_at, updated_at
 		 FROM applications WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
 		tenantID, limit, offset,
 	)
@@ -82,7 +82,7 @@ func (s *SQLiteDB) ListAppsByTenant(ctx context.Context, tenantID string, limit,
 	for rows.Next() {
 		var a core.Application
 		if err := rows.Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType,
-			&a.SourceURL, &a.Branch, &a.Status, &a.Replicas, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			&a.SourceURL, &a.Branch, &a.Status, &a.Replicas, &a.ServerID, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		apps = append(apps, a)
@@ -94,7 +94,7 @@ func (s *SQLiteDB) ListAppsByTenant(ctx context.Context, tenantID string, limit,
 func (s *SQLiteDB) ListAppsByProject(ctx context.Context, projectID string) ([]core.Application, error) {
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
-		        status, replicas, created_at, updated_at
+		        status, replicas, COALESCE(server_id,''), created_at, updated_at
 		 FROM applications WHERE project_id = ? ORDER BY name LIMIT 1000`,
 		projectID,
 	)
@@ -107,7 +107,7 @@ func (s *SQLiteDB) ListAppsByProject(ctx context.Context, projectID string) ([]c
 	for rows.Next() {
 		var a core.Application
 		if err := rows.Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType,
-			&a.SourceURL, &a.Branch, &a.Status, &a.Replicas, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			&a.SourceURL, &a.Branch, &a.Status, &a.Replicas, &a.ServerID, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, err
 		}
 		apps = append(apps, a)
@@ -120,9 +120,9 @@ func (s *SQLiteDB) UpdateApp(ctx context.Context, a *core.Application) error {
 	return s.Tx(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx,
 			`UPDATE applications SET name=?, source_url=?, branch=?, dockerfile=?,
-			 env_vars_enc=?, labels_json=?, replicas=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+			 env_vars_enc=?, labels_json=?, replicas=?, status=?, server_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
 			a.Name, a.SourceURL, a.Branch, a.Dockerfile,
-			a.EnvVarsEnc, a.LabelsJSON, a.Replicas, a.Status, a.ID,
+			a.EnvVarsEnc, a.LabelsJSON, a.Replicas, a.Status, a.ServerID, a.ID,
 		)
 		return err
 	})

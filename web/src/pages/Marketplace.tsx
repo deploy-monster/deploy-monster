@@ -18,6 +18,7 @@ import {
   Copy,
 } from 'lucide-react';
 import { marketplaceAPI, type Template, type MarketplaceResponse } from '@/api/marketplace';
+import type { ServerNode } from '@/api/servers';
 import { useApi } from '../hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -172,6 +173,8 @@ export function Marketplace() {
   const [category, setCategory] = useState('');
   const [deploying, setDeploying] = useState<Template | null>(null);
   const [deployName, setDeployName] = useState('');
+  const [deployDomain, setDeployDomain] = useState('');
+  const [deployServerID, setDeployServerID] = useState('local');
   const [deployConfig, setDeployConfig] = useState<Record<string, string>>({});
   const [deployLoading, setDeployLoading] = useState(false);
   const [deployError, setDeployError] = useState('');
@@ -186,8 +189,14 @@ export function Marketplace() {
   if (category) params.set('category', category);
 
   const { data: marketplaceData, loading } = useApi<MarketplaceResponse>(`/marketplace?${params}`);
+  const { data: serversResp } = useApi<{ data: ServerNode[]; total: number } | ServerNode[]>('/servers');
   const templates = useMemo(() => marketplaceData?.data || [], [marketplaceData?.data]);
   const categories = marketplaceData?.categories || [];
+  const serverList = useMemo(
+    () => (Array.isArray(serversResp) ? serversResp : serversResp?.data || []),
+    [serversResp],
+  );
+  const remoteServers = serverList.filter((server) => server.id !== 'local');
 
   const featuredTemplates = useMemo(() => templates.filter((t) => t.featured), [templates]);
 
@@ -230,6 +239,8 @@ export function Marketplace() {
       const result = await marketplaceAPI.deploy({
         slug: deploying.slug,
         name: deployName,
+        domain: deployDomain.trim() || undefined,
+        server_id: deployServerID === 'local' ? undefined : deployServerID,
         config: deployConfig,
       });
       const secrets = result.generated_secrets || {};
@@ -251,6 +262,8 @@ export function Marketplace() {
   const openDeploy = (t: Template) => {
     setDeploying(t);
     setDeployName(t.slug);
+    setDeployDomain('');
+    setDeployServerID('local');
     // Build default config from config_schema
     const defaults: Record<string, string> = {};
     if (t.config_schema?.properties) {
@@ -267,6 +280,8 @@ export function Marketplace() {
 
   const closeDeploy = () => {
     setDeploying(null);
+    setDeployDomain('');
+    setDeployServerID('local');
     setDeployError('');
     setDeployLoading(false);
     setGeneratedSecrets({});
@@ -477,6 +492,37 @@ export function Marketplace() {
                 <p className="text-[11px] text-muted-foreground">
                   Lowercase letters, numbers, and hyphens only.
                 </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="deploy-domain">Domain</Label>
+                <Input
+                  id="deploy-domain"
+                  type="text"
+                  value={deployDomain}
+                  onChange={(e) => setDeployDomain(e.target.value)}
+                  placeholder="app.example.com"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Optional. Leave empty to add a domain later.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="deploy-server">Target Server</Label>
+                <Select
+                  id="deploy-server"
+                  value={deployServerID}
+                  onChange={(e) => setDeployServerID(e.target.value)}
+                >
+                  <option value="local">Local server</option>
+                  {remoteServers.map((server) => (
+                    <option key={server.id} value={server.id} disabled={server.connected === false}>
+                      {server.hostname || server.id}
+                      {server.connected === false ? ' (agent disconnected)' : ''}
+                    </option>
+                  ))}
+                </Select>
               </div>
 
               {/* Dynamic config fields from config_schema */}

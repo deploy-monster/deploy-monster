@@ -378,6 +378,10 @@ paths:
                 branch:
                   type: string
                   default: main
+                server_id:
+                  type: string
+                  description: Target node id. Omit or use local for the local server.
+                  maxLength: 100
                 build_pack:
                   type: string
                   enum: [dockerfile, buildpacks, static, nixpacks]
@@ -434,6 +438,10 @@ paths:
                   type: string
                 branch:
                   type: string
+                server_id:
+                  type: string
+                  description: Target node id. Empty string clears remote placement.
+                  maxLength: 100
                 build_pack:
                   type: string
                 env_vars:
@@ -1100,17 +1108,29 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, compose]
+              required: [name, yaml]
               properties:
                 name:
                   type: string
-                compose:
+                yaml:
                   type: string
                   description: Raw docker-compose.yml content
+                server_id:
+                  type: string
+                  description: Optional target server ID. Omit or use local for the master node; use a connected agent/server ID for remote placement.
                 env_vars:
                   type: object
                   additionalProperties:
                     type: string
+                domain:
+                  type: string
+                  description: Optional FQDN to attach to the deployed stack.
+                domain_service:
+                  type: string
+                  description: Optional compose service name to route the domain to. Defaults to web/app/server, then a service with exposed ports.
+                domain_port:
+                  type: integer
+                  description: Optional target container port for the routed service. Defaults to the compose target port or 80.
       responses:
         "202":
           description: Stack deployment started
@@ -1968,10 +1988,22 @@ paths:
                   type: string
                 name:
                   type: string
+                server_id:
+                  type: string
+                  description: Optional target server ID. Omit or use local for the master node; use a connected agent/server ID for remote placement.
                 config:
                   type: object
                   additionalProperties:
                     type: string
+                domain:
+                  type: string
+                  description: Optional FQDN to create and route to the deployed template.
+                domain_service:
+                  type: string
+                  description: Optional compose service name to route the domain to.
+                domain_port:
+                  type: integer
+                  description: Optional target container port for the routed service.
       responses:
         "202":
           description: Deployment started
@@ -4658,6 +4690,8 @@ components:
           type: string
         replicas:
           type: integer
+        server_id:
+          type: string
         created_at:
           type: string
           format: date-time

@@ -60,7 +60,7 @@ func (h *WebhookRotateHandler) persistSecret(app *core.Application, secret strin
 	}
 
 	var rec webhookSecretRecord
-	if err := h.bolt.Get(webhookSecretsBucket, app.ID, &rec); err != nil && !errors.Is(err, core.ErrBoltNotFound) {
+	if err := h.bolt.Get(webhookSecretsBucket, app.ID, &rec); err != nil && !errors.Is(err, core.ErrKVNotFound) {
 		return err
 	}
 

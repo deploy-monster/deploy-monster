@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -51,8 +50,7 @@ func (h *ErrorPageHandler) Update(w http.ResponseWriter, r *http.Request) {
 	appID := app.ID
 
 	var cfg ErrorPageConfig
-	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &cfg) {
 		return
 	}
 

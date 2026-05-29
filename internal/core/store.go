@@ -48,6 +48,7 @@ type TenantStore interface {
 type UserStore interface {
 	CreateUser(ctx context.Context, user *User) error
 	GetUser(ctx context.Context, id string) (*User, error)
+	GetUsersByIDs(ctx context.Context, ids []string) ([]User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	UpdateUser(ctx context.Context, user *User) error
 	UpdatePassword(ctx context.Context, userID, passwordHash string) error
@@ -81,6 +82,7 @@ type DeploymentStore interface {
 	// row in the deployments table was permanently stuck in "deploying".
 	UpdateDeployment(ctx context.Context, dep *Deployment) error
 	GetLatestDeployment(ctx context.Context, appID string) (*Deployment, error)
+	GetLatestDeploymentsByAppIDs(ctx context.Context, appIDs []string) (map[string]*Deployment, error)
 	ListDeploymentsByApp(ctx context.Context, appID string, limit int) ([]Deployment, error)
 	// ListDeploymentsByStatus returns every deployment in the given status.
 	// Used by deploy.Module.Start to reclaim in-flight deployments left
@@ -90,7 +92,18 @@ type DeploymentStore interface {
 	// AtomicNextDeployVersion atomically allocates the next deployment version.
 	// SECURITY FIX (RACE-002): Uses database-level locking to prevent race conditions
 	// where concurrent requests could allocate the same version number.
+	//
+	// Deprecated for the deploy path: prefer CreateDeploymentAtomicVersion, which
+	// allocates the version AND inserts the row in one atomic step. Allocating a
+	// version here and inserting the row later leaves a window where a concurrent
+	// deploy reads the same MAX(version) before either row is written.
 	AtomicNextDeployVersion(ctx context.Context, appID string) (int, error)
+	// CreateDeploymentAtomicVersion allocates the next version for dep.AppID and
+	// inserts the deployment row in a single atomic operation, then sets dep.ID
+	// and dep.Version. This closes the allocate-then-insert race (RACE-002b):
+	// because the reserving row is written inside the same lock/statement that
+	// reads MAX(version), no two concurrent deploys can claim the same version.
+	CreateDeploymentAtomicVersion(ctx context.Context, dep *Deployment) error
 }
 
 // DomainStore manages domain CRUD.
@@ -99,6 +112,7 @@ type DomainStore interface {
 	GetDomain(ctx context.Context, id string) (*Domain, error)
 	GetDomainByFQDN(ctx context.Context, fqdn string) (*Domain, error)
 	ListDomainsByApp(ctx context.Context, appID string) ([]Domain, error)
+	ListDomainsByAppIDs(ctx context.Context, appIDs []string) (map[string][]Domain, error)
 	DeleteDomain(ctx context.Context, id string) error
 	DeleteDomainsByApp(ctx context.Context, appID string) (int, error)
 	ListAllDomains(ctx context.Context) ([]Domain, error)

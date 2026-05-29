@@ -29,6 +29,37 @@ func NewReceiver(store core.Store, bolt core.BoltStorer, events *core.EventBus, 
 	return &Receiver{store: store, bolt: bolt, events: events, logger: logger}
 }
 
+const (
+	// webhookDedupBucket holds recently-seen delivery keys for replay defense.
+	webhookDedupBucket = "webhook_dedup"
+	// webhookDedupTTLSeconds bounds the replay window; comfortably covers
+	// provider retry schedules (GitHub/GitLab retry within minutes).
+	webhookDedupTTLSeconds = 600
+)
+
+// deliveryDedupKey returns a stable per-webhook key identifying this delivery.
+// It prefers the provider's delivery-ID header and falls back to a SHA-256 of
+// the body. Returns "" when neither is available (nothing to dedup on).
+func deliveryDedupKey(webhookID string, body []byte, r *http.Request) string {
+	for _, h := range []string{
+		"X-GitHub-Delivery",
+		"X-Gitlab-Event-UUID",
+		"X-Gitea-Delivery",
+		"X-Gogs-Delivery",
+		"X-Hook-UUID", // Bitbucket
+		"X-Request-Id",
+	} {
+		if v := r.Header.Get(h); v != "" {
+			return webhookID + ":" + v
+		}
+	}
+	if len(body) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256(body)
+	return webhookID + ":" + hex.EncodeToString(sum[:])
+}
+
 // WebhookPayload is the parsed result of an inbound webhook.
 type WebhookPayload struct {
 	Provider  string `json:"provider"`
@@ -81,6 +112,27 @@ func (recv *Receiver) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			)
 			http.Error(w, `{"error":"invalid signature"}`, http.StatusUnauthorized)
 			return
+		}
+
+		// Replay protection: a delivery we have already processed (within the
+		// dedup window) is acked with 200 without re-triggering a build. Keyed
+		// on the provider delivery-ID when present, else a hash of the body,
+		// scoped to the webhook. Defends against captured-payload replay and
+		// duplicate provider retries.
+		if key := deliveryDedupKey(webhookID, body, r); key != "" {
+			var seen bool
+			if err := recv.bolt.Get(webhookDedupBucket, key, &seen); err == nil && seen {
+				recv.logger.Info("dropping duplicate webhook delivery",
+					"webhook_id", webhookID, "provider", provider)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(map[string]string{"status": "duplicate"})
+				return
+			}
+			if err := recv.bolt.Set(webhookDedupBucket, key, true, webhookDedupTTLSeconds); err != nil {
+				recv.logger.Warn("failed to record webhook delivery for dedup",
+					"webhook_id", webhookID, "error", err)
+			}
 		}
 	}
 
@@ -414,6 +466,19 @@ func VerifySignature(ctx context.Context, provider string, body []byte, secret s
 		}
 		return true
 	default:
-		return true // Generic / unknown — URL-based secret validated upstream
+		// Generic / unknown provider. There is no standard signature header,
+		// so honor an optional HMAC-SHA256 signature when the sender supplies
+		// one (X-Signature-256 or X-Hub-Signature-256). When present it MUST
+		// verify against the configured secret; when absent we fall back to the
+		// URL-embedded webhook ID as the bearer (validated upstream) so existing
+		// unsigned generic senders keep working. This makes signing opt-in
+		// without breaking the URL-ID-only contract.
+		if sig := r.Header.Get("X-Signature-256"); sig != "" {
+			return VerifyBitbucketSignature(body, secret, sig)
+		}
+		if sig := r.Header.Get("X-Hub-Signature-256"); sig != "" {
+			return VerifyBitbucketSignature(body, secret, sig)
+		}
+		return true
 	}
 }

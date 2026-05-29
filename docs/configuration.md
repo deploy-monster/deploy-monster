@@ -27,10 +27,25 @@ All environment variables use the `MONSTER_` prefix.
 | `MONSTER_DB_PATH` | `database.path` | `deploymonster.db` | SQLite database file path |
 | `MONSTER_DB_URL` | `database.url` | _(empty)_ | PostgreSQL connection URL (switches driver to postgres) |
 | `MONSTER_DOCKER_HOST` | `docker.host` | `unix:///var/run/docker.sock` | Docker daemon socket/host |
+| `MONSTER_BUILD_IMAGE_REGISTRY` | `docker.build_image_registry` | _(empty)_ | Registry/repository prefix for git build images used by remote agent deploys |
+| `MONSTER_BUILD_IMAGE_PUSH` | `docker.build_image_push` | `false` | Push built git images after Docker build; requires `docker.build_image_registry` |
+| `MONSTER_BUILD_REGISTRY_USERNAME` | `docker.build_registry_username` | _(empty)_ | Optional registry username for build/push auth |
+| `MONSTER_BUILD_REGISTRY_PASSWORD` | `docker.build_registry_password` | _(empty)_ | Optional registry password/token for build/push auth |
+| `MONSTER_MASTER_URL` | Agent env | _(empty)_ | Master URL used by `serve --agent` |
+| `MONSTER_JOIN_TOKEN` | `swarm.join_token` / Agent env | _(empty)_ | Shared token accepted by master and presented by agents |
+| `MONSTER_SERVER_ID` | Agent env | hostname | Stable server ID announced by an agent |
+| `MONSTER_MASTER_PORT` | Agent env | `8443` | Fallback master port when `MONSTER_MASTER_URL` has no port |
+| `MONSTER_AGENT_CERT_FILE` | `swarm.tls_cert_file` / Agent env | _(empty)_ | Agent mTLS client certificate file |
+| `MONSTER_AGENT_KEY_FILE` | `swarm.tls_key_file` / Agent env | _(empty)_ | Agent mTLS client private key file |
+| `MONSTER_AGENT_CA_FILE` | `swarm.tls_ca_cert_file` / Agent env | _(empty)_ | CA file used by the agent to verify the master certificate |
 | `MONSTER_ACME_EMAIL` | `acme.email` | _(empty)_ | Email for Let's Encrypt certificate registration |
 | `MONSTER_REGISTRATION_MODE` | `registration.mode` | `open` | User registration mode (see below) |
 | `MONSTER_LOG_LEVEL` | `server.log_level` | `info` | Log level (debug, info, warn, error) |
 | `MONSTER_LOG_FORMAT` | `server.log_format` | `text` | Log format: `text` (human-readable) or `json` (structured) |
+| `MONSTER_HETZNER_TOKEN` | `vps_providers.hetzner_token` | _(empty)_ | Hetzner Cloud API token |
+| `MONSTER_DIGITALOCEAN_TOKEN` | `vps_providers.digitalocean_token` | _(empty)_ | DigitalOcean API token |
+| `MONSTER_VULTR_TOKEN` | `vps_providers.vultr_token` | _(empty)_ | Vultr API token |
+| `MONSTER_LINODE_TOKEN` | `vps_providers.linode_token` | _(empty)_ | Linode API token |
 | `MONSTER_ADMIN_EMAIL` | — | Auto-generated `admin-<random>@deploymonster.local` | Initial admin email (first-run setup only) |
 | `MONSTER_ADMIN_PASSWORD` | — | _(auto-generated and logged once)_ | Initial admin password (first-run setup only) |
 
@@ -97,6 +112,10 @@ docker:
   host: "unix:///var/run/docker.sock"  # Docker socket or TCP host
   api_version: ""            # Docker API version override
   tls_verify: false          # Verify TLS for TCP connections
+  build_image_registry: ""   # Optional; e.g. ghcr.io/acme/deploymonster
+  build_image_push: false    # Requires build_image_registry when true
+  build_registry_username: "" # Optional; prefer env vars for credentials
+  build_registry_password: "" # Optional; prefer MONSTER_BUILD_REGISTRY_PASSWORD
 ```
 
 ### backup
@@ -132,14 +151,39 @@ swarm:
   enabled: false             # Enable Docker Swarm mode
   manager_ip: ""             # Swarm manager IP address
   join_token: ""             # Swarm join token for workers
+  tls_cert_file: ""          # Optional agent mTLS client certificate
+  tls_key_file: ""           # Optional agent mTLS client private key
+  tls_ca_cert_file: ""       # Optional CA file for verifying the master
 ```
+
+Agent nodes run the same binary in `serve --agent` mode. For systemd installs, prefer the installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh \
+  | bash -s -- --agent \
+      --master=http://MASTER_HOST:8443 \
+      --token=JOIN_TOKEN \
+      --server-id=worker-1
+```
+
+The installer writes `MONSTER_MASTER_URL`, `MONSTER_JOIN_TOKEN`, and optional `MONSTER_SERVER_ID` into `/etc/deploymonster/deploymonster.env`.
+In agent mode, explicit CLI flags and agent env vars win. If `--token`,
+`--agent-cert`, `--agent-key`, or `--agent-ca` are omitted, `serve --agent`
+falls back to these `swarm.*` config values.
 
 ### vps_providers
 
 ```yaml
 vps_providers:
   enabled: false             # Enable VPS provisioning
+  hetzner_token: ""          # Prefer MONSTER_HETZNER_TOKEN
+  digitalocean_token: ""     # Prefer MONSTER_DIGITALOCEAN_TOKEN
+  vultr_token: ""            # Prefer MONSTER_VULTR_TOKEN
+  linode_token: ""           # Prefer MONSTER_LINODE_TOKEN
 ```
+
+Only providers with a configured token are registered for provisioning.
+The `custom` provider is always available for existing servers.
 
 ### git_sources
 

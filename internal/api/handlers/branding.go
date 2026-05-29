@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -30,8 +29,7 @@ func (h *BrandingHandler) Get(w http.ResponseWriter, _ *http.Request) {
 // Updates platform-level branding (super admin only).
 func (h *BrandingHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var b enterprise.Branding
-	if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &b) {
 		return
 	}
 

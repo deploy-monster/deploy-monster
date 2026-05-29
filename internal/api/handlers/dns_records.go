@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -58,8 +57,7 @@ func (h *DNSRecordHandler) List(w http.ResponseWriter, r *http.Request) {
 // Create handles POST /api/v1/dns/records
 func (h *DNSRecordHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var record core.DNSRecord
-	if err := json.NewDecoder(r.Body).Decode(&record); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &record) {
 		return
 	}
 

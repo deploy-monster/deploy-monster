@@ -10,6 +10,7 @@ export interface App {
   source_url: string;
   branch: string;
   status: string;
+  server_id?: string;
   replicas: number;
   created_at: string;
   updated_at: string;
@@ -30,6 +31,7 @@ interface CreateAppRequest {
   source_url?: string;
   branch?: string;
   project_id?: string;
+  server_id?: string;
 }
 
 interface UpdateAppRequest {
@@ -37,6 +39,7 @@ interface UpdateAppRequest {
   source_url?: string;
   branch?: string;
   dockerfile?: string;
+  server_id?: string;
   replicas?: number;
 }
 
