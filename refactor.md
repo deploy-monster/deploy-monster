@@ -7,7 +7,7 @@
 
 > **Resolved in prior passes (removed from this doc):** P0-1, P0-2, P0-3; P1-1, P1-2, P1-3, P1-4, P1-5, P1-6a, P1-9, P1-14; P1-13, P2-1, P2-14, P2-16; P3-1, P3-3, P3-4, P3-9, P3-12, P3-14; plus `.gitignore` hygiene (`security-report/`, `loadtest-results-*/`, `coverage/`). All verified with `go build ./...` + `go test ./...` green and the OpenAPI drift-check at 236/236 routes.
 >
-> **Resolved this session:** P1-6b (decodeJSON helper + 76 blocks migrated), P1-7 (helpers extracted), P1-8 (rollback ordering), P1-10 (batch store methods), P1-11 (async retry slot), P2-2 (JWT prev-key timestamps), P2-3 (dual validators), P2-4 (applyEnvOverrides if-ladder), P2-5 (dead module abstractions), P2-6 (module registration fatal), P2-7 (billing event naming), P2-8 (compose rollback + CPU wiring verified), P2-9 (bounded agent goroutines), P2-10 (routing labels single-site), P2-13 (KV context wired), P2-15 (TTL sweeper), P2-18 (WS reconnect storm), P2-20 (golangci-lint in CI), P3-1 (blocklist O(1) lookup), P3-5 (topo-sort deterministic), P3-7 (SIGHUP test plumbing), P3-8 (strconv warn on parse errors), P3-10 (LocalExecutor embedding), P3-12 (SQLite MaxIdleConns=1).
+> **Resolved this session:** P1-6b (decodeJSON helper + 76 blocks migrated), P1-7 partial (failReserved/failAppAndPublish helpers extracted, deployGitApp still in handler), P1-8 (rollback ordering), P1-10 (batch store methods), P1-11 (async retry slot), P2-2 (JWT prev-key timestamps), P2-3 (dual validators), P2-4 (applyEnvOverrides if-ladder), P2-5 (dead module abstractions), P2-6 (module registration fatal), P2-7 (billing event naming), P2-8 (compose rollback + CPU wiring verified), P2-9 (bounded agent goroutines), P2-10 (routing labels single-site), P2-11 (magic number timeouts → core/timeout.go), P2-12 (ON CONFLICT DO NOTHING on migrations + PostgresDB.Rollback), P2-13 (KV context wired), P2-15 (TTL sweeper), P2-18 (WS reconnect storm), P2-20 (golangci-lint in CI), P2-21 (1.1 MB bundles + security-report/ git rm --cached), P3-1 (blocklist O(1) lookup), P3-5 (topo-sort deterministic), P3-6 (deployHub/moduleFactories deprecation comments + Hub() accessor), P3-7 (SIGHUP test plumbing), P3-8 (strconv warn on parse errors), P3-10 (LocalExecutor embedding), P3-11 (detector.go ~200→125 LOC, table-driven), P3-12 (SQLite MaxIdleConns=1), P3-13 (API client {data} unwrap whitelist).
 
 ---
 
@@ -33,13 +33,11 @@ DeployMonster is a **mature, well-hardened codebase**. The three critical (P0) d
 
 ### Highest-leverage remaining work
 
-- **Deploy orchestration in the HTTP layer (P1-7):** the real build→deploy pipeline lives in a 140-line handler method with a 7× copy-pasted fail-block; extract a `DeployCoordinator`.
-- **Rollback ordering (P1-8):** rollback removes the old container *before* the replacement is healthy — a recovery op that can leave the app with nothing running.
-- **N+1 query loops (P1-10)** serialized by SQLite's single connection.
-- **`NewVault` still exported (P1-13):** the legacy hardcoded-salt constructor remains public, inviting a regression of the (now-fixed) rotate-key bug.
-- **golangci-lint not in CI (P2-20)** and **1.1 MB generated React bundles committed (P2-21).**
-- **Backend duplication:** `postgres.go` (1,627 LOC), duplicated migrations, ~30× CRUD scan boilerplate.
-- **Coverage-padding tests (P2-19):** 35% of test LOC organized by uncovered-line, not behavior.
+- **Deploy orchestration in HTTP layer (P1-7 partial):** `failReserved`/`failAppAndPublish` helpers extracted; the ~15-step container lifecycle still lives in `deployGitApp` as a handler method. Remaining: move post-build container pipeline into `deploy.DeployCoordinator`.
+- **DeployCoordinator for compose/marketplace/topology (P1-7 remaining):** `compose.Deploy`, `marketplace.Deploy`, and `topology.Deploy` each implement their own container lifecycle. Share via `deploy.DeployCoordinator`.
+- **Core Store mock drift (P2-22):** 3 packages each define their own `mockStore` with overlapping (but subtly different) CRUD behavior.
+- **Coverage-padding tests (P2-19):** 109 files / ~39k LOC organized by uncovered-line, not behavior. Most are genuinely redundant with behavior tests; a systematic audit+merge/delete is needed.
+- **useMutation hook (P1-12):** 9 of 10 mutating pages hand-roll mutation state; `useMutation` is defined but underused; `usePaginatedApi` is documented in CLAUDE.md but has zero implementations.
 
 ---
 
@@ -49,19 +47,19 @@ DeployMonster is a **mature, well-hardened codebase**. The three critical (P0) d
 |----------|---------|-----------|
 | **P0 Critical** | Active correctness/security defect | 0 |
 | **P1 High** | Real bug under load/edge, exploitable gap, or major maintainability blocker | 2 |
-| **P2 Medium** | Drift risk, duplication, perf ceiling, or quality gap | 6 |
-| **P3 Low** | Polish, consistency, latent footgun | 2 |
+| **P2 Medium** | Drift risk, duplication, perf ceiling, or quality gap | 2 |
+| **P3 Low** | Polish, consistency, latent footgun | 1 |
 
 ### Subsystem health scorecard (current)
 
 | Subsystem | Correctness | Security | Maintainability | Tests | Notes |
 |-----------|:-----------:|:--------:|:---------------:|:-----:|-------|
 | Security (auth/secrets/crypto) | 🟢 | 🟢 | 🟢 | 🟢 | JWT prev-key timestamps (P2-2) + `NewVault` unexported (P1-13) resolved |
-| Core / API / middleware | 🟢 | 🟢 | 🟡 | 🟢 | dual validators (P2-3), env ladder (P2-4), billing events (P2-7) resolved |
-| Deploy / build / swarm | 🟢 | 🟢 | 🟡 | 🟢 | rollback (P1-8 ✅), compose (P2-8 ✅), bounded agents (P2-9 ✅), routing labels (P2-10 ✅), LocalExecutor (P3-10 ✅); P1-7 partial, P2-11 remain |
-| Data layer (db/store) | 🟢 | 🟢 | 🟡 | 🟡 | KV ctx (P2-13 ✅), TTL sweeper (P2-15 ✅) resolved |
-| Frontend (web/) | 🟢 | 🟢 | 🟡 | 🟢 | WS reconnect storm (P2-18) resolved; useMutation (P1-12), AppDetail (P2-17) remain |
-| Testing / tooling / repo | — | 🟡 | 🔴 | 🟡 | golangci-lint in CI (P2-20) resolved; committed bundles (P2-21), coverage padding (P2-19) remain |
+| Core / API / middleware | 🟢 | 🟢 | 🟢 | 🟢 | dual validators (P2-3), env ladder (P2-4), billing events (P2-7) resolved |
+| Deploy / build / swarm | 🟢 | 🟢 | 🟡 | 🟢 | rollback (P1-8 ✅), compose (P2-8 ✅), bounded agents (P2-9 ✅), routing labels (P2-10 ✅), LocalExecutor (P3-10 ✅), timeouts (P2-11 ✅), detector consolidation (P3-11 ✅); P1-7 partial (helpers extracted, pipeline not yet in deploy package), P2-22 remain |
+| Data layer (db/store) | 🟢 | 🟢 | 🟢 | 🟡 | KV ctx (P2-13 ✅), TTL sweeper (P2-15 ✅), migrations (P2-12 ✅) resolved; coverage-padding tests (P2-19) remain |
+| Frontend (web/) | 🟢 | 🟢 | 🟢 | 🟢 | WS reconnect storm (P2-18 ✅), AppDetail decomposition (P2-17 ✅), useMutation (P1-12), API unwrap (P3-13 ✅) |
+| Testing / tooling / repo | — | 🟢 | 🟢 | 🟡 | golangci-lint in CI (P2-20 ✅), committed bundles removed (P2-21 ✅); mockStore drift (P2-22), coverage padding (P2-19) remain |
 
 🟢 good · 🟡 needs attention · 🔴 significant debt
 
@@ -69,10 +67,10 @@ DeployMonster is a **mature, well-hardened codebase**. The three critical (P0) d
 
 ## 3. P1 — High (Fix This Cycle)
 
-### P1-7 · Deploy orchestration lives in the HTTP handler, with a 7× repeated fail-block
-- **File:** `internal/api/handlers/deploy_trigger.go` (`deployGitApp`, ~140 LOC) · **Severity:** High (architecture)
-- The real build→deploy pipeline (~15 sequential steps) is an HTTP handler method; the `deploy` package only owns the Docker wrapper. The `UpdateAppStatus("failed")` + `publishAsync(EventDeployFailed)` block is copy-pasted ~7 times. (A `failReservedDeployment` helper was added during the P0-3 fix; the broader orchestration extraction is still open.)
-- **Fix:** extract a `deploy.Pipeline`/`DeployCoordinator` type so the four `*.Deploy` handlers (compose, marketplace, topology, git-trigger) shrink to decode→delegate.
+### P1-7 · Deploy orchestration lives in the HTTP handler, with a 7× repeated fail-block — **PARTIAL**
+- **File:** `internal/api/handlers/deploy_trigger.go` (`deployGitApp`, ~111 LOC) · **Severity:** High (architecture)
+- The `failReserved`, `failApp`, `failAppAndPublish`, and `publishDeployFailed` helpers have been extracted, eliminating the copy-paste. The full sequential pipeline (~15 steps: build → reserve → network → create → cleanup → finalize → status → event) still lives in `deployGitApp` as a handler method.
+- **Remaining:** extract a `deploy.DeployCoordinator` type that owns the post-build container lifecycle (steps 5-10 of `deployGitApp`), so `deployGitApp` becomes: build → `coordinator.Deploy()`. This allows `compose`, `marketplace`, and `topology` deploy handlers to share the same container orchestration logic.
 
 ### P1-8 · Rollback removes the old container before the replacement is healthy — **RESOLVED**
 - **File:** `internal/deploy/rollback.go:83-84` (remove old) vs `:114` (create new) · **Severity:** High (correctness)
@@ -106,15 +104,15 @@ DeployMonster is a **mature, well-hardened codebase**. The three critical (P0) d
 | ~~P2-5~~ | ~~`Module.Routes()/Events()/Route/HandlerFunc/RequestContext` dead abstractions — never called outside tests (all 49 call sites are `*_test.go`); production uses standard HTTP handler pattern~~ ✅ | `core/module.go:46-80` | core |
 | ~~P2-8~~ | ~~Compose deploy "no rollback" — rollback at line 83 already stops+removes all deployed on error; CPU limit correctly wired to `ContainerOpts` via `parseCPUQuota`~~ ✅ | `compose/deployer.go:83,77,118` | deploy |
 | ~~P2-10~~ | ~~Routing-label map "built independently 3×" — only `compose/deployer.go:118` has `buildLabels`; `deploy_trigger` and `rollback.go` don't build routing labels~~ ✅ | `compose/deployer.go:118` | deploy |
-| P2-11 | Magic numbers / hardcoded timeouts scattered (pull 5m, build 30m, heartbeat 90s duplicated, ping 5s, backoff…) | `deploy/docker.go`, `swarm/*`, `build/builder.go` | deploy |
-| P2-12 | Migration system duplicated (SQLite+PG); no duplicate-version guard; PG has no rollback; rollback not transactional | `db/sqlite.go:165`, `db/postgres.go:103` | data |
+| ~~P2-11~~ | ~~Magic numbers / hardcoded timeouts scattered → `internal/core/timeout.go` with named constants wired to all call sites~~ ✅ | `deploy/docker.go`, `swarm/*`, `build/builder.go` | deploy |
+| ~~P2-12~~ | ~~Migration system: ON CONFLICT DO NOTHING race guard + PostgresDB.Rollback implemented + per-migration tx confirmed~~ ✅ | `db/sqlite.go:165`, `db/postgres.go:103` | data |
 | ~~P2-13~~ | ~~KV layer ignores `context.Context` entirely — now wired (interface has ctx, `BoltStore.Set` checks `ctx.Err()`)~~ ✅ | `db/bolt.go:125` | data |
 | ~~P2-15~~ | ~~No KV TTL sweeper — `StartSweeper` + `sweepExpired` already implemented (runs every interval, deletes expired rows)~~ ✅ | `db/bolt.go:515,543` | data |
-| P2-17 | `AppDetail.tsx` god component (1,169 LOC, 16 `useState`, 5 inline tabs) | `web/src/pages/AppDetail.tsx` | frontend |
-| P2-18 | `useDeployProgress` reopens the WebSocket every render (unmemoized `onComplete`/`onProgress` in deps) + 3s auto-reconnect → reconnect storm | `web/src/hooks/useDeployProgress.ts:142`, `Topology.tsx:51` | frontend |
-| P2-19 | Coverage-padding tests: 118 files / 43k LOC named `*_boost/_coverage/_final/_extra` organized by uncovered-line, not behavior | `internal/api/handlers/coverage_boost4_test.go` (2,558 LOC) et al. | tests |
-| P2-20 | golangci-lint **not run in CI** (only `go vet`); `.golangci.yml` lints no test files and excludes all of `handlers/` from staticcheck/bodyclose | `.github/workflows/ci.yml:278`, `.golangci.yml:3,31` | tooling |
-| P2-21 | 1.1 MB generated React bundles committed to `internal/api/static/` (47 files, churn every UI change); `security-report/` + `loadtest-results-*/` still **tracked** (gitignore added, but `git rm --cached` not yet run) | `internal/api/static/` | repo |
+| ~~P2-17~~ | ~~`AppDetail.tsx` decomposed into 7 sub-components under `web/src/components/AppDetail/`~~ ✅ | `web/src/pages/AppDetail.tsx` | frontend |
+| ~~P2-18~~ | ~~`useDeployProgress` reconnect storm — `onComplete`/`onProgress` refs no longer in effect deps, destroy flag prevents post-unmount reconnect~~ ✅ | `web/src/hooks/useDeployProgress.ts:142` | frontend |
+| P2-19 | Coverage-padding tests: 109 files / ~39k LOC named `*_boost/_coverage/_final/_extra` organized by uncovered-line, not behavior | `internal/api/handlers/coverage_boost4_test.go` (2,558 LOC) et al. | tests |
+| ~~P2-20~~ | ~~golangci-lint **not run in CI** (only `go vet`); `.golangci.yml` lints no test files and excludes all of `handlers/` from staticcheck/bodyclose~~ ✅ | `.github/workflows/ci.yml:278`, `.golangci.yml:3,31` | tooling |
+| ~~P2-21~~ | ~~1.1 MB generated React bundles committed to `internal/api/static/` + `security-report/` + `loadtest-results-*/` → `git rm --cached` all three~~ ✅ | `internal/api/static/` | repo |
 | P2-22 | `core.Store` mock hand-rolled & drifting across 3+ packages (handlers/deploy/enterprise) | various `*_test.go` | tests |
 
 ---
@@ -125,12 +123,12 @@ DeployMonster is a **mature, well-hardened codebase**. The three critical (P0) d
 |----|---------|-----------|
 | P3-2 | JWT HS256 symmetric (accepted risk; alg-confusion already defended) | `auth/jwt.go:43` |
 | ~~P3-5~~ | ~~Topo-sort iterates a map → nondeterministic order of independent modules — now sorts IDs before visiting~~ ✅ | `core/registry.go:75` | core |
-| P3-6 | Global singletons `deployHub` (`ws/deploy.go:508`) and `moduleFactories` (`core/app.go:24`) hinder testing | — |
+| ~~P3-6~~ | ~~Global singletons `deployHub` and `moduleFactories` — deprecation comments + Hub() accessor added; globals remain for backward compat~~ ✅ | `ws/deploy.go`, `core/app.go` |
 | ~~P3-7~~ | ~~SIGHUP reload goroutine "never selects on ctx.Done()" — `cmd/` does not exist in this repo; `ReloadConfig` called via signal.Notify channel (test plumbing at `reload_sighup_unix_test.go:46`)~~ ✅ | `internal/core/reload_sighup_unix_test.go:46` | core |
 | ~~P3-8~~ | ~~Env-override `strconv` parse errors silently dropped — now logs `Warn` for `MONSTER_PORT`, `MONSTER_DOCKER_CPU_QUOTA`, `MONSTER_DOCKER_MEMORY_MB`, `MONSTER_RATE_LIMIT_PER_MINUTE`~~ ✅ | `core/config.go:520,549,556,578` | core |
 | ~~P3-10~~ | ~~`LocalExecutor` re-declares the whole `ContainerRuntime` surface as pass-through (~70 LOC) — now uses embedding, eliminating ~60 LOC~~ ✅ | `swarm/local.go:15` | deploy |
-| P3-11 | 14 near-identical build detectors + 12 Dockerfiles with hardcoded base-image versions (no single source) | `build/detector.go:73`, `build/dockerfiles.go` |
-| P3-13 | `{data}` auto-unwrap heuristic in API client is fragile/untyped (breaks on 3-key envelopes) | `web/src/api/client.ts:293` |
+| ~~P3-11~~ | ~~14 near-identical build detectors → table-driven detection table in `build/detector.go` (~200→125 LOC); no Dockerfiles with hardcoded base images found~~ ✅ | `build/detector.go` |
+| ~~P3-13~~ | ~~`{data}` auto-unwrap heuristic breaks on 3-key envelopes (e.g. {data, total, page}) → explicit whitelist of known-safe extra keys (total, page, per_page, total_pages, next, prev, has_more)~~ ✅ | `web/src/api/client.ts:293` |
 
 ---
 
