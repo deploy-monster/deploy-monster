@@ -181,7 +181,7 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 					select {
 					case <-time.After(500 * time.Millisecond):
 					case <-ctx.Done():
-						// Context cancelled; invoke error callback and abandon retry.
+						// Context canceled; invoke error callback and abandon retry.
 						eb.errorCount.Add(1)
 						if eb.onError != nil {
 							eb.onError(event, s, ctx.Err())

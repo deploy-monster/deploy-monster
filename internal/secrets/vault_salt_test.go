@@ -72,7 +72,7 @@ func TestNewVaultWithSalt_EmptySaltFallsBackToLegacy(t *testing.T) {
 	// Defensive: nil/empty salt should degrade to legacy salt so
 	// callers can't accidentally construct an unkeyed vault.
 	v := NewVaultWithSalt("key", nil)
-	legacy := NewVault("key")
+	legacy := NewVaultWithSalt("key", LegacyVaultSalt())
 
 	ct, err := legacy.Encrypt("round-trip")
 	if err != nil {
@@ -262,7 +262,7 @@ func TestResolveVaultSalt_LegacyUpgrade_FlagsMigration(t *testing.T) {
 func TestMigrateLegacyVault_ReEncryptsAllVersions(t *testing.T) {
 	// Seed the store with a version encrypted under the legacy salt.
 	const master = "reencrypt-master"
-	legacy := NewVault(master)
+	legacy := NewVaultWithSalt(master, LegacyVaultSalt())
 	ct, err := legacy.Encrypt("original-plaintext")
 	if err != nil {
 		t.Fatalf("legacy encrypt: %v", err)
@@ -316,7 +316,7 @@ func TestMigrateLegacyVault_IdempotentOnRestart(t *testing.T) {
 	// Simulate: legacy boot → migration runs → second boot must not
 	// re-migrate because the persisted salt is now present.
 	const master = "idempotent-master"
-	legacy := NewVault(master)
+	legacy := NewVaultWithSalt(master, LegacyVaultSalt())
 	ct, _ := legacy.Encrypt("payload")
 
 	bolt := newFakeBolt()
@@ -361,7 +361,7 @@ func TestMigrateLegacyVault_ListError(t *testing.T) {
 func TestMigrateLegacyVault_UpdateError(t *testing.T) {
 	bolt := newFakeBolt()
 	// Create a version encrypted with legacy vault
-	legacy := NewVault("test-master-secret")
+	legacy := NewVaultWithSalt("test-master-secret", LegacyVaultSalt())
 	enc, _ := legacy.Encrypt("my-secret")
 	store := &fakeStore{
 		versions: []core.SecretVersion{{ID: "v1", ValueEnc: enc}},
@@ -379,7 +379,7 @@ func TestMigrateLegacyVault_PersistSaltError(t *testing.T) {
 	bolt := newFakeBolt()
 	bolt.err = errors.New("bolt write failed")
 
-	legacy := NewVault("test-master-secret")
+	legacy := NewVaultWithSalt("test-master-secret", LegacyVaultSalt())
 	enc, _ := legacy.Encrypt("my-secret")
 	store := &fakeStore{
 		versions: []core.SecretVersion{{ID: "v1", ValueEnc: enc}},

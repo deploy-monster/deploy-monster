@@ -55,7 +55,7 @@ export function useDeployProgress({
   const [result, setResult] = useState<TopologyDeployResponse | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const reset = useCallback(() => {
     setStatus('idle');

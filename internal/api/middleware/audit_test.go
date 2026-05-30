@@ -98,6 +98,18 @@ func (s *auditMockStore) GetNextDeployVersion(_ context.Context, _ string) (int,
 func (s *auditMockStore) AtomicNextDeployVersion(_ context.Context, _ string) (int, error) {
 	return 1, nil
 }
+func (s *auditMockStore) CreateDeploymentAtomicVersion(_ context.Context, _ *core.Deployment) error {
+	return nil
+}
+func (s *auditMockStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) {
+	return nil, nil
+}
+func (s *auditMockStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) {
+	return nil, nil
+}
+func (s *auditMockStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) {
+	return nil, nil
+}
 
 func (s *auditMockStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
 func (s *auditMockStore) GetDomain(_ context.Context, _ string) (*core.Domain, error) {

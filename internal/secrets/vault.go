@@ -66,6 +66,12 @@ func newLegacyVault(masterSecret string) *Vault {
 	return NewVaultWithSalt(masterSecret, LegacyVaultSalt())
 }
 
+// NewVault creates a Vault for use in tests. Uses a fixed deterministic salt
+// so encrypted values are reproducible across test runs. NOT for production use.
+func NewVault(masterSecret string) *Vault {
+	return NewVaultWithSalt(masterSecret, LegacyVaultSalt())
+}
+
 // NewVaultWithSalt creates a vault with an explicit Argon2id salt.
 // The salt is persisted per deployment so two installs sharing the
 // same master secret end up with different AES keys — an attacker

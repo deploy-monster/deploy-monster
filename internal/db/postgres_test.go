@@ -774,7 +774,7 @@ func TestPostgresDB_UpdateApp_Success(t *testing.T) {
 	}
 	mock.ExpectExec("UPDATE applications SET").
 		WithArgs(app.Name, app.SourceURL, app.Branch, app.Dockerfile,
-			app.EnvVarsEnc, app.LabelsJSON, app.Replicas, app.Status, app.ID).
+			app.EnvVarsEnc, app.LabelsJSON, app.Replicas, app.Status, app.ServerID, app.ID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	if err := pg.UpdateApp(context.Background(), app); err != nil {
@@ -787,7 +787,7 @@ func TestPostgresDB_UpdateApp_Error(t *testing.T) {
 	app := &core.Application{ID: "a1", Name: "updated", Branch: "dev", Replicas: 2, Status: "running"}
 	mock.ExpectExec("UPDATE applications SET").
 		WithArgs(app.Name, app.SourceURL, app.Branch, app.Dockerfile,
-			app.EnvVarsEnc, app.LabelsJSON, app.Replicas, app.Status, app.ID).
+			app.EnvVarsEnc, app.LabelsJSON, app.Replicas, app.Status, app.ServerID, app.ID).
 		WillReturnError(errors.New("update fail"))
 
 	if err := pg.UpdateApp(context.Background(), app); err == nil {
@@ -806,10 +806,10 @@ func TestPostgresDB_ListAppsByTenant_Success(t *testing.T) {
 
 	appRows := sqlmock.NewRows([]string{
 		"id", "project_id", "tenant_id", "name", "type", "source_type", "source_url", "branch",
-		"status", "replicas", "created_at", "updated_at",
+		"status", "replicas", "server_id", "created_at", "updated_at",
 	}).
-		AddRow("a1", "p1", "t1", "app1", "web", "git", "", "main", "running", 1, now, now).
-		AddRow("a2", "p1", "t1", "app2", "web", "image", "", "main", "stopped", 1, now, now)
+		AddRow("a1", "p1", "t1", "app1", "web", "git", "", "main", "running", 1, "", now, now).
+		AddRow("a2", "p1", "t1", "app2", "web", "image", "", "main", "stopped", 1, "", now, now)
 	mock.ExpectQuery("SELECT .+ FROM applications WHERE tenant_id").
 		WithArgs("t1", 10, 0).
 		WillReturnRows(appRows)
@@ -872,9 +872,9 @@ func TestPostgresDB_ListAppsByProject_Success(t *testing.T) {
 	now := time.Now()
 	appRows := sqlmock.NewRows([]string{
 		"id", "project_id", "tenant_id", "name", "type", "source_type", "source_url", "branch",
-		"status", "replicas", "created_at", "updated_at",
+		"status", "replicas", "server_id", "created_at", "updated_at",
 	}).
-		AddRow("a1", "p1", "t1", "app1", "web", "git", "", "main", "running", 1, now, now)
+		AddRow("a1", "p1", "t1", "app1", "web", "git", "", "main", "running", 1, "", now, now)
 	mock.ExpectQuery("SELECT .+ FROM applications WHERE project_id = \\$1").
 		WithArgs("p1").
 		WillReturnRows(appRows)

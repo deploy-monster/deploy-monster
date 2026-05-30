@@ -46,11 +46,11 @@ func (m *idempBoltStore) Get(bucket, key string, dest any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.data[bucket] == nil {
-		return fmt.Errorf("bucket %q: %w", bucket, core.ErrBoltNotFound)
+		return fmt.Errorf("bucket %q: %w", bucket, core.ErrKVNotFound)
 	}
 	b, ok := m.data[bucket][key]
 	if !ok {
-		return fmt.Errorf("key %q: %w", key, core.ErrBoltNotFound)
+		return fmt.Errorf("key %q: %w", key, core.ErrKVNotFound)
 	}
 	return json.Unmarshal(b, dest)
 }
@@ -353,7 +353,7 @@ func (s *idempCorruptedStore) Get(_, _ string, _ any) error {
 type idempNotFoundStore struct{ idempBoltStore }
 
 func (s *idempNotFoundStore) Get(bucket, key string, _ any) error {
-	return fmt.Errorf("key %q in bucket %q: %w", key, bucket, core.ErrBoltNotFound)
+	return fmt.Errorf("key %q in bucket %q: %w", key, bucket, core.ErrKVNotFound)
 }
 
 func TestIdempotency_CorruptedReadEmitsWarn(t *testing.T) {

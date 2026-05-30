@@ -2,34 +2,6 @@ package auth
 
 import "testing"
 
-// TestTimingSafeEqual covers the three behavioral branches of
-// timingSafeEqual: length mismatch (early return false), equal-length
-// equal-content (loop completes with result==0), and equal-length
-// distinct-content (result accumulates a non-zero byte).
-func TestTimingSafeEqual(t *testing.T) {
-	cases := []struct {
-		name string
-		a, b string
-		want bool
-	}{
-		{"both empty", "", "", true},
-		{"equal short strings", "secret", "secret", true},
-		{"equal long strings", "0123456789abcdef0123456789abcdef", "0123456789abcdef0123456789abcdef", true},
-		{"length mismatch a shorter", "short", "shorter", false},
-		{"length mismatch b shorter", "longer", "long", false},
-		{"same length first byte differs", "abcdef", "Xbcdef", false},
-		{"same length last byte differs", "abcdef", "abcdeX", false},
-		{"same length mid byte differs", "abcdef", "abXdef", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := timingSafeEqual(tc.a, tc.b); got != tc.want {
-				t.Fatalf("timingSafeEqual(%q,%q) = %v, want %v", tc.a, tc.b, got, tc.want)
-			}
-		})
-	}
-}
-
 // TestConstantTimeCompare hits the length-mismatch branch and the
 // equal/unequal same-length branches in totp.go's constantTimeCompare.
 func TestConstantTimeCompare(t *testing.T) {

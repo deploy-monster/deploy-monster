@@ -254,7 +254,7 @@ export function AppDetail() {
     } finally {
       setSettingsSaving(false);
     }
-  }, [id, app, settingsName, settingsBranch, settingsSourceURL, settingsServerID, refetchApp]);
+  }, [id, app, settingsName, settingsBranch, settingsSourceURL, settingsServerID, refetchApp, setSettingsSaving, setSettingsNameDraft, setSettingsBranchDraft, setSettingsSourceURLDraft, setSettingsServerIDDraft]);
 
   /* -- Actions ---------------------------------------------------- */
 
@@ -271,7 +271,7 @@ export function AppDetail() {
         setActionLoading(null);
       }
     },
-    [id, refetchApp]
+    [id, refetchApp, setActionLoading]
   );
 
   const handleDelete = useCallback(async () => {
@@ -284,11 +284,11 @@ export function AppDetail() {
       toast.error('Failed to delete application');
       setActionLoading(null);
     }
-  }, [id]);
+  }, [id, setActionLoading]);
 
   const handleDeleteRequested = useCallback(() => {
     setShowDeleteConfirm(true);
-  }, []);
+  }, [setShowDeleteConfirm]);
 
   const handleDeploy = useCallback(async () => {
     if (!id) return;
@@ -302,7 +302,7 @@ export function AppDetail() {
     } finally {
       setActionLoading(null);
     }
-  }, [id, refetchApp]);
+  }, [id, refetchApp, setActionLoading]);
 
   const persistEnvVars = useCallback(
     async (next: { key: string; value: string }[]) => {
@@ -317,7 +317,7 @@ export function AppDetail() {
         setEnvSaving(false);
       }
     },
-    [id, refetchEnv],
+    [id, refetchEnv, setEnvSaving],
   );
 
   const addEnvVar = () => {

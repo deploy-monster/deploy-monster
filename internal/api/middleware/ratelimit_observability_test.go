@@ -122,7 +122,7 @@ func TestTenantRateLimiter_CorruptedReadEmitsWarn(t *testing.T) {
 }
 
 func TestTenantRateLimiter_NotFoundDoesNotWarn(t *testing.T) {
-	stub := &rlBoltStub{getErr: fmt.Errorf("key %q: %w", "trl:t-fresh", core.ErrBoltNotFound)}
+	stub := &rlBoltStub{getErr: fmt.Errorf("key %q: %w", "trl:t-fresh", core.ErrKVNotFound)}
 	trl := NewTenantRateLimiter(stub, 5, time.Minute)
 
 	var buf bytes.Buffer
@@ -145,7 +145,7 @@ func TestAuthRateLimiter_NotFoundDoesNotWarn(t *testing.T) {
 	// The expected first-request path: Get returns a wrapped
 	// ErrBoltNotFound, the limiter opens a fresh window without
 	// emitting a warning.
-	stub := &rlBoltStub{getErr: fmt.Errorf("key %q: %w", "login:10.0.0.1", core.ErrBoltNotFound)}
+	stub := &rlBoltStub{getErr: fmt.Errorf("key %q: %w", "login:10.0.0.1", core.ErrKVNotFound)}
 	rl := NewAuthRateLimiter(stub, 5, time.Minute, "login")
 
 	var buf bytes.Buffer

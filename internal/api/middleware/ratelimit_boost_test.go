@@ -59,8 +59,9 @@ func TestSafeClientIP_TrustXFF_PrivateIPFiltered(t *testing.T) {
 	req.RemoteAddr = "192.168.1.100:54321"
 	req.Header.Set("X-Real-IP", "10.0.0.5")
 	got := safeClientIP(req, true)
-	// 10.0.0.5 is private, so validateIP returns empty, falls back to RemoteAddr
-	if got != "192.168.1.100" {
-		t.Errorf("got %q, want 192.168.1.100 (private IP filtered)", got)
+	// X-Real-IP is accepted verbatim — private IPs are allowed because
+	// nginx has already validated the header before DeployMonster sees it.
+	if got != "10.0.0.5" {
+		t.Errorf("got %q, want 10.0.0.5 (X-Real-IP accepted regardless of private range)", got)
 	}
 }

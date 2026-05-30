@@ -133,6 +133,18 @@ func (s *mockStore) GetNextDeployVersion(_ context.Context, _ string) (int, erro
 func (s *mockStore) AtomicNextDeployVersion(_ context.Context, _ string) (int, error) {
 	return 1, nil
 }
+func (s *mockStore) CreateDeploymentAtomicVersion(_ context.Context, _ *core.Deployment) error {
+	return nil
+}
+func (s *mockStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) {
+	return nil, nil
+}
+func (s *mockStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) {
+	return nil, nil
+}
+func (s *mockStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) {
+	return nil, nil
+}
 func (s *mockStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
 func (s *mockStore) GetDomain(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, core.ErrNotFound

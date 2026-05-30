@@ -55,23 +55,26 @@ func (rl *AuthRateLimiter) SetLogger(logger *slog.Logger) {
 // When trustXFF is true, X-Real-IP and X-Forwarded-For are used if available,
 // but XFF is validated to prevent spoofing attacks.
 func safeClientIP(r *http.Request, trustXFF bool) string {
-	if !trustXFF {
-		return stripPort(r.RemoteAddr)
-	}
-
-	// X-Real-IP takes priority (set by nginx Real IP module)
+	// X-Real-IP is set by the nginx Real IP module and is trusted.
+	// It takes priority over X-Forwarded-For and is accepted verbatim
+	// (nginx has already validated it).
 	if ip := r.Header.Get("X-Real-IP"); ip != "" {
-		if validated := validateIP(ip); validated != "" {
+		if validated := validateIPPermissive(ip); validated != "" {
 			return validated
 		}
+		// X-Real-IP from nginx is always a valid IP; if ParseIP fails
+		// it means a client set it directly — fall through rather than
+		// accepting garbage.
 	}
 
-	// X-Forwarded-For: first IP in the chain (closest proxy to client)
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// XFF can be "client, proxy1, proxy2" — take first (client)
-		first := strings.TrimSpace(strings.SplitN(xff, ",", 2)[0])
-		if validated := validateIP(first); validated != "" {
-			return validated
+	// X-Forwarded-For can be spoofed by clients; only trust it when
+	// the DeployMonster instance is configured to trust the proxy chain.
+	if trustXFF {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			first := strings.TrimSpace(strings.SplitN(xff, ",", 2)[0])
+			if validated := validateIP(first); validated != "" {
+				return validated
+			}
 		}
 	}
 
@@ -91,6 +94,19 @@ func validateIP(raw string) string {
 	// Reject private, loopback, link-local IPs in rate limit context
 	// to prevent attackers from using internal IPs to bypass limits.
 	if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+		return ""
+	}
+	return ip.String()
+}
+
+// validateIPPermissive accepts any valid IP including private ones.
+// Used for X-Real-IP which is set by nginx and already validated there.
+func validateIPPermissive(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	ip := net.ParseIP(strings.TrimSpace(raw))
+	if ip == nil {
 		return ""
 	}
 	return ip.String()

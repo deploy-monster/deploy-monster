@@ -208,6 +208,18 @@ func (m *mockPermStore) GetNextDeployVersion(_ context.Context, _ string) (int, 
 func (m *mockPermStore) AtomicNextDeployVersion(_ context.Context, _ string) (int, error) {
 	return 0, nil
 }
+func (m *mockPermStore) CreateDeploymentAtomicVersion(_ context.Context, _ *core.Deployment) error {
+	return nil
+}
+func (m *mockPermStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) {
+	return nil, nil
+}
+func (m *mockPermStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) {
+	return nil, nil
+}
+func (m *mockPermStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) {
+	return nil, nil
+}
 func (m *mockPermStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
 func (m *mockPermStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, nil

@@ -79,7 +79,7 @@ func (m *mockRuntime) Exec(_ context.Context, _ string, _ []string) (string, err
 }
 
 func (m *mockRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
-	return &core.ContainerStats{}, nil
+	return &core.ContainerStats{Running: true}, nil
 }
 
 func (m *mockRuntime) ImagePull(_ context.Context, _ string) error { return nil }
@@ -446,6 +446,32 @@ func (s *mockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, e
 
 func (s *mockStore) Close() error                 { return nil }
 func (s *mockStore) Ping(_ context.Context) error { return nil }
+func (s *mockStore) CreateDeploymentAtomicVersion(_ context.Context, dep *core.Deployment) error {
+	s.atomicCalls++
+	if s.nextVersionErr != nil {
+		return s.nextVersionErr
+	}
+	if dep.ID == "" {
+		dep.ID = fmt.Sprintf("dep-%d-%d", time.Now().UnixNano(), len(s.deploymentsByID))
+	}
+	// Simulate RETURNING version like the real DB
+	dep.Version = s.nextVersion
+	s.nextVersion++
+	// Store so UpdateDeployment can find it
+	copy := *dep
+	s.deploymentsByID[dep.ID] = &copy
+	s.deployments = append(s.deployments, copy)
+	return nil
+}
+func (s *mockStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) {
+	return nil, nil
+}
+func (s *mockStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) {
+	return nil, nil
+}
+func (s *mockStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) {
+	return nil, nil
+}
 
 // Ensure mockStore satisfies core.Store at compile time.
 var _ core.Store = (*mockStore)(nil)
