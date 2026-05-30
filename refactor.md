@@ -87,10 +87,11 @@ DeployMonster is a **mature, well-hardened codebase**. The three critical (P0) d
 - On the first handler error the goroutine `time.Sleep(500ms)` then retries **while holding one of 64 `asyncSem` slots**. A burst of failing async handlers (e.g. a down notification webhook) can pin all 64 slots in `Sleep`; because `Publish` acquires the semaphore synchronously, a full pool stalls the *publishing* request goroutine.
 - **Fix:** move retries to a separate bounded retry queue (or release the slot before sleeping); make retry count/backoff configurable and `ctx`-aware.
 
-### P1-12 · `useMutation` used in 1 of 10 mutating pages; `usePaginatedApi` doesn't exist
+### P1-12 · `useMutation` used in 1 of 10 mutating pages — **RESOLVED (PARTIAL)**
 - **Files:** `web/src/hooks/`, 9 pages hand-roll mutation state · **Severity:** High (frontend maintainability)
-- `useMutation` is used only in `Topology.tsx`; 9 pages import `api/client` directly and hand-roll `loading`/`error`/try-catch (~30+ ad-hoc `catch` blocks). `usePaginatedApi` (documented in `CLAUDE.md`) has **zero definitions or usages** — pagination is hand-rolled per page.
-- **Fix:** migrate page mutations onto `useMutation`; implement `usePaginatedApi` or remove it from `CLAUDE.md`.
+- `useMutation` was used only in `Topology.tsx`; 9 pages imported `api/client` directly and hand-rolled `loading`/`error`/try-catch. Migrated: `Domains.tsx` (addDomain, deleteDomain), `Databases.tsx` (createDatabase), `Servers.tsx` (addServer), `AppEnvVars.tsx` (persistEnvVars), `ProfileSection.tsx` (saveProfile), `SecuritySection.tsx` (changePassword).
+- **Remaining:** `DeployWizard.tsx` (handleDeploy — navigates on success, can't use `onSuccess` alone), `handleVerify` in `Domains.tsx` (dynamic path), `adminAPI.generateApiKey` / `revokeApiKey` in `SecuritySection.tsx` (wrapped client pattern), API key section state (separate concern). These need deeper refactors or are edge cases; not worth blocking.
+- **`usePaginatedApi`:** documented in CLAUDE.md but unused — separate cleanup item, not blocking.
 
 ---
 
