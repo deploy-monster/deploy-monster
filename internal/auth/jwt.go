@@ -139,7 +139,11 @@ func (j *JWTService) purgeExpiredPreviousKeysLocked() {
 	cutoff := time.Now().Add(-RotationGracePeriod)
 	validIdx := 0
 	for i, t := range j.previousAdded {
-		if t.After(cutoff) {
+		// Zero-timestamp keys are loaded from config (permanent fallback keys),
+		// not rotated in-process — always keep them.
+		// Non-zero keys (added via AddPreviousKey during rotation) are kept
+		// only within RotationGracePeriod.
+		if t.IsZero() || t.After(cutoff) {
 			if validIdx != i {
 				j.previousKeys[validIdx] = j.previousKeys[i]
 				j.previousAdded[validIdx] = j.previousAdded[i]

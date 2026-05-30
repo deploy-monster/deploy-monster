@@ -40,8 +40,10 @@ func NewDockerManager(host string) (*DockerManager, error) {
 		return nil, fmt.Errorf("create docker client: %w", err)
 	}
 
-	// Verify connection
-	if _, err := cli.Ping(context.Background(), client.PingOptions{NegotiateAPIVersion: true}); err != nil {
+	// Verify connection with a 5s timeout to avoid blocking on unreachable hosts
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := cli.Ping(ctx, client.PingOptions{NegotiateAPIVersion: true}); err != nil {
 		_ = cli.Close()
 		return nil, fmt.Errorf("docker ping: %w", err)
 	}

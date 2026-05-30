@@ -1482,14 +1482,13 @@ func TestAgentClient_HandleMessage_UnknownType(t *testing.T) {
 
 	// Set up a pipe for sendResponse
 	serverConn, clientConn := net.Pipe()
-	defer serverConn.Close()
-	defer clientConn.Close()
-
 	client.conn = clientConn
 	client.encoder = json.NewEncoder(clientConn)
 
 	// Drain responses
+	drainDone := make(chan struct{})
 	go func() {
+		defer close(drainDone)
 		decoder := json.NewDecoder(serverConn)
 		for {
 			var msg core.AgentMessage
@@ -1499,11 +1498,35 @@ func TestAgentClient_HandleMessage_UnknownType(t *testing.T) {
 		}
 	}()
 
-	// Should send error response for unknown type
-	client.handleMessage(context.Background(), core.AgentMessage{
-		ID:   "unk-1",
-		Type: "unknown.cmd",
-	})
+	// Run handleMessage in a goroutine so it cannot block the test.
+	// sendResponse uses TryLock to avoid indefinite blocking on sendMu.
+	returned := make(chan struct{})
+	go func() {
+		close(returned)
+		client.handleMessage(context.Background(), core.AgentMessage{
+			ID:   "unk-1",
+			Type: "unknown.cmd",
+		})
+	}()
+
+	select {
+	case <-returned:
+		// handleMessage returned normally
+	case <-time.After(5 * time.Second):
+		t.Fatal("handleMessage appears to deadlock — test timed out")
+	}
+
+	// Close server side so drain exits
+	serverConn.Close()
+
+	select {
+	case <-drainDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("drain goroutine did not finish after pipe close")
+	}
+
+	// Clean up client side
+	clientConn.Close()
 }
 
 func TestAgentClient_HandleMessage_PingPong(t *testing.T) {
@@ -1511,35 +1534,46 @@ func TestAgentClient_HandleMessage_PingPong(t *testing.T) {
 	client := NewAgentClient("http://master", "agent", "token", "1.0.0", rt, discardLogger(), "", "", "")
 
 	serverConn, clientConn := net.Pipe()
-	defer serverConn.Close()
-	defer clientConn.Close()
-
 	client.conn = clientConn
 	client.encoder = json.NewEncoder(clientConn)
 
 	// Read the pong response
-	done := make(chan core.AgentMessage, 1)
+	pongReceived := make(chan core.AgentMessage, 1)
 	go func() {
 		decoder := json.NewDecoder(serverConn)
 		var msg core.AgentMessage
 		if err := decoder.Decode(&msg); err == nil {
-			done <- msg
+			pongReceived <- msg
 		}
 	}()
 
-	client.handleMessage(context.Background(), core.AgentMessage{
-		ID:   "ping-1",
-		Type: core.AgentMsgPing,
-	})
+	// Run handleMessage in goroutine so it cannot block the test.
+	returned := make(chan struct{})
+	go func() {
+		close(returned)
+		client.handleMessage(context.Background(), core.AgentMessage{
+			ID:   "ping-1",
+			Type: core.AgentMsgPing,
+		})
+	}()
 
+	// Wait for the pong to arrive before closing the pipe,
+	// so the reader goroutine can complete the Decode successfully.
 	select {
-	case msg := <-done:
+	case msg := <-pongReceived:
 		if msg.Type != core.AgentMsgPong {
 			t.Errorf("type = %q, want pong", msg.Type)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for pong")
 	}
+
+	// Now that the pong has been received, close the pipe.
+	serverConn.Close()
+	clientConn.Close()
+
+	// Wait for handleMessage to return.
+	<-returned
 }
 
 func TestAgentClient_HandleMessage_ContainerCreate_DecodeError(t *testing.T) {

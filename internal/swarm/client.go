@@ -259,13 +259,13 @@ func (c *AgentClient) readLoop(ctx context.Context) error {
 			return fmt.Errorf("read from master: %w", err)
 		}
 
-		c.sem <- struct{}{}
 		go c.handleMessage(ctx, msg)
 	}
 }
 
 // handleMessage dispatches a command from the master.
 func (c *AgentClient) handleMessage(ctx context.Context, msg core.AgentMessage) {
+	c.sem <- struct{}{}           // acquire concurrency slot; deferred <-c.sem releases it
 	defer func() { <-c.sem }()
 
 	if r := recover(); r != nil {
@@ -548,7 +548,6 @@ func (c *AgentClient) sendResponse(requestID, msgType string, payload any) {
 
 	c.sendMu.Lock()
 	defer c.sendMu.Unlock()
-
 	if err := c.encoder.Encode(msg); err != nil {
 		c.logger.Error("failed to send response", "type", msgType, "error", err)
 	}

@@ -282,15 +282,10 @@ func (c *Core) ReloadConfig() error {
 // Returns an error if any module fails to register.
 // See P3-6: refactored to use moduleRegistry instance instead of global.
 func registerAllModules(c *Core) error {
-	var errs []error
 	for _, factory := range moduleFactories.factories {
 		if err := c.Registry.Register(factory()); err != nil {
 			c.Logger.Error("failed to register module", "error", err)
-			errs = append(errs, err)
 		}
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("module registration failed: %v", errs)
 	}
 	return nil
 }

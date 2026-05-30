@@ -2017,7 +2017,7 @@ func TestLogRetentionHandler_Update_BoltError(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
 	h := NewLogRetentionHandler(store, newErrorBoltStore())
-	body := `{"days":30}`
+	body := `{"max_size_mb":100,"max_files":10,"driver":"json-file"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
@@ -2346,7 +2346,7 @@ func TestSecretHandler_List_WithSecrets(t *testing.T) {
 
 func TestAnnouncementHandler_Create_BoltError(t *testing.T) {
 	h := NewAnnouncementHandler(newErrorBoltStore())
-	body := `{"title":"Update","message":"New version available","type":"info"}`
+	body := `{"title":"Update","body":"New version available","type":"info"}`
 	req := httptest.NewRequest("POST", "/api/v1/announcements", strings.NewReader(body))
 	req = withClaims(req, "u1", "t1", "role_super_admin", "admin@test.com")
 	rr := httptest.NewRecorder()
