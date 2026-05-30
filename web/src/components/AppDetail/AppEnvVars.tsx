@@ -1,6 +1,7 @@
+// P1-12: Migrate hand-rolled mutation state to useMutation hook
 import { useState } from 'react';
 import { Eye, EyeOff, Plus, Pencil, Trash2, Copy } from 'lucide-react';
-import { api } from '@/api/client';
+import { useMutation } from '@/hooks';
 import { toast } from '@/stores/toastStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -29,18 +30,17 @@ export function AppEnvVars({ appId, envVars, onRefetch }: AppEnvVarsProps) {
   const [newEnvValue, setNewEnvValue] = useState('');
   const [showSecrets, setShowSecrets] = useState(false);
   const [, setEditingEnv] = useState<string | null>(null);
-  const [envSaving, setEnvSaving] = useState(false);
 
-  const persistEnvVars = async (next: { key: string; value: string }[]) => {
-    setEnvSaving(true);
-    try {
-      await api.put(`/apps/${appId}/env`, { vars: next });
-      onRefetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save environment variables');
-    } finally {
-      setEnvSaving(false);
-    }
+  const { mutate: persistEnvVars, loading: envSaving } = useMutation<{ vars: { key: string; value: string }[] }, void>('put', `/apps/${appId}/env`);
+
+  const handlePersist = (next: { key: string; value: string }[]) => {
+    persistEnvVars(
+      { vars: next },
+      {
+        onSuccess: () => onRefetch(),
+        onError: (err) => { toast.error(err); },
+      },
+    );
   };
 
   const addEnvVar = () => {
@@ -53,12 +53,12 @@ export function AppEnvVars({ appId, envVars, onRefetch }: AppEnvVarsProps) {
     const next = [...envVars.map(({ key: k, value }) => ({ key: k, value })), { key, value: newEnvValue }];
     setNewEnvKey('');
     setNewEnvValue('');
-    persistEnvVars(next);
+    handlePersist(next);
   };
 
   const removeEnvVar = (key: string) => {
     const next = envVars.filter((v) => v.key !== key).map(({ key: k, value }) => ({ key: k, value }));
-    persistEnvVars(next);
+    handlePersist(next);
   };
 
   return (

@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Plus, Server, Loader2, AlertCircle } from 'lucide-react';
 import type { ServerNode } from '@/api/servers';
-import { api } from '@/api/client';
-import { useApi } from '@/hooks';
+import { useApi, useMutation } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +24,8 @@ import {
   LocalhostCard,
 } from '@/components/Servers';
 
+// P1-12: hand-rolled loading/error state migrated to useMutation
+
 export function Servers() {
   const { data: serversResp, loading, refetch } = useApi<
     { data: ServerNode[]; total: number } | ServerNode[]
@@ -38,18 +39,16 @@ export function Servers() {
   const [region, setRegion] = useState('');
   const [size, setSize] = useState('small');
   const [ipAddress, setIpAddress] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState('');
+
+  const { mutate: addServer, loading: adding, error: addError } = useMutation('post', '/servers');
 
   const isCustom = provider === 'custom';
   const providerRegions = regions[provider] || [];
 
   const handleAdd = async () => {
     if (!hostname) return;
-    setAdding(true);
-    setAddError('');
     try {
-      await api.post('/servers', {
+      await addServer({
         hostname,
         provider,
         region: isCustom ? '' : region,
@@ -63,10 +62,8 @@ export function Servers() {
       setIpAddress('');
       setDialogOpen(false);
       refetch();
-    } catch (err) {
-      setAddError(err instanceof Error ? err.message : 'Failed to add server');
-    } finally {
-      setAdding(false);
+    } catch {
+      // addError is set by the hook
     }
   };
 
