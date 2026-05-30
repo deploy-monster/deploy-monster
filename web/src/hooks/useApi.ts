@@ -63,6 +63,11 @@ export function useApi<T>(path: string, options: UseApiOptions = {}) {
   return { ...state, refetch: fetch };
 }
 
+interface UseMutationOptions<TOutput> {
+  onSuccess?: (data: TOutput) => void;
+  onError?: (error: string) => void;
+}
+
 /** Hook for mutations (POST/PUT/PATCH/DELETE). */
 export function useMutation<TInput = unknown, TOutput = unknown>(
   method: 'post' | 'put' | 'patch' | 'delete',
@@ -74,17 +79,19 @@ export function useMutation<TInput = unknown, TOutput = unknown>(
     loading: false,
   });
 
-  const mutate = useCallback(async (body?: TInput) => {
+  const mutate = useCallback(async (body?: TInput, options?: UseMutationOptions<TOutput>) => {
     setState({ data: null, error: null, loading: true });
     try {
       const response = method === 'delete'
         ? await api.delete<TOutput>(path)
         : await api[method]<TOutput>(path, body);
       setState({ data: response, error: null, loading: false });
+      options?.onSuccess?.(response as TOutput);
       return response;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Request failed';
       setState(prev => ({ ...prev, error: message, loading: false }));
+      options?.onError?.(message);
       throw err;
     }
   }, [method, path]);

@@ -11,6 +11,11 @@ web/node_modules/
 # recreate a stale lockfile and reopen already-fixed alerts. Tier 96.
 web/package-lock.json
 
+# Generated UI bundles — rebuilt on every `pnpm run build`, tracked in
+# source control only for the initial migration; add to .gitignore to
+# prevent committing churn on every UI change.
+internal/api/static/
+
 # Database files
 *.db
 *.db-wal

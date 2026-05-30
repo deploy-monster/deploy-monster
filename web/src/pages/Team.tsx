@@ -211,7 +211,7 @@ export function Team() {
 
       {/* Invite Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent onClose={() => setDialogOpen(false)} className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               <div className="flex items-center justify-center rounded-xl size-9 bg-primary">

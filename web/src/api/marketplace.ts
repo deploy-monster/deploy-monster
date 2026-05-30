@@ -1,16 +1,24 @@
 import { api } from './client';
 
 export interface Template {
+  id?: string;
   slug: string;
   name: string;
   description: string;
   category: string;
   icon: string;
   author: string;
+  vendor?: string;
   version: string;
   featured: boolean;
   verified: boolean;
+  stars?: number;
+  stats?: {
+    deploys: number;
+    rating: number;
+  };
   tags: string[];
+  created_at?: string;
   compose_yaml: string;
   config_schema: {
     type?: string;
@@ -25,6 +33,7 @@ export interface Template {
     required?: string[];
   };
   min_resources: {
+    cpu_cores?: number;
     cpu_mb: number;
     memory_mb: number;
     disk_mb: number;

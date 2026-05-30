@@ -1,16 +1,5 @@
 import { useState } from 'react';
-import {
-  Plus,
-  Cloud,
-  Key,
-  Monitor,
-  Cpu,
-  Loader2,
-  AlertCircle,
-  Server,
-  MapPin,
-  Clock,
-} from 'lucide-react';
+import { Plus, Server, Loader2, AlertCircle } from 'lucide-react';
 import type { ServerNode } from '@/api/servers';
 import { api } from '@/api/client';
 import { useApi } from '@/hooks';
@@ -19,148 +8,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import {
   Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription, SheetBody,
 } from '@/components/ui/sheet';
-import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/stores/toastStore';
-
-// ---------------------------------------------------------------------------
-// Provider configuration with colors
-// ---------------------------------------------------------------------------
-
-interface ProviderConfig {
-  id: string;
-  name: string;
-  icon: typeof Cloud;
-  desc: string;
-  bgColor: string;
-  textColor: string;
-  badgeColor: string;
-  letter: string;
-}
-
-const providers: ProviderConfig[] = [
-  {
-    id: 'hetzner',
-    name: 'Hetzner Cloud',
-    icon: Cloud,
-    desc: 'Provision new server',
-    bgColor: 'bg-red-500/10',
-    textColor: 'text-red-500',
-    badgeColor: 'bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400',
-    letter: 'HZ',
-  },
-  {
-    id: 'digitalocean',
-    name: 'DigitalOcean',
-    icon: Cloud,
-    desc: 'Provision new server',
-    bgColor: 'bg-blue-500/10',
-    textColor: 'text-blue-500',
-    badgeColor: 'bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400',
-    letter: 'DO',
-  },
-  {
-    id: 'vultr',
-    name: 'Vultr',
-    icon: Cloud,
-    desc: 'Provision new server',
-    bgColor: 'bg-purple-500/10',
-    textColor: 'text-purple-500',
-    badgeColor: 'bg-purple-500/10 text-purple-600 border-purple-500/20 dark:text-purple-400',
-    letter: 'VL',
-  },
-  {
-    id: 'custom',
-    name: 'Custom SSH',
-    icon: Key,
-    desc: 'Connect existing server',
-    bgColor: 'bg-muted',
-    textColor: 'text-muted-foreground',
-    badgeColor: 'bg-muted text-muted-foreground',
-    letter: 'SSH',
-  },
-];
-
-function getProviderConfig(providerId: string): ProviderConfig {
-  return providers.find((p) => p.id === providerId) || providers[3];
-}
-
-const regions: Record<string, { id: string; name: string }[]> = {
-  hetzner: [
-    { id: 'fsn1', name: 'Falkenstein' },
-    { id: 'nbg1', name: 'Nuremberg' },
-    { id: 'hel1', name: 'Helsinki' },
-    { id: 'ash', name: 'Ashburn' },
-  ],
-  digitalocean: [
-    { id: 'nyc1', name: 'New York 1' },
-    { id: 'sfo3', name: 'San Francisco 3' },
-    { id: 'ams3', name: 'Amsterdam 3' },
-    { id: 'fra1', name: 'Frankfurt 1' },
-  ],
-  vultr: [
-    { id: 'ewr', name: 'New Jersey' },
-    { id: 'lax', name: 'Los Angeles' },
-    { id: 'fra', name: 'Frankfurt' },
-    { id: 'nrt', name: 'Tokyo' },
-  ],
-};
-
-const sizes = [
-  { id: 'small', name: 'Small', desc: '2 vCPU / 2 GB RAM / 40 GB' },
-  { id: 'medium', name: 'Medium', desc: '4 vCPU / 8 GB RAM / 80 GB' },
-  { id: 'large', name: 'Large', desc: '8 vCPU / 16 GB RAM / 160 GB' },
-  { id: 'xlarge', name: 'X-Large', desc: '16 vCPU / 32 GB RAM / 320 GB' },
-];
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function timeAgo(dateStr: string): string {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function CardSkeleton() {
-  return (
-    <Card className="py-5">
-      <CardHeader className="pb-0">
-        <div className="flex items-start gap-3">
-          <Skeleton className="size-11 rounded-xl shrink-0" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-5 w-24" />
-            <Skeleton className="h-3.5 w-32" />
-          </div>
-          <Skeleton className="h-5 w-16 rounded-md" />
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0 mt-3">
-        <Skeleton className="h-4 w-48" />
-      </CardContent>
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Servers
-// ---------------------------------------------------------------------------
+import {
+  providers,
+  regions,
+  sizes,
+  getProviderConfig,
+} from '@/components/Servers';
+import {
+  ServerCardSkeleton,
+  ServerCard,
+  LocalhostCard,
+} from '@/components/Servers';
 
 export function Servers() {
   const { data: serversResp, loading, refetch } = useApi<
@@ -232,7 +95,7 @@ export function Servers() {
               Manage your infrastructure. Provision cloud servers or connect existing ones via SSH.
             </p>
           </div>
-          <Button onClick={() => setDialogOpen(true)} className="shrink-0">
+          <Button onClick={() => setDialogOpen(true)} className="shrink-0 cursor-pointer">
             <Plus className="size-4" />
             Add Server
           </Button>
@@ -355,10 +218,14 @@ export function Servers() {
           </SheetBody>
 
           <SheetFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={adding}>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={adding} className="cursor-pointer">
               Cancel
             </Button>
-            <Button onClick={handleAdd} disabled={!hostname || (isCustom && !ipAddress) || adding}>
+            <Button
+              onClick={handleAdd}
+              disabled={!hostname || (isCustom && !ipAddress) || adding}
+              className="cursor-pointer"
+            >
               {adding ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
@@ -379,7 +246,7 @@ export function Servers() {
       {loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <CardSkeleton key={i} />
+            <ServerCardSkeleton key={i} />
           ))}
         </div>
       )}
@@ -387,111 +254,10 @@ export function Servers() {
       {/* Server Cards */}
       {!loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Localhost card -- always present */}
-          <Card className="group transition-all duration-200 hover:translate-y-[-1px] hover:shadow-md">
-            <CardHeader className="gap-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center rounded-xl size-11 shrink-0 bg-emerald-500/10">
-                    <Monitor className="size-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">localhost</CardTitle>
-                    <CardDescription className="font-mono text-xs">127.0.0.1</CardDescription>
-                  </div>
-                </div>
-                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 gap-1.5">
-                  <span className="relative flex size-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
-                  </span>
-                  Active
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Badge variant="outline" className="gap-1 text-xs font-normal">
-                  <Cpu className="size-3" /> Local
-                </Badge>
-                <Badge variant="secondary" className="text-xs font-normal">Master Node</Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Remote servers */}
-          {remoteServers.map((s) => {
-            const providerCfg = getProviderConfig(s.provider);
-            const isConnected = s.connected === true;
-
-            return (
-              <Card
-                key={s.id}
-                className="group transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg"
-              >
-                <CardHeader className="gap-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        'flex items-center justify-center rounded-xl size-11 shrink-0',
-                        providerCfg.bgColor
-                      )}>
-                        <span className={cn('text-sm font-bold', providerCfg.textColor)}>
-                          {providerCfg.letter}
-                        </span>
-                      </div>
-                      <div>
-                        <CardTitle className="text-base">{s.hostname}</CardTitle>
-                        <CardDescription className="font-mono text-xs">{s.ip_address}</CardDescription>
-                      </div>
-                    </div>
-                    {isConnected ? (
-                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 gap-1.5">
-                        <span className="relative flex size-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
-                        </span>
-                        Connected
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="gap-1.5">
-                        <span className="size-2 rounded-full bg-muted-foreground" />
-                        {s.agent_status === 'disconnected' ? 'Agent offline' : s.status.charAt(0).toUpperCase() + s.status.slice(1)}
-                      </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-3 flex-wrap text-sm text-muted-foreground">
-                    <Badge variant="outline" className={cn('text-xs font-normal', providerCfg.badgeColor)}>
-                      {providerCfg.name}
-                    </Badge>
-                    {s.region && (
-                      <span className="flex items-center gap-1 text-xs">
-                        <MapPin className="size-3" /> {s.region}
-                      </span>
-                    )}
-                    {s.size && (
-                      <span className="flex items-center gap-1 text-xs">
-                        <Cpu className="size-3" /> {s.size}
-                      </span>
-                    )}
-                    {s.role && (
-                      <Badge variant="secondary" className="text-xs font-normal">
-                        {s.role.charAt(0).toUpperCase() + s.role.slice(1)}
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-                <CardFooter className="border-t pt-4 pb-0">
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
-                    <Clock className="size-3" />
-                    Added {timeAgo(s.created_at)}
-                  </span>
-                </CardFooter>
-              </Card>
-            );
-          })}
+          <LocalhostCard />
+          {remoteServers.map((s) => (
+            <ServerCard key={s.id} server={s} />
+          ))}
         </div>
       )}
     </div>

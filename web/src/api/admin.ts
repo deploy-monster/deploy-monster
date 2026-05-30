@@ -30,6 +30,7 @@ export interface AdminSettings {
 }
 
 export interface APIKey {
+  id?: string;
   prefix: string;
   type: string;
   created_by: string;

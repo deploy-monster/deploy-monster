@@ -472,6 +472,7 @@ export function Admin() {
                   <Switch
                     checked={settings.auto_ssl}
                     onCheckedChange={(v) => setSettings((s) => ({ ...s, auto_ssl: v }))}
+                    aria-label="Automatic SSL"
                   />
                 </div>
 
@@ -485,6 +486,7 @@ export function Admin() {
                   <Switch
                     checked={settings.telemetry}
                     onCheckedChange={(v) => setSettings((s) => ({ ...s, telemetry: v }))}
+                    aria-label="Anonymous Telemetry"
                   />
                 </div>
               </div>

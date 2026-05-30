@@ -72,11 +72,13 @@ export function useDeployProgress({
   useEffect(() => {
     onCompleteRef.current = onComplete;
     onProgressRef.current = onProgress;
-  });
+  }, [onComplete, onProgress]);
 
   useEffect(() => {
+    let destroyed = false;
+
     const connect = () => {
-      if (!enabled || !projectId) return;
+      if (!enabled || !projectId || destroyed) return;
 
       // Validate projectId to prevent URL injection attacks
       // Only allow safe characters: alphanumeric, dashes, underscores
@@ -93,10 +95,12 @@ export function useDeployProgress({
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (destroyed) { ws.close(); return; }
         setIsConnected(true);
       };
 
       ws.onmessage = (event) => {
+        if (destroyed) return;
         try {
           const data: DeployWSMessage = JSON.parse(event.data);
 
@@ -127,21 +131,23 @@ export function useDeployProgress({
       };
 
       ws.onclose = () => {
+        if (destroyed) return;
         setIsConnected(false);
         // Auto-reconnect after 3 seconds if still enabled
-        if (enabled) {
+        if (!destroyed && enabled) {
           reconnectTimeoutRef.current = setTimeout(connect, 3000);
         }
       };
 
       ws.onerror = () => {
-        ws.close();
+        if (!destroyed) ws.close();
       };
     };
 
     connect();
 
     return () => {
+      destroyed = true;
       if (wsRef.current) {
         wsRef.current.close();
       }

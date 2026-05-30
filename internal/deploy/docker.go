@@ -104,8 +104,8 @@ func (d *DockerManager) CreateAndStart(ctx context.Context, opts core.ContainerO
 		return "", fmt.Errorf("invalid container opts: %w", err)
 	}
 
-	// Pull image with 5-minute timeout to prevent hanging daemon from blocking API
-	pullCtx, pullCancel := context.WithTimeout(ctx, 5*time.Minute)
+	// Pull image with PullTimeout to prevent hanging daemon from blocking API
+	pullCtx, pullCancel := context.WithTimeout(ctx, core.PullTimeout)
 	defer pullCancel()
 	reader, err := d.cli.ImagePull(pullCtx, opts.Image, client.ImagePullOptions{RegistryAuth: d.registryAuth})
 	if err != nil {
@@ -195,7 +195,7 @@ func (d *DockerManager) Stop(ctx context.Context, containerID string, timeoutSec
 
 // Remove implements core.ContainerRuntime.
 func (d *DockerManager) Remove(ctx context.Context, containerID string, force bool) error {
-	removeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	removeCtx, cancel := context.WithTimeout(ctx, core.ContainerRemoveTimeout)
 	defer cancel()
 	_, err := d.cli.ContainerRemove(removeCtx, containerID, client.ContainerRemoveOptions{Force: force})
 	return err
@@ -203,7 +203,7 @@ func (d *DockerManager) Remove(ctx context.Context, containerID string, force bo
 
 // Restart implements core.ContainerRuntime.
 func (d *DockerManager) Restart(ctx context.Context, containerID string) error {
-	timeout := 10
+	timeout := core.ContainerRestartTimeout
 	_, err := d.cli.ContainerRestart(ctx, containerID, client.ContainerRestartOptions{Timeout: &timeout})
 	return err
 }
@@ -369,7 +369,7 @@ func (d *DockerManager) Stats(ctx context.Context, containerID string) (*core.Co
 
 // ImagePull pulls an image from a registry.
 func (d *DockerManager) ImagePull(ctx context.Context, img string) error {
-	pullCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	pullCtx, cancel := context.WithTimeout(ctx, core.PullTimeout)
 	defer cancel()
 	reader, err := d.cli.ImagePull(pullCtx, img, client.ImagePullOptions{RegistryAuth: d.registryAuth})
 	if err != nil {

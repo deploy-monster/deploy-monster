@@ -152,8 +152,8 @@ func (c *AgentClient) Connect(ctx context.Context) error {
 // ConnectWithRetry connects to the master with exponential backoff.
 // It retries indefinitely until the context is canceled.
 func (c *AgentClient) ConnectWithRetry(ctx context.Context) error {
-	backoff := time.Second
-	maxBackoff := 30 * time.Second
+	backoff := core.BackoffBase
+	maxBackoff := core.BackoffMax
 
 	for {
 		err := c.Connect(ctx)

@@ -65,6 +65,7 @@ type UserStore interface {
 type AppStore interface {
 	CreateApp(ctx context.Context, app *Application) error
 	GetApp(ctx context.Context, id string) (*Application, error)
+	GetAppsByIDs(ctx context.Context, ids []string) ([]Application, error)
 	GetAppByName(ctx context.Context, tenantID, name string) (*Application, error)
 	UpdateApp(ctx context.Context, app *Application) error
 	ListAppsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]Application, int, error)

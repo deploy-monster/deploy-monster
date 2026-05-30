@@ -152,8 +152,8 @@ func (ac *AgentConn) LastMetrics() *core.ServerMetrics {
 // single missed ping does not trip the read-loop before the monitor gets a
 // chance to decide.
 const (
-	defaultHeartbeatInterval = 30 * time.Second
-	defaultHeartbeatDead     = 90 * time.Second
+	defaultHeartbeatInterval = core.HeartbeatInterval
+	defaultHeartbeatDead     = core.HeartbeatDead
 )
 
 // NewAgentServer creates a new master-side agent connection manager.
@@ -243,7 +243,7 @@ func (s *AgentServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 4. Read initial AgentInfo message (with timeout)
-	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(core.AgentHandshakeTimeout))
 	var initMsg core.AgentMessage
 	if err := ac.decoder.Decode(&initMsg); err != nil {
 		s.logger.Error("failed to read agent info", "error", err)
@@ -338,7 +338,7 @@ func (s *AgentServer) readLoop(ac *AgentConn) {
 		}
 
 		// Set a read deadline to detect dead connections
-		_ = ac.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
+		_ = ac.conn.SetReadDeadline(time.Now().Add(core.ReadDeadline))
 
 		var msg core.AgentMessage
 		if err := ac.decoder.Decode(&msg); err != nil {

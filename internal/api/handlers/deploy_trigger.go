@@ -265,13 +265,7 @@ func (h *DeployTriggerHandler) SubscribeWebhookDeploys() {
 func (h *DeployTriggerHandler) deployGitApp(ctx context.Context, app *core.Application, triggeredBy, commitSHA string, logWriter io.Writer) error {
 	if h.runtime == nil {
 		err := fmt.Errorf("container runtime not available")
-		if sErr := h.store.UpdateAppStatus(ctx, app.ID, "failed"); sErr != nil {
-			slog.Error("deploy: failed to update app status", "app_id", app.ID, "error", sErr)
-		}
-		h.publishAsync(ctx, core.NewEvent(core.EventDeployFailed, "deploy_trigger", map[string]string{
-			"app_id": app.ID,
-			"error":  err.Error(),
-		}))
+		h.failAppAndPublish(ctx, core.EventDeployFailed, app.ID, err.Error())
 		return err
 	}
 
@@ -295,24 +289,12 @@ func (h *DeployTriggerHandler) deployGitApp(ctx context.Context, app *core.Appli
 	}
 	result, err := h.buildGit(ctx, buildOpts, logWriter)
 	if err != nil {
-		if sErr := h.store.UpdateAppStatus(ctx, app.ID, "failed"); sErr != nil {
-			slog.Error("deploy: failed to update app status", "app_id", app.ID, "error", sErr)
-		}
-		h.publishAsync(ctx, core.NewEvent(core.EventBuildFailed, "deploy_trigger", map[string]string{
-			"app_id": app.ID,
-			"error":  err.Error(),
-		}))
+		h.failAppAndPublish(ctx, core.EventBuildFailed, app.ID, err.Error())
 		return err
 	}
 	if isRemoteApp(app) && !imageRefHasRegistry(result.ImageTag) {
 		err := fmt.Errorf("remote git deploy requires a registry-qualified image tag for %q; configure build push/pull before targeting server %s", result.ImageTag, app.ServerID)
-		if sErr := h.store.UpdateAppStatus(ctx, app.ID, "failed"); sErr != nil {
-			slog.Error("deploy: failed to update app status", "app_id", app.ID, "error", sErr)
-		}
-		h.publishAsync(ctx, core.NewEvent(core.EventDeployFailed, "deploy_trigger", map[string]string{
-			"app_id": app.ID,
-			"error":  err.Error(),
-		}))
+		h.failAppAndPublish(ctx, core.EventDeployFailed, app.ID, err.Error())
 		return err
 	}
 
@@ -321,13 +303,7 @@ func (h *DeployTriggerHandler) deployGitApp(ctx context.Context, app *core.Appli
 	}
 	deployRT, err := h.deployRuntimeForApp(app)
 	if err != nil {
-		if sErr := h.store.UpdateAppStatus(ctx, app.ID, "failed"); sErr != nil {
-			slog.Error("deploy: failed to update app status", "app_id", app.ID, "error", sErr)
-		}
-		h.publishAsync(ctx, core.NewEvent(core.EventDeployFailed, "deploy_trigger", map[string]string{
-			"app_id": app.ID,
-			"error":  err.Error(),
-		}))
+		h.failAppAndPublish(ctx, core.EventDeployFailed, app.ID, err.Error())
 		return err
 	}
 
@@ -347,10 +323,8 @@ func (h *DeployTriggerHandler) deployGitApp(ctx context.Context, app *core.Appli
 	}
 	if err := h.store.CreateDeploymentAtomicVersion(ctx, dep); err != nil {
 		slog.Error("deploy: failed to reserve deployment version", "app_id", app.ID, "error", err)
-		h.publishAsync(ctx, core.NewEvent(core.EventDeployFailed, "deploy_trigger", map[string]string{
-			"app_id": app.ID,
-			"error":  err.Error(),
-		}))
+		// Row not reserved: use failAppAndPublish (not failReserved).
+		h.failAppAndPublish(ctx, core.EventDeployFailed, app.ID, err.Error())
 		return err
 	}
 	version := dep.Version
@@ -358,11 +332,7 @@ func (h *DeployTriggerHandler) deployGitApp(ctx context.Context, app *core.Appli
 	labels := h.buildDeployLabels(ctx, app, version)
 	containerName := fmt.Sprintf("dm-%s-%d", app.ID, version)
 	if err := ensureDeployNetwork(ctx, deployRT); err != nil {
-		h.failReservedDeployment(ctx, app.ID, dep)
-		h.publishAsync(ctx, core.NewEvent(core.EventDeployFailed, "deploy_trigger", map[string]string{
-			"app_id": app.ID,
-			"error":  err.Error(),
-		}))
+		h.failReserved(ctx, app.ID, dep, err.Error())
 		return err
 	}
 	containerID, err := deployRT.CreateAndStart(ctx, core.ContainerOpts{
@@ -373,11 +343,7 @@ func (h *DeployTriggerHandler) deployGitApp(ctx context.Context, app *core.Appli
 		RestartPolicy: "unless-stopped",
 	})
 	if err != nil {
-		h.failReservedDeployment(ctx, app.ID, dep)
-		h.publishAsync(ctx, core.NewEvent(core.EventDeployFailed, "deploy_trigger", map[string]string{
-			"app_id": app.ID,
-			"error":  err.Error(),
-		}))
+		h.failReserved(ctx, app.ID, dep, err.Error())
 		return err
 	}
 	h.cleanupPreviousAppContainers(ctx, deployRT, app.ID, containerID)
@@ -421,12 +387,33 @@ func (h *DeployTriggerHandler) failReservedDeployment(ctx context.Context, appID
 	}
 }
 
+// failReserved marks the app and the reserved deployment row as failed, then
+// emits EventDeployFailed. Use when a deploy aborts after CreateDeploymentAtomicVersion
+// succeeded (RACE-002b path).
+//
+// P1-7: Merges the failReservedDeployment+publishAsync(EventDeployFailed) pair
+// that was copy-pasted at three sites in deployGitApp.
+func (h *DeployTriggerHandler) failReserved(ctx context.Context, appID string, dep *core.Deployment, errMsg string) {
+	h.failReservedDeployment(ctx, appID, dep)
+	h.publishDeployFailed(ctx, "deploy_trigger", appID, errMsg)
+}
+
 // failApp marks the app as failed. Use when the deployment row has not yet been reserved.
 // P1-7: Extracted from 7× inline copy-paste blocks in deployGitApp.
 func (h *DeployTriggerHandler) failApp(ctx context.Context, appID string) {
 	if sErr := h.store.UpdateAppStatus(ctx, appID, "failed"); sErr != nil {
 		slog.Error("deploy: failed to update app status", "app_id", appID, "error", sErr)
 	}
+}
+
+// failAppAndPublish marks the app as failed and emits the appropriate event.
+// P1-7: Consolidates the failApp+publishAsync(EventDeployFailed) pair used at 4 sites.
+func (h *DeployTriggerHandler) failAppAndPublish(ctx context.Context, eventType string, appID, errMsg string) {
+	h.failApp(ctx, appID)
+	h.publishAsync(ctx, core.NewEvent(eventType, "deploy_trigger", map[string]string{
+		"app_id": appID,
+		"error":  errMsg,
+	}))
 }
 
 // publishDeployFailed emits an EventDeployFailed event.

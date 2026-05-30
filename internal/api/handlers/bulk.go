@@ -62,11 +62,17 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 	// This enables rollback if a later operation fails.
 	appOriginalStatus := make(map[string]string)
 	appTenantMap := make(map[string]string) // track per-app tenant for error reporting
-	for _, appID := range req.AppIDs {
-		if app, err := h.store.GetApp(r.Context(), appID); err == nil {
-			appTenantMap[appID] = app.TenantID
+	// Batch-fetch all apps in a single query to avoid N+1.
+	if len(req.AppIDs) > 0 {
+		apps, err := h.store.GetAppsByIDs(r.Context(), req.AppIDs)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load apps")
+			return
+		}
+		for _, app := range apps {
+			appTenantMap[app.ID] = app.TenantID
 			if app.TenantID == claims.TenantID {
-				appOriginalStatus[appID] = app.Status
+				appOriginalStatus[app.ID] = app.Status
 			}
 		}
 	}

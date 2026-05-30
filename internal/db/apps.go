@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -38,6 +40,42 @@ func (s *SQLiteDB) GetApp(ctx context.Context, id string) (*core.Application, er
 		return nil, core.ErrNotFound
 	}
 	return a, err
+}
+
+// GetAppsByIDs retrieves multiple apps in a single query.
+func (s *SQLiteDB) GetAppsByIDs(ctx context.Context, ids []string) ([]core.Application, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(ids))
+	placeholders = placeholders[:len(placeholders)-1]
+	query := fmt.Sprintf(
+		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
+		        dockerfile, build_pack, env_vars_enc, labels_json, replicas, status, COALESCE(server_id,''),
+		        created_at, updated_at
+		 FROM applications WHERE id IN (%s)`,
+		placeholders,
+	)
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var apps []core.Application
+	for rows.Next() {
+		var a core.Application
+		if err := rows.Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType,
+			&a.SourceURL, &a.Branch, &a.Dockerfile, &a.BuildPack, &a.EnvVarsEnc, &a.LabelsJSON,
+			&a.Replicas, &a.Status, &a.ServerID, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			return nil, err
+		}
+		apps = append(apps, a)
+	}
+	return apps, rows.Err()
 }
 
 // GetAppByName retrieves an application by tenant ID and name.

@@ -407,6 +407,42 @@ func (p *PostgresDB) GetApp(ctx context.Context, id string) (*core.Application, 
 	return a, err
 }
 
+// GetAppsByIDs retrieves multiple apps in a single query using $1, $2, ... placeholders.
+func (p *PostgresDB) GetAppsByIDs(ctx context.Context, ids []string) ([]core.Application, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	query := fmt.Sprintf(
+		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
+		        dockerfile, build_pack, env_vars_enc, labels_json, replicas, status, COALESCE(server_id,''),
+		        created_at, updated_at
+		 FROM applications WHERE id IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := p.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var apps []core.Application
+	for rows.Next() {
+		var a core.Application
+		if err := rows.Scan(&a.ID, &a.ProjectID, &a.TenantID, &a.Name, &a.Type, &a.SourceType,
+			&a.SourceURL, &a.Branch, &a.Dockerfile, &a.BuildPack, &a.EnvVarsEnc, &a.LabelsJSON,
+			&a.Replicas, &a.Status, &a.ServerID, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			return nil, err
+		}
+		apps = append(apps, a)
+	}
+	return apps, rows.Err()
+}
+
 func (p *PostgresDB) UpdateApp(ctx context.Context, a *core.Application) error {
 	_, err := p.db.ExecContext(ctx,
 		`UPDATE applications SET name=$1, source_url=$2, branch=$3, dockerfile=$4,

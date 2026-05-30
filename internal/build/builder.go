@@ -100,7 +100,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	// Apply timeout
 	timeout := opts.Timeout
 	if timeout == 0 {
-		timeout = 30 * time.Minute
+		timeout = core.BuildTimeout
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
