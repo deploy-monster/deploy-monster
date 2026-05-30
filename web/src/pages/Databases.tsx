@@ -1,3 +1,4 @@
+// P1-12: Migrate hand-rolled mutation state to useMutation hook
 import { useState, useMemo } from 'react';
 import { useDebouncedValue } from '../hooks';
 import {
@@ -12,8 +13,7 @@ import {
   Clock,
 } from 'lucide-react';
 import type { DatabaseInstance } from '@/api/databases';
-import { api } from '@/api/client';
-import { useApi } from '@/hooks';
+import { useApi, useMutation } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -143,13 +143,12 @@ export function Databases() {
     { data: DatabaseInstance[]; total: number } | DatabaseInstance[]
   >('/databases');
   const databases = Array.isArray(databasesResp) ? databasesResp : databasesResp?.data;
+  const { mutate: createDatabase, loading: creating, error: createError } = useMutation('post', '/databases');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [engine, setEngine] = useState('postgres');
   const [version, setVersion] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery);
 
@@ -157,10 +156,8 @@ export function Databases() {
 
   const handleCreate = async () => {
     if (!newName || !engine) return;
-    setCreating(true);
-    setCreateError('');
     try {
-      await api.post('/databases', {
+      await createDatabase({
         name: newName,
         engine,
         version: version || selectedEngine.versions[0],
@@ -171,10 +168,8 @@ export function Databases() {
       setVersion('');
       setDialogOpen(false);
       refetch();
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create database');
-    } finally {
-      setCreating(false);
+    } catch {
+      // createError is set by the hook
     }
   };
 

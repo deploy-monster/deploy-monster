@@ -1,3 +1,4 @@
+// P1-12: Migrate hand-rolled mutation state to useMutation hook
 import { useState, useMemo } from 'react';
 import { useDebouncedValue } from '../hooks';
 import {
@@ -17,7 +18,7 @@ import {
 import type { Domain } from '@/api/domains';
 import type { PaginatedResponse } from '@/api/client';
 import { api } from '@/api/client';
-import { useApi } from '@/hooks';
+import { useApi, useMutation } from '@/hooks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -78,12 +79,11 @@ function TableSkeleton() {
 
 export function Domains() {
   const { data: domains, loading, refetch } = useApi<PaginatedResponse<Domain> | Domain[]>('/domains');
+  const { mutate: addDomain, loading: adding, error: addError } = useMutation('post', '/domains');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newFQDN, setNewFQDN] = useState('');
   const [newAppID, setNewAppID] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState('');
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery);
@@ -93,19 +93,15 @@ export function Domains() {
 
   const handleAdd = async () => {
     if (!newFQDN) return;
-    setAdding(true);
-    setAddError('');
     try {
-      await api.post('/domains', { fqdn: newFQDN, app_id: newAppID });
+      await addDomain({ fqdn: newFQDN, app_id: newAppID });
       toast.success('Domain added successfully');
       setNewFQDN('');
       setNewAppID('');
       setDialogOpen(false);
       refetch();
-    } catch (err) {
-      setAddError(err instanceof Error ? err.message : 'Failed to add domain');
-    } finally {
-      setAdding(false);
+    } catch {
+      // addError is set by the hook
     }
   };
 
