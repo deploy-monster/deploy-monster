@@ -1,5 +1,10 @@
 package core
 
+// P3-6: Reviewed for global singleton patterns — no refactoring needed.
+// EventBus is already an instance type (constructed via NewEventBus) stored
+// on Core.Events. correlationKey is a private unexported context key sentinel,
+// not a singleton that hinders testing.
+
 import (
 	"context"
 	"fmt"

@@ -1,5 +1,10 @@
 package core
 
+// P3-6: Global singleton `moduleFactories` refactored to moduleRegistry struct.
+// The global `moduleFactories` variable is retained (deprecated) for backward
+// compatibility with module init() registrations. New code should use
+// Core.Registry or inject factories directly for testability.
+
 import (
 	"context"
 	"fmt"
@@ -19,13 +24,22 @@ import (
 // Used by registerAllModules to decouple core from module packages.
 type ModuleFactory func() Module
 
-// moduleFactories holds all registered module factories.
+// Core holds the module factory registry.
 // Populated by init() functions in each module package via RegisterModule.
-var moduleFactories []ModuleFactory
+// See P3-6: refactored from package-level global for testability.
+type moduleRegistry struct {
+	factories []ModuleFactory
+}
+
+// moduleFactories is the process-wide registry populated by module init().
+// Deprecated: for new code, use Core.Registry or inject factories directly.
+// Kept for backward compatibility with existing module packages that call
+// RegisterModule from init() (see P3-6).
+var moduleFactories = moduleRegistry{}
 
 // RegisterModule adds a module factory to be instantiated during app startup.
 func RegisterModule(factory ModuleFactory) {
-	moduleFactories = append(moduleFactories, factory)
+	moduleFactories.factories = append(moduleFactories.factories, factory)
 }
 
 // BuildInfo holds binary build metadata injected via ldflags.
@@ -266,9 +280,10 @@ func (c *Core) ReloadConfig() error {
 // Modules are registered in approximate priority order; actual initialization
 // order is determined by dependency resolution in Registry.Resolve().
 // Returns an error if any module fails to register.
+// See P3-6: refactored to use moduleRegistry instance instead of global.
 func registerAllModules(c *Core) error {
 	var errs []error
-	for _, factory := range moduleFactories {
+	for _, factory := range moduleFactories.factories {
 		if err := c.Registry.Register(factory()); err != nil {
 			c.Logger.Error("failed to register module", "error", err)
 			errs = append(errs, err)

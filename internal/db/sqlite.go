@@ -1,3 +1,7 @@
+// P2-12: migration concurrency safety — both backends use COUNT-then-INSERT
+// which is inherently racy for concurrent processes. The INSERT side is
+// protected by ON CONFLICT DO NOTHING so that if two processes race through
+// the check the duplicate insert becomes a no-op rather than an error.
 package db
 
 import (
@@ -227,7 +231,7 @@ func (s *SQLiteDB) migrate() error {
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
 
-		if _, err := tx.Exec("INSERT INTO _migrations (version, name) VALUES (?, ?)", version, name); err != nil {
+		if _, err := tx.Exec("INSERT INTO _migrations (version, name) VALUES (?, ?) ON CONFLICT DO NOTHING", version, name); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("record migration %s: %w", name, err)
 		}

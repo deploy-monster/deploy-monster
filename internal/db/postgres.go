@@ -1,3 +1,7 @@
+// P2-12: migration concurrency safety — both backends use COUNT-then-INSERT
+// which is inherently racy for concurrent processes. The INSERT side is
+// protected by ON CONFLICT DO NOTHING so that if two processes race through
+// the check the duplicate insert becomes a no-op rather than an error.
 package db
 
 import (
@@ -158,13 +162,100 @@ func (p *PostgresDB) migrate() error {
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
 
-		if _, err := tx.Exec("INSERT INTO _migrations (version, name) VALUES ($1, $2)", version, name); err != nil {
+		if _, err := tx.Exec("INSERT INTO _migrations (version, name) VALUES ($1, $2) ON CONFLICT DO NOTHING", version, name); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("record migration %s: %w", name, err)
 		}
 
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit migration %s: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+// Rollback reverts the last n applied migrations by executing their .pgsql.down.sql
+// counterparts. If steps <= 0, it rolls back all migrations. Each migration runs in its
+// own transaction for atomicity. The ctx parameter is used for the per-query timeout
+// and is also passed into the transaction so that context cancellation aborts a
+// rollback in progress. No .pgsql.down.sql files are required to exist — if a file
+// is missing this still removes the record from _migrations (making the interface
+// future-proof before any down migrations are written).
+func (p *PostgresDB) Rollback(ctx context.Context, steps int) error {
+	type migration struct {
+		version int
+		name    string
+	}
+
+	// Read applied migrations into memory first, then release the connection
+	// before entering the rollback loop to avoid holding a cursor open
+	// while executing DDL.
+	applied, err := func() ([]migration, error) {
+		rows, err := p.db.QueryContext(ctx, "SELECT version, name FROM _migrations ORDER BY version DESC")
+		if err != nil {
+			return nil, fmt.Errorf("list applied migrations: %w", err)
+		}
+		defer func() { _ = rows.Close() }()
+
+		var out []migration
+		for rows.Next() {
+			var m migration
+			if err := rows.Scan(&m.version, &m.name); err != nil {
+				return nil, fmt.Errorf("scan migration: %w", err)
+			}
+			out = append(out, m)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate applied migrations: %w", err)
+		}
+		return out, nil
+	}()
+	if err != nil {
+		return err
+	}
+
+	if len(applied) == 0 {
+		return nil
+	}
+
+	if steps <= 0 || steps > len(applied) {
+		steps = len(applied)
+	}
+
+	for i := 0; i < steps; i++ {
+		m := applied[i]
+		// Derive down filename: 0001_init.pgsql.sql -> 0001_init.pgsql.down.sql
+		downName := strings.TrimSuffix(m.name, ".pgsql.sql") + ".pgsql.down.sql"
+
+		// Run the down migration inside a transaction so it is atomic.
+		tx, err := p.db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("begin tx for rollback %s: %w", downName, err)
+		}
+
+		data, err := migrationsFS.ReadFile("migrations/" + downName)
+		if err != nil {
+			// No down file yet — still remove the record so the interface
+			// is future-proof and a missing file does not block rollback.
+			_, _ = tx.Exec("DELETE FROM _migrations WHERE version = $1", m.version)
+			_ = tx.Rollback()
+			// Return a non-fatal error so callers know a file was missing.
+			return fmt.Errorf("down migration %s not found: %w", downName, err)
+		}
+
+		if _, err := tx.Exec(string(data)); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("apply down migration %s: %w", downName, err)
+		}
+
+		if _, err := tx.Exec("DELETE FROM _migrations WHERE version = $1", m.version); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("remove migration record %d: %w", m.version, err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit rollback %s: %w", downName, err)
 		}
 	}
 

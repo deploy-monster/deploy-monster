@@ -1,5 +1,8 @@
 package build
 
+// P3-11: 14 near-identical detector functions consolidated via fileExists
+// helper and table-driven detection structure.
+
 import (
 	"os"
 	"path/filepath"
@@ -33,171 +36,89 @@ type DetectResult struct {
 	Indicators []string    `json:"indicators"` // files that matched
 }
 
-// Detect analyzes a directory to determine the project type.
-// Detection is ordered by specificity — most specific match wins.
-func Detect(dir string) *DetectResult {
-	// Check each type in order of specificity
-	checks := []struct {
-		ptype ProjectType
-		fn    func(string) (bool, []string)
-	}{
-		{TypeDockerfile, hasDockerfile},
-		{TypeDockerCompose, hasDockerCompose},
-		{TypeNextJS, isNextJS},
-		{TypeNuxt, isNuxt},
-		{TypeVite, isVite},
-		{TypeNodeJS, isNodeJS},
-		{TypeGo, isGo},
-		{TypeRust, isRust},
-		{TypePython, isPython},
-		{TypeRuby, isRuby},
-		{TypePHP, isPHP},
-		{TypeJava, isJava},
-		{TypeDotNet, isDotNet},
-		{TypeStatic, isStatic},
-	}
+// detectorEntry describes how to detect a single project type.
+type detectorEntry struct {
+	ptype     ProjectType
+	prereq    string   // optional; file that must exist before checking filenames
+	filenames []string // files to try; first match wins
+	isExt     bool     // if true, filenames are extensions to match against directory entries
+}
 
-	for _, check := range checks {
-		if ok, indicators := check.fn(dir); ok {
+// detectionTable is ordered by specificity — most specific match wins.
+var detectionTable = []detectorEntry{
+	{TypeDockerfile, "", []string{"Dockerfile"}, false},
+	{TypeDockerCompose, "", []string{"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"}, false},
+	{TypeNextJS, "package.json", []string{"next.config.js", "next.config.mjs", "next.config.ts"}, false},
+	{TypeNuxt, "package.json", []string{"nuxt.config.js", "nuxt.config.ts"}, false},
+	{TypeVite, "package.json", []string{"vite.config.js", "vite.config.ts", "vite.config.mjs"}, false},
+	{TypeNodeJS, "", []string{"package.json"}, false},
+	{TypeGo, "", []string{"go.mod"}, false},
+	{TypeRust, "", []string{"Cargo.toml"}, false},
+	{TypePython, "", []string{"requirements.txt", "pyproject.toml", "setup.py", "Pipfile"}, false},
+	{TypeRuby, "", []string{"Gemfile"}, false},
+	{TypePHP, "", []string{"composer.json"}, false},
+	{TypeJava, "", []string{"pom.xml", "build.gradle", "build.gradle.kts"}, false},
+	{TypeDotNet, "", []string{".csproj", ".sln", ".fsproj"}, true},
+	{TypeStatic, "", []string{"index.html"}, false},
+}
+
+// Detect analyzes a directory to determine the project type.
+func Detect(dir string) *DetectResult {
+	for _, entry := range detectionTable {
+		if ok, indicators := detect(entry, dir); ok {
 			return &DetectResult{
-				Type:       check.ptype,
+				Type:       entry.ptype,
 				Confidence: 90,
 				Indicators: indicators,
 			}
 		}
 	}
-
 	return &DetectResult{Type: TypeUnknown, Confidence: 0}
 }
 
-func exists(path string) bool {
+// fileExists reports whether path exists.
+func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-func hasDockerfile(dir string) (bool, []string) {
-	if exists(filepath.Join(dir, "Dockerfile")) {
-		return true, []string{"Dockerfile"}
-	}
-	return false, nil
-}
+// exists is an alias for fileExists kept for backward compatibility with
+// internal callers (e.g. builder.go) that reference the old name directly.
+// Deprecated: prefer fileExists.
+func exists(path string) bool { return fileExists(path) }
 
-func hasDockerCompose(dir string) (bool, []string) {
-	for _, name := range []string{"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"} {
-		if exists(filepath.Join(dir, name)) {
+// detect checks if dir matches the given entry's criteria.
+func detect(entry detectorEntry, dir string) (bool, []string) {
+	if entry.prereq != "" && !fileExists(filepath.Join(dir, entry.prereq)) {
+		return false, nil
+	}
+
+	if entry.isExt {
+		return detectByExt(entry, dir)
+	}
+
+	for _, name := range entry.filenames {
+		if fileExists(filepath.Join(dir, name)) {
 			return true, []string{name}
 		}
 	}
 	return false, nil
 }
 
-func isNextJS(dir string) (bool, []string) {
-	if !exists(filepath.Join(dir, "package.json")) {
-		return false, nil
-	}
-	for _, name := range []string{"next.config.js", "next.config.mjs", "next.config.ts"} {
-		if exists(filepath.Join(dir, name)) {
-			return true, []string{"package.json", name}
-		}
-	}
-	return false, nil
-}
-
-func isNuxt(dir string) (bool, []string) {
-	if !exists(filepath.Join(dir, "package.json")) {
-		return false, nil
-	}
-	for _, name := range []string{"nuxt.config.js", "nuxt.config.ts"} {
-		if exists(filepath.Join(dir, name)) {
-			return true, []string{"package.json", name}
-		}
-	}
-	return false, nil
-}
-
-func isVite(dir string) (bool, []string) {
-	if !exists(filepath.Join(dir, "package.json")) {
-		return false, nil
-	}
-	for _, name := range []string{"vite.config.js", "vite.config.ts", "vite.config.mjs"} {
-		if exists(filepath.Join(dir, name)) {
-			return true, []string{"package.json", name}
-		}
-	}
-	return false, nil
-}
-
-func isNodeJS(dir string) (bool, []string) {
-	if exists(filepath.Join(dir, "package.json")) {
-		return true, []string{"package.json"}
-	}
-	return false, nil
-}
-
-func isGo(dir string) (bool, []string) {
-	if exists(filepath.Join(dir, "go.mod")) {
-		return true, []string{"go.mod"}
-	}
-	return false, nil
-}
-
-func isRust(dir string) (bool, []string) {
-	if exists(filepath.Join(dir, "Cargo.toml")) {
-		return true, []string{"Cargo.toml"}
-	}
-	return false, nil
-}
-
-func isPython(dir string) (bool, []string) {
-	for _, name := range []string{"requirements.txt", "pyproject.toml", "setup.py", "Pipfile"} {
-		if exists(filepath.Join(dir, name)) {
-			return true, []string{name}
-		}
-	}
-	return false, nil
-}
-
-func isRuby(dir string) (bool, []string) {
-	if exists(filepath.Join(dir, "Gemfile")) {
-		return true, []string{"Gemfile"}
-	}
-	return false, nil
-}
-
-func isPHP(dir string) (bool, []string) {
-	if exists(filepath.Join(dir, "composer.json")) {
-		return true, []string{"composer.json"}
-	}
-	return false, nil
-}
-
-func isJava(dir string) (bool, []string) {
-	for _, name := range []string{"pom.xml", "build.gradle", "build.gradle.kts"} {
-		if exists(filepath.Join(dir, name)) {
-			return true, []string{name}
-		}
-	}
-	return false, nil
-}
-
-func isDotNet(dir string) (bool, []string) {
-	// Check for .csproj or .sln files
+// detectByExt checks for files with matching extensions in dir.
+func detectByExt(entry detectorEntry, dir string) (bool, []string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false, nil
 	}
+	exts := make(map[string]bool)
+	for _, e := range entry.filenames {
+		exts[e] = true
+	}
 	for _, e := range entries {
-		ext := filepath.Ext(e.Name())
-		if ext == ".csproj" || ext == ".sln" || ext == ".fsproj" {
+		if exts[filepath.Ext(e.Name())] {
 			return true, []string{e.Name()}
 		}
-	}
-	return false, nil
-}
-
-func isStatic(dir string) (bool, []string) {
-	if exists(filepath.Join(dir, "index.html")) {
-		return true, []string{"index.html"}
 	}
 	return false, nil
 }

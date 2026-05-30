@@ -286,17 +286,22 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   // Unwrap {data: ...} responses — but only when it's a simple list wrapper.
   // Common pattern: {"data": [...], "total": N} → unwrap to the array.
-  // Marketplace pattern: {"data": [...], "categories": [...], "total": N} →
-  //   keep as-is (caller needs all keys).  We detect this by checking if the
-  //   response has more than 2 keys — the common wrapper has only "data" and
-  //   optionally "total".
+  // Multi-domain responses like marketplace keep extra keys and must not be
+  // unwrapped. We detect simple wrappers by checking that all keys outside
+  // "data" are known-safe pagination markers — any unexpected key blocks
+  // the unwrap so callers get the full envelope.
+  //
+  // P3-13 fix: the previous keys.length<=2 heuristic broke on 3-key envelopes
+  // like {"data": [...], "total": N, "page": 2}. This whitelist approach is
+  // explicit and version-safe.
   if (json && typeof json === 'object' && 'data' in json && !('error' in json)) {
     const keys = Object.keys(json);
-    // Marketplace: {"data": [...], "categories": [...], ...} → keep as-is (marketplace
-    // needs categories too). Detect by checking for the 'categories' key.
-    // Common wrappers: {"data": [...]} or {"data": [...], "total": N}
-    const isSimpleWrapper = keys.length <= 2 && !('categories' in json);
-    if (isSimpleWrapper) {
+    // Keys that are known to be safe alongside "data" in standard wrappers.
+    // Add new pagination/meta keys here as the API evolves.
+    const knownSafeExtraKeys = new Set(['total', 'page', 'per_page', 'total_pages', 'next', 'prev', 'has_more']);
+    const extraKeys = keys.filter((k) => k !== 'data');
+    const allExtraKeysSafe = extraKeys.every((k) => knownSafeExtraKeys.has(k));
+    if (allExtraKeysSafe) {
       return json.data as T;
     }
   }

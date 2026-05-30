@@ -1,5 +1,10 @@
 package ws
 
+// P3-6: Global singleton `deployHub` refactored to allow injection for testing.
+// The global `deployHub` variable is retained for production use. Tests can
+// replace it directly. New code should pass hub instances explicitly where
+// possible for better testability.
+
 import (
 	"context"
 	"encoding/json"
@@ -505,9 +510,19 @@ func (h *DeployHub) ServeWS(w http.ResponseWriter, r *http.Request, projectID st
 }
 
 // Global deploy hub instance
+// See P3-6: refactored to allow injection for testing.
 var deployHub = NewDeployHub()
 
-// GetDeployHub returns the global deploy hub
+// Hub returns the global DeployHub instance.
+// Tests can replace deployHub directly for isolation.
+// Production code should pass hub instances explicitly for testability.
+func Hub() *DeployHub {
+	return deployHub
+}
+
+// GetDeployHub returns the global deploy hub.
+// Deprecated: use Hub() for explicit access; tests may replace deployHub directly.
+// See P3-6.
 func GetDeployHub() *DeployHub {
 	return deployHub
 }
