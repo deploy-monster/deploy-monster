@@ -1,11 +1,11 @@
+// P1-12: Migrate hand-rolled mutation state to useMutation hook
 import { useState } from 'react';
 import { Lock, Shield, Loader2, Plus, Trash2, Copy, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { PasswordInput } from '@/components/Marketplace/PasswordInput';
-import { api } from '@/api/client';
-import { useApi } from '@/hooks';
+import { useApi, useMutation } from '@/hooks';
 import { adminAPI, type APIKey } from '@/api/admin';
 import { toast } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/auth';
@@ -17,25 +17,26 @@ interface SecuritySectionProps {
 export function SecuritySection({ onPasswordChanged }: SecuritySectionProps) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
 
-  const handleChangePassword = async () => {
+  const { mutate: changePassword, loading: changingPassword } = useMutation<
+    { current_password: string; new_password: string },
+    void
+  >('post', '/auth/change-password');
+
+  const handleChangePassword = () => {
     if (!currentPassword || !newPassword) return;
-    setChangingPassword(true);
-    try {
-      await api.post('/auth/change-password', {
-        current_password: currentPassword,
-        new_password: newPassword,
-      });
-      toast.success('Password changed');
-      setCurrentPassword('');
-      setNewPassword('');
-      onPasswordChanged?.();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to change password');
-    } finally {
-      setChangingPassword(false);
-    }
+    changePassword(
+      { current_password: currentPassword, new_password: newPassword },
+      {
+        onSuccess: () => {
+          toast.success('Password changed');
+          setCurrentPassword('');
+          setNewPassword('');
+          onPasswordChanged?.();
+        },
+        onError: (err) => { toast.error(err); },
+      },
+    );
   };
 
   return (

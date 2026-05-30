@@ -1,3 +1,4 @@
+// P1-12: Migrate hand-rolled mutation state to useMutation hook
 import { useState } from 'react';
 import { User, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth';
-import { api } from '@/api/client';
+import { useMutation } from '@/hooks';
 import { toast } from '@/stores/toastStore';
 
 function getInitials(name: string) {
@@ -25,20 +26,21 @@ export function ProfileSection({ onSave }: ProfileSectionProps) {
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
   const [editName, setEditName] = useState(user?.name || '');
-  const [saving, setSaving] = useState(false);
 
-  const handleSaveProfile = async () => {
-    setSaving(true);
-    try {
-      const updatedUser = await api.patch<{ name?: string }>('/auth/me', { name: editName });
-      updateUser({ name: updatedUser?.name || editName });
-      toast.success('Profile updated');
-      onSave?.();
-    } catch {
-      toast.error('Failed to update profile');
-    } finally {
-      setSaving(false);
-    }
+  const { mutate: saveProfile, loading: saving } = useMutation<{ name: string }, { name?: string }>('patch', '/auth/me');
+
+  const handleSaveProfile = () => {
+    saveProfile(
+      { name: editName },
+      {
+        onSuccess: (updatedUser) => {
+          updateUser({ name: updatedUser?.name || editName });
+          toast.success('Profile updated');
+          onSave?.();
+        },
+        onError: (err) => { toast.error(err); },
+      },
+    );
   };
 
   return (
