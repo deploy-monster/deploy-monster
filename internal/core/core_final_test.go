@@ -51,7 +51,7 @@ func TestNewApp_ReturnsCore(t *testing.T) {
 	// Save and restore global module factories
 	original := moduleFactories
 	defer func() { moduleFactories = original }()
-	moduleFactories = nil
+	moduleFactories = moduleRegistry{}
 
 	cfg := &Config{}
 	applyDefaults(cfg)
@@ -95,7 +95,7 @@ func TestNewApp_WithModuleFactories(t *testing.T) {
 	original := moduleFactories
 	defer func() { moduleFactories = original }()
 
-	moduleFactories = nil
+	moduleFactories = moduleRegistry{}
 	RegisterModule(func() Module { return newStub("factory-mod-1") })
 	RegisterModule(func() Module { return newStub("factory-mod-2") })
 
@@ -125,7 +125,7 @@ func TestRegisterAllModules_DuplicateModule(t *testing.T) {
 	original := moduleFactories
 	defer func() { moduleFactories = original }()
 
-	moduleFactories = nil
+	moduleFactories = moduleRegistry{}
 	// Register two factories that produce modules with the same ID
 	RegisterModule(func() Module { return newStub("dup") })
 	RegisterModule(func() Module { return newStub("dup") })
@@ -154,7 +154,7 @@ func TestRegisterAllModules_DuplicateModule(t *testing.T) {
 func TestRun_HappyPath(t *testing.T) {
 	original := moduleFactories
 	defer func() { moduleFactories = original }()
-	moduleFactories = nil
+	moduleFactories = moduleRegistry{}
 
 	RegisterModule(func() Module { return newStub("mod-a") })
 
@@ -184,7 +184,7 @@ func TestRun_HappyPath(t *testing.T) {
 func TestRun_ResolveError(t *testing.T) {
 	original := moduleFactories
 	defer func() { moduleFactories = original }()
-	moduleFactories = nil
+	moduleFactories = moduleRegistry{}
 
 	// Create a module with a dependency that doesn't exist
 	RegisterModule(func() Module { return newStub("orphan", "nonexistent") })
@@ -210,7 +210,7 @@ func TestRun_ResolveError(t *testing.T) {
 func TestRun_InitError(t *testing.T) {
 	original := moduleFactories
 	defer func() { moduleFactories = original }()
-	moduleFactories = nil
+	moduleFactories = moduleRegistry{}
 
 	RegisterModule(func() Module { return &failingModule{id: "fail-init", failOn: "init"} })
 
@@ -235,7 +235,7 @@ func TestRun_InitError(t *testing.T) {
 func TestRun_StartError(t *testing.T) {
 	original := moduleFactories
 	defer func() { moduleFactories = original }()
-	moduleFactories = nil
+	moduleFactories = moduleRegistry{}
 
 	RegisterModule(func() Module { return &failingModule{id: "fail-start", failOn: "start"} })
 

@@ -405,6 +405,18 @@ func (m *mockStore) ListAppsByTenant(_ context.Context, tenantID string, limit, 
 	return appList[offset:end], total, nil
 }
 
+func (m *mockStore) GetAppsByIDs(_ context.Context, ids []string) ([]core.Application, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make([]core.Application, 0, len(ids))
+	for _, id := range ids {
+		if app, ok := m.apps[id]; ok {
+			result = append(result, *app)
+		}
+	}
+	return result, nil
+}
+
 func (m *mockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
 	panic("mockStore.ListAppsByProject not implemented")
 }
@@ -865,10 +877,36 @@ func (m *mockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, e
 }
 
 func (m *mockStore) Close() error                 { return nil }
-func (m *mockStore) CreateDeploymentAtomicVersion(_ context.Context, _ *core.Deployment) error { return nil }
+func (m *mockStore) CreateDeploymentAtomicVersion(ctx context.Context, dep *core.Deployment) error {
+	v, vErr := m.AtomicNextDeployVersion(ctx, dep.AppID)
+	if vErr != nil {
+		return vErr
+	}
+	if m.errCreateDeployment != nil {
+		return m.errCreateDeployment
+	}
+	if dep.ID == "" {
+		dep.ID = fmt.Sprintf("dep-%d", time.Now().UnixNano())
+	}
+	m.nextDeployVersion[dep.AppID] = v + 1
+	dep.Version = v
+	return nil
+}
 func (m *mockStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) { return nil, nil }
 func (m *mockStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) { return nil, nil }
-func (m *mockStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) { return nil, nil }
+func (m *mockStore) ListDomainsByAppIDs(_ context.Context, appIDs []string) (map[string][]core.Domain, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make(map[string][]core.Domain)
+	for _, appID := range appIDs {
+		if domains, ok := m.domainsByApp[appID]; ok {
+			result[appID] = domains
+		} else {
+			result[appID] = []core.Domain{}
+		}
+	}
+	return result, nil
+}
 func (m *mockStore) Ping(_ context.Context) error { return nil }
 
 // ─── Test Helpers ────────────────────────────────────────────────────────────

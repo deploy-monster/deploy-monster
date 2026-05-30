@@ -588,7 +588,7 @@ func TestDockerBuild_CancelledContext(t *testing.T) {
 	dfPath := filepath.Join(dir, "Dockerfile")
 	os.WriteFile(dfPath, []byte("FROM alpine"), 0644)
 
-	err := dockerBuild(ctx, dir, dfPath, "test:canceled", nil, io.Discard)
+	err := dockerBuild(ctx, dir, dfPath, "test:canceled", nil, nil, io.Discard)
 	if err == nil {
 		t.Log("docker build succeeded despite canceled context")
 	}

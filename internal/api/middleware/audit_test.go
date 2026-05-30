@@ -73,6 +73,9 @@ func (s *auditMockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int)
 func (s *auditMockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
 	return nil, nil
 }
+func (s *auditMockStore) GetAppsByIDs(_ context.Context, _ []string) ([]core.Application, error) {
+	return nil, nil
+}
 func (s *auditMockStore) UpdateAppStatus(_ context.Context, _, _ string) error { return nil }
 func (s *auditMockStore) DeleteApp(_ context.Context, _ string) error          { return nil }
 func (s *auditMockStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {

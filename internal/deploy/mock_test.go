@@ -276,6 +276,10 @@ func (s *mockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]c
 	return apps, len(apps), nil
 }
 
+func (s *mockStore) GetAppsByIDs(_ context.Context, _ []string) ([]core.Application, error) {
+	return nil, nil
+}
+
 func (s *mockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
 	return nil, nil
 }

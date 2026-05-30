@@ -191,6 +191,9 @@ func (m *mockPermStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) 
 func (m *mockPermStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
 	return nil, nil
 }
+func (m *mockPermStore) GetAppsByIDs(_ context.Context, _ []string) ([]core.Application, error) {
+	return nil, nil
+}
 func (m *mockPermStore) UpdateAppStatus(_ context.Context, _, _ string) error         { return nil }
 func (m *mockPermStore) DeleteApp(_ context.Context, _ string) error                  { return nil }
 func (m *mockPermStore) CreateDeployment(_ context.Context, _ *core.Deployment) error { return nil }

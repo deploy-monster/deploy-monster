@@ -53,7 +53,7 @@ type statefulBolt struct {
 	data   map[string][]byte
 }
 
-func (m *statefulBolt) Set(ctx context.Context, bucket, key string, value any, _ int64) error {
+func (m *statefulBolt) Set(bucket, key string, value any, _ int64) error {
 	if m.data == nil {
 		m.data = map[string][]byte{}
 	}
@@ -65,7 +65,7 @@ func (m *statefulBolt) Set(ctx context.Context, bucket, key string, value any, _
 	return nil
 }
 
-func (m *statefulBolt) Get(ctx context.Context, bucket, key string, dest any) error {
+func (m *statefulBolt) Get(bucket, key string, dest any) error {
 	b, ok := m.data[bucket+"/"+key]
 	if !ok {
 		return core.ErrKVNotFound
@@ -73,9 +73,9 @@ func (m *statefulBolt) Get(ctx context.Context, bucket, key string, dest any) er
 	return json.Unmarshal(b, dest)
 }
 
-func (m *statefulBolt) BatchSet(ctx context.Context, _ []core.BoltBatchItem) error { return nil }
-func (m *statefulBolt) Delete(ctx context.Context, _, _ string) error              { return nil }
-func (m *statefulBolt) List(ctx context.Context, _ string) ([]string, error)       { return nil, nil }
+func (m *statefulBolt) BatchSet(_ []core.BoltBatchItem) error { return nil }
+func (m *statefulBolt) Delete(_, _ string) error              { return nil }
+func (m *statefulBolt) List(_ string) ([]string, error)       { return nil, nil }
 func (m *statefulBolt) Close() error                          { return nil }
 func (m *statefulBolt) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
 	return nil, core.ErrKVNotFound

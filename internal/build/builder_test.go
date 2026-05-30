@@ -685,16 +685,16 @@ func TestBuilder_Build_CancelledContext(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// isDotNet — unreadable directory returns false
+// Detect — unreadable directory returns unknown type
 // ---------------------------------------------------------------------------
 
 func TestDetect_DotNet_NoDir(t *testing.T) {
-	ok, indicators := isDotNet("/nonexistent/path/that/does/not/exist")
-	if ok {
-		t.Error("expected false for nonexistent directory")
+	result := Detect("/nonexistent/path/that/does/not/exist")
+	if result.Type != TypeUnknown {
+		t.Errorf("expected TypeUnknown for nonexistent directory, got %v", result.Type)
 	}
-	if indicators != nil {
-		t.Errorf("expected nil indicators, got %v", indicators)
+	if result.Confidence != 0 {
+		t.Errorf("expected 0 confidence, got %d", result.Confidence)
 	}
 }
 
@@ -735,7 +735,7 @@ func TestDockerBuild_Fails(t *testing.T) {
 	dfPath := filepath.Join(dir, "Dockerfile")
 	os.WriteFile(dfPath, []byte("FROM alpine\nRUN echo hello"), 0644)
 
-	err := dockerBuild(context.Background(), dir, dfPath, "test:latest", nil, io.Discard)
+	err := dockerBuild(context.Background(), dir, dfPath, "test:latest", nil, nil, io.Discard)
 	// docker command likely not available in CI or will fail — we just verify
 	// the function doesn't panic and returns an error
 	if err == nil {
@@ -752,7 +752,7 @@ func TestDockerBuild_WithBuildArgs(t *testing.T) {
 	// Will fail if docker isn't available, which is fine
 	_ = dockerBuild(context.Background(), dir, dfPath, "test:args", map[string]string{
 		"VERSION": "1.0.0",
-	}, io.Discard)
+	}, nil, io.Discard)
 }
 
 func TestResolveDockerfilePath(t *testing.T) {

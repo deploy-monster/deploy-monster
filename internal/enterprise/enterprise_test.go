@@ -89,6 +89,10 @@ func (s *mockStore) UpdateApp(_ context.Context, _ *core.Application) error { re
 func (s *mockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
 	return s.apps, s.appCount, nil
 }
+func (s *mockStore) GetAppsByIDs(_ context.Context, _ []string) ([]core.Application, error) {
+	return nil, nil
+}
+
 func (s *mockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
 	return nil, nil
 }

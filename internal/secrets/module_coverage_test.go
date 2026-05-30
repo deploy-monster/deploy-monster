@@ -203,6 +203,9 @@ func (m *mockSecretStore) ListDomainsByAppIDs(_ context.Context, _ []string) (ma
 func (m *mockSecretStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) {
 	return nil, nil
 }
+func (m *mockSecretStore) GetAppsByIDs(_ context.Context, _ []string) ([]core.Application, error) {
+	return nil, nil
+}
 
 // =============================================================================
 // buildScopeHierarchy Tests
