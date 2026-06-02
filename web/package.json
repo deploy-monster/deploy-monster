@@ -18,7 +18,7 @@
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "@tailwindcss/vite": "^4.3.0",
-    "@xyflow/react": "^12.10.2",
+    "@xyflow/react": "^12.11.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",
