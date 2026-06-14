@@ -60,7 +60,7 @@ func (h *TeamHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 		for i, member := range members {
 			userIDs[i] = member.UserID
 		}
-		users, err := h.store.GetUsersByIDs(r.Context(), userIDs)
+		users, err := h.store.GetUsersByIDs(r.Context(), userIDs, claims.TenantID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to load member users")
 			return

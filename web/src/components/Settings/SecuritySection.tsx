@@ -3,10 +3,13 @@ import { useState } from 'react';
 import { Lock, Shield, Loader2, Plus, Trash2, Copy, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { PasswordInput } from '@/components/Marketplace/PasswordInput';
 import { useApi, useMutation } from '@/hooks';
 import { adminAPI, type APIKey } from '@/api/admin';
+import { api } from '@/api/client';
 import { toast } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/auth';
 
@@ -25,7 +28,7 @@ export function SecuritySection({ onPasswordChanged }: SecuritySectionProps) {
 
   const handleChangePassword = () => {
     if (!currentPassword || !newPassword) return;
-    changePassword(
+    void changePassword(
       { current_password: currentPassword, new_password: newPassword },
       {
         onSuccess: () => {
@@ -36,7 +39,7 @@ export function SecuritySection({ onPasswordChanged }: SecuritySectionProps) {
         },
         onError: (err) => { toast.error(err); },
       },
-    );
+    ).catch(() => undefined);
   };
 
   return (
@@ -83,6 +86,119 @@ export function SecuritySection({ onPasswordChanged }: SecuritySectionProps) {
   );
 }
 
+export function TwoFactorSection() {
+  const { data: status } = useApi<{ enabled: boolean }>('/auth/totp/status');
+  const [enabledOverride, setEnabledOverride] = useState<boolean | null>(null);
+  const [enrollmentCode, setEnrollmentCode] = useState('');
+  const [disableCode, setDisableCode] = useState('');
+  const [provisioningURI, setProvisioningURI] = useState('');
+  const [loading, setLoading] = useState(false);
+  const enabled = enabledOverride ?? status?.enabled ?? false;
+
+  const startEnrollment = async () => {
+    setLoading(true);
+    try {
+      const result = await api.post<{ provisioning_uri?: string }>('/auth/totp/enroll', {});
+      setProvisioningURI(result?.provisioning_uri || '');
+      setEnrollmentCode('');
+      toast.success('Two-factor authentication setup started');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Two-factor authentication update failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEnrollmentSwitch = (checked: boolean) => {
+    if (checked && !enabled && !provisioningURI) {
+      void startEnrollment();
+      return;
+    }
+    if (!checked && provisioningURI) {
+      setProvisioningURI('');
+      setEnrollmentCode('');
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!enrollmentCode.trim()) return;
+    setLoading(true);
+    try {
+      await api.post('/auth/totp/enroll', { code: enrollmentCode });
+      setEnabledOverride(true);
+      setProvisioningURI('');
+      setEnrollmentCode('');
+      toast.success('Two-factor authentication enabled');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Two-factor authentication verification failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDisable = async () => {
+    if (!disableCode.trim()) return;
+    setLoading(true);
+    try {
+      await api.post('/auth/totp/disable', { code: disableCode });
+      setEnabledOverride(false);
+      setDisableCode('');
+      toast.success('Two-factor authentication disabled');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Two-factor authentication update failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Shield className="size-4 text-primary" />
+          Two-Factor Authentication
+        </CardTitle>
+        <CardDescription>Require an authentication code when signing in.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 max-w-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-sm">
+            {enabled ? 'Two-factor authentication is enabled.' : 'Enable 2FA'}
+          </div>
+          <Switch
+            checked={enabled || !!provisioningURI}
+            onCheckedChange={handleEnrollmentSwitch}
+            disabled={loading || enabled}
+          />
+        </div>
+        {provisioningURI && (
+          <div className="space-y-3">
+            <Input readOnly value={provisioningURI} />
+            <div className="space-y-1.5">
+              <Label htmlFor="totp-code">Authentication Code</Label>
+              <Input id="totp-code" value={enrollmentCode} onChange={(e) => setEnrollmentCode(e.target.value)} />
+            </div>
+            <Button onClick={handleVerify} disabled={loading || !enrollmentCode.trim()}>
+              Verify
+            </Button>
+          </div>
+        )}
+        {enabled && (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="totp-disable-code">Authentication Code</Label>
+              <Input id="totp-disable-code" value={disableCode} onChange={(e) => setDisableCode(e.target.value)} />
+            </div>
+            <Button variant="outline" onClick={handleDisable} disabled={loading || !disableCode.trim()}>
+              Disable
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 interface APIKeySectionProps {
   onKeyGenerated?: () => void;
 }
@@ -95,12 +211,13 @@ export function APIKeySection({ onKeyGenerated }: APIKeySectionProps) {
     { data: APIKey[]; total: number } | APIKey[]
   >('/admin/api-keys', { immediate: canManage });
   const apiKeys = Array.isArray(apiKeysResp) ? apiKeysResp : apiKeysResp?.data ?? [];
-
   const [generatedKey, setGeneratedKey] = useState('');
   const [generatedKeyPrefix, setGeneratedKeyPrefix] = useState('');
   const [copied, setCopied] = useState(false);
   const [generatingKey, setGeneratingKey] = useState(false);
   const [revokingKey, setRevokingKey] = useState('');
+
+  if (!canManage) return null;
 
   const handleGenerateKey = async () => {
     setGeneratingKey(true);
@@ -109,7 +226,7 @@ export function APIKeySection({ onKeyGenerated }: APIKeySectionProps) {
       setGeneratedKey(result.key);
       setGeneratedKeyPrefix(result.prefix);
       refetchAPIKeys();
-      toast.success('API key generated — save it now!');
+      toast.success('API key generated -- save it now!');
       onKeyGenerated?.();
     } catch {
       toast.error('Failed to generate API key');
@@ -135,10 +252,15 @@ export function APIKeySection({ onKeyGenerated }: APIKeySectionProps) {
     }
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(generatedKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success('API key copied to clipboard');
+    } catch {
+      toast.error('Failed to copy API key');
+    }
   };
 
   return (
@@ -167,17 +289,27 @@ export function APIKeySection({ onKeyGenerated }: APIKeySectionProps) {
                 {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
                 {copied ? 'Copied' : 'Copy'}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleRevokeKey(generatedKeyPrefix)}
+                disabled={!generatedKeyPrefix || revokingKey === generatedKeyPrefix}
+                className="shrink-0 cursor-pointer"
+              >
+                <Trash2 className="size-4" />
+                Revoke Key
+              </Button>
             </div>
           </div>
         )}
 
-        {apiKeys.length > 0 && (
+        {apiKeys.length > 0 ? (
           <div className="space-y-2">
             {apiKeys.map((key) => (
-              <div key={key.id} className="flex items-center justify-between rounded-lg border p-3">
+              <div key={key.id ?? key.prefix} className="flex items-center justify-between rounded-lg border p-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <code className="font-mono text-sm text-muted-foreground truncate">
-                    {key.prefix}...
+                    {key.prefix}
                   </code>
                   <span className="text-xs text-muted-foreground">
                     {new Date(key.created_at).toLocaleDateString()}
@@ -195,6 +327,10 @@ export function APIKeySection({ onKeyGenerated }: APIKeySectionProps) {
                 </Button>
               </div>
             ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            No API keys
           </div>
         )}
 

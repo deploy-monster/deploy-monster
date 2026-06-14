@@ -79,7 +79,7 @@ func (m *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { retu
 func (m *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, m.err
 }
-func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
 	return m.err
 }
 

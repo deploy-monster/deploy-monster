@@ -137,7 +137,7 @@ func (h *BackupHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.Publish(r.Context(), core.NewTenantEvent(
+	publishEvent(r.Context(), h.events, core.NewTenantEvent(
 		core.EventBackupStarted, "api", claims.TenantID, claims.UserID,
 		map[string]string{"source_type": req.SourceType, "source_id": req.SourceID},
 	))
@@ -214,7 +214,7 @@ func (h *BackupHandler) Restore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.Publish(r.Context(), core.NewTenantEvent(
+	publishEvent(r.Context(), h.events, core.NewTenantEvent(
 		"backup.restore_started", "api", claims.TenantID, claims.UserID,
 		map[string]string{"key": key, "app_id": app.ID},
 	))

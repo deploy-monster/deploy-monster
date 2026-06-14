@@ -54,6 +54,17 @@ func TestLicenseHandler_Activate_InvalidBody(t *testing.T) {
 	}
 }
 
+func TestLicenseHandler_Activate_RejectsUnknownFields(t *testing.T) {
+	h := NewLicenseHandler(newMockBoltStore())
+	req := httptest.NewRequest("POST", "/api/v1/admin/license", strings.NewReader(`{"key":"enterprise-license-key-12345678","extra":true}`))
+	rr := httptest.NewRecorder()
+	h.Activate(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestLicenseHandler_Activate_EmptyKey(t *testing.T) {
 	h := NewLicenseHandler(newMockBoltStore())
 	req := httptest.NewRequest("POST", "/api/v1/admin/license", strings.NewReader(`{"key":""}`))
@@ -202,6 +213,18 @@ func TestRegistryHandler_Add_InvalidBody(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
+}
+
+func TestRegistryHandler_Add_RejectsUnknownFields(t *testing.T) {
+	h := NewRegistryHandler(newMockBoltStore())
+	req := httptest.NewRequest("POST", "/api/v1/registries", strings.NewReader(`{"name":"Reg","url":"registry.example.com","extra":true}`))
+	req = withClaims(req, "u1", "t1", "admin", "u@e.com")
+	rr := httptest.NewRecorder()
+	h.Add(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestRegistryHandler_Add_MissingFields(t *testing.T) {

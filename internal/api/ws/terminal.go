@@ -4,11 +4,14 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
+
+const maxTerminalCommandBodySize = 1 << 20
 
 // Terminal provides a WebSocket-like terminal for container exec.
 // Uses a bidirectional SSE+POST pattern since we avoid external WebSocket deps.
@@ -76,7 +79,7 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 
 	logReader, err := t.runtime.Logs(ctx, containers[0].ID, "20", true)
 	if err != nil {
-		_, _ = w.Write([]byte("event: error\ndata: " + err.Error() + "\n\n"))
+		writeSSEEvent(w, "error", err.Error())
 		flusher.Flush()
 		return
 	}
@@ -84,7 +87,7 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 
 	// Send session ID so the client can correlate POST commands
 	sessionID := core.GenerateID()
-	_, _ = w.Write([]byte("event: session\ndata: " + sessionID + "\n\n"))
+	writeSSEEvent(w, "session", sessionID)
 	flusher.Flush()
 
 	// Send connection confirmation with container info
@@ -93,13 +96,12 @@ func (t *Terminal) StreamOutput(w http.ResponseWriter, r *http.Request) {
 		"image":        containers[0].Image,
 		"status":       containers[0].State,
 	})
-	_, _ = w.Write([]byte("event: connected\ndata: " + string(connData) + "\n\n"))
+	writeSSEEvent(w, "connected", string(connData))
 	flusher.Flush()
 
 	scanner := bufio.NewScanner(logReader)
 	for scanner.Scan() {
-		line := scanner.Text()
-		_, _ = w.Write([]byte("data: " + line + "\n\n"))
+		writeSSEEvent(w, "", scanner.Text())
 		flusher.Flush()
 	}
 }
@@ -125,7 +127,7 @@ func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Command string `json:"command"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Command == "" {
+	if !decodeTerminalCommand(r, &req) || req.Command == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "command is required"})
 		return
 	}
@@ -195,6 +197,20 @@ func (t *Terminal) SendCommand(w http.ResponseWriter, r *http.Request) {
 		"exit_code":    0,
 		"container_id": shortResourceID(containerID),
 	})
+}
+
+func decodeTerminalCommand(r *http.Request, target any) bool {
+	body := io.LimitReader(r.Body, maxTerminalCommandBodySize+1)
+	dec := json.NewDecoder(body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(target); err != nil {
+		return false
+	}
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); err != io.EOF {
+		return false
+	}
+	return true
 }
 
 func shortResourceID(id string) string {

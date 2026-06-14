@@ -16,9 +16,9 @@ export function QuickActions() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
+                  <h2 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
                     {action.title}
-                  </h3>
+                  </h2>
                   <ArrowRight className="size-3.5 text-muted-foreground opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200" />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">

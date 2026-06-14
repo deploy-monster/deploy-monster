@@ -161,3 +161,61 @@ func TestTenantRateLimiter_NilBolt_PassesThrough(t *testing.T) {
 		t.Error("handler should pass through when bolt is nil")
 	}
 }
+
+func TestTenantRateLimiter_DefaultZeroDisablesWithoutTenantConfig(t *testing.T) {
+	store := newRLBoltStore()
+	trl := NewTenantRateLimiter(store, 0, time.Minute)
+
+	calls := 0
+	handler := trl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusOK)
+	}))
+	claims := &auth.Claims{TenantID: "disabled-default", UserID: "u1"}
+
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+		ctx := auth.ContextWithClaims(req.Context(), claims)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req.WithContext(ctx))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d: expected 200 when default tenant limiter is disabled, got %d", i+1, rec.Code)
+		}
+		if rec.Header().Get("X-RateLimit-Limit") != "" {
+			t.Fatalf("request %d: disabled limiter should not emit rate-limit headers", i+1)
+		}
+	}
+	if calls != 3 {
+		t.Fatalf("handler calls = %d, want 3", calls)
+	}
+}
+
+func TestTenantRateLimiter_DefaultZeroStillHonorsTenantConfig(t *testing.T) {
+	store := newRLBoltStore()
+	store.Set("tenant_ratelimit", "configured", tenantRateLimitConfig{
+		RequestsPerMinute: 1,
+		BurstSize:         1,
+	}, 0)
+	trl := NewTenantRateLimiter(store, 0, time.Minute)
+
+	handler := trl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	claims := &auth.Claims{TenantID: "configured", UserID: "u1"}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	ctx := auth.ContextWithClaims(req.Context(), claims)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req.WithContext(ctx))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first request: expected 200, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	ctx = auth.ContextWithClaims(req.Context(), claims)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req.WithContext(ctx))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("configured tenant limit should still apply, got %d", rec.Code)
+	}
+}

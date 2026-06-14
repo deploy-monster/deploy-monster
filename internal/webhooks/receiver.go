@@ -151,16 +151,18 @@ func (recv *Receiver) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Emit webhook received event
-	_ = recv.events.Publish(r.Context(), core.NewEvent(
-		core.EventWebhookReceived, "webhooks",
-		core.WebhookEventData{
-			WebhookID: webhookID,
-			Provider:  provider,
-			EventType: payload.EventType,
-			Branch:    payload.Branch,
-			CommitSHA: payload.CommitSHA,
-		},
-	))
+	if recv.events != nil {
+		_ = recv.events.Publish(r.Context(), core.NewEvent(
+			core.EventWebhookReceived, "webhooks",
+			core.WebhookEventData{
+				WebhookID: webhookID,
+				Provider:  provider,
+				EventType: payload.EventType,
+				Branch:    payload.Branch,
+				CommitSHA: payload.CommitSHA,
+			},
+		))
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

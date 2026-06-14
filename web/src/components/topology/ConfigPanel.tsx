@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useTopologyStore } from '@/stores/topologyStore';
+import { toast } from '@/stores/toastStore';
 import type { AppNodeData, DatabaseNodeData, DomainNodeData, VolumeNodeData, WorkerNodeData, TopologyNode, TopologyNodeData, TopologyNodeType, VolumeMount } from '@/types/topology';
 
 interface ConfigPanelProps {
@@ -114,10 +115,15 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
     onClose();
   };
 
-  const copyToClipboard = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const copyToClipboard = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+      toast.success('Value copied to clipboard');
+    } catch {
+      toast.error('Failed to copy value');
+    }
   };
 
   // Generate connection string for database
@@ -458,7 +464,7 @@ export function ConfigPanel({ selectedNode, onClose }: ConfigPanelProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => copyToClipboard(connectionString, 'connection')}
+                onClick={() => { void copyToClipboard(connectionString, 'connection'); }}
                 className="h-7"
               >
                 {copiedKey === 'connection' ? (

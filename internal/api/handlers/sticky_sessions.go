@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"regexp"
 
@@ -66,8 +65,7 @@ func (h *StickySessionHandler) Update(w http.ResponseWriter, r *http.Request) {
 	appID := app.ID
 
 	var cfg StickySessionConfig
-	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &cfg) {
 		return
 	}
 

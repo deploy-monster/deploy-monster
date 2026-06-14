@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -33,8 +32,7 @@ func (h *RollbackHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req rollbackRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 

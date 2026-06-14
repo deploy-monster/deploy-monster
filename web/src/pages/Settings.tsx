@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useMutation } from '@/hooks';
 import { toast } from '@/stores/toastStore';
 import { ProfileSection } from '@/components/Settings/ProfileSection';
-import { SecuritySection, APIKeySection } from '@/components/Settings/SecuritySection';
+import { SecuritySection, TwoFactorSection, APIKeySection } from '@/components/Settings/SecuritySection';
 import { AppearanceSection } from '@/components/Settings/AppearanceSection';
 
 export function Settings() {
@@ -22,10 +22,10 @@ export function Settings() {
   >('put', '/settings/notifications');
 
   const handleSaveNotifications = () => {
-    saveNotifications(notifications, {
+    void saveNotifications(notifications, {
       onSuccess: () => toast.success('Notification preferences saved'),
       onError: (err) => toast.error(`Failed to save: ${err}`),
-    });
+    }).catch(() => undefined);
   };
 
   return (
@@ -53,6 +53,7 @@ export function Settings() {
 
         <TabsContent value="security" className="space-y-6">
           <SecuritySection />
+          <TwoFactorSection />
           <APIKeySection />
         </TabsContent>
 

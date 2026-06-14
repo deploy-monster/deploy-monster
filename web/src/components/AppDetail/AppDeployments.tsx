@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { cn, timeAgo, getStatusConfig } from './AppStatsCards';
+import { cn, timeAgo, getStatusConfig } from './helpers';
 import type { Deployment } from '@/api/deployments';
 
 interface AppDeploymentsProps {

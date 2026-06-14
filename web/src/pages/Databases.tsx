@@ -173,11 +173,15 @@ export function Databases() {
     }
   };
 
-  const handleCopy = (id: string, connStr: string) => {
-    navigator.clipboard.writeText(connStr);
-    setCopiedId(id);
-    toast.success('Connection string copied');
-    setTimeout(() => setCopiedId(null), 2000);
+  const handleCopy = async (id: string, connStr: string) => {
+    try {
+      await navigator.clipboard.writeText(connStr);
+      setCopiedId(id);
+      toast.success('Connection string copied');
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      toast.error('Failed to copy connection string');
+    }
   };
 
   const list = useMemo(() => databases || [], [databases]);

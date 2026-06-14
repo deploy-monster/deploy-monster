@@ -3,6 +3,7 @@ import { Copy, Check, FileCode, Globe, FileText, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from '@/stores/toastStore';
 
 interface CompileModalProps {
   open: boolean;
@@ -35,9 +36,14 @@ export function CompileModal({ open, onClose, result, isCompiling }: CompileModa
   }, [open]);
 
   const copyToClipboard = async (text: string, key: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopied(key);
-    setTimeout(() => setCopied(null), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+      toast.success('Configuration copied to clipboard');
+    } catch {
+      toast.error('Failed to copy configuration');
+    }
   };
 
   const downloadFile = (content: string, filename: string) => {
@@ -154,7 +160,7 @@ export function CompileModal({ open, onClose, result, isCompiling }: CompileModa
 interface FileViewerProps {
   content: string;
   filename: string;
-  onCopy: () => void;
+  onCopy: () => void | Promise<void>;
   onDownload: () => void;
   copied: boolean;
 }
@@ -165,7 +171,7 @@ function FileViewer({ content, filename, onCopy, onDownload, copied }: FileViewe
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-mono text-muted-foreground">{filename}</span>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onCopy}>
+          <Button variant="ghost" size="sm" onClick={() => { void onCopy(); }}>
             {copied ? (
               <Check className="h-4 w-4 text-green-500" />
             ) : (

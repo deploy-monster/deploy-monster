@@ -43,6 +43,31 @@ func TestFinal_AdminHandler_SystemInfo(t *testing.T) {
 	}
 }
 
+func TestFinal_AdminHandler_SystemInfo_NilEventBus(t *testing.T) {
+	c := &core.Core{
+		Config:   &core.Config{},
+		Services: core.NewServices(),
+		Logger:   slog.Default(),
+		Registry: core.NewRegistry(),
+	}
+	h := NewAdminHandler(c, newMockStore())
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/system", nil)
+	rr := httptest.NewRecorder()
+	h.SystemInfo(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp["events"] == nil {
+		t.Fatal("expected events field")
+	}
+}
+
 // =============================================================================
 // AdminAPIKeyHandler.Generate — bolt Set error on first Set (key record)
 // =============================================================================

@@ -9,6 +9,7 @@ import (
 
 const (
 	csrfCookieName    = "__Host-dm_csrf" // __Host- prefix enforced by browsers
+	csrfDevCookieName = "dm_csrf"        // plain-HTTP dev/E2E fallback; __Host- requires Secure
 	csrfHeaderName    = "X-CSRF-Token"
 	accessCookieName  = "dm_access"
 	refreshCookieName = "dm_refresh"
@@ -36,8 +37,8 @@ func CSRFProtect(next http.Handler) http.Handler {
 		// Check if there's a CSRF cookie. If token cookies are present, this is
 		// a cookie-authenticated browser request and must not bypass CSRF just
 		// because the CSRF cookie is missing or expired.
-		cookie, err := r.Cookie(csrfCookieName)
-		if err != nil || cookie.Value == "" {
+		cookieValue := csrfCookieValue(r)
+		if cookieValue == "" {
 			if hasCookie(r, accessCookieName) || hasCookie(r, refreshCookieName) {
 				writeErrorJSON(w, http.StatusForbidden, "CSRF token required")
 				return
@@ -53,8 +54,8 @@ func CSRFProtect(next http.Handler) http.Handler {
 		// Use a constant-time compare so the match doesn't leak timing on a
 		// security token (lengths are pre-checked to keep the compare safe).
 		headerToken := r.Header.Get(csrfHeaderName)
-		if headerToken == "" || len(headerToken) != len(cookie.Value) ||
-			subtle.ConstantTimeCompare([]byte(headerToken), []byte(cookie.Value)) != 1 {
+		if headerToken == "" || len(headerToken) != len(cookieValue) ||
+			subtle.ConstantTimeCompare([]byte(headerToken), []byte(cookieValue)) != 1 {
 			writeErrorJSON(w, http.StatusForbidden, "CSRF token mismatch")
 			return
 		}
@@ -68,6 +69,16 @@ func hasCookie(r *http.Request, name string) bool {
 	return err == nil && cookie.Value != ""
 }
 
+func csrfCookieValue(r *http.Request) string {
+	for _, name := range []string{csrfCookieName, csrfDevCookieName} {
+		cookie, err := r.Cookie(name)
+		if err == nil && cookie.Value != "" {
+			return cookie.Value
+		}
+	}
+	return ""
+}
+
 // SetCSRFCookie sets the CSRF double-submit cookie. Call this after successful
 // authentication (login, register, refresh) so the frontend can read it.
 // The Secure flag is gated on the request transport so the cookie is actually
@@ -75,8 +86,12 @@ func hasCookie(r *http.Request, name string) bool {
 func SetCSRFCookie(w http.ResponseWriter, r *http.Request) {
 	token := generateCSRFToken()
 	secure := r != nil && (r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https")
+	name := csrfCookieName
+	if !secure {
+		name = csrfDevCookieName
+	}
 	http.SetCookie(w, &http.Cookie{
-		Name:     csrfCookieName,
+		Name:     name,
 		Value:    token,
 		Path:     "/",
 		MaxAge:   86400, // 24 hours

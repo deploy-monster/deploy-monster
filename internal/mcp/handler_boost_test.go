@@ -60,6 +60,67 @@ func TestScaleApp_Success(t *testing.T) {
 	}
 }
 
+func TestMutatingTools_NilEventBus(t *testing.T) {
+	tests := []struct {
+		name  string
+		tool  string
+		store core.Store
+		input map[string]any
+	}{
+		{
+			name:  "deploy app",
+			tool:  "deploy_app",
+			store: &mockStore{},
+			input: map[string]any{
+				"name":        "web",
+				"source_type": "git",
+				"source_url":  "https://example.com/repo.git",
+			},
+		},
+		{
+			name:  "scale app",
+			tool:  "scale_app",
+			store: &mockStoreUpdateApp{app: &core.Application{ID: "app-1", Name: "web", TenantID: "tenant-1", Replicas: 1}},
+			input: map[string]any{"app_id": "app-1", "replicas": 2},
+		},
+		{
+			name:  "create database",
+			tool:  "create_database",
+			store: &mockStore{},
+			input: map[string]any{"engine": "postgres", "name": "appdb"},
+		},
+		{
+			name:  "marketplace deploy",
+			tool:  "marketplace_deploy",
+			store: &mockStore{},
+			input: map[string]any{"template_slug": "postgres", "name": "db"},
+		},
+		{
+			name:  "provision server",
+			tool:  "provision_server",
+			store: &mockStore{},
+			input: map[string]any{"provider": "custom", "name": "node-1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewHandler(tt.store, nil, nil, discardLogger())
+			input, err := json.Marshal(tt.input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := h.HandleToolCall(context.Background(), tt.tool, input)
+			if err != nil {
+				t.Fatalf("HandleToolCall: %v", err)
+			}
+			if resp.IsError {
+				t.Fatalf("unexpected error response: %v", resp.Content)
+			}
+		})
+	}
+}
+
 func TestScaleApp_InvalidJSON(t *testing.T) {
 	h := NewHandler(&mockStoreUpdateApp{}, nil, core.NewEventBus(discardLogger()), discardLogger())
 	resp, err := h.HandleToolCall(context.Background(), "scale_app", json.RawMessage(`{bad`))

@@ -85,10 +85,12 @@ vi.mock('../../api/apps', () => ({
 }));
 
 const toastErrorMock = vi.fn();
+const toastSuccessMock = vi.fn();
+const clipboardWriteMock = vi.fn();
 vi.mock('@/stores/toastStore', () => ({
   toast: {
     error: (msg: string) => toastErrorMock(msg),
-    success: vi.fn(),
+    success: (msg: string) => toastSuccessMock(msg),
     info: vi.fn(),
   },
 }));
@@ -153,9 +155,14 @@ describe('AppDetail page', () => {
     envState.loading = false;
     statsState.data = null;
     statsState.error = null;
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteMock },
+    });
     refetchAppMock.mockReset();
     refetchEnvMock.mockReset();
     apiPutMock.mockReset().mockResolvedValue(undefined);
+    clipboardWriteMock.mockReset().mockResolvedValue(undefined);
     startMock.mockReset().mockResolvedValue(undefined);
     stopMock.mockReset().mockResolvedValue(undefined);
     restartMock.mockReset().mockResolvedValue(undefined);
@@ -163,6 +170,7 @@ describe('AppDetail page', () => {
     deployMock.mockReset().mockResolvedValue(undefined);
     updateMock.mockReset().mockResolvedValue(undefined);
     toastErrorMock.mockReset();
+    toastSuccessMock.mockReset();
   });
 
   it('renders the loading state while the app fetch is in flight', () => {
@@ -305,6 +313,22 @@ describe('AppDetail page', () => {
     expect(screen.getByText('production')).toBeInTheDocument();
   });
 
+  it('lists env vars when the API client returns an unwrapped data array', () => {
+    appState.data = fakeApp();
+    appState.loading = false;
+    envState.data = [
+      { key: 'NODE_ENV', value: 'production' },
+      { key: 'DATABASE_URL', value: '${SECRET:db_url}' },
+    ];
+    renderAppDetail();
+
+    fireEvent.click(screen.getByRole('tab', { name: /environment/i }));
+
+    expect(screen.getByText('NODE_ENV')).toBeInTheDocument();
+    expect(screen.getByText('DATABASE_URL')).toBeInTheDocument();
+    expect(screen.getByText('production')).toBeInTheDocument();
+  });
+
   it('PUTs the new env var list when Add Variable is clicked', async () => {
     appState.data = fakeApp();
     appState.loading = false;
@@ -326,6 +350,39 @@ describe('AppDetail page', () => {
       }),
     );
     await waitFor(() => expect(refetchEnvMock).toHaveBeenCalled());
+  });
+
+  it('shows a toast and consumes rejected env var updates', async () => {
+    appState.data = fakeApp();
+    appState.loading = false;
+    envState.data = [];
+    apiPutMock.mockRejectedValueOnce(new Error('save failed'));
+    renderAppDetail();
+
+    fireEvent.click(screen.getByRole('tab', { name: /environment/i }));
+    fireEvent.change(screen.getByLabelText(/^key$/i), { target: { value: 'new_flag' } });
+    fireEvent.change(screen.getByLabelText(/^value$/i), { target: { value: 'on' } });
+    fireEvent.click(screen.getByRole('button', { name: /add variable/i }));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('save failed'));
+  });
+
+  it('copies env var values and reports clipboard failures', async () => {
+    appState.data = fakeApp();
+    appState.loading = false;
+    envState.data = [{ key: 'NODE_ENV', value: 'production' }];
+    renderAppDetail();
+
+    fireEvent.click(screen.getByRole('tab', { name: /environment/i }));
+    fireEvent.click(screen.getByRole('button', { name: /copy value/i }));
+
+    await waitFor(() => expect(clipboardWriteMock).toHaveBeenCalledWith('production'));
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Environment value copied'));
+
+    clipboardWriteMock.mockRejectedValueOnce(new Error('denied'));
+    fireEvent.click(screen.getByRole('button', { name: /copy value/i }));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('Failed to copy environment value'));
   });
 
   it('toggles secret value visibility when the Reveal button is clicked', () => {

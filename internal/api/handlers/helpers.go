@@ -18,36 +18,9 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// maxBodySize is the maximum request body size accepted by decodeJSON (1 MB).
+// maxBodySize is the maximum request body size accepted by decodeJSONInto (1 MB).
 const maxBodySize = 1 << 20 // 1 MB
 
-// decodeJSON reads and decodes a JSON request body into type T.
-// It enforces a 1 MB body size limit and rejects unknown fields.
-// On success it returns (value, true). On failure it writes a 400 response
-// and returns (zeroValue, false). Use this instead of raw
-// json.NewDecoder(r.Body).Decode patterns throughout handlers.
-func decodeJSON[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
-	var zero T
-	// LimitReader prevents unbounded memory growth if a client sends a huge body.
-	// The +1 ensures anything over maxBodySize bytes fails the decode.
-	body := io.LimitReader(r.Body, maxBodySize+1)
-	dec := json.NewDecoder(body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&zero); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return zero, false
-	}
-	// Reject requests that contain more data after the root JSON value.
-	if dec.More() {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return zero, false
-	}
-	return zero, true
-}
-
-// decodeJSONInto is the backward-compatible non-generic version.
-// Deprecated: use decodeJSON[T] which returns (T, bool) directly.
-// This exists so existing handlers can migrate incrementally.
 func decodeJSONInto(w http.ResponseWriter, r *http.Request, target any) bool {
 	body := io.LimitReader(r.Body, maxBodySize+1)
 	dec := json.NewDecoder(body)
@@ -56,7 +29,42 @@ func decodeJSONInto(w http.ResponseWriter, r *http.Request, target any) bool {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return false
 	}
-	if dec.More() {
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return false
+	}
+	return true
+}
+
+func decodeJSONAllowUnknownInto(w http.ResponseWriter, r *http.Request, target any) bool {
+	body := io.LimitReader(r.Body, maxBodySize+1)
+	dec := json.NewDecoder(body)
+	if err := dec.Decode(target); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return false
+	}
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return false
+	}
+	return true
+}
+
+func decodeOptionalJSONInto(w http.ResponseWriter, r *http.Request, target any) bool {
+	body := io.LimitReader(r.Body, maxBodySize+1)
+	dec := json.NewDecoder(body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(target); err != nil {
+		if errors.Is(err, io.EOF) {
+			return true
+		}
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return false
+	}
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); err != io.EOF {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return false
 	}
@@ -169,7 +177,6 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 }
 
 var validAppName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9 ._-]{0,99}$`)
-var validServerID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$`)
 
 // validateAppName checks that an app name is safe and well-formed.
 func validateAppName(name string) error {
@@ -181,19 +188,6 @@ func validateAppName(name string) error {
 	}
 	if !validAppName.MatchString(name) {
 		return fmt.Errorf("name must start with a letter or digit and contain only letters, digits, spaces, dots, hyphens, or underscores")
-	}
-	return nil
-}
-
-func validateServerID(serverID string) error {
-	if serverID == "" {
-		return nil
-	}
-	if len(serverID) > 100 {
-		return fmt.Errorf("server_id must be 100 characters or fewer")
-	}
-	if !validServerID.MatchString(serverID) {
-		return fmt.Errorf("server_id must start with a letter or digit and contain only letters, digits, dots, hyphens, or underscores")
 	}
 	return nil
 }
@@ -250,6 +244,25 @@ func internalError(w http.ResponseWriter, userMsg string, err error) {
 func internalErrorCtx(ctx context.Context, w http.ResponseWriter, userMsg string, err error) {
 	ctxLogger(ctx).Error(userMsg, "error", err)
 	writeError(w, http.StatusInternalServerError, userMsg)
+}
+
+func publishEvent(ctx context.Context, events *core.EventBus, event core.Event) {
+	if events != nil {
+		_ = events.Publish(ctx, event)
+	}
+}
+
+func publishEventAsync(ctx context.Context, events *core.EventBus, event core.Event) {
+	if events != nil {
+		events.PublishAsync(ctx, event)
+	}
+}
+
+func eventBusStats(events *core.EventBus) core.EventBusStats {
+	if events == nil {
+		return core.EventBusStats{}
+	}
+	return events.Stats()
 }
 
 // backgroundWG tracks goroutines launched via safeGo.

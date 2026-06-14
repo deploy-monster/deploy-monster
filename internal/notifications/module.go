@@ -137,15 +137,17 @@ func (m *Module) Start(_ context.Context) error {
 	// Subscribe to events that should trigger notifications.
 	// Each event type can be configured with notification rules
 	// (which channels, which recipients) in the future.
-	m.core.Events.SubscribeAsync("alert.*", func(ctx context.Context, event core.Event) error {
-		m.dispatchAlert(ctx, event)
-		return nil
-	})
+	if m.core != nil && m.core.Events != nil {
+		m.core.Events.SubscribeAsync("alert.*", func(ctx context.Context, event core.Event) error {
+			m.dispatchAlert(ctx, event)
+			return nil
+		})
 
-	m.core.Events.SubscribeAsync("deploy.*", func(ctx context.Context, event core.Event) error {
-		m.logger.Debug("deploy event", "type", event.Type)
-		return nil
-	})
+		m.core.Events.SubscribeAsync("deploy.*", func(ctx context.Context, event core.Event) error {
+			m.logger.Debug("deploy event", "type", event.Type)
+			return nil
+		})
+	}
 
 	m.logger.Info("notification module started", "providers", m.dispatcher.Providers())
 	return nil
@@ -255,7 +257,7 @@ func (m *Module) Send(ctx context.Context, notification core.Notification) (err 
 
 	if sendErr := provider.Send(ctx, notification.Recipient, notification.Subject, notification.Body, notification.Format); sendErr != nil {
 		// Emit failure event
-		m.core.Events.PublishAsync(ctx, core.NewEvent(
+		m.publishAsync(ctx, core.NewEvent(
 			core.EventNotificationFailed, "notifications",
 			core.NotificationEventData{
 				Channel:   notification.Channel,
@@ -268,7 +270,7 @@ func (m *Module) Send(ctx context.Context, notification core.Notification) (err 
 	}
 
 	// Emit success event
-	m.core.Events.PublishAsync(ctx, core.NewEvent(
+	m.publishAsync(ctx, core.NewEvent(
 		core.EventNotificationSent, "notifications",
 		core.NotificationEventData{
 			Channel:   notification.Channel,
@@ -278,6 +280,13 @@ func (m *Module) Send(ctx context.Context, notification core.Notification) (err 
 	))
 
 	return nil
+}
+
+func (m *Module) publishAsync(ctx context.Context, event core.Event) {
+	if m.core == nil || m.core.Events == nil {
+		return
+	}
+	m.core.Events.PublishAsync(ctx, event)
 }
 
 // RegisterProvider adds a notification provider to the dispatcher.

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -152,7 +151,7 @@ func (h *ImportExportHandler) Export(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	domains, err := h.store.ListDomainsByApp(r.Context(), app.ID)
+	domains, err := h.store.ListDomainsByApp(r.Context(), app.ID, app.TenantID)
 	if err != nil {
 		slog.Warn("export: failed to list domains", "app_id", app.ID, "error", err)
 	}
@@ -186,8 +185,7 @@ func (h *ImportExportHandler) Import(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var manifest AppManifest
-	if err := json.NewDecoder(r.Body).Decode(&manifest); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid manifest format")
+	if !decodeJSONInto(w, r, &manifest) {
 		return
 	}
 

@@ -46,12 +46,12 @@ func (h *SuspendHandler) Suspend(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.store.UpdateAppStatus(r.Context(), appID, "suspended"); err != nil {
+	if err := h.store.UpdateAppStatus(r.Context(), appID, "suspended", app.TenantID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update app status")
 		return
 	}
 
-	h.events.PublishAsync(r.Context(), core.NewEvent(core.EventAppStopped, "api",
+	publishEventAsync(r.Context(), h.events, core.NewEvent(core.EventAppStopped, "api",
 		core.AppEventData{AppID: appID, AppName: app.Name, Status: "suspended"}))
 
 	writeJSON(w, http.StatusOK, map[string]string{"app_id": appID, "status": "suspended"})
@@ -86,12 +86,12 @@ func (h *SuspendHandler) Resume(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.store.UpdateAppStatus(r.Context(), appID, "running"); err != nil {
+	if err := h.store.UpdateAppStatus(r.Context(), appID, "running", app.TenantID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update app status")
 		return
 	}
 
-	h.events.PublishAsync(r.Context(), core.NewEvent(core.EventAppStarted, "api",
+	publishEventAsync(r.Context(), h.events, core.NewEvent(core.EventAppStarted, "api",
 		core.AppEventData{AppID: appID, AppName: app.Name, Status: "running"}))
 
 	writeJSON(w, http.StatusOK, map[string]string{"app_id": appID, "status": "running"})

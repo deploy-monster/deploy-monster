@@ -37,7 +37,7 @@ func (h *AdminHandler) SystemInfo(w http.ResponseWriter, _ *http.Request) {
 		})
 	}
 
-	stats := h.core.Events.Stats()
+	stats := eventBusStats(h.core.Events)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"version":    h.core.Build.Version,

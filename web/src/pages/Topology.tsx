@@ -12,8 +12,13 @@ import type { CompileResult, TopologyDeployResponse } from '@/types/topology';
 import { useApi, useMutation } from '@/hooks';
 import { useDeployProgress } from '@/hooks/useDeployProgress';
 import type { TopologyState } from '@/types/topology';
+import { toast } from '@/stores/toastStore';
 
 const ENVIRONMENTS = ['production', 'staging', 'development'];
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 export default function TopologyPage() {
    const {
@@ -104,7 +109,7 @@ export default function TopologyPage() {
       });
       markClean();
     } catch (error) {
-      console.error('Failed to save topology:', error);
+      toast.error(errorMessage(error, 'Failed to save topology'));
     }
   }, [nodes, edges, projectId, environment, saveMutation, markClean]);
 
@@ -141,12 +146,13 @@ export default function TopologyPage() {
         setWsEnabled(false);
       }
     } catch (error) {
-      console.error('Failed to deploy topology:', error);
+      const message = errorMessage(error, 'Deployment failed');
+      toast.error(message);
       if (!wsCompletedRef.current) {
         setWsDeployStatus('error');
         setDeployResult({
           success: false,
-          message: error instanceof Error ? error.message : 'Deployment failed',
+          message,
         });
         setDeploying(false);
         setWsEnabled(false);
@@ -170,10 +176,11 @@ export default function TopologyPage() {
       });
       setCompileResult(result as CompileResult);
     } catch (error) {
-      console.error('Failed to compile topology:', error);
+      const message = errorMessage(error, 'Compilation failed');
+      toast.error(message);
       setCompileResult({
         success: false,
-        message: error instanceof Error ? error.message : 'Compilation failed',
+        message,
       });
     } finally {
       setIsCompiling(false);

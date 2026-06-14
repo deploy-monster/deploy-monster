@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
@@ -60,7 +59,9 @@ func (h *DomainVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		FQDN string `json:"fqdn"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req) // Intentionally lenient: FQDN may be omitted
+	if !decodeOptionalJSONInto(w, r, &req) { // FQDN may be omitted
+		return
+	}
 
 	if req.FQDN == "" {
 		req.FQDN = domain.FQDN
@@ -163,7 +164,7 @@ func (h *DomainVerifyHandler) tenantDomainSet(w http.ResponseWriter, r *http.Req
 	for i, app := range apps {
 		appIDs[i] = app.ID
 	}
-	domainsByApp, err := h.store.ListDomainsByAppIDs(r.Context(), appIDs)
+	domainsByApp, err := h.store.ListDomainsByAppIDs(r.Context(), appIDs, tenantID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return nil, false

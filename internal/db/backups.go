@@ -60,15 +60,15 @@ func (s *SQLiteDB) ListBackupsByTenant(ctx context.Context, tenantID string, lim
 	return backups, total, rows.Err()
 }
 
-// UpdateBackupStatus updates a backup's status and size.
-func (s *SQLiteDB) UpdateBackupStatus(ctx context.Context, id, status string, sizeBytes int64) error {
+// UpdateBackupStatus updates a backup's status and size, scoped to tenantID.
+func (s *SQLiteDB) UpdateBackupStatus(ctx context.Context, id, status string, sizeBytes int64, tenantID string) error {
 	var completedAt *time.Time
 	if status == "completed" || status == "failed" {
 		now := time.Now().UTC()
 		completedAt = &now
 	}
 	_, err := s.ExecContext(ctx,
-		`UPDATE backups SET status = ?, size_bytes = ?, completed_at = ? WHERE id = ?`,
-		status, sizeBytes, completedAt, id)
+		`UPDATE backups SET status = ?, size_bytes = ?, completed_at = ? WHERE id = ? AND tenant_id = ?`,
+		status, sizeBytes, completedAt, id, tenantID)
 	return err
 }

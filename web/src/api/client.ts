@@ -72,9 +72,9 @@ interface CallOptions {
 export interface PaginatedResponse<T> {
   data: T[];
   total: number;
-  page: number;
-  per_page: number;
-  total_pages: number;
+  page?: number;
+  per_page?: number;
+  total_pages?: number;
 }
 
 class APIError extends Error {
@@ -87,8 +87,7 @@ class APIError extends Error {
 }
 
 function getCSRFToken(): string {
-  // SECURITY FIX: Backend sets cookie as __Host-dm_csrf, frontend was looking for dm_csrf
-  const match = document.cookie.match(/(?:^|;\s*)__Host-dm_csrf=([^;]*)/);
+  const match = document.cookie.match(/(?:^|;\s*)(?:__Host-dm_csrf|dm_csrf)=([^;]*)/);
   return match ? match[1] : '';
 }
 
@@ -284,24 +283,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const json = await response.json();
 
-  // Unwrap {data: ...} responses — but only when it's a simple list wrapper.
-  // Common pattern: {"data": [...], "total": N} → unwrap to the array.
-  // Multi-domain responses like marketplace keep extra keys and must not be
-  // unwrapped. We detect simple wrappers by checking that all keys outside
-  // "data" are known-safe pagination markers — any unexpected key blocks
-  // the unwrap so callers get the full envelope.
-  //
-  // P3-13 fix: the previous keys.length<=2 heuristic broke on 3-key envelopes
-  // like {"data": [...], "total": N, "page": 2}. This whitelist approach is
-  // explicit and version-safe.
+  // Unwrap only bare {data: ...} responses. Envelopes with metadata, including
+  // pagination fields such as total/page/per_page, must stay intact because
+  // callers use those fields for counts and paging controls.
   if (json && typeof json === 'object' && 'data' in json && !('error' in json)) {
     const keys = Object.keys(json);
-    // Keys that are known to be safe alongside "data" in standard wrappers.
-    // Add new pagination/meta keys here as the API evolves.
-    const knownSafeExtraKeys = new Set(['total', 'page', 'per_page', 'total_pages', 'next', 'prev', 'has_more']);
-    const extraKeys = keys.filter((k) => k !== 'data');
-    const allExtraKeysSafe = extraKeys.every((k) => knownSafeExtraKeys.has(k));
-    if (allExtraKeysSafe) {
+    if (keys.length === 1) {
       return json.data as T;
     }
   }

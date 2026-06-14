@@ -201,10 +201,9 @@ func TestRollbackEngine_Rollback_Success_NilRuntime(t *testing.T) {
 	store.latestDeployment = &core.Deployment{
 		ContainerID: "old-container-id",
 	}
-	events := core.NewEventBus(nil)
-
-	// With nil runtime, rollback should succeed but skip container operations
-	re := NewRollbackEngine(store, nil, events)
+	// With nil runtime and nil event bus, rollback should succeed but skip
+	// container operations and event publication.
+	re := NewRollbackEngine(store, nil, nil)
 	dep, err := re.Rollback(context.Background(), "app-123", 1)
 	if err != nil {
 		t.Fatalf("Rollback returned error: %v", err)

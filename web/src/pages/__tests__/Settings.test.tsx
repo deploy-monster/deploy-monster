@@ -57,6 +57,7 @@ vi.mock('@/api/admin', () => ({
 
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
+const clipboardWriteMock = vi.fn();
 vi.mock('@/stores/toastStore', () => ({
   toast: {
     success: (msg: string) => toastSuccessMock(msg),
@@ -78,6 +79,9 @@ function renderSettings() {
 describe('Settings page', () => {
   beforeEach(() => {
     themeValue = 'system';
+    fakeUser.id = 'u1';
+    fakeUser.email = 'alice@example.com';
+    fakeUser.name = 'Alice';
     fakeUser.role = 'role_super_admin';
     setThemeMock.mockReset();
     updateUserMock.mockReset();
@@ -92,6 +96,11 @@ describe('Settings page', () => {
     revokeApiKeyMock.mockReset().mockResolvedValue(undefined);
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
+    clipboardWriteMock.mockReset().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteMock },
+    });
   });
 
   it('renders the page header and both tabs', () => {
@@ -109,6 +118,51 @@ describe('Settings page', () => {
     expect(nameInput.value).toBe('Alice');
     // The email input is disabled — grab by display value since it has no label id.
     expect(screen.getByDisplayValue('alice@example.com')).toBeInTheDocument();
+  });
+
+  it('updates the profile form when the auth store user changes', () => {
+    const { rerender } = renderSettings();
+
+    expect(screen.getByLabelText(/display name/i)).toHaveValue('Alice');
+
+    fakeUser.id = 'u2';
+    fakeUser.email = 'bob@example.com';
+    fakeUser.name = 'Bob';
+
+    rerender(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByLabelText(/display name/i)).toHaveValue('Bob');
+    expect(screen.getByDisplayValue('bob@example.com')).toBeInTheDocument();
+  });
+
+  it('syncs same-user name changes only while the profile form is untouched', () => {
+    fakeUser.name = '';
+    const { rerender } = renderSettings();
+
+    const nameInput = screen.getByLabelText(/display name/i);
+    expect(nameInput).toHaveValue('');
+
+    fakeUser.name = 'Alice Loaded';
+    rerender(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+    expect(nameInput).toHaveValue('Alice Loaded');
+
+    fireEvent.change(nameInput, { target: { value: 'Alice Local Edit' } });
+    fakeUser.name = 'Alice Server Update';
+    rerender(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    expect(nameInput).toHaveValue('Alice Local Edit');
   });
 
   it('calls api.patch with the updated name when Save Profile is clicked', async () => {
@@ -138,15 +192,16 @@ describe('Settings page', () => {
     fireEvent.click(screen.getByRole('button', { name: /save profile/i }));
 
     await waitFor(() =>
-      expect(toastErrorMock).toHaveBeenCalledWith('Failed to update profile')
+      expect(toastErrorMock).toHaveBeenCalledWith('nope')
     );
   });
 
   it('invokes setTheme when a different theme card is clicked', () => {
     renderSettings();
+    fireEvent.click(screen.getByRole('tab', { name: /appearance/i }));
 
     // The three theme cards are plain <button>s with the label as text. The
-    // Profile tab is active by default, so all three are mounted.
+    // Appearance tab is active, so all three are mounted.
     fireEvent.click(screen.getByRole('button', { name: /^dark$/i }));
 
     expect(setThemeMock).toHaveBeenCalledWith('dark');
@@ -154,6 +209,7 @@ describe('Settings page', () => {
 
   it('toggles a notification preference via the Switch role', () => {
     renderSettings();
+    fireEvent.click(screen.getByRole('tab', { name: /notifications/i }));
 
     // Four switches under Notifications; the first corresponds to "Email
     // notifications", which defaults to checked. Clicking should flip it.
@@ -261,6 +317,27 @@ describe('Settings page', () => {
     expect(toastSuccessMock).toHaveBeenCalledWith('Two-factor authentication enabled');
   });
 
+  it('cancels pending 2FA enrollment without starting a second enrollment', async () => {
+    apiPostMock.mockResolvedValueOnce({
+      provisioning_uri: 'otpauth://totp/DeployMonster:alice@example.com?secret=abc',
+    });
+    renderSettings();
+    fireEvent.click(screen.getByRole('tab', { name: /security/i }));
+
+    const switchControl = screen.getByRole('switch');
+    fireEvent.click(switchControl);
+
+    expect(await screen.findByDisplayValue(/otpauth:\/\/totp/i)).toBeInTheDocument();
+
+    fireEvent.click(switchControl);
+
+    await waitFor(() =>
+      expect(screen.queryByDisplayValue(/otpauth:\/\/totp/i)).not.toBeInTheDocument()
+    );
+    expect(apiPostMock).toHaveBeenCalledTimes(1);
+    expect(apiPostMock).toHaveBeenCalledWith('/auth/totp/enroll', {});
+  });
+
   it('disables 2FA through the API when an authentication code is supplied', async () => {
     apiGetMock.mockResolvedValue({ enabled: true });
     renderSettings();
@@ -288,6 +365,24 @@ describe('Settings page', () => {
 
     expect(await screen.findByText('dm_test_abc123')).toBeInTheDocument();
     expect(toastSuccessMock).toHaveBeenCalledWith('API key generated -- save it now!');
+  });
+
+  it('copies the generated API key and reports clipboard failures', async () => {
+    generateApiKeyMock.mockResolvedValueOnce({ key: 'dm_test_copy123', prefix: 'dm_test' });
+    renderSettings();
+    fireEvent.click(screen.getByRole('tab', { name: /security/i }));
+    fireEvent.click(screen.getByRole('button', { name: /generate new key/i }));
+
+    expect(await screen.findByText('dm_test_copy123')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^copy$/i }));
+
+    await waitFor(() => expect(clipboardWriteMock).toHaveBeenCalledWith('dm_test_copy123'));
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('API key copied to clipboard'));
+
+    clipboardWriteMock.mockRejectedValueOnce(new Error('denied'));
+    fireEvent.click(screen.getByRole('button', { name: /copied/i }));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('Failed to copy API key'));
   });
 
   it('hides API keys for non-super-admin users and skips the admin endpoint', () => {

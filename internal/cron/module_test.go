@@ -1,9 +1,11 @@
 package cron
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -14,7 +16,9 @@ import (
 )
 
 type testBolt struct {
-	data map[string]map[string][]byte
+	data    map[string]map[string][]byte
+	getErr  error
+	listErr error
 }
 
 func newTestBolt() *testBolt {
@@ -43,9 +47,12 @@ func (b *testBolt) BatchSet(items []core.BoltBatchItem) error {
 }
 
 func (b *testBolt) Get(bucket, key string, dest any) error {
+	if b.getErr != nil {
+		return b.getErr
+	}
 	raw, ok := b.data[bucket][key]
 	if !ok {
-		return errors.New("key not found")
+		return fmt.Errorf("key %q: %w", key, core.ErrKVNotFound)
 	}
 	return json.Unmarshal(raw, dest)
 }
@@ -56,6 +63,9 @@ func (b *testBolt) Delete(bucket, key string) error {
 }
 
 func (b *testBolt) List(bucket string) ([]string, error) {
+	if b.listErr != nil {
+		return nil, b.listErr
+	}
 	keys := make([]string, 0, len(b.data[bucket]))
 	for key := range b.data[bucket] {
 		keys = append(keys, key)
@@ -140,6 +150,43 @@ func TestModuleLifecycleAndRefresh(t *testing.T) {
 	}
 }
 
+func TestRefreshTreatsMissingCronBucketAsEmpty(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	bolt := &testBolt{
+		data:    make(map[string]map[string][]byte),
+		listErr: fmt.Errorf("bucket %q: %w", "cronjobs", core.ErrKVNotFound),
+	}
+	c := testCore(bolt, &cronRuntime{})
+	c.Logger = logger
+	m := &Module{core: c, logger: logger}
+
+	m.refresh()
+
+	if logs.Len() != 0 {
+		t.Fatalf("missing cronjobs bucket should not warn, got logs: %q", logs.String())
+	}
+}
+
+func TestRefreshLogsCronJobReadError(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	bolt := newTestBolt()
+	if err := bolt.Set("cronjobs", "app-1", jobList{}, 0); err != nil {
+		t.Fatalf("seed cronjobs: %v", err)
+	}
+	bolt.getErr = errors.New("decode failed")
+	c := testCore(bolt, &cronRuntime{})
+	c.Logger = logger
+	m := &Module{core: c, logger: logger}
+
+	m.refresh()
+
+	if !strings.Contains(logs.String(), "cron: get cronjobs entry failed") {
+		t.Fatalf("expected cron read warning, got logs: %q", logs.String())
+	}
+}
+
 func TestHandlerForExecutesAndStoresHistory(t *testing.T) {
 	bolt := newTestBolt()
 	runtime := &cronRuntime{
@@ -177,6 +224,32 @@ func TestHandlerForExecutesAndStoresHistory(t *testing.T) {
 	}
 	if id := entry["container_id"]; id != "container-12" {
 		t.Fatalf("container_id = %v, want container-12", id)
+	}
+}
+
+func TestHandlerForNilEventBusStillStoresHistory(t *testing.T) {
+	bolt := newTestBolt()
+	runtime := &cronRuntime{
+		containers: []core.ContainerInfo{{ID: "container-1234567890"}},
+		output:     "ok",
+	}
+	c := testCore(bolt, runtime)
+	c.Events = nil
+	m := &Module{
+		core:   c,
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	if err := m.handlerFor("app-1", jobConfig{ID: "job-1", Command: "echo ok"})(context.Background()); err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+
+	keys, err := bolt.List("app_commands")
+	if err != nil {
+		t.Fatalf("list command history: %v", err)
+	}
+	if len(keys) != 1 {
+		t.Fatalf("history keys = %v, want one", keys)
 	}
 }
 

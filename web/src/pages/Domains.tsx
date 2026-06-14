@@ -122,11 +122,15 @@ export function Domains() {
     setDeleteDomainId(id);
   };
 
-  const handleCopyFQDN = (id: string, fqdn: string) => {
-    navigator.clipboard.writeText(fqdn);
-    setCopiedId(id);
-    toast.success('Domain copied to clipboard');
-    setTimeout(() => setCopiedId(null), 2000);
+  const handleCopyFQDN = async (id: string, fqdn: string) => {
+    try {
+      await navigator.clipboard.writeText(fqdn);
+      setCopiedId(id);
+      toast.success('Domain copied to clipboard');
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      toast.error('Failed to copy domain');
+    }
   };
 
   const list = domainList;

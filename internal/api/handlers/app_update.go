@@ -78,7 +78,7 @@ func (h *AppHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.core.Events.Publish(r.Context(), core.NewEvent(core.EventAppUpdated, "api",
+	publishEvent(r.Context(), h.core.Events, core.NewEvent(core.EventAppUpdated, "api",
 		core.AppEventData{AppID: app.ID, AppName: app.Name}))
 
 	writeJSON(w, http.StatusOK, app)

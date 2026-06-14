@@ -143,26 +143,26 @@ test.describe('Marketplace', () => {
 
     await page.getByPlaceholder(/search templates/i).fill('ghost');
 
-    // The page sends the query to the backend — our mock returns the same
-    // set regardless, but we assert the search filter badge appears.
-    await expect(page.getByText(/search: "ghost"/i)).toBeVisible({ timeout: 5_000 });
+    const grid = page.getByTestId('template-grid');
+    await expect(page.getByTestId('template-count-summary')).toContainText(/1 template/i);
+    await expect(grid.getByText('Ghost')).toBeVisible({ timeout: 5_000 });
+    await expect(grid.getByText('Grafana')).toBeHidden();
   });
 
-  test('category filter is present with All Categories option', async ({ page }) => {
+  test('category filter narrows the template grid', async ({ page }) => {
     await mockMarketplace(page);
     await page.goto('/marketplace');
     await ensureAuthenticated(page);
 
     await expect(page.getByText('Ghost').first()).toBeVisible({ timeout: 10_000 });
 
-    // The Select control has the default "All Categories" option.
-    const categorySelect = page.locator('select').last();
-    await expect(categorySelect).toBeVisible();
+    await page.getByRole('button', { name: /monitoring\s+1/i }).click();
 
-    // Pick a known category.
-    await categorySelect.selectOption('monitoring');
-    // After selection, the active filter badge should appear.
-    await expect(page.getByText(/category: monitoring/i)).toBeVisible({ timeout: 5_000 });
+    const grid = page.getByTestId('template-grid');
+    await expect(page.getByTestId('template-count-summary')).toContainText(/1 template/i);
+    await expect(page.getByTestId('template-count-summary')).toContainText(/monitoring/i);
+    await expect(grid.getByText('Grafana')).toBeVisible({ timeout: 5_000 });
+    await expect(grid.getByText('Ghost')).toBeHidden();
   });
 
   test('clicking Deploy opens the deploy dialog with stack name input', async ({ page }) => {
@@ -197,12 +197,13 @@ test.describe('Marketplace', () => {
     const sheet = page.locator('[class*="max-w-xl"]').filter({ hasText: /deploy ghost/i }).first();
     await sheet.getByLabel(/stack name/i).fill('e2e-ghost-stack');
 
-    const req = page.waitForRequest(
-      (r) => r.url().endsWith('/api/v1/marketplace/deploy') && r.method() === 'POST',
-      { timeout: 10_000 }
-    );
-    await sheet.getByRole('button', { name: /^deploy$/i }).click();
-    const request = await req;
+    const [request] = await Promise.all([
+      page.waitForRequest(
+        (r) => r.url().endsWith('/api/v1/marketplace/deploy') && r.method() === 'POST',
+        { timeout: 10_000 }
+      ),
+      sheet.getByRole('button', { name: /deploy now/i }).click(),
+    ]);
 
     const body = request.postDataJSON() as Record<string, unknown>;
     expect(body.slug).toBe('ghost');

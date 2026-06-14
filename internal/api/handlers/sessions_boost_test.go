@@ -108,6 +108,25 @@ func TestSessionHandler_EnableTOTPRejectsMalformedJSON(t *testing.T) {
 	}
 }
 
+func TestSessionHandler_EnableTOTPRejectsTrailingJSON(t *testing.T) {
+	store := newMockStore()
+	h := NewSessionHandler(store, nil, &testAuthServicesWithTOTP{
+		jwt:  testJWT(),
+		totp: auth.NewTOTPService(store),
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/totp/enroll", strings.NewReader(`{"code":"123456"}{"code":"654321"}`))
+	req = withClaims(req, "user-1", "tenant-1", "role_admin", "admin@example.com")
+	rr := httptest.NewRecorder()
+
+	h.EnableTOTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for trailing JSON, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestSessionHandler_TOTPInternalErrorsAreSanitized(t *testing.T) {
 	store := newMockStore()
 	store.errGetUser = errors.New("db connection string leaked")

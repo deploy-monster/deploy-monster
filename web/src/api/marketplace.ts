@@ -53,7 +53,7 @@ interface DeployTemplateRequest {
   config?: Record<string, string>;
 }
 
-interface DeployTemplateResponse {
+export interface DeployTemplateResponse {
   app_id: string;
   name?: string;
   template?: string;

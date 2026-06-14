@@ -44,7 +44,7 @@ func (h *WebhookRotateHandler) Rotate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.PublishAsync(r.Context(), core.NewEvent("webhook.rotated", "api",
+	publishEventAsync(r.Context(), h.events, core.NewEvent("webhook.rotated", "api",
 		map[string]string{"app_id": app.ID}))
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -70,7 +70,7 @@ func (h *WebhookRotateHandler) persistSecret(app *core.Application, secret strin
 		rec.CreatedAt = now
 	}
 	rec.AppID = app.ID
-	rec.SecretHash = secret
+	rec.SecretHash = hashSecret(secret) // SHA-256 hash — plaintext secret is never persisted
 	rec.Status = "active"
 	rec.UpdatedAt = now
 

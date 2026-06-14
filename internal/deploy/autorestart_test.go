@@ -50,6 +50,17 @@ func TestAutoRestarter_CheckCrashed_NilRuntime(t *testing.T) {
 	ar.checkCrashed()
 }
 
+func TestAutoRestarter_NilEventBus(t *testing.T) {
+	store := newMockStore()
+	ar := NewAutoRestarter(nil, store, nil, slog.Default())
+
+	ar.Start()
+	ar.Stop()
+
+	ar.maxRetries = 0
+	ar.handleCrash(context.Background(), "app-1", "ctr-1")
+}
+
 func TestAutoRestarter_CheckCrashed_NoContainers(t *testing.T) {
 	runtime := &mockRuntime{
 		listByLabelsFn: func(_ context.Context, _ map[string]string) ([]core.ContainerInfo, error) {

@@ -52,20 +52,20 @@ type BuildInfo struct {
 // Core is the central application orchestrator.
 // It holds the configuration, module registry, event bus, and shared resources.
 type Core struct {
-	Config        *Config
-	ConfigPath    string // Path used to load config (for hot-reload)
-	Build         BuildInfo
-	Registry      *Registry
-	Events        *EventBus
-	Scheduler     *Scheduler
-	DB            *Database
-	Store         Store
-	Services      *Services
-	Logger        *slog.Logger
-	Router        *http.ServeMux
+	Config         *Config
+	ConfigPath     string // Path used to load config (for hot-reload)
+	Build          BuildInfo
+	Registry       *Registry
+	Events         *EventBus
+	Scheduler      *Scheduler
+	DB             *Database
+	Store          Store
+	Services       *Services
+	Logger         *slog.Logger
+	Router         *http.ServeMux
 	TracerProvider trace.TracerProvider // optional OpenTelemetry tracer provider
-	Tracer          trace.Tracer     // convenience tracer for "deploymonster" service
-	draining        atomic.Bool      // set during graceful shutdown; readiness probe returns 503
+	Tracer         trace.Tracer         // convenience tracer for "deploymonster" service
+	draining       atomic.Bool          // set during graceful shutdown; readiness probe returns 503
 
 	// configMu guards in-place mutation of Config's hot-reloadable
 	// fields by ReloadConfig. Concurrent readers that run alongside a
@@ -141,7 +141,8 @@ func NewApp(cfg *Config, build BuildInfo) (*Core, error) {
 // initTracer creates an OpenTelemetry tracer provider for development.
 // Spans are exported to stdout in OTLP JSON format.
 // For production, swap the exporter for an OTLP gRPC client:
-//   otlptrace.NewClient(otlptrace.WithEndpoint(endpoint), otlptrace.WithInsecure())
+//
+//	otlptrace.NewClient(otlptrace.WithEndpoint(endpoint), otlptrace.WithInsecure())
 func initTracer(endpoint, serviceName string) (*otelsdk.TracerProvider, error) {
 	// stdout exporter is used for local development trace visibility.
 	// In production, replace with: otlptracegrpc.NewClient(...).
@@ -177,10 +178,12 @@ func (c *Core) Run(ctx context.Context) error {
 	}
 
 	// 4. Start core scheduler
-	c.Scheduler.Start()
+	if c.Scheduler != nil {
+		c.Scheduler.Start()
+	}
 
 	// Emit system started event
-	c.Events.PublishAsync(ctx, NewEvent(EventSystemStarted, "core", map[string]string{
+	c.publishEventAsync(ctx, NewEvent(EventSystemStarted, "core", map[string]string{
 		"version": c.Build.Version,
 	}))
 
@@ -194,16 +197,26 @@ func (c *Core) Run(ctx context.Context) error {
 	// Mark as draining so /readyz returns 503 — load balancers stop routing
 	c.SetDraining()
 
-	c.Events.PublishAsync(context.Background(), NewEvent(EventSystemStopping, "core", nil))
+	c.publishEventAsync(context.Background(), NewEvent(EventSystemStopping, "core", nil))
 	c.Logger.Info("shutting down (draining)...")
 
 	// 6. Graceful shutdown with timeout
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	c.Scheduler.Stop()
-	c.Events.Drain() // wait for in-flight async event handlers
+	if c.Scheduler != nil {
+		c.Scheduler.Stop()
+	}
+	if c.Events != nil {
+		c.Events.Drain() // wait for in-flight async event handlers
+	}
 	return c.Registry.StopAll(shutdownCtx)
+}
+
+func (c *Core) publishEventAsync(ctx context.Context, event Event) {
+	if c.Events != nil {
+		c.Events.PublishAsync(ctx, event)
+	}
 }
 
 // ReloadConfig re-reads the config file and applies safe-to-reload fields
@@ -269,7 +282,7 @@ func (c *Core) ReloadConfig() error {
 	SetupLogger(c.Config.Server.LogLevel, c.Config.Server.LogFormat, c.Config.Observability.LokiURL, "", "", 5*time.Second)
 
 	c.Logger.Info("config reloaded", "changed", changed)
-	c.Events.PublishAsync(context.Background(), NewEvent(EventConfigReloaded, "core", map[string]any{
+	c.publishEventAsync(context.Background(), NewEvent(EventConfigReloaded, "core", map[string]any{
 		"changed_fields": changed,
 	}))
 

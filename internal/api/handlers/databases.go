@@ -177,7 +177,7 @@ func (h *DatabaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	connStr := engine.ConnectionString("localhost", engine.DefaultPort(), creds)
 
-	h.events.Publish(r.Context(), core.NewTenantEvent(
+	publishEvent(r.Context(), h.events, core.NewTenantEvent(
 		core.EventDatabaseCreated, "api", claims.TenantID, claims.UserID,
 		map[string]string{"engine": req.Engine, "name": req.Name},
 	))

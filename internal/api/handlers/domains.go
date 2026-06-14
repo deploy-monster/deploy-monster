@@ -49,7 +49,7 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusForbidden, "access denied")
 			return
 		}
-		domains, err = h.store.ListDomainsByApp(r.Context(), appID)
+		domains, err = h.store.ListDomainsByApp(r.Context(), appID, app.TenantID)
 	} else {
 		tenantApps, _, aerr := h.store.ListAppsByTenant(r.Context(), claims.TenantID, 10000, 0)
 		if aerr != nil {
@@ -57,7 +57,7 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, app := range tenantApps {
-			appDomains, derr := h.store.ListDomainsByApp(r.Context(), app.ID)
+			appDomains, derr := h.store.ListDomainsByApp(r.Context(), app.ID, claims.TenantID)
 			if derr != nil {
 				writeError(w, http.StatusInternalServerError, "internal error")
 				return
@@ -141,7 +141,7 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.Publish(r.Context(), core.NewEvent(
+	publishEvent(r.Context(), h.events, core.NewEvent(
 		core.EventDomainAdded, "api",
 		core.DomainEventData{
 			DomainID: domain.ID,
@@ -187,7 +187,7 @@ func (h *DomainHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.DeleteDomain(r.Context(), id); err != nil {
+	if err := h.store.DeleteDomain(r.Context(), id, claims.TenantID); err != nil {
 		if errors.Is(err, core.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "domain not found")
 			return
@@ -196,7 +196,7 @@ func (h *DomainHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.Publish(r.Context(), core.NewEvent(
+	publishEvent(r.Context(), h.events, core.NewEvent(
 		core.EventDomainRemoved, "api",
 		map[string]string{"id": id},
 	))

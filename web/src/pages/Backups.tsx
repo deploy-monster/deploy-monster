@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { backupsAPI, type BackupEntry } from '@/api/backups';
+import type { PaginatedResponse } from '@/api/client';
 import { useApi } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -125,7 +126,7 @@ function TableSkeleton() {
 
 export function Backups() {
   const { data: backupsResp, loading, refetch } = useApi<
-    { data: BackupEntry[]; total: number } | BackupEntry[]
+    PaginatedResponse<BackupEntry> | BackupEntry[]
   >('/backups');
   const backups = Array.isArray(backupsResp) ? backupsResp : backupsResp?.data;
   const [restoreDialog, setRestoreDialog] = useState<string | null>(null);

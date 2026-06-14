@@ -3,7 +3,8 @@ import { type App } from '@/api/apps';
 import { type Deployment } from '@/api/deployments';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AppStatsCards, getStatusConfig, timeAgo, type AppStatsResponse } from './AppStatsCards';
+import { AppStatsCards } from './AppStatsCards';
+import { getStatusConfig, timeAgo, type AppStatsResponse } from './helpers';
 
 interface AppOverviewSectionProps {
   app: App;

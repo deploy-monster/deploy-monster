@@ -1238,7 +1238,7 @@ func (s *testStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, 
 	return nil, nil
 }
 func (s *testStore) UpdateTenant(_ context.Context, _ *core.Tenant) error           { return nil }
-func (s *testStore) DeleteTenant(_ context.Context, _ string) error                 { return nil }
+func (s *testStore) DeleteTenant(_ context.Context, _ string, _ string) error                 { return nil }
 func (s *testStore) CreateUser(_ context.Context, _ *core.User) error               { return nil }
 func (s *testStore) GetUser(_ context.Context, _ string) (*core.User, error)        { return nil, nil }
 func (s *testStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) { return nil, nil }
@@ -1254,8 +1254,8 @@ func (s *testStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]c
 func (s *testStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
 	return nil, nil
 }
-func (s *testStore) UpdateAppStatus(_ context.Context, _, _ string) error         { return nil }
-func (s *testStore) DeleteApp(_ context.Context, _ string) error                  { return nil }
+func (s *testStore) UpdateAppStatus(_ context.Context, _, _, _ string) error         { return nil }
+func (s *testStore) DeleteApp(_ context.Context, _ string, _ string) error                  { return nil }
 func (s *testStore) CreateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
 func (s *testStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) {
 	return nil, nil
@@ -1313,10 +1313,12 @@ type testBoltStore struct{}
 
 func (b *testBoltStore) Set(_, _ string, _ any, _ int64) error { return nil }
 func (b *testBoltStore) BatchSet(_ []core.BoltBatchItem) error { return nil }
-func (b *testBoltStore) Get(_, _ string, _ any) error          { return fmt.Errorf("key not found") }
-func (b *testBoltStore) Delete(_, _ string) error              { return nil }
-func (b *testBoltStore) List(_ string) ([]string, error)       { return nil, nil }
-func (b *testBoltStore) Close() error                          { return nil }
+func (b *testBoltStore) Get(_, key string, _ any) error {
+	return fmt.Errorf("key %q: %w", key, core.ErrKVNotFound)
+}
+func (b *testBoltStore) Delete(_, _ string) error        { return nil }
+func (b *testBoltStore) List(_ string) ([]string, error) { return nil, nil }
+func (b *testBoltStore) Close() error                    { return nil }
 func (b *testBoltStore) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
 	return nil, fmt.Errorf("not found")
 }

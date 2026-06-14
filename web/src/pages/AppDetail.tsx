@@ -20,6 +20,8 @@ import {
 } from '@/components/AppDetail';
 import type { ServerNode } from '@/api/servers';
 
+type EnvVarsResponse = { data: { key: string; value: string }[] } | { key: string; value: string }[];
+
 /* ------------------------------------------------------------------ */
 /*  Main Component                                                     */
 /* ------------------------------------------------------------------ */
@@ -33,10 +35,11 @@ export function AppDetail() {
   const { data: deploymentsData } = useApi<PaginatedResponse<Deployment>>(`/apps/${id}/deployments`);
   const deployments = deploymentsData?.data ?? [];
 
-  const { data: envData, refetch: refetchEnv } = useApi<{ data: { key: string; value: string }[] }>(
+  const { data: envData, refetch: refetchEnv } = useApi<EnvVarsResponse>(
     `/apps/${id}/env`,
   );
-  const envVars: EnvVar[] = (envData?.data ?? []).map((e) => ({
+  const envEntries = Array.isArray(envData) ? envData : envData?.data ?? [];
+  const envVars: EnvVar[] = envEntries.map((e) => ({
     key: e.key,
     value: e.value,
     isSecret: e.value.startsWith('${SECRET:'),

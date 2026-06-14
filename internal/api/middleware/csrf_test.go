@@ -79,7 +79,7 @@ func TestCSRFProtect_CookieWithoutHeader_Rejects(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
-	req.AddCookie(&http.Cookie{Name: "__Host-dm_csrf", Value: "valid-token"})
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "valid-token"})
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
@@ -92,7 +92,7 @@ func TestCSRFProtect_MismatchToken_Rejects(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
-	req.AddCookie(&http.Cookie{Name: "__Host-dm_csrf", Value: "token-a"})
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "token-a"})
 	req.Header.Set("X-CSRF-Token", "token-b")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -106,7 +106,7 @@ func TestCSRFProtect_MatchingToken_Passes(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
-	req.AddCookie(&http.Cookie{Name: "__Host-dm_csrf", Value: "valid-token"})
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "valid-token"})
 	req.Header.Set("X-CSRF-Token", "valid-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -115,12 +115,26 @@ func TestCSRFProtect_MatchingToken_Passes(t *testing.T) {
 	}
 }
 
+func TestCSRFProtect_MatchingDevToken_Passes(t *testing.T) {
+	handler := CSRFProtect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
+	req.AddCookie(&http.Cookie{Name: csrfDevCookieName, Value: "valid-token"})
+	req.Header.Set("X-CSRF-Token", "valid-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for matching dev CSRF token, got %d", rec.Code)
+	}
+}
+
 func TestCSRFProtect_EmptyCookieValue_PassesThrough(t *testing.T) {
 	handler := CSRFProtect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps", nil)
-	req.AddCookie(&http.Cookie{Name: "__Host-dm_csrf", Value: ""})
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: ""})
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -137,13 +151,13 @@ func TestSetCSRFCookie_SetsCookie(t *testing.T) {
 	cookies := rec.Result().Cookies()
 	var found *http.Cookie
 	for _, c := range cookies {
-		if c.Name == "__Host-dm_csrf" {
+		if c.Name == csrfCookieName {
 			found = c
 			break
 		}
 	}
 	if found == nil {
-		t.Fatal("expected dm_csrf cookie to be set")
+		t.Fatal("expected secure CSRF cookie to be set")
 	}
 	if found.Value == "" {
 		t.Error("CSRF cookie value should not be empty")
@@ -162,24 +176,23 @@ func TestSetCSRFCookie_SetsCookie(t *testing.T) {
 	}
 }
 
-// TestSetCSRFCookie_PlainHTTPNotSecure guards the dev/CI path: when the
-// backend listens on plain HTTP (e.g. Playwright E2E against
-// http://localhost:8443), the Secure flag must be omitted so Chromium
-// actually stores the cookie instead of silently dropping it.
-func TestSetCSRFCookie_PlainHTTPNotSecure(t *testing.T) {
+// TestSetCSRFCookie_PlainHTTPUsesDevCookie guards the dev/CI path:
+// Chromium rejects __Host- cookies without Secure, so plain HTTP must
+// use the fallback name that the frontend and middleware also accept.
+func TestSetCSRFCookie_PlainHTTPUsesDevCookie(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "http://localhost:8443/api/v1/auth/login", nil)
 	SetCSRFCookie(rec, req)
 
 	var found *http.Cookie
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "__Host-dm_csrf" {
+		if c.Name == csrfDevCookieName {
 			found = c
 			break
 		}
 	}
 	if found == nil {
-		t.Fatal("expected dm_csrf cookie to be set")
+		t.Fatal("expected dev CSRF cookie to be set")
 	}
 	if found.Secure {
 		t.Error("CSRF cookie must NOT be Secure over plain HTTP")
@@ -196,12 +209,12 @@ func TestSetCSRFCookie_UniqueTokens(t *testing.T) {
 
 	var token1, token2 string
 	for _, c := range rec1.Result().Cookies() {
-		if c.Name == "__Host-dm_csrf" {
+		if c.Name == csrfCookieName {
 			token1 = c.Value
 		}
 	}
 	for _, c := range rec2.Result().Cookies() {
-		if c.Name == "__Host-dm_csrf" {
+		if c.Name == csrfCookieName {
 			token2 = c.Value
 		}
 	}

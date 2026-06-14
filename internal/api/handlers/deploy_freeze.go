@@ -130,7 +130,7 @@ func (h *DeployFreezeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.freeze.created", "api",
+	publishEventAsync(r.Context(), h.events, core.NewEvent("deploy.freeze.created", "api",
 		map[string]string{"freeze_id": freeze.ID, "reason": freeze.Reason}))
 
 	writeJSON(w, http.StatusCreated, freeze)
@@ -167,7 +167,7 @@ func (h *DeployFreezeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.PublishAsync(r.Context(), core.NewEvent("deploy.freeze.deleted", "api",
+	publishEventAsync(r.Context(), h.events, core.NewEvent("deploy.freeze.deleted", "api",
 		map[string]string{"freeze_id": freezeID}))
 
 	w.WriteHeader(http.StatusNoContent)

@@ -110,6 +110,24 @@ func TestScale_InvalidJSON(t *testing.T) {
 	assertErrorMessage(t, rr, "invalid request body")
 }
 
+func TestScale_RejectsUnknownFields(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	handler := NewScaleHandler(store, testCore().Events)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/scale", bytes.NewReader([]byte(`{"replicas":2,"extra":true}`)))
+	req.SetPathValue("id", "app1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Scale(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestScale_NegativeReplicas(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})

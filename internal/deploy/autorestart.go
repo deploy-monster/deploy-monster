@@ -52,12 +52,14 @@ func NewAutoRestarter(runtime core.ContainerRuntime, store core.Store, events *c
 
 // Start subscribes to container death events and handles restarts.
 func (ar *AutoRestarter) Start() {
-	ar.events.SubscribeAsync(core.EventContainerDied, func(ctx context.Context, event core.Event) error {
-		if data, ok := event.Data.(core.DeployEventData); ok {
-			ar.handleCrash(ctx, data.AppID, data.ContainerID)
-		}
-		return nil
-	})
+	if ar.events != nil {
+		ar.events.SubscribeAsync(core.EventContainerDied, func(ctx context.Context, event core.Event) error {
+			if data, ok := event.Data.(core.DeployEventData); ok {
+				ar.handleCrash(ctx, data.AppID, data.ContainerID)
+			}
+			return nil
+		})
+	}
 
 	// Periodic check for crashed containers
 	core.SafeGo(ar.logger, "autorestart-check", func() {
@@ -91,10 +93,13 @@ func (ar *AutoRestarter) handleCrash(ctx context.Context, appID, containerID str
 		"container_id", containerID,
 	)
 
-	_ = ar.store.UpdateAppStatus(ctx, appID, "crashed")
+	tenantID := func() string { app, err := ar.store.GetApp(ctx, appID); if err != nil || app == nil { return "" }; return app.TenantID }()
+	_ = ar.store.UpdateAppStatus(ctx, appID, "crashed", tenantID)
 
-	_ = ar.events.Publish(ctx, core.NewEvent(core.EventAppCrashed, "deploy",
-		core.AppEventData{AppID: appID, Status: "crashed"}))
+	if ar.events != nil {
+		_ = ar.events.Publish(ctx, core.NewEvent(core.EventAppCrashed, "deploy",
+			core.AppEventData{AppID: appID, Status: "crashed"}))
+	}
 
 	// Attempt restart with backoff
 	for attempt := 1; attempt <= ar.maxRetries; attempt++ {
@@ -121,7 +126,8 @@ func (ar *AutoRestarter) handleCrash(ctx context.Context, appID, containerID str
 			"app_id", appID,
 			"attempt", attempt,
 		)
-		_ = ar.store.UpdateAppStatus(ctx, appID, "running")
+		tenantID = func() string { app, err := ar.store.GetApp(ctx, appID); if err != nil || app == nil { return "" }; return app.TenantID }()
+		_ = ar.store.UpdateAppStatus(ctx, appID, "running", tenantID)
 		return
 	}
 
@@ -129,7 +135,8 @@ func (ar *AutoRestarter) handleCrash(ctx context.Context, appID, containerID str
 		"app_id", appID,
 		"max_retries", ar.maxRetries,
 	)
-	_ = ar.store.UpdateAppStatus(ctx, appID, "failed")
+	tenantID = func() string { app, err := ar.store.GetApp(ctx, appID); if err != nil || app == nil { return "" }; return app.TenantID }()
+	_ = ar.store.UpdateAppStatus(ctx, appID, "failed", tenantID)
 }
 
 func (ar *AutoRestarter) checkCrashed() {

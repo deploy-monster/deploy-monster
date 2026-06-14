@@ -6,6 +6,7 @@ package cron
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -95,6 +96,9 @@ func (m *Module) refresh() {
 	bolt := m.core.DB.Bolt
 	keys, err := bolt.List("cronjobs")
 	if err != nil {
+		if errors.Is(err, core.ErrKVNotFound) {
+			return
+		}
 		m.logger.Warn("cron: list cronjobs bucket failed", "error", err)
 		return
 	}
@@ -103,6 +107,9 @@ func (m *Module) refresh() {
 	for _, appID := range keys {
 		var list jobList
 		if err := bolt.Get("cronjobs", appID, &list); err != nil {
+			if !errors.Is(err, core.ErrKVNotFound) {
+				m.logger.Warn("cron: get cronjobs entry failed", "app_id", appID, "error", err)
+			}
 			continue
 		}
 		for _, j := range list.Jobs {
@@ -183,11 +190,13 @@ func (m *Module) handlerFor(appID string, cfg jobConfig) func(ctx context.Contex
 			}
 		}
 
-		m.core.Events.PublishAsync(ctx, core.NewEvent("app.cron.run", "cron", map[string]any{
-			"app_id":  appID,
-			"job_id":  cfg.ID,
-			"success": execErr == nil,
-		}))
+		if m.core.Events != nil {
+			m.core.Events.PublishAsync(ctx, core.NewEvent("app.cron.run", "cron", map[string]any{
+				"app_id":  appID,
+				"job_id":  cfg.ID,
+				"success": execErr == nil,
+			}))
+		}
 		return execErr
 	}
 }

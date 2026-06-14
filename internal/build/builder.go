@@ -89,9 +89,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("build: panic: %v", r)
-			if b.events != nil {
-				b.emitFailed(context.Background(), opts.AppID, err)
-			}
+			b.emitFailedWarning(context.Background(), opts.AppID, err, logWriter)
 		}
 	}()
 
@@ -106,8 +104,9 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	defer cancel()
 
 	// Emit build started event
-	_ = b.events.Publish(ctx, core.NewEvent(core.EventBuildStarted, "build",
-		core.BuildEventData{AppID: opts.AppID, CommitSHA: opts.CommitSHA}))
+	if err := b.emitStarted(ctx, opts.AppID, opts.CommitSHA); err != nil {
+		_, _ = fmt.Fprintf(logWriter, "warning: failed to publish build.started event: %v\n", err)
+	}
 
 	// 1. Create work directory
 	buildDir := filepath.Join(b.workDir, "monster-build-"+core.GenerateID())
@@ -122,7 +121,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	_, _ = fmt.Fprintf(logWriter, "==> Cloning %s (branch: %s)\n", redactURL(opts.SourceURL), opts.Branch)
 	commitSHA, err := gitClone(ctx, opts.SourceURL, opts.Branch, opts.Token, buildDir, logWriter)
 	if err != nil {
-		b.emitFailed(ctx, opts.AppID, err)
+		b.emitFailedWarning(ctx, opts.AppID, err, logWriter)
 		return nil, fmt.Errorf("git clone: %w", err)
 	}
 	if opts.CommitSHA == "" {
@@ -138,7 +137,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	if opts.Dockerfile != "" {
 		dockerfilePath, err = resolveDockerfilePath(buildDir, opts.Dockerfile)
 		if err != nil {
-			b.emitFailed(ctx, opts.AppID, err)
+			b.emitFailedWarning(ctx, opts.AppID, err, logWriter)
 			return nil, err
 		}
 	} else if detected.Type != TypeDockerfile && detected.Type != TypeUnknown {
@@ -152,7 +151,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	}
 
 	if !exists(dockerfilePath) {
-		b.emitFailed(ctx, opts.AppID, fmt.Errorf("no Dockerfile found"))
+		b.emitFailedWarning(ctx, opts.AppID, fmt.Errorf("no Dockerfile found"), logWriter)
 		return nil, fmt.Errorf("no Dockerfile found or generated for project type %s", detected.Type)
 	}
 
@@ -169,19 +168,19 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	_, _ = fmt.Fprintf(logWriter, "==> Building image %s\n", imageTag)
 	dockerEnv, cleanupDockerAuth, err := dockerAuthEnv(imageTag, opts.RegistryUsername, opts.RegistryPassword)
 	if err != nil {
-		b.emitFailed(ctx, opts.AppID, err)
+		b.emitFailedWarning(ctx, opts.AppID, err, logWriter)
 		return nil, fmt.Errorf("docker auth: %w", err)
 	}
 	defer cleanupDockerAuth()
 
 	if err := dockerBuild(ctx, buildDir, dockerfilePath, imageTag, opts.EnvVars, dockerEnv, logWriter); err != nil {
-		b.emitFailed(ctx, opts.AppID, err)
+		b.emitFailedWarning(ctx, opts.AppID, err, logWriter)
 		return nil, fmt.Errorf("docker build: %w", err)
 	}
 	if opts.Push {
 		_, _ = fmt.Fprintf(logWriter, "==> Pushing image %s\n", imageTag)
 		if err := dockerPush(ctx, imageTag, dockerEnv, logWriter); err != nil {
-			b.emitFailed(ctx, opts.AppID, err)
+			b.emitFailedWarning(ctx, opts.AppID, err, logWriter)
 			return nil, fmt.Errorf("docker push: %w", err)
 		}
 	}
@@ -190,8 +189,9 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	_, _ = fmt.Fprintf(logWriter, "==> Build completed in %s\n", duration.Round(time.Millisecond))
 
 	// Emit build completed event
-	_ = b.events.Publish(ctx, core.NewEvent(core.EventBuildCompleted, "build",
-		core.BuildEventData{AppID: opts.AppID, CommitSHA: opts.CommitSHA, Duration: duration}))
+	if err := b.emitCompleted(ctx, opts.AppID, opts.CommitSHA, duration); err != nil {
+		_, _ = fmt.Fprintf(logWriter, "warning: failed to publish build.completed event: %v\n", err)
+	}
 
 	return &BuildResult{
 		ImageTag:  imageTag,
@@ -201,9 +201,32 @@ func (b *Builder) Build(ctx context.Context, opts BuildOpts, logWriter io.Writer
 	}, nil
 }
 
-func (b *Builder) emitFailed(ctx context.Context, appID string, err error) {
-	_ = b.events.Publish(ctx, core.NewEvent(core.EventBuildFailed, "build",
+func (b *Builder) emitStarted(ctx context.Context, appID, commitSHA string) error {
+	return b.publish(ctx, core.NewEvent(core.EventBuildStarted, "build",
+		core.BuildEventData{AppID: appID, CommitSHA: commitSHA}))
+}
+
+func (b *Builder) emitCompleted(ctx context.Context, appID, commitSHA string, duration time.Duration) error {
+	return b.publish(ctx, core.NewEvent(core.EventBuildCompleted, "build",
+		core.BuildEventData{AppID: appID, CommitSHA: commitSHA, Duration: duration}))
+}
+
+func (b *Builder) emitFailed(ctx context.Context, appID string, err error) error {
+	return b.publish(ctx, core.NewEvent(core.EventBuildFailed, "build",
 		core.BuildEventData{AppID: appID, Error: err.Error()}))
+}
+
+func (b *Builder) emitFailedWarning(ctx context.Context, appID string, buildErr error, logWriter io.Writer) {
+	if err := b.emitFailed(ctx, appID, buildErr); err != nil {
+		_, _ = fmt.Fprintf(logWriter, "warning: failed to publish build.failed event: %v\n", err)
+	}
+}
+
+func (b *Builder) publish(ctx context.Context, event core.Event) error {
+	if b.events == nil {
+		return nil
+	}
+	return b.events.Publish(ctx, event)
 }
 
 // shellMetaChars matches characters that could enable shell injection if a URL

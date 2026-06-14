@@ -49,7 +49,7 @@ export const adminAPI = {
   system: () => api.get<SystemInfo>('/admin/system'),
   tenants: () => api.get<PaginatedResponse<Tenant>>('/admin/tenants'),
   saveSettings: (data: AdminSettings) => api.patch('/admin/settings', data),
-  apiKeys: () => api.get<APIKey[]>('/admin/api-keys'),
+  apiKeys: () => api.get<PaginatedResponse<APIKey>>('/admin/api-keys'),
   generateApiKey: () => api.post<GenerateAPIKeyResponse>('/admin/api-keys'),
   revokeApiKey: (prefix: string) => api.delete(`/admin/api-keys/${encodeURIComponent(prefix)}`),
 };

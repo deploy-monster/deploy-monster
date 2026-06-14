@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, type PaginatedResponse } from './client';
 
 export interface SecretEntry {
   id: string;
@@ -15,7 +15,7 @@ interface CreateSecretRequest {
 }
 
 export const secretsAPI = {
-  list: () => api.get<SecretEntry[]>('/secrets'),
+  list: () => api.get<PaginatedResponse<SecretEntry>>('/secrets'),
   create: (data: CreateSecretRequest) => api.post<SecretEntry>('/secrets', data),
   delete: (id: string) => api.delete(`/secrets/${id}`),
 };

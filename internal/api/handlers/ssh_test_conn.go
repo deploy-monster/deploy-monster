@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -30,8 +29,7 @@ type sshTestRequest struct {
 // and optionally tests SSH execution if a server_id is provided.
 func (h *SSHTestHandler) Test(w http.ResponseWriter, r *http.Request) {
 	var req sshTestRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 

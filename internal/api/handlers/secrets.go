@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -49,8 +48,7 @@ func (h *SecretHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req createSecretRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -139,7 +137,7 @@ func (h *SecretHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.Publish(r.Context(), core.NewTenantEvent(
+	publishEvent(r.Context(), h.events, core.NewTenantEvent(
 		core.EventSecretCreated, "api", claims.TenantID, claims.UserID,
 		map[string]string{"name": req.Name, "scope": scope},
 	))

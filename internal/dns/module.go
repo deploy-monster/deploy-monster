@@ -52,21 +52,23 @@ func (m *Module) Start(_ context.Context) error {
 	m.syncQueue.Start()
 
 	// Subscribe to domain events for auto-sync
-	m.core.Events.SubscribeAsync(core.EventDomainAdded, func(ctx context.Context, event core.Event) error {
-		if data, ok := event.Data.(core.DomainEventData); ok {
-			m.logger.Info("domain added, syncing DNS", "fqdn", data.FQDN)
-			providers := m.core.Services.DNSProviders()
-			if len(providers) > 0 {
-				SyncDomainRecords(m.syncQueue, data.FQDN, "", providers[0])
+	if m.core.Events != nil {
+		m.core.Events.SubscribeAsync(core.EventDomainAdded, func(ctx context.Context, event core.Event) error {
+			if data, ok := event.Data.(core.DomainEventData); ok {
+				m.logger.Info("domain added, syncing DNS", "fqdn", data.FQDN)
+				providers := m.core.Services.DNSProviders()
+				if len(providers) > 0 {
+					SyncDomainRecords(m.syncQueue, data.FQDN, "", providers[0])
+				}
 			}
-		}
-		return nil
-	})
+			return nil
+		})
 
-	m.core.Events.SubscribeAsync(core.EventDomainRemoved, func(ctx context.Context, event core.Event) error {
-		m.logger.Info("domain removed, cleaning DNS")
-		return nil
-	})
+		m.core.Events.SubscribeAsync(core.EventDomainRemoved, func(ctx context.Context, event core.Event) error {
+			m.logger.Info("domain removed, cleaning DNS")
+			return nil
+		})
+	}
 
 	m.logger.Info("DNS sync started", "providers", m.core.Services.DNSProviders())
 	return nil

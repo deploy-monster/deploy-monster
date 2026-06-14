@@ -96,6 +96,53 @@ func (r *Router) registerRoutes() {
 	}
 }
 
+func TestParseRouter_WalksDirectoriesAndSkipsHiddenAndTests(t *testing.T) {
+	dir := t.TempDir()
+	writeTempFile(t, dir, "router.go", `
+package api
+func (r *Router) registerRoutes() {
+	r.mux.Handle("GET /api/v1/root", nil)
+}
+`)
+	nested := filepath.Join(dir, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	writeTempFile(t, nested, "routes.go", `
+package api
+func (r *Router) nestedRoutes() {
+	r.mux.HandleFunc("POST /api/v1/nested", nil)
+}
+`)
+	writeTempFile(t, nested, "routes_test.go", `
+package api
+func (r *Router) testRoutes() {
+	r.mux.HandleFunc("DELETE /api/v1/test-only", nil)
+}
+`)
+	hidden := filepath.Join(dir, ".hidden")
+	if err := os.MkdirAll(hidden, 0o755); err != nil {
+		t.Fatalf("mkdir hidden: %v", err)
+	}
+	writeTempFile(t, hidden, "routes.go", `
+package api
+func (r *Router) hiddenRoutes() {
+	r.mux.HandleFunc("PUT /api/v1/hidden", nil)
+}
+`)
+
+	set, err := parseRouter(dir)
+	if err != nil {
+		t.Fatalf("parseRouter directory: %v", err)
+	}
+	if !set.has("GET /api/v1/root") || !set.has("POST /api/v1/nested") {
+		t.Fatalf("expected root and nested routes, got %v", set.keys())
+	}
+	if set.has("DELETE /api/v1/test-only") || set.has("PUT /api/v1/hidden") {
+		t.Fatalf("unexpected skipped route in %v", set.keys())
+	}
+}
+
 func TestParseSpec_ExtractsPathsAndMethods(t *testing.T) {
 	dir := t.TempDir()
 	spec := writeTempFile(t, dir, "openapi.yaml", `
@@ -131,6 +178,14 @@ paths:
 	}
 	if got, want := len(set), 3; got != want {
 		t.Errorf("spec route count = %d, want %d", got, want)
+	}
+}
+
+func TestParseSpec_ReturnsYAMLErrors(t *testing.T) {
+	dir := t.TempDir()
+	spec := writeTempFile(t, dir, "openapi.yaml", "paths:\n  /broken: [")
+	if _, err := parseSpec(spec); err == nil {
+		t.Fatal("expected YAML parse error")
 	}
 }
 

@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -69,6 +72,82 @@ func TestDiskUsageHandler_SystemDisk(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
+}
+
+func TestDiskUsageHandler_AppDisk_ImageSizeByIDAndTag(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-3", TenantID: "t1", Name: "test", Status: "running"})
+	runtime := &mockContainerRuntime{
+		containers: []core.ContainerInfo{
+			{ID: "c1", Image: "sha256:one"},
+			{ID: "c2", Image: "repo/app:latest"},
+			{ID: "c3", Image: "missing"},
+		},
+		imageList: []core.ImageInfo{
+			{ID: "sha256:one", Size: 100},
+			{ID: "sha256:two", Tags: []string{"repo/app:latest"}, Size: 250},
+			{ID: "sha256:unused", Tags: []string{"unused:latest"}, Size: 999},
+		},
+	}
+	h := NewDiskUsageHandler(store, runtime)
+
+	req := httptest.NewRequest("GET", "/api/v1/apps/app-3/disk", nil)
+	req.SetPathValue("id", "app-3")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.AppDisk(rr, req)
+
+	var body map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["containers"] != float64(3) || body["image_size_bytes"] != float64(350) {
+		t.Fatalf("unexpected disk response: %+v", body)
+	}
+}
+
+func TestDiskUsageHandler_SystemDisk_RuntimeImagesAndVolumes(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("abc"), 0o644); err != nil {
+		t.Fatalf("write volume file: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "nested"), 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "nested", "b.txt"), []byte("abcd"), 0o644); err != nil {
+		t.Fatalf("write nested volume file: %v", err)
+	}
+	runtime := &diskRuntime{
+		mockContainerRuntime: &mockContainerRuntime{
+			imageList: []core.ImageInfo{{ID: "i1", Size: 100}, {ID: "i2", Size: 250}},
+		},
+		volumes: []core.VolumeInfo{{Name: "v1", Mountpoint: dir}, {Name: "v2"}},
+	}
+	h := NewDiskUsageHandler(nil, runtime)
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/disk", nil)
+	rr := httptest.NewRecorder()
+	h.SystemDisk(rr, req)
+
+	var body map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["images_bytes"] != float64(350) || body["images_count"] != float64(2) {
+		t.Fatalf("unexpected image totals: %+v", body)
+	}
+	if body["volumes_bytes"] != float64(7) || body["volumes_count"] != float64(2) {
+		t.Fatalf("unexpected volume totals: %+v", body)
+	}
+}
+
+type diskRuntime struct {
+	*mockContainerRuntime
+	volumes []core.VolumeInfo
+}
+
+func (r *diskRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo, error) {
+	return r.volumes, nil
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -960,6 +1039,22 @@ func TestImportExportHandler_Import_InvalidManifest(t *testing.T) {
 	}
 }
 
+func TestImportExportHandler_Import_RejectsUnknownFields(t *testing.T) {
+	store := newMockStore()
+	h := NewImportExportHandler(store)
+
+	manifest := `{"version":"1","name":"imported-app","type":"service","source_type":"image","source_url":"nginx:latest","replicas":1,"extra":true}`
+	req := httptest.NewRequest("POST", "/api/v1/apps/import", strings.NewReader(manifest))
+	req = withClaims(req, "user-1", "tenant-1", "admin", "user@test.com")
+	rr := httptest.NewRecorder()
+	h.Import(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // DNSRecordHandler
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1069,6 +1164,23 @@ func TestDomainVerifyHandler_Verify_WithFQDN(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestDomainVerifyHandler_Verify_InvalidBody(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1"})
+	store.addDomain(&core.Domain{ID: "dom-1", AppID: "app-1", FQDN: "localhost"})
+	h := NewDomainVerifyHandler(store, newMockBoltStore())
+
+	req := httptest.NewRequest("POST", "/api/v1/domains/dom-1/verify", strings.NewReader("bad"))
+	req.SetPathValue("id", "dom-1")
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Verify(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
 	}
 }
 

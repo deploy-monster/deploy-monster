@@ -153,7 +153,7 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 		go deploy.AutoDomain(r.Context(), h.store, h.core.Events, app, h.core.Config.DNS.AutoSubdomain)
 	}
 
-	h.core.Events.Publish(r.Context(), core.Event{
+	publishEvent(r.Context(), h.core.Events, core.Event{
 		Type:   core.EventAppCreated,
 		Source: "api",
 		Data:   app,
@@ -221,17 +221,17 @@ func (h *AppHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cascade: delete associated domains
-	if _, err := h.store.DeleteDomainsByApp(r.Context(), app.ID); err != nil {
+	if _, err := h.store.DeleteDomainsByApp(r.Context(), app.ID, app.TenantID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete application domains")
 		return
 	}
 
-	if err := h.store.DeleteApp(r.Context(), app.ID); err != nil {
+	if err := h.store.DeleteApp(r.Context(), app.ID, app.TenantID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete application")
 		return
 	}
 
-	_ = h.core.Events.Publish(r.Context(), core.Event{
+	publishEvent(r.Context(), h.core.Events, core.Event{
 		Type:   core.EventAppDeleted,
 		Source: "api",
 		Data:   map[string]string{"id": app.ID},
@@ -286,10 +286,10 @@ func (h *AppHandler) Restart(w http.ResponseWriter, r *http.Request) {
 		internalErrorCtx(r.Context(), w, "restart failed", err)
 		return
 	}
-	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "running"); err != nil {
+	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "running", app.TenantID); err != nil {
 		ctxLogger(r.Context()).Error("restart: status update failed", "app_id", app.ID, "error", err)
 	}
-	h.core.Events.Publish(r.Context(), core.Event{
+	publishEvent(r.Context(), h.core.Events, core.Event{
 		Type: core.EventAppStarted, Source: "api",
 		Data: map[string]string{"id": app.ID, "action": "restart"},
 	})
@@ -314,7 +314,7 @@ func (h *AppHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	}
 	if containerID == "" {
 		// Idempotent stop on an undeployed app — flip status, no error.
-		_ = h.store.UpdateAppStatus(r.Context(), app.ID, "stopped")
+		_ = h.store.UpdateAppStatus(r.Context(), app.ID, "stopped", app.TenantID)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "stopped", "action": "noop"})
 		return
 	}
@@ -322,10 +322,10 @@ func (h *AppHandler) Stop(w http.ResponseWriter, r *http.Request) {
 		internalErrorCtx(r.Context(), w, "stop failed", err)
 		return
 	}
-	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "stopped"); err != nil {
+	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "stopped", app.TenantID); err != nil {
 		ctxLogger(r.Context()).Error("stop: status update failed", "app_id", app.ID, "error", err)
 	}
-	h.core.Events.Publish(r.Context(), core.Event{
+	publishEvent(r.Context(), h.core.Events, core.Event{
 		Type: core.EventAppStopped, Source: "api",
 		Data: map[string]string{"id": app.ID},
 	})
@@ -358,10 +358,10 @@ func (h *AppHandler) Start(w http.ResponseWriter, r *http.Request) {
 		internalErrorCtx(r.Context(), w, "start failed", err)
 		return
 	}
-	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "running"); err != nil {
+	if err := h.store.UpdateAppStatus(r.Context(), app.ID, "running", app.TenantID); err != nil {
 		ctxLogger(r.Context()).Error("start: status update failed", "app_id", app.ID, "error", err)
 	}
-	h.core.Events.Publish(r.Context(), core.Event{
+	publishEvent(r.Context(), h.core.Events, core.Event{
 		Type: core.EventAppStarted, Source: "api",
 		Data: map[string]string{"id": app.ID},
 	})

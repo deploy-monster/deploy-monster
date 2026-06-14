@@ -848,6 +848,29 @@ func TestHandleWebhook_GitHubPush(t *testing.T) {
 	}
 }
 
+func TestHandleWebhook_NilEventBus(t *testing.T) {
+	recv := NewReceiver(nil, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /hooks/v1/{webhookID}", recv.HandleWebhook)
+
+	body := []byte(`{
+		"ref": "refs/heads/main",
+		"head_commit": {"id": "sha123"},
+		"repository": {"full_name": "org/app"}
+	}`)
+
+	req := httptest.NewRequest("POST", "/hooks/v1/wh-123", bytes.NewReader(body))
+	req.Header.Set("X-GitHub-Event", "push")
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
 func TestHandleWebhook_GitLabPush(t *testing.T) {
 	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	recv := NewReceiver(nil, nil, events, slog.New(slog.NewTextHandler(io.Discard, nil)))

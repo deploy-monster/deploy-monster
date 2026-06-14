@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -52,8 +51,7 @@ func (h *MarketplaceDeployHandler) Deploy(w http.ResponseWriter, r *http.Request
 	}
 
 	var req deployTemplateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -122,15 +120,15 @@ func (h *MarketplaceDeployHandler) Deploy(w http.ResponseWriter, r *http.Request
 			EnvVars:   req.Config,
 		})
 		if err != nil {
-			h.store.UpdateAppStatus(ctx, appID, "failed")
+			h.store.UpdateAppStatus(ctx, appID, "failed", app.TenantID)
 		} else {
-			h.store.UpdateAppStatus(ctx, appID, "running")
+			h.store.UpdateAppStatus(ctx, appID, "running", app.TenantID)
 		}
 	}, func(_ any) {
-		h.store.UpdateAppStatus(h.serverCtx, appID, "failed")
+		h.store.UpdateAppStatus(h.serverCtx, appID, "failed", app.TenantID)
 	})
 
-	h.events.Publish(r.Context(), core.NewTenantEvent(
+	publishEvent(r.Context(), h.events, core.NewTenantEvent(
 		core.EventAppCreated, "marketplace", claims.TenantID, claims.UserID,
 		core.AppEventData{AppID: app.ID, AppName: appName, Status: "deploying"},
 	))

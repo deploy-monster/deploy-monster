@@ -6,11 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
+	"github.com/deploy-monster/deploy-monster/internal/db"
 )
 
 // ─── Login ───────────────────────────────────────────────────────────────────
@@ -226,6 +228,31 @@ func TestRegister_DefaultsNameToEmail(t *testing.T) {
 
 	if rr.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestRegister_AllowsDuplicateDisplayNames(t *testing.T) {
+	store, err := db.NewSQLite(filepath.Join(t.TempDir(), "register.db"))
+	if err != nil {
+		t.Fatalf("NewSQLite: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	handler := NewAuthHandler(testAuthModule(store), store, nil)
+	for _, email := range []string{"same-name-1@example.com", "same-name-2@example.com"} {
+		body, _ := json.Marshal(registerRequest{
+			Email:    email,
+			Password: "StrongPass1!",
+			Name:     "Same Name",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+
+		handler.Register(rr, req)
+
+		if rr.Code != http.StatusCreated {
+			t.Fatalf("register %s status = %d, body=%s", email, rr.Code, rr.Body.String())
+		}
 	}
 }
 
@@ -551,6 +578,7 @@ func TestRefresh_InvalidJSON(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestRefresh_MissingToken(t *testing.T) {
@@ -568,6 +596,22 @@ func TestRefresh_MissingToken(t *testing.T) {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 	assertErrorMessage(t, rr, "refresh_token required")
+}
+
+func TestLogout_InvalidJSON(t *testing.T) {
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewReader([]byte("bad")))
+	rr := httptest.NewRecorder()
+
+	handler.Logout(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestRefresh_InvalidToken(t *testing.T) {
@@ -754,6 +798,23 @@ func TestUpdateProfile_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestUpdateProfile_RejectsUnknownFields(t *testing.T) {
+	store := newMockStore()
+	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
+	handler := NewSessionHandler(store, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/auth/me", bytes.NewReader([]byte(`{"name":"Updated","extra":true}`)))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.UpdateProfile(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestUpdateProfile_StoreError(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
@@ -920,6 +981,23 @@ func TestChangePassword_InvalidJSON(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
+}
+
+func TestChangePassword_RejectsTrailingJSON(t *testing.T) {
+	store := newMockStore()
+	handler := NewSessionHandler(store, nil, nil)
+
+	body := []byte(`{"current_password":"Password1","new_password":"NewStrongPass2!"}{"current_password":"x"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/change-password", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.ChangePassword(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestChangePassword_StoreError(t *testing.T) {

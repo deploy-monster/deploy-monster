@@ -117,6 +117,31 @@ func TestTopologyHandler_Save_InvalidBody(t *testing.T) {
 	}
 }
 
+func TestTopologyHandler_Save_RejectsTrailingJSON(t *testing.T) {
+	store := newMockStore()
+	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"})
+	bolt := newMockBoltStore()
+	c := &core.Core{DB: &core.Database{Bolt: bolt}}
+	h := NewTopologyHandler(store, c)
+
+	body := []byte(`{"nodes":[],"edges":[],"projectId":"proj-1","environment":"production"}{"nodes":[]}`)
+	httpReq := httptest.NewRequest("POST", "/api/v1/topology/save", bytes.NewReader(body))
+	ctx := auth.ContextWithClaims(httpReq.Context(), &auth.Claims{
+		UserID:   "user-1",
+		TenantID: "tenant-1",
+		RoleID:   "admin",
+	})
+	httpReq = httpReq.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	h.Save(w, httpReq)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+	assertErrorMessage(t, w, "invalid request body")
+}
+
 func TestGetStringMapFromMap(t *testing.T) {
 	m := map[string]any{
 		"labels": map[string]any{

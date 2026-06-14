@@ -25,7 +25,7 @@ interface InviteRequest {
 }
 
 export const teamAPI = {
-  members: () => api.get<TeamMember[]>('/team/members'),
+  members: () => api.get<PaginatedResponse<TeamMember>>('/team/members'),
   auditLog: () => api.get<PaginatedResponse<AuditEntry>>('/team/audit-log'),
   invite: (data: InviteRequest) => api.post('/team/invites', data),
   removeMember: (id: string) => api.delete(`/team/members/${id}`),

@@ -66,10 +66,10 @@ func (s *SQLiteDB) UpdateTenant(ctx context.Context, t *core.Tenant) error {
 	})
 }
 
-// DeleteTenant removes a tenant by ID.
-func (s *SQLiteDB) DeleteTenant(ctx context.Context, id string) error {
+// DeleteTenant removes a tenant by ID, scoped to tenantID.
+func (s *SQLiteDB) DeleteTenant(ctx context.Context, id, tenantID string) error {
 	return s.Tx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `DELETE FROM tenants WHERE id = ?`, id)
+		_, err := tx.ExecContext(ctx, `DELETE FROM tenants WHERE id = ? AND id = ?`, id, tenantID)
 		return err
 	})
 }

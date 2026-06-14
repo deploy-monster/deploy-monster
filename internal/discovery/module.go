@@ -63,30 +63,32 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 func (m *Module) Start(_ context.Context) error {
 	// Watch container events via EventBus
 	// When containers start/stop, update the route table
-	m.core.Events.SubscribeAsync("container.*", func(ctx context.Context, event core.Event) error {
-		switch event.Type {
-		case core.EventContainerStarted:
-			m.logger.Info("container started, checking for routes", "event", event.Type)
-			// Parse labels and register route (will be implemented with Docker event watcher)
-		case core.EventContainerStopped, core.EventContainerDied:
-			m.logger.Info("container stopped, removing routes", "event", event.Type)
-		}
-		return nil
-	})
+	if m.core.Events != nil {
+		m.core.Events.SubscribeAsync("container.*", func(ctx context.Context, event core.Event) error {
+			switch event.Type {
+			case core.EventContainerStarted:
+				m.logger.Info("container started, checking for routes", "event", event.Type)
+				// Parse labels and register route (will be implemented with Docker event watcher)
+			case core.EventContainerStopped, core.EventContainerDied:
+				m.logger.Info("container stopped, removing routes", "event", event.Type)
+			}
+			return nil
+		})
 
-	// Also watch app deployment events to register routes
-	m.core.Events.SubscribeAsync(core.EventAppDeployed, func(ctx context.Context, event core.Event) error {
-		if data, ok := event.Data.(core.DeployEventData); ok {
-			m.logger.Info("app deployed, registering route",
-				"app_id", data.AppID,
-				"container_id", data.ContainerID,
-			)
-		}
-		if m.watcher != nil {
-			m.watcher.syncRoutes(ctx)
-		}
-		return nil
-	})
+		// Also watch app deployment events to register routes
+		m.core.Events.SubscribeAsync(core.EventAppDeployed, func(ctx context.Context, event core.Event) error {
+			if data, ok := event.Data.(core.DeployEventData); ok {
+				m.logger.Info("app deployed, registering route",
+					"app_id", data.AppID,
+					"container_id", data.ContainerID,
+				)
+			}
+			if m.watcher != nil {
+				m.watcher.syncRoutes(ctx)
+			}
+			return nil
+		})
+	}
 
 	// Start Docker event watcher if container runtime is available
 	if m.core.Services.Container != nil {

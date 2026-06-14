@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
@@ -50,8 +49,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Description string `json:"description"`
 		Environment string `json:"environment"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 	if req.Name == "" {

@@ -53,11 +53,11 @@ func (m *mockStore) CreateDomain(_ context.Context, _ *core.Domain) error {
 	return nil
 }
 
-func (m *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+func (m *mockStore) ListDomainsByApp(_ context.Context, _ string, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
 
-func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) {
+func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string, _ string) (int, error) {
 	return 0, nil
 }
 
@@ -339,6 +339,30 @@ func TestHandleToolCall_GetAppStatus_NotFound(t *testing.T) {
 	}
 }
 
+func TestHandleToolCall_GetAppStatus_InvalidJSON(t *testing.T) {
+	h := NewHandler(&mockStore{}, &mockRuntime{}, core.NewEventBus(discardLogger()), discardLogger())
+
+	resp, err := h.HandleToolCall(context.Background(), "get_app_status", json.RawMessage(`{bad`))
+	if err != nil {
+		t.Fatalf("HandleToolCall(get_app_status) error = %v", err)
+	}
+	if !resp.IsError || !strings.Contains(resp.Content[0].Text, "invalid parameters") {
+		t.Fatalf("expected invalid parameters error, got %+v", resp)
+	}
+}
+
+func TestHandleToolCall_GetAppStatus_MissingAppID(t *testing.T) {
+	h := NewHandler(&mockStore{}, &mockRuntime{}, core.NewEventBus(discardLogger()), discardLogger())
+
+	resp, err := h.HandleToolCall(context.Background(), "get_app_status", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("HandleToolCall(get_app_status) error = %v", err)
+	}
+	if !resp.IsError || !strings.Contains(resp.Content[0].Text, "app_id is required") {
+		t.Fatalf("expected app_id required error, got %+v", resp)
+	}
+}
+
 func TestHandleToolCall_DeployApp(t *testing.T) {
 	h := NewHandler(&mockStore{}, &mockRuntime{}, core.NewEventBus(discardLogger()), discardLogger())
 
@@ -420,6 +444,30 @@ func TestHandleToolCall_ViewLogs_NoRuntime(t *testing.T) {
 	}
 	if !strings.Contains(resp.Content[0].Text, "runtime not available") {
 		t.Errorf("error text = %q", resp.Content[0].Text)
+	}
+}
+
+func TestHandleToolCall_ViewLogs_InvalidJSON(t *testing.T) {
+	h := NewHandler(&mockStore{}, &mockRuntime{}, core.NewEventBus(discardLogger()), discardLogger())
+
+	resp, err := h.HandleToolCall(context.Background(), "view_logs", json.RawMessage(`{bad`))
+	if err != nil {
+		t.Fatalf("HandleToolCall(view_logs) error = %v", err)
+	}
+	if !resp.IsError || !strings.Contains(resp.Content[0].Text, "invalid parameters") {
+		t.Fatalf("expected invalid parameters error, got %+v", resp)
+	}
+}
+
+func TestHandleToolCall_ViewLogs_MissingAppID(t *testing.T) {
+	h := NewHandler(&mockStore{}, &mockRuntime{}, core.NewEventBus(discardLogger()), discardLogger())
+
+	resp, err := h.HandleToolCall(context.Background(), "view_logs", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("HandleToolCall(view_logs) error = %v", err)
+	}
+	if !resp.IsError || !strings.Contains(resp.Content[0].Text, "app_id is required") {
+		t.Fatalf("expected app_id required error, got %+v", resp)
 	}
 }
 

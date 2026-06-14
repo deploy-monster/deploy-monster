@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -40,8 +39,7 @@ func (h *WildcardSSLHandler) Request(w http.ResponseWriter, r *http.Request) {
 		Domain      string `json:"domain"`
 		DNSProvider string `json:"dns_provider"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 

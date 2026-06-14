@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -331,6 +332,116 @@ func TestModuleInit_WithS3Config(t *testing.T) {
 	if s := c.Services.BackupStorage("s3"); s == nil {
 		t.Error("s3 storage not registered in core services")
 	}
+}
+
+func TestModuleRestoreBackup_ErrorPathsAndRecreate(t *testing.T) {
+	ctx := context.Background()
+	store := &restoreStore{
+		backups: []core.Backup{
+			{ID: "pending", TenantID: "t1", Status: "running"},
+			{ID: "missing-storage", TenantID: "t1", Status: "completed", StorageTarget: "missing", FilePath: "missing.json", BackupType: "full"},
+			{ID: "full-1", TenantID: "t1", SourceID: "app-1", Status: "completed", StorageTarget: "local", FilePath: "app.json", BackupType: "full", CreatedAt: time.Now().Add(-time.Hour)},
+			{ID: "inc-1", TenantID: "t1", SourceID: "app-1", Status: "completed", StorageTarget: "local", FilePath: "inc.json", BackupType: "incremental", CreatedAt: time.Now()},
+			{ID: "inc-orphan", TenantID: "t1", SourceID: "app-2", Status: "completed", StorageTarget: "local", FilePath: "orphan.json", BackupType: "incremental", CreatedAt: time.Now()},
+		},
+	}
+	archived := core.Application{Name: "restored", Type: "service", SourceType: "image", Replicas: 2}
+	payload, err := json.Marshal(archived)
+	if err != nil {
+		t.Fatalf("marshal archived app: %v", err)
+	}
+	m := New()
+	m.store = store
+	m.logger = testLogger()
+	m.RegisterStorage("local", &payloadStorage{data: string(payload)})
+
+	if err := m.RestoreBackup(ctx, "not-found", "t1"); err == nil {
+		t.Fatal("expected missing backup error")
+	}
+	if err := m.RestoreBackup(ctx, "pending", "t1"); err == nil {
+		t.Fatal("expected incomplete backup error")
+	}
+	if err := m.RestoreBackup(ctx, "inc-orphan", "t1"); err == nil {
+		t.Fatal("expected orphan incremental error")
+	}
+	if err := m.RestoreBackup(ctx, "missing-storage", "t1"); err == nil {
+		t.Fatal("expected missing storage error")
+	}
+	if err := m.RestoreBackup(ctx, "inc-1", "t1"); err != nil {
+		t.Fatalf("RestoreBackup incremental via full: %v", err)
+	}
+	if store.createdApp == nil || store.createdApp.Name != "restored" || store.createdApp.TenantID != "t1" {
+		t.Fatalf("app not recreated correctly: %+v", store.createdApp)
+	}
+}
+
+func TestModuleRestoreBackup_UpdatesExistingApp(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	store := &restoreStore{
+		backups: []core.Backup{{ID: "full-1", TenantID: "t1", SourceID: "app-1", Status: "completed", StorageTarget: "local", FilePath: "app.json", BackupType: "full", CreatedAt: now}},
+		apps:    []core.Application{{ID: "existing", TenantID: "t1", Name: "restored", Type: "service", Replicas: 1}},
+	}
+	archived := core.Application{Name: "restored", Type: "worker", SourceURL: "https://git.example/repo", Branch: "main", Replicas: 3, Port: 8080}
+	payload, err := json.Marshal(archived)
+	if err != nil {
+		t.Fatalf("marshal archived app: %v", err)
+	}
+	m := New()
+	m.store = store
+	m.logger = testLogger()
+	m.RegisterStorage("local", &payloadStorage{data: string(payload)})
+
+	if err := m.RestoreBackup(ctx, "full-1", "t1"); err != nil {
+		t.Fatalf("RestoreBackup: %v", err)
+	}
+	if store.updatedApp == nil || store.updatedApp.ID != "existing" || store.updatedApp.Type != "worker" || store.updatedApp.Port != 8080 {
+		t.Fatalf("app not updated correctly: %+v", store.updatedApp)
+	}
+}
+
+type restoreStore struct {
+	mockStore
+	backups    []core.Backup
+	apps       []core.Application
+	createdApp *core.Application
+	updatedApp *core.Application
+}
+
+func (s *restoreStore) ListBackupsByTenant(context.Context, string, int, int) ([]core.Backup, int, error) {
+	return s.backups, len(s.backups), nil
+}
+
+func (s *restoreStore) ListAppsByTenant(context.Context, string, int, int) ([]core.Application, int, error) {
+	return s.apps, len(s.apps), nil
+}
+
+func (s *restoreStore) CreateApp(_ context.Context, app *core.Application) error {
+	cp := *app
+	s.createdApp = &cp
+	return nil
+}
+
+func (s *restoreStore) UpdateApp(_ context.Context, app *core.Application) error {
+	cp := *app
+	s.updatedApp = &cp
+	return nil
+}
+
+type payloadStorage struct {
+	data string
+}
+
+func (s *payloadStorage) Name() string { return "payload" }
+func (s *payloadStorage) Upload(context.Context, string, io.Reader, int64) error {
+	return nil
+}
+func (s *payloadStorage) Download(context.Context, string) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader(s.data)), nil
+}
+func (s *payloadStorage) Delete(context.Context, string) error { return nil }
+func (s *payloadStorage) List(context.Context, string) ([]core.BackupEntry, error) {
+	return nil, nil
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

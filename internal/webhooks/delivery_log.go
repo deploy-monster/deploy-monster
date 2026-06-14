@@ -33,6 +33,10 @@ func NewDeliveryTracker(bolt core.BoltStorer, events *core.EventBus) *DeliveryTr
 
 // Start subscribes to webhook delivery events.
 func (t *DeliveryTracker) Start() {
+	if t.events == nil || t.bolt == nil {
+		return
+	}
+
 	t.events.SubscribeAsync(core.EventOutboundSent, func(_ context.Context, e core.Event) error {
 		data, ok := e.Data.(core.NotificationEventData)
 		if !ok {
@@ -66,5 +70,8 @@ func (t *DeliveryTracker) Start() {
 }
 
 func (t *DeliveryTracker) record(log DeliveryLog) error {
+	if t.bolt == nil {
+		return nil
+	}
 	return t.bolt.Set(deliveryLogBucket, log.ID, log, 0)
 }

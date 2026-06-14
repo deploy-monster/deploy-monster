@@ -42,34 +42,44 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   login: async (email, password, totpCode) => {
-    await authAPI.login({ email, password, totp_code: totpCode || undefined });
-    // Use /auth/me to get verified user info instead of decoding JWT client-side
-    const resp = await api.get<MeResponse>('/auth/me');
-    if (resp?.user?.id) {
-      const user: User = {
-        id: resp.user.id,
-        email: resp.user.email,
-        name: resp.user.name,
-        role: resp.role_id || resp.membership?.role_id || '',
-        tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
-      };
-      set({ user, isAuthenticated: true });
+    try {
+      await authAPI.login({ email, password, totp_code: totpCode || undefined });
+      // Use /auth/me to get verified user info instead of decoding JWT client-side
+      const resp = await api.get<MeResponse>('/auth/me');
+      if (resp?.user?.id) {
+        const user: User = {
+          id: resp.user.id,
+          email: resp.user.email,
+          name: resp.user.name,
+          role: resp.role_id || resp.membership?.role_id || '',
+          tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
+        };
+        set({ user, isAuthenticated: true });
+      }
+    } catch (e) {
+      set({ isLoading: false });
+      throw e; // re-throw so caller can handle the error
     }
   },
 
   register: async (email, password, name) => {
-    await authAPI.register({ email, password, name });
-    // Use /auth/me to get verified user info instead of decoding JWT client-side
-    const resp = await api.get<MeResponse>('/auth/me');
-    if (resp?.user?.id) {
-      const user: User = {
-        id: resp.user.id,
-        email: resp.user.email,
-        name: resp.user.name,
-        role: resp.role_id || resp.membership?.role_id || '',
-        tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
-      };
-      set({ user, isAuthenticated: true });
+    try {
+      await authAPI.register({ email, password, name });
+      // Use /auth/me to get verified user info instead of decoding JWT client-side
+      const resp = await api.get<MeResponse>('/auth/me');
+      if (resp?.user?.id) {
+        const user: User = {
+          id: resp.user.id,
+          email: resp.user.email,
+          name: resp.user.name,
+          role: resp.role_id || resp.membership?.role_id || '',
+          tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
+        };
+        set({ user, isAuthenticated: true });
+      }
+    } catch (e) {
+      set({ isLoading: false });
+      throw e;
     }
   },
 

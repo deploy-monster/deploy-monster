@@ -104,6 +104,31 @@ func TestModule_Start_WithoutContainer(t *testing.T) {
 	}
 }
 
+func TestModule_Start_NilEventBus(t *testing.T) {
+	c := newTestCore(t, &mockContainerRuntime{})
+	c.Events = nil
+
+	m := New()
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start should succeed without EventBus: %v", err)
+	}
+
+	if m.watcher == nil {
+		t.Fatal("watcher should be created when container runtime is available")
+	}
+	if m.healthChecker == nil {
+		t.Fatal("healthChecker should be created when container runtime is available")
+	}
+
+	if err := m.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+}
+
 func TestModule_Start_WithContainer(t *testing.T) {
 	c := newTestCore(t, &mockContainerRuntime{})
 

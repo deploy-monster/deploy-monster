@@ -134,7 +134,7 @@ func (h *CommandHandler) Run(w http.ResponseWriter, r *http.Request) {
 		_ = h.bolt.Set(commandHistoryBucket, appID+":"+entry.ID, entry, 30*24*3600)
 	}
 
-	h.events.PublishAsync(r.Context(), core.NewEvent("app.command", "api",
+	publishEventAsync(r.Context(), h.events, core.NewEvent("app.command", "api",
 		map[string]string{
 			"app_id":  appID,
 			"command": cmdStr,

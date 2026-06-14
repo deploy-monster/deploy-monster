@@ -62,7 +62,7 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	for i, app := range apps {
 		appIDs[i] = app.ID
 	}
-	domainsByApp, err := h.store.ListDomainsByAppIDs(r.Context(), appIDs)
+	domainsByApp, err := h.store.ListDomainsByAppIDs(r.Context(), appIDs, claims.TenantID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -119,8 +118,7 @@ func (h *RedirectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	appID := app.ID
 
 	var rule RedirectRule
-	if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &rule) {
 		return
 	}
 

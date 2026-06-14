@@ -69,9 +69,10 @@ func (h *DetailedHealthHandler) DetailedHealth(w http.ResponseWriter, r *http.Re
 	checks["docker"] = map[string]any{"healthy": dockerOK}
 
 	// Event bus
-	evStats := h.core.Events.Stats()
+	evStats := eventBusStats(h.core.Events)
+	eventsHealthy := h.core.Events != nil
 	checks["events"] = map[string]any{
-		"healthy":       true,
+		"healthy":       eventsHealthy,
 		"published":     evStats.PublishCount,
 		"errors":        evStats.ErrorCount,
 		"subscriptions": evStats.SubscriptionCount,

@@ -32,6 +32,7 @@ vi.mock('@/api/client', () => ({
 
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
+const clipboardWriteMock = vi.fn();
 vi.mock('@/stores/toastStore', () => ({
   toast: {
     success: (msg: string) => toastSuccessMock(msg),
@@ -77,8 +78,13 @@ describe('Databases page', () => {
   beforeEach(() => {
     useApiState.data = null;
     useApiState.loading = true;
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: clipboardWriteMock },
+      configurable: true,
+    });
     refetchMock.mockReset();
     apiPostMock.mockReset().mockResolvedValue(undefined);
+    clipboardWriteMock.mockReset().mockResolvedValue(undefined);
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
   });
@@ -211,13 +217,7 @@ describe('Databases page', () => {
     expect(select.value).toBe('8.4');
   });
 
-  it('copies the connection string when the copy button on a card is clicked', () => {
-    const writeTextMock = vi.fn().mockResolvedValue(undefined);
-    // jsdom doesn't include a clipboard; stub one in.
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText: writeTextMock },
-      configurable: true,
-    });
+  it('copies the connection string when the copy button on a card is clicked', async () => {
     useApiState.data = [
       fakeDb({
         id: 'db-1',
@@ -232,7 +232,26 @@ describe('Databases page', () => {
     const btn = copyIcon?.closest('button');
     fireEvent.click(btn!);
 
-    expect(writeTextMock).toHaveBeenCalledWith('postgres://u:p@h/orders');
-    expect(toastSuccessMock).toHaveBeenCalledWith('Connection string copied');
+    await waitFor(() => expect(clipboardWriteMock).toHaveBeenCalledWith('postgres://u:p@h/orders'));
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Connection string copied'));
+  });
+
+  it('shows a toast when copying the connection string fails', async () => {
+    clipboardWriteMock.mockRejectedValueOnce(new Error('denied'));
+    useApiState.data = [
+      fakeDb({
+        id: 'db-1',
+        name: 'orders',
+        connection_string: 'postgres://u:p@h/orders',
+      }),
+    ];
+    useApiState.loading = false;
+    renderDatabases();
+
+    const copyIcon = document.querySelector('svg.lucide-copy');
+    const btn = copyIcon?.closest('button');
+    fireEvent.click(btn!);
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('Failed to copy connection string'));
   });
 });

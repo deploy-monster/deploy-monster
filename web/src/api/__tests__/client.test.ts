@@ -50,6 +50,21 @@ describe('API client', () => {
       expect(result).toEqual([{ id: '1' }, { id: '2' }]);
     });
 
+    it('preserves paginated envelopes with metadata', async () => {
+      const envelope = {
+        data: [{ id: '1' }, { id: '2' }],
+        total: 12,
+        page: 2,
+        per_page: 2,
+        total_pages: 6,
+      };
+      mockFetch(200, envelope);
+
+      const result = await api.get<typeof envelope>('/apps?page=2&per_page=2');
+
+      expect(result).toEqual(envelope);
+    });
+
     it('returns undefined for 204 No Content', async () => {
       vi.mocked(globalThis.fetch).mockResolvedValue({
         ok: true,
@@ -111,6 +126,29 @@ describe('API client', () => {
 
       // Restore original descriptor
       if (origDesc) Object.defineProperty(document, 'cookie', origDesc);
+    });
+
+    it('includes CSRF token from the plain HTTP fallback cookie', async () => {
+      const origDesc = Object.getOwnPropertyDescriptor(document, 'cookie');
+      Object.defineProperty(document, 'cookie', {
+        get() {
+          return 'dm_csrf=dev-csrf-token';
+        },
+        set() {},
+        configurable: true,
+      });
+
+      try {
+        document.cookie = 'dm_csrf=dev-csrf-token';
+        mockFetch(200, {});
+
+        await api.post('/apps', { name: 'App' });
+
+        const headers = vi.mocked(globalThis.fetch).mock.calls[0][1]?.headers as Record<string, string>;
+        expect(headers['X-CSRF-Token']).toBe('dev-csrf-token');
+      } finally {
+        if (origDesc) Object.defineProperty(document, 'cookie', origDesc);
+      }
     });
   });
 

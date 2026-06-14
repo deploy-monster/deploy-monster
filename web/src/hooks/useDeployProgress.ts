@@ -26,6 +26,8 @@ interface DeployCompleteMessage {
 
 type DeployWSMessage = DeployProgressMessage | DeployCompleteMessage;
 
+const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
 interface UseDeployProgressOptions {
   projectId: string;
   enabled?: boolean;
@@ -56,6 +58,7 @@ export function useDeployProgress({
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasInvalidProjectId = enabled && projectId !== '' && !SAFE_ID_PATTERN.test(projectId);
 
   const reset = useCallback(() => {
     setStatus('idle');
@@ -78,14 +81,11 @@ export function useDeployProgress({
     let destroyed = false;
 
     const connect = () => {
-      if (!enabled || !projectId || destroyed) return;
+      if (!enabled || !projectId || hasInvalidProjectId || destroyed) return;
 
       // Validate projectId to prevent URL injection attacks
       // Only allow safe characters: alphanumeric, dashes, underscores
-      if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
-        console.error('Invalid projectId format');
-        return;
-      }
+      if (!SAFE_ID_PATTERN.test(projectId)) return;
 
       // SECURITY FIX: Use URL constructor for safer URL building
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -125,8 +125,9 @@ export function useDeployProgress({
             setResult(response);
             onCompleteRef.current?.(response);
           }
-        } catch (err) {
-          console.error('Failed to parse deploy progress message:', err);
+        } catch {
+          setStatus('error');
+          setMessage('Invalid deployment progress message');
         }
       };
 
@@ -155,14 +156,14 @@ export function useDeployProgress({
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [enabled, projectId]);
+  }, [enabled, projectId, hasInvalidProjectId]);
 
   return {
-    status,
-    progress,
-    message,
-    result,
-    isConnected,
+    status: hasInvalidProjectId ? 'error' : status,
+    progress: hasInvalidProjectId ? 0 : progress,
+    message: hasInvalidProjectId ? 'Invalid project ID' : message,
+    result: hasInvalidProjectId ? null : result,
+    isConnected: hasInvalidProjectId ? false : isConnected,
     reset,
   };
 }

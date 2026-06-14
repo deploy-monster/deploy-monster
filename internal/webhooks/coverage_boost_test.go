@@ -65,6 +65,18 @@ func TestNewDeliveryTracker(t *testing.T) {
 	}
 }
 
+func TestDeliveryTracker_Start_MissingDependencies(t *testing.T) {
+	NewDeliveryTracker(nil, nil).Start()
+
+	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	NewDeliveryTracker(nil, events).Start()
+
+	events.EmitWithTenant(context.Background(), core.EventOutboundSent, "webhook", "t1", "u1", core.NotificationEventData{
+		Recipient: "https://example.com/hook",
+	})
+	events.Drain()
+}
+
 func TestDeliveryTracker_Start_SentEvent(t *testing.T) {
 	bolt := &mockBoltStoreDelivery{}
 	events := core.NewEventBus(slog.New(slog.NewTextHandler(io.Discard, nil)))

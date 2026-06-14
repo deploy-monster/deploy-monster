@@ -15,6 +15,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { secretsAPI, type SecretEntry } from '@/api/secrets';
+import type { PaginatedResponse } from '@/api/client';
 import { useApi } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -101,7 +102,7 @@ function TableSkeleton() {
 
 export function Secrets() {
   const { data: secretsResp, loading, refetch } = useApi<
-    { data: SecretEntry[]; total: number } | SecretEntry[]
+    PaginatedResponse<SecretEntry> | SecretEntry[]
   >('/secrets');
   const secrets = Array.isArray(secretsResp) ? secretsResp : secretsResp?.data;
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -139,11 +140,15 @@ export function Secrets() {
     setDeleteSecretId(id);
   };
 
-  const handleCopyRef = (secretName: string, id: string) => {
-    navigator.clipboard.writeText(`\${SECRET:${secretName}}`);
-    setCopiedId(id);
-    toast.success('Reference copied to clipboard');
-    setTimeout(() => setCopiedId(null), 2000);
+  const handleCopyRef = async (secretName: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(`\${SECRET:${secretName}}`);
+      setCopiedId(id);
+      toast.success('Reference copied to clipboard');
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      toast.error('Failed to copy reference');
+    }
   };
 
   const list = useMemo(() => secrets || [], [secrets]);

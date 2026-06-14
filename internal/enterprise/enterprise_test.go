@@ -42,7 +42,7 @@ func (s *mockStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, 
 	return nil, nil
 }
 func (s *mockStore) UpdateTenant(_ context.Context, _ *core.Tenant) error { return nil }
-func (s *mockStore) DeleteTenant(_ context.Context, _ string) error       { return nil }
+func (s *mockStore) DeleteTenant(_ context.Context, _ string, _ string) error       { return nil }
 
 func (s *mockStore) CreateUser(_ context.Context, user *core.User) error {
 	s.users[user.ID] = user
@@ -93,11 +93,11 @@ func (s *mockStore) GetAppsByIDs(_ context.Context, _ []string) ([]core.Applicat
 	return nil, nil
 }
 
-func (s *mockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
+func (s *mockStore) ListAppsByProject(_ context.Context, _ string, _ string) ([]core.Application, error) {
 	return nil, nil
 }
-func (s *mockStore) UpdateAppStatus(_ context.Context, _, _ string) error { return nil }
-func (s *mockStore) DeleteApp(_ context.Context, _ string) error          { return nil }
+func (s *mockStore) UpdateAppStatus(_ context.Context, _, _, _ string) error { return nil }
+func (s *mockStore) DeleteApp(_ context.Context, _ string, _ string) error          { return nil }
 
 func (s *mockStore) CreateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
 func (s *mockStore) UpdateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
@@ -122,10 +122,10 @@ func (s *mockStore) CreateDeploymentAtomicVersion(_ context.Context, _ *core.Dep
 func (s *mockStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) {
 	return nil, nil
 }
-func (s *mockStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) {
+func (s *mockStore) ListDomainsByAppIDs(_ context.Context, _ []string, _ string) (map[string][]core.Domain, error) {
 	return nil, nil
 }
-func (s *mockStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) {
+func (s *mockStore) GetUsersByIDs(_ context.Context, _ []string, _ string) ([]core.User, error) {
 	return nil, nil
 }
 
@@ -136,11 +136,11 @@ func (s *mockStore) GetDomain(_ context.Context, _ string) (*core.Domain, error)
 func (s *mockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, nil
 }
-func (s *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+func (s *mockStore) ListDomainsByApp(_ context.Context, _ string, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (s *mockStore) DeleteDomain(_ context.Context, _ string) error              { return nil }
-func (s *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
+func (s *mockStore) DeleteDomain(_ context.Context, _ string, _ string) error              { return nil }
+func (s *mockStore) DeleteDomainsByApp(_ context.Context, _ string, _ string) (int, error) { return 0, nil }
 func (s *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
 	return nil, nil
 }
@@ -210,7 +210,7 @@ func (s *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { retu
 func (s *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (s *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+func (s *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error { return nil }
 
 func (s *mockStore) Close() error                 { return nil }
 func (s *mockStore) Ping(_ context.Context) error { return nil }

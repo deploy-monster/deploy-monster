@@ -15,6 +15,7 @@ import { getCategoryColor } from '@/components/Marketplace';
 import { TemplateIcon } from '@/components/Marketplace/TemplateCard';
 import { DeployForm } from '@/components/TemplateDetail';
 import { parseServices } from '@/components/TemplateDetail';
+import { toast } from '@/stores/toastStore';
 
 export function TemplateDetail() {
   const { slug } = useParams();
@@ -22,10 +23,15 @@ export function TemplateDetail() {
   const { data: template, loading } = useApi<Template>(`/marketplace/${slug}`);
   const [copiedSection, setCopiedSection] = useState('');
 
-  const copyToClipboard = (text: string, section: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedSection(section);
-    setTimeout(() => setCopiedSection(''), 2000);
+  const copyToClipboard = async (text: string, section: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedSection(section);
+      setTimeout(() => setCopiedSection(''), 2000);
+      toast.success('Template copied to clipboard');
+    } catch {
+      toast.error('Failed to copy template');
+    }
   };
 
   if (loading) {
@@ -193,7 +199,7 @@ export function TemplateDetail() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => copyToClipboard(template.compose_yaml!, 'yaml')}
+                  onClick={() => { void copyToClipboard(template.compose_yaml!, 'yaml'); }}
                   className="text-xs cursor-pointer"
                 >
                   {copiedSection === 'yaml' ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}

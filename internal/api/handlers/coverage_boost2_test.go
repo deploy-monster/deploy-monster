@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -40,6 +42,24 @@ func TestRollbackHandler_Rollback_InvalidBody(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
+}
+
+func TestRollbackHandler_Rollback_RejectsTrailingJSON(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", Name: "test", TenantID: "t1"})
+	events := core.NewEventBus(slog.Default())
+	h := NewRollbackHandler(store, nil, events)
+
+	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/rollback", strings.NewReader(`{"version":1}{"version":2}`))
+	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_developer", "u@t")
+	rr := httptest.NewRecorder()
+	h.Rollback(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestRollbackHandler_Rollback_ZeroVersion(t *testing.T) {
@@ -649,6 +669,23 @@ func TestRedirectHandler_Create_InvalidBody(t *testing.T) {
 	}
 }
 
+func TestRedirectHandler_Create_RejectsTrailingJSON(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewRedirectHandler(store, newMockBoltStore())
+
+	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/redirects", strings.NewReader(`{"source":"/old","destination":"/new"}{"source":"/other","destination":"/next"}`))
+	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestRedirectHandler_Create_MissingFields(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
@@ -786,6 +823,23 @@ func TestResponseHeadersHandler_Update_InvalidBody(t *testing.T) {
 	}
 }
 
+func TestResponseHeadersHandler_Update_RejectsUnknownFields(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewResponseHeadersHandler(store, newMockBoltStore())
+
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/response-headers", strings.NewReader(`{"x_frame_options":"DENY","extra":true}`))
+	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestResponseHeadersHandler_Update_Success(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
@@ -864,6 +918,23 @@ func TestStickySessionHandler_Update_InvalidBody(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
+}
+
+func TestStickySessionHandler_Update_RejectsTrailingJSON(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewStickySessionHandler(store, newMockBoltStore())
+
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/sticky-sessions", strings.NewReader(`{"enabled":true}{"enabled":false}`))
+	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestStickySessionHandler_Update_Success(t *testing.T) {
@@ -1019,6 +1090,23 @@ func TestResourceHandler_SetLimits_InvalidBody(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
+}
+
+func TestResourceHandler_SetLimits_RejectsUnknownFields(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	h := NewResourceHandler(store, core.NewEventBus(nil))
+
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/resources", strings.NewReader(`{"cpu_quota":100000,"memory_mb":512,"extra":true}`))
+	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+	h.SetLimits(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestResourceHandler_SetLimits_AppNotFound(t *testing.T) {
@@ -1335,6 +1423,23 @@ func TestSaveTemplateHandler_InvalidBody(t *testing.T) {
 	}
 }
 
+func TestSaveTemplateHandler_RejectsTrailingJSON(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
+	h := NewSaveTemplateHandler(store)
+
+	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/save-template", strings.NewReader(`{"name":"template"}{"name":"other"}`))
+	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "admin", "u@e.com")
+	rr := httptest.NewRecorder()
+	h.Save(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestSaveTemplateHandler_Success_DefaultFields(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "my-app", SourceType: "image", SourceURL: "nginx:latest"})
@@ -1375,6 +1480,21 @@ func TestTransferHandler_InvalidBody(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
+}
+
+func TestTransferHandler_RejectsUnknownFields(t *testing.T) {
+	h := NewTransferHandler(newMockStore(), core.NewEventBus(nil))
+
+	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/transfer", strings.NewReader(`{"target_tenant_id":"t2","extra":true}`))
+	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "u1", "t1", "role_super_admin", "u@e.com")
+	rr := httptest.NewRecorder()
+	h.TransferApp(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestTransferHandler_MissingTargetTenant(t *testing.T) {
@@ -1460,6 +1580,20 @@ func TestWildcardSSLHandler_Request_InvalidBody(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
+}
+
+func TestWildcardSSLHandler_Request_RejectsTrailingJSON(t *testing.T) {
+	h := NewWildcardSSLHandler(newMockBoltStore())
+
+	req := httptest.NewRequest("POST", "/api/v1/certificates/wildcard", strings.NewReader(`{"domain":"example.com"}{"domain":"other.com"}`))
+	req = withClaims(req, "u1", "t1", "role_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+	h.Request(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestWildcardSSLHandler_Request_MissingDomain(t *testing.T) {
@@ -1562,6 +1696,88 @@ func TestRestartHistoryHandler_Success(t *testing.T) {
 	}
 }
 
+func TestRestartHistoryHandler_ListReadsBoltEventsNewestFirst(t *testing.T) {
+	store := newMockStore()
+	store.addApp(&core.Application{ID: "app-1", TenantID: "tenant1", Name: "Test", Status: "running"})
+	bolt := newMockBoltStore()
+	oldEvent := RestartEvent{ID: "old", AppID: "app-1", Reason: "crash", Source: core.EventContainerDied, Timestamp: time.Now().Add(-time.Hour)}
+	newEvent := RestartEvent{ID: "new", AppID: "app-1", Reason: "deploy", Source: core.EventAppDeployed, Timestamp: time.Now()}
+	otherEvent := RestartEvent{ID: "other", AppID: "app-2", Reason: "crash", Source: core.EventContainerDied, Timestamp: time.Now()}
+	if err := bolt.Set(RestartHistoryBucket, "app-1:old", oldEvent, 0); err != nil {
+		t.Fatalf("seed old event: %v", err)
+	}
+	if err := bolt.Set(RestartHistoryBucket, "app-1:new", newEvent, 0); err != nil {
+		t.Fatalf("seed new event: %v", err)
+	}
+	if err := bolt.Set(RestartHistoryBucket, "app-2:other", otherEvent, 0); err != nil {
+		t.Fatalf("seed other event: %v", err)
+	}
+
+	h := NewRestartHistoryHandler(store, &mockContainerRuntime{
+		containers: []core.ContainerInfo{{ID: "ctr-abc123def456", State: "running"}},
+	})
+	h.SetBolt(bolt)
+	req := httptest.NewRequest("GET", "/api/v1/apps/app-1/restarts", nil)
+	req.SetPathValue("id", "app-1")
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+	h.List(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp struct {
+		Total       int            `json:"total"`
+		ContainerID string         `json:"container_id"`
+		Data        []RestartEvent `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Total != 2 || len(resp.Data) != 2 {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+	if resp.ContainerID != "ctr-abc123de" {
+		t.Fatalf("container_id = %q", resp.ContainerID)
+	}
+	if resp.Data[0].ID != "new" || resp.Data[1].ID != "old" {
+		t.Fatalf("events not sorted newest first: %+v", resp.Data)
+	}
+}
+
+func TestSubscribeRestartHistoryPersistsSupportedEvents(t *testing.T) {
+	events := core.NewEventBus(slog.Default())
+	bolt := newMockBoltStore()
+	SubscribeRestartHistory(events, bolt)
+
+	ctx := context.Background()
+	events.Publish(ctx, core.NewEvent(core.EventContainerDied, "docker", core.DeployEventData{AppID: "app-1", ContainerID: "ctr-1"}))
+	events.Publish(ctx, core.NewEvent(core.EventAppStarted, "operator", map[string]string{"id": "app-1", "action": "restart", "container_id": "ctr-2"}))
+	events.Publish(ctx, core.NewEvent(core.EventAppDeployed, "deploy", core.AppEventData{AppID: "app-1"}))
+	events.Drain()
+
+	keys, err := bolt.List(RestartHistoryBucket)
+	if err != nil {
+		t.Fatalf("List restart history: %v", err)
+	}
+	if len(keys) != 3 {
+		t.Fatalf("keys = %v, want 3 events", keys)
+	}
+	var sawCrash, sawRestart, sawDeploy bool
+	for _, key := range keys {
+		var ev RestartEvent
+		if err := bolt.Get(RestartHistoryBucket, key, &ev); err != nil {
+			t.Fatalf("Get %s: %v", key, err)
+		}
+		sawCrash = sawCrash || ev.Reason == "crash"
+		sawRestart = sawRestart || ev.Reason == "restart"
+		sawDeploy = sawDeploy || ev.Reason == "deploy"
+	}
+	if !sawCrash || !sawRestart || !sawDeploy {
+		t.Fatalf("missing expected reasons: crash=%v restart=%v deploy=%v", sawCrash, sawRestart, sawDeploy)
+	}
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // RestartPolicyHandler
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1584,6 +1800,20 @@ func TestRestartPolicyHandler_InvalidBody(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
+}
+
+func TestRestartPolicyHandler_RejectsUnknownFields(t *testing.T) {
+	h := NewRestartPolicyHandler(newMockStore(), nil)
+
+	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/restart-policy", strings.NewReader(`{"policy":"always","extra":true}`))
+	req.SetPathValue("id", "app-1")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestRestartPolicyHandler_InvalidPolicy(t *testing.T) {
@@ -1686,6 +1916,21 @@ func TestTenantRateLimitHandler_Update_InvalidBody(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
+}
+
+func TestTenantRateLimitHandler_Update_RejectsUnknownFields(t *testing.T) {
+	h := NewTenantRateLimitHandler(newMockBoltStore())
+
+	req := httptest.NewRequest("PUT", "/api/v1/admin/tenants/t1/ratelimit", strings.NewReader(`{"requests_per_minute":200,"extra":true}`))
+	req.SetPathValue("id", "t1")
+	req = withClaims(req, "u1", "t1", "role_super_admin", "u@e.com")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestTenantRateLimitHandler_Update_Success(t *testing.T) {

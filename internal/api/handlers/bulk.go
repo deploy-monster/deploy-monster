@@ -96,7 +96,7 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 
 		switch req.Action {
 		case "start":
-			if err := h.store.UpdateAppStatus(r.Context(), appID, "running"); err != nil {
+			if err := h.store.UpdateAppStatus(r.Context(), appID, "running", appTenantMap[appID]); err != nil {
 				results[i].Status = "error"
 				results[i].Error = sanitizeError(err)
 			} else {
@@ -104,7 +104,7 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 				completed = append(completed, struct{ appID, original string }{appID, appOriginalStatus[appID]})
 			}
 		case "stop":
-			if err := h.store.UpdateAppStatus(r.Context(), appID, "stopped"); err != nil {
+			if err := h.store.UpdateAppStatus(r.Context(), appID, "stopped", appTenantMap[appID]); err != nil {
 				results[i].Status = "error"
 				results[i].Error = sanitizeError(err)
 			} else {
@@ -114,15 +114,15 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		case "restart":
 			origStatus := appOriginalStatus[appID]
 			// Restart = stop + start. If start fails, rollback to stopped.
-			if err := h.store.UpdateAppStatus(r.Context(), appID, "stopped"); err != nil {
+			if err := h.store.UpdateAppStatus(r.Context(), appID, "stopped", appTenantMap[appID]); err != nil {
 				results[i].Status = "error"
 				results[i].Error = sanitizeError(err)
 			} else {
 				// Track stop as completed (for rollback)
 				completed = append(completed, struct{ appID, original string }{appID, origStatus})
-				if startErr := h.store.UpdateAppStatus(r.Context(), appID, "running"); startErr != nil {
+				if startErr := h.store.UpdateAppStatus(r.Context(), appID, "running", appTenantMap[appID]); startErr != nil {
 					// Rollback to original status
-					h.store.UpdateAppStatus(r.Context(), appID, origStatus)
+					h.store.UpdateAppStatus(r.Context(), appID, origStatus, appTenantMap[appID])
 					results[i].Status = "error"
 					results[i].Error = "restart failed"
 					// Remove from completed (rollback happened)
@@ -132,7 +132,7 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case "delete":
-			if err := h.store.DeleteApp(r.Context(), appID); err != nil {
+			if err := h.store.DeleteApp(r.Context(), appID, appTenantMap[appID]); err != nil {
 				results[i].Status = "error"
 				results[i].Error = sanitizeError(err)
 			} else {
@@ -149,7 +149,7 @@ func (h *BulkHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		if results[i].Status == "error" && succeeded > 0 {
 			for _, done := range completed {
 				if orig, ok := appOriginalStatus[done.appID]; ok {
-					h.store.UpdateAppStatus(r.Context(), done.appID, orig)
+					h.store.UpdateAppStatus(r.Context(), done.appID, orig, appTenantMap[done.appID])
 				}
 			}
 			writeJSON(w, http.StatusOK, map[string]any{

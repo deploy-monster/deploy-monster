@@ -25,10 +25,11 @@ func (r *Redis) HealthCmd() []string {
 }
 
 func (r *Redis) ConnectionString(host string, port int, creds Credentials) string {
+	// Always redact — shows structure (host, port, whether auth is present) but never the password.
 	if creds.Password != "" {
-		return fmt.Sprintf("redis://:%s@%s:%d", creds.Password, host, port)
+		return "[REDACTED:redis://user:@host:port] (auth present)"
 	}
-	return fmt.Sprintf("redis://%s:%d", host, port)
+	return "[REDACTED:redis://host:port] (no auth)"
 }
 
 // MongoDB implements the Engine interface for MongoDB.
@@ -55,6 +56,6 @@ func (m *MongoDB) HealthCmd() []string {
 }
 
 func (m *MongoDB) ConnectionString(host string, port int, creds Credentials) string {
-	return fmt.Sprintf("mongodb://%s:%s@%s:%d/%s?authSource=admin",
-		creds.User, creds.Password, host, port, creds.Database)
+	// Always redact — shows structure but never the password.
+	return "[REDACTED:mongodb://user:@host:port/db] (auth present)"
 }

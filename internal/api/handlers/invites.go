@@ -97,7 +97,7 @@ func (h *InviteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.PublishAsync(r.Context(), core.NewTenantEvent(
+	publishEventAsync(r.Context(), h.events, core.NewTenantEvent(
 		core.EventUserInvited, "api", claims.TenantID, claims.UserID,
 		map[string]string{
 			"email":   req.Email,

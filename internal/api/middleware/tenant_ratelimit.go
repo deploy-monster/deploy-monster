@@ -89,6 +89,10 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 			// default for what looks like a configured tenant.
 			trl.log().Warn("tenant ratelimit config read failed", "tenant", tenantID, "error", err)
 		}
+		if rate <= 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
 
 		// Enforce sliding window per tenant
 		key := fmt.Sprintf("trl:%s", tenantID)

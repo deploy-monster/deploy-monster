@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 	"time"
@@ -162,8 +161,7 @@ func (h *ServerHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req provisionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -261,7 +259,7 @@ func (h *ServerHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.Publish(r.Context(), core.NewTenantEvent(
+	publishEvent(r.Context(), h.events, core.NewTenantEvent(
 		core.EventServerAdded, "api", claims.TenantID, claims.UserID,
 		core.ServerEventData{
 			ServerID: srv.ID,
@@ -319,7 +317,7 @@ func (h *ServerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		internalErrorCtx(r.Context(), w, "delete failed", err)
 		return
 	}
-	h.events.Publish(r.Context(), core.NewTenantEvent(
+	publishEvent(r.Context(), h.events, core.NewTenantEvent(
 		core.EventServerRemoved, "api", claims.TenantID, claims.UserID,
 		core.ServerEventData{ServerID: id, Hostname: srv.Hostname, IP: srv.IPAddress},
 	))

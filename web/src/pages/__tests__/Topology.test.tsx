@@ -29,6 +29,14 @@ vi.mock('@/hooks/useDeployProgress', () => ({
   useDeployProgress: () => ({ status: 'idle' }),
 }));
 
+const toastErrorMock = vi.fn();
+
+vi.mock('@/stores/toastStore', () => ({
+  toast: {
+    error: (message: string) => toastErrorMock(message),
+  },
+}));
+
 // Fresh hooks mock — the page uses useApi + useMutation for save/deploy/compile.
 const refetchMock = vi.fn();
 const saveMutationMock = vi.fn();
@@ -105,6 +113,7 @@ describe('Topology page', () => {
     saveMutationMock.mockReset().mockResolvedValue(undefined);
     deployMutationMock.mockReset().mockResolvedValue({ success: true });
     compileMutationMock.mockReset().mockResolvedValue({ success: true });
+    toastErrorMock.mockReset();
     // Reset store
     store.nodes = [];
     store.edges = [];
@@ -213,5 +222,36 @@ describe('Topology page', () => {
       )
     );
     expect(screen.getByTestId('deploy-modal-open')).toBeInTheDocument();
+  });
+
+  it('surfaces save failures through a toast', async () => {
+    store.isDirty = true;
+    store.nodes = [{ id: 'n1', type: 'app', data: { name: 'demo' } }];
+    saveMutationMock.mockRejectedValueOnce(new Error('save rejected'));
+    renderTopology();
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('save rejected'));
+  });
+
+  it('surfaces compile failures through a toast', async () => {
+    store.nodes = [{ id: 'n1', type: 'app', data: {} }];
+    compileMutationMock.mockRejectedValueOnce(new Error('compile rejected'));
+    renderTopology();
+
+    fireEvent.click(screen.getByRole('button', { name: /compile/i }));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('compile rejected'));
+  });
+
+  it('surfaces deploy failures through a toast', async () => {
+    store.nodes = [{ id: 'n1', type: 'app', data: {} }];
+    deployMutationMock.mockRejectedValueOnce(new Error('deploy rejected'));
+    renderTopology();
+
+    fireEvent.click(screen.getByRole('button', { name: /deploy/i }));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('deploy rejected'));
   });
 });

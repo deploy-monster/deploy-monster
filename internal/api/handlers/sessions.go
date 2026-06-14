@@ -2,15 +2,14 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/deploy-monster/deploy-monster/internal/api/middleware"
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -75,8 +74,7 @@ func (h *SessionHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		Name      string `json:"name"`
 		AvatarURL string `json:"avatar_url"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -125,8 +123,7 @@ func (h *SessionHandler) ChangePassword(w http.ResponseWriter, r *http.Request) 
 		CurrentPassword string `json:"current_password"`
 		NewPassword     string `json:"new_password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -294,11 +291,8 @@ func (h *SessionHandler) EnableTOTP(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Code string `json:"code"`
 	}
-	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
-			writeError(w, http.StatusBadRequest, "invalid request body")
-			return
-		}
+	if !decodeOptionalJSONInto(w, r, &req) {
+		return
 	}
 
 	if req.Code != "" {
@@ -362,8 +356,7 @@ func (h *SessionHandler) DisableTOTP(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Code string `json:"code"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -471,10 +464,8 @@ func (h *SessionHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current request info for marking current session
-	currentIP := r.RemoteAddr
-	if fwdFor := r.Header.Get("X-Forwarded-For"); fwdFor != "" {
-		currentIP = strings.Split(fwdFor, ",")[0]
-	}
+	// (never trust X-Forwarded-For — it can be spoofed; use direct connection IP)
+	currentIP := middleware.RealIPNoXFF(r)
 	currentUA := r.Header.Get("User-Agent")
 
 	// Convert to response format

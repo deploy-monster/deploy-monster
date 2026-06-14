@@ -136,8 +136,8 @@ func decodeTOTPBackupCodes(encoded string) []string {
 	return hashes
 }
 
-// GetUsersByIDs retrieves multiple users in a single query.
-func (s *SQLiteDB) GetUsersByIDs(ctx context.Context, ids []string) ([]core.User, error) {
+// GetUsersByIDs retrieves multiple users in a single query, scoped to tenantID.
+func (s *SQLiteDB) GetUsersByIDs(ctx context.Context, ids []string, tenantID string) ([]core.User, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -145,13 +145,14 @@ func (s *SQLiteDB) GetUsersByIDs(ctx context.Context, ids []string) ([]core.User
 	placeholders = placeholders[:len(placeholders)-1]
 	query := fmt.Sprintf(
 		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, totp_secret_enc, totp_backup_codes_json, last_login_at, created_at, updated_at
-		 FROM users WHERE id IN (%s)`,
+		 FROM users WHERE id IN (%s) AND tenant_id = ?`,
 		placeholders,
 	)
-	args := make([]any, len(ids))
+	args := make([]any, len(ids)+1)
 	for i, id := range ids {
 		args[i] = id
 	}
+	args[len(ids)] = tenantID
 	rows, err := s.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

@@ -2079,7 +2079,7 @@ func TestStickySessionHandler_Update_BoltError(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test", Status: "running"})
 	h := NewStickySessionHandler(store, newErrorBoltStore())
-	body := `{"enabled":true,"cookie_name":"MONSTERSESSION"}`
+	body := `{"enabled":true,"cookie":"MONSTERSESSION"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/sticky-sessions", strings.NewReader(body))
 	req.SetPathValue("id", "app-1")
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")

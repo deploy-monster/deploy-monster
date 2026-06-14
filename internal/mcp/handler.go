@@ -23,6 +23,12 @@ func NewHandler(store core.Store, runtime core.ContainerRuntime, events *core.Ev
 	return &Handler{store: store, runtime: runtime, events: events, logger: logger}
 }
 
+func (h *Handler) publish(ctx context.Context, event core.Event) {
+	if h.events != nil {
+		_ = h.events.Publish(ctx, event)
+	}
+}
+
 // MCPRequest is the incoming MCP tool call.
 type MCPRequest struct {
 	Method string          `json:"method"`
@@ -88,7 +94,12 @@ func (h *Handler) getAppStatus(ctx context.Context, input json.RawMessage) (*MCP
 	var params struct {
 		AppID string `json:"app_id"`
 	}
-	_ = json.Unmarshal(input, &params)
+	if err := json.Unmarshal(input, &params); err != nil {
+		return h.errorResponse("invalid parameters: " + err.Error())
+	}
+	if params.AppID == "" {
+		return h.errorResponse("app_id is required")
+	}
 
 	app, err := h.store.GetApp(ctx, params.AppID)
 	if err != nil {
@@ -141,7 +152,7 @@ func (h *Handler) deployApp(ctx context.Context, input json.RawMessage) (*MCPRes
 		return h.errorResponse("failed to create app: " + err.Error())
 	}
 
-	_ = h.events.Publish(ctx, core.NewEvent(core.EventAppCreated, "mcp", map[string]string{
+	h.publish(ctx, core.NewEvent(core.EventAppCreated, "mcp", map[string]string{
 		"app_id":    app.ID,
 		"tenant_id": tenantID,
 	}))
@@ -187,7 +198,7 @@ func (h *Handler) scaleApp(ctx context.Context, input json.RawMessage) (*MCPResp
 		return h.errorResponse("failed to update app: " + err.Error())
 	}
 
-	_ = h.events.Publish(ctx, core.NewEvent(core.EventAppScaled, "mcp", map[string]any{
+	h.publish(ctx, core.NewEvent(core.EventAppScaled, "mcp", map[string]any{
 		"app_id":       app.ID,
 		"tenant_id":    app.TenantID,
 		"old_replicas": previous,
@@ -211,7 +222,12 @@ func (h *Handler) viewLogs(ctx context.Context, input json.RawMessage) (*MCPResp
 		AppID string `json:"app_id"`
 		Lines int    `json:"lines"`
 	}
-	_ = json.Unmarshal(input, &params)
+	if err := json.Unmarshal(input, &params); err != nil {
+		return h.errorResponse("invalid parameters: " + err.Error())
+	}
+	if params.AppID == "" {
+		return h.errorResponse("app_id is required")
+	}
 
 	if h.runtime == nil {
 		return h.errorResponse("Container runtime not available")
@@ -298,7 +314,7 @@ func (h *Handler) createDatabase(ctx context.Context, input json.RawMessage) (*M
 	}
 
 	dbID := core.GenerateID()
-	_ = h.events.Publish(ctx, core.NewEvent(core.EventDatabaseCreated, "mcp", map[string]string{
+	h.publish(ctx, core.NewEvent(core.EventDatabaseCreated, "mcp", map[string]string{
 		"db_id":  dbID,
 		"app_id": params.AppID,
 		"engine": params.Engine,
@@ -435,7 +451,7 @@ func (h *Handler) marketplaceDeploy(ctx context.Context, input json.RawMessage) 
 		}
 	}
 
-	_ = h.events.Publish(ctx, core.NewEvent(core.EventAppCreated, "mcp", map[string]string{
+	h.publish(ctx, core.NewEvent(core.EventAppCreated, "mcp", map[string]string{
 		"app_id":    app.ID,
 		"tenant_id": tenantID,
 	}))
@@ -494,7 +510,7 @@ func (h *Handler) provisionServer(ctx context.Context, input json.RawMessage) (*
 
 	serverID := core.GenerateID()
 
-	_ = h.events.Publish(ctx, core.NewEvent(core.EventServerAdded, "mcp", map[string]string{
+	h.publish(ctx, core.NewEvent(core.EventServerAdded, "mcp", map[string]string{
 		"server_id": serverID,
 		"provider":  params.Provider,
 		"name":      params.Name,

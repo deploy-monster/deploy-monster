@@ -364,6 +364,27 @@ func TestBuilder_EmitFailed(t *testing.T) {
 	}
 }
 
+func TestBuilder_EmitFailed_NilEventBus(t *testing.T) {
+	b := NewBuilder(nil, nil)
+	if err := b.emitFailed(context.Background(), "app-1", fmt.Errorf("something broke")); err != nil {
+		t.Fatalf("emitFailed with nil event bus returned error: %v", err)
+	}
+}
+
+func TestBuilder_EmitStarted_ReturnsSubscriberError(t *testing.T) {
+	events := core.NewEventBus(slog.Default())
+	events.Subscribe(core.EventBuildStarted, func(context.Context, core.Event) error {
+		return fmt.Errorf("subscriber failed")
+	})
+	b := NewBuilder(nil, events)
+
+	err := b.emitStarted(context.Background(), "app-1", "abc123")
+
+	if err == nil || !strings.Contains(err.Error(), "subscriber failed") {
+		t.Fatalf("emitStarted error = %v, want subscriber failure", err)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Additional detector edge cases for coverage
 // ---------------------------------------------------------------------------
@@ -657,6 +678,27 @@ func TestBuilder_Build_GitCloneFails(t *testing.T) {
 	}
 	if !failedReceived {
 		t.Error("expected build.failed event")
+	}
+}
+
+func TestBuilder_Build_NilEventBusDoesNotMaskBuildError(t *testing.T) {
+	b := NewBuilder(nil, nil)
+
+	_, err := b.Build(context.Background(), BuildOpts{
+		AppID:     "app-test",
+		AppName:   "testapp",
+		SourceURL: "https://invalid.example.com/nonexistent/repo.git",
+		Branch:    "main",
+	}, io.Discard)
+
+	if err == nil {
+		t.Fatal("expected git clone error")
+	}
+	if strings.Contains(err.Error(), "panic") {
+		t.Fatalf("nil event bus should not mask build failure with panic, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "git clone") {
+		t.Fatalf("expected git clone error, got: %v", err)
 	}
 }
 

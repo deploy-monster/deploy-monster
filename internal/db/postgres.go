@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"sort"
 	"strings"
@@ -314,8 +315,8 @@ func (p *PostgresDB) UpdateTenant(ctx context.Context, t *core.Tenant) error {
 	return err
 }
 
-func (p *PostgresDB) DeleteTenant(ctx context.Context, id string) error {
-	_, err := p.db.ExecContext(ctx, `DELETE FROM tenants WHERE id = $1`, id)
+func (p *PostgresDB) DeleteTenant(ctx context.Context, id, tenantID string) error {
+	_, err := p.db.ExecContext(ctx, `DELETE FROM tenants WHERE id = $1 AND id = $2`, id, tenantID)
 	return err
 }
 
@@ -576,12 +577,12 @@ func (p *PostgresDB) ListAppsByTenant(ctx context.Context, tenantID string, limi
 	return apps, total, rows.Err()
 }
 
-func (p *PostgresDB) ListAppsByProject(ctx context.Context, projectID string) ([]core.Application, error) {
+func (p *PostgresDB) ListAppsByProject(ctx context.Context, projectID, tenantID string) ([]core.Application, error) {
 	rows, err := p.db.QueryContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
 		        status, replicas, COALESCE(server_id,''), created_at, updated_at
-		 FROM applications WHERE project_id = $1 ORDER BY name LIMIT 1000`,
-		projectID,
+		 FROM applications WHERE project_id = $1 AND tenant_id = $2 ORDER BY name LIMIT 1000`,
+		projectID, tenantID,
 	)
 	if err != nil {
 		return nil, err
@@ -600,10 +601,10 @@ func (p *PostgresDB) ListAppsByProject(ctx context.Context, projectID string) ([
 	return apps, rows.Err()
 }
 
-func (p *PostgresDB) UpdateAppStatus(ctx context.Context, id, status string) error {
+func (p *PostgresDB) UpdateAppStatus(ctx context.Context, id, status, tenantID string) error {
 	_, err := p.db.ExecContext(ctx,
-		`UPDATE applications SET status=$1, updated_at=NOW() WHERE id=$2`,
-		status, id,
+		`UPDATE applications SET status=$1, updated_at=NOW() WHERE id=$2 AND tenant_id=$3`,
+		status, id, tenantID,
 	)
 	return err
 }
@@ -624,8 +625,8 @@ func (p *PostgresDB) GetAppByName(ctx context.Context, tenantID, name string) (*
 	return a, err
 }
 
-func (p *PostgresDB) DeleteApp(ctx context.Context, id string) error {
-	_, err := p.db.ExecContext(ctx, `DELETE FROM applications WHERE id = $1`, id)
+func (p *PostgresDB) DeleteApp(ctx context.Context, id, tenantID string) error {
+	_, err := p.db.ExecContext(ctx, `DELETE FROM applications WHERE id = $1 AND tenant_id = $2`, id, tenantID)
 	return err
 }
 
@@ -818,21 +819,22 @@ func (p *PostgresDB) CreateDeploymentAtomicVersion(ctx context.Context, d *core.
 }
 
 // GetUsersByIDs retrieves multiple users in a single query using $1, $2, ... placeholders.
-func (p *PostgresDB) GetUsersByIDs(ctx context.Context, ids []string) ([]core.User, error) {
+func (p *PostgresDB) GetUsersByIDs(ctx context.Context, ids []string, tenantID string) ([]core.User, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
 	// Build $1, $2, ... placeholders for IN clause
 	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
+	args := make([]any, len(ids)+1)
 	for i, id := range ids {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
 		args[i] = id
 	}
+	args[len(ids)] = tenantID
 	query := fmt.Sprintf(
 		`SELECT id, email, password_hash, name, avatar_url, status, totp_enabled, totp_secret_enc, totp_backup_codes_json, last_login_at, created_at, updated_at
-		 FROM users WHERE id IN (%s)`,
-		strings.Join(placeholders, ","),
+		 FROM users WHERE id IN (%s) AND tenant_id = $%d`,
+		strings.Join(placeholders, ","), len(ids)+1,
 	)
 	rows, err := p.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -898,58 +900,86 @@ func (p *PostgresDB) GetLatestDeploymentsByAppIDs(ctx context.Context, appIDs []
 	return result, rows.Err()
 }
 
-// ListDomainsByAppIDs retrieves domains for multiple apps in a single query.
-// Returns a map from appID to its domains.
-func (p *PostgresDB) ListDomainsByAppIDs(ctx context.Context, appIDs []string) (map[string][]core.Domain, error) {
+// ListDomainsByAppIDs retrieves domains for multiple apps in a single query,
+// scoped to tenantID. Only returns domains for apps owned by the tenant.
+func (p *PostgresDB) ListDomainsByAppIDs(ctx context.Context, appIDs []string, tenantID string) (map[string][]core.Domain, error) {
 	if len(appIDs) == 0 {
 		return nil, nil
 	}
-	placeholders := make([]string, len(appIDs))
-	args := make([]any, len(appIDs))
+	// Filter appIDs to only those belonging to the tenant.
+	allowedPlaceholders := make([]string, len(appIDs))
+	allowedArgs := make([]any, len(appIDs)+1)
 	for i, id := range appIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = id
+		allowedPlaceholders[i] = fmt.Sprintf("$%d", i+1)
+		allowedArgs[i] = id
 	}
-	query := fmt.Sprintf(
-		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
-		 FROM domains WHERE app_id IN (%s) ORDER BY created_at`,
-		strings.Join(placeholders, ","),
+	allowedArgs[len(appIDs)] = tenantID
+	allowedQuery := fmt.Sprintf(
+		`SELECT id FROM applications WHERE id IN (%s) AND tenant_id = $%d`,
+		strings.Join(allowedPlaceholders, ","), len(appIDs)+1,
 	)
-	rows, err := p.db.QueryContext(ctx, query, args...)
+	rows, err := p.db.QueryContext(ctx, allowedQuery, allowedArgs...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	result := make(map[string][]core.Domain)
+	var allowedIDs []string
 	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		allowedIDs = append(allowedIDs, id)
+	}
+	rows.Close()
+	if len(allowedIDs) == 0 {
+		return map[string][]core.Domain{}, nil
+	}
+	// Query domains for the allowed appIDs.
+	domainPlaceholders := make([]string, len(allowedIDs))
+	domainArgs := make([]any, len(allowedIDs))
+	for i, id := range allowedIDs {
+		domainPlaceholders[i] = fmt.Sprintf("$%d", i+1)
+		domainArgs[i] = id
+	}
+	domainQuery := fmt.Sprintf(
+		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
+		 FROM domains WHERE app_id IN (%s) ORDER BY created_at`,
+		strings.Join(domainPlaceholders, ","),
+	)
+	domainRows, err := p.db.QueryContext(ctx, domainQuery, domainArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer domainRows.Close()
+	result := make(map[string][]core.Domain)
+	for domainRows.Next() {
 		var d core.Domain
-		if err := rows.Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider,
+		if err := domainRows.Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider,
 			&d.DNSSynced, &d.Verified, &d.CreatedAt); err != nil {
 			return nil, err
 		}
 		result[d.AppID] = append(result[d.AppID], d)
 	}
-	return result, rows.Err()
+	return result, domainRows.Err()
 }
 
 // hashAppIDToLockID generates a stable int64 lock ID from an app ID string.
+// Uses FNV-64a which has much better distribution than polynomial rolling hash,
+// avoiding collisions between different app IDs that would break distributed locking.
 func hashAppIDToLockID(appID string) int64 {
-	h := 0
-	for i := 0; i < len(appID); i++ {
-		h = 31*h + int(appID[i])
-	}
-	return int64(h & 0x7FFFFFFFFFFFFFFF) // Ensure positive
+	h := fnv.New64a()
+	h.Write([]byte(appID))
+	return int64(h.Sum64() & 0x7FFFFFFFFFFFFFFF) // Ensure positive
 }
 
 // leaderLockKey converts a string key (e.g. "deploymonster:leader") to a
 // stable int64 by hashing it. This avoids collisions between keys that
 // would otherwise map to the same small integer space.
 func leaderLockKey(key string) int64 {
-	h := 0
-	for i := 0; i < len(key); i++ {
-		h = 31*h + int(key[i])
-	}
-	return int64(h & 0x7FFFFFFFFFFFFFFF)
+	h := fnv.New64a()
+	h.Write([]byte(key))
+	return int64(h.Sum64() & 0x7FFFFFFFFFFFFFFF)
 }
 
 // PostgresLeaderElector implements LeaderElector using PostgreSQL advisory
@@ -1152,11 +1182,14 @@ func (p *PostgresDB) GetDomain(ctx context.Context, id string) (*core.Domain, er
 	return d, err
 }
 
-func (p *PostgresDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.Domain, error) {
+func (p *PostgresDB) ListDomainsByApp(ctx context.Context, appID, tenantID string) ([]core.Domain, error) {
 	rows, err := p.db.QueryContext(ctx,
-		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
-		 FROM domains WHERE app_id = $1 ORDER BY created_at LIMIT 500`,
-		appID,
+		`SELECT d.id, d.app_id, d.fqdn, d.type, d.dns_provider, d.dns_synced, d.verified, d.created_at
+		 FROM domains d
+		 JOIN applications a ON a.id = d.app_id
+		 WHERE d.app_id = $1 AND a.tenant_id = $2
+		 ORDER BY d.created_at LIMIT 500`,
+		appID, tenantID,
 	)
 	if err != nil {
 		return nil, err
@@ -1175,13 +1208,21 @@ func (p *PostgresDB) ListDomainsByApp(ctx context.Context, appID string) ([]core
 	return domains, rows.Err()
 }
 
-func (p *PostgresDB) DeleteDomain(ctx context.Context, id string) error {
-	_, err := p.db.ExecContext(ctx, `DELETE FROM domains WHERE id = $1`, id)
+func (p *PostgresDB) DeleteDomain(ctx context.Context, id, tenantID string) error {
+	_, err := p.db.ExecContext(ctx,
+		`DELETE FROM domains WHERE id = $1 AND app_id IN (
+			SELECT id FROM applications WHERE tenant_id = $2
+		)`,
+		id, tenantID)
 	return err
 }
 
-func (p *PostgresDB) DeleteDomainsByApp(ctx context.Context, appID string) (int, error) {
-	result, err := p.db.ExecContext(ctx, `DELETE FROM domains WHERE app_id = $1`, appID)
+func (p *PostgresDB) DeleteDomainsByApp(ctx context.Context, appID, tenantID string) (int, error) {
+	result, err := p.db.ExecContext(ctx,
+		`DELETE FROM domains WHERE app_id = $1 AND app_id IN (
+			SELECT id FROM applications WHERE id = $1 AND tenant_id = $2
+		)`,
+		appID, tenantID)
 	if err != nil {
 		return 0, err
 	}
@@ -1737,16 +1778,16 @@ func (p *PostgresDB) ListBackupsByTenant(ctx context.Context, tenantID string, l
 	return backups, total, rows.Err()
 }
 
-// UpdateBackupStatus updates a backup's status and size.
-func (p *PostgresDB) UpdateBackupStatus(ctx context.Context, id, status string, sizeBytes int64) error {
+// UpdateBackupStatus updates a backup's status and size, scoped to tenantID.
+func (p *PostgresDB) UpdateBackupStatus(ctx context.Context, id, status string, sizeBytes int64, tenantID string) error {
 	var completedAt *time.Time
 	if status == "completed" || status == "failed" {
 		now := time.Now().UTC()
 		completedAt = &now
 	}
 	_, err := p.db.ExecContext(ctx,
-		`UPDATE backups SET status = $1, size_bytes = $2, completed_at = $3 WHERE id = $4`,
-		status, sizeBytes, completedAt, id)
+		`UPDATE backups SET status = $1, size_bytes = $2, completed_at = $3 WHERE id = $4 AND tenant_id = $5`,
+		status, sizeBytes, completedAt, id, tenantID)
 	return err
 }
 

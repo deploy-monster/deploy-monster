@@ -1,7 +1,9 @@
 package build
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -81,6 +83,38 @@ func TestBuilder_Build_LocalRepo_NoDockerfile(t *testing.T) {
 	}
 	if !failedReceived {
 		t.Error("expected build.failed event")
+	}
+}
+
+func TestBuilder_Build_FailedEventErrorWritesWarning(t *testing.T) {
+	repoDir := createLocalGitRepo(t, map[string]string{
+		"readme.txt": "hello",
+	})
+
+	events := core.NewEventBus(slog.Default())
+	events.Subscribe(core.EventBuildFailed, func(_ context.Context, _ core.Event) error {
+		return fmt.Errorf("subscriber failed")
+	})
+
+	b := NewBuilder(nil, events)
+	var logs bytes.Buffer
+
+	_, err := b.Build(context.Background(), BuildOpts{
+		AppID:     "app-no-df",
+		AppName:   "nodf",
+		SourceURL: repoDir,
+		Branch:    "",
+		CommitSHA: "",
+	}, &logs)
+
+	if err == nil {
+		t.Fatal("expected build to fail")
+	}
+	if !strings.Contains(err.Error(), "no Dockerfile") {
+		t.Fatalf("expected original build error to be preserved, got: %v", err)
+	}
+	if !strings.Contains(logs.String(), "warning: failed to publish build.failed event: subscriber failed") {
+		t.Fatalf("expected build.failed publish warning in logs, got:\n%s", logs.String())
 	}
 }
 

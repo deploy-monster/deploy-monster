@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -326,7 +325,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		name = req.Email
 	}
 
-	tenantID, err := h.store.CreateTenantWithDefaults(r.Context(), name+"'s Team", generateSlug(name))
+	tenantID, err := h.store.CreateTenantWithDefaults(r.Context(), name+"'s Team", registrationTenantSlug(name))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
@@ -354,7 +353,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
 	// Allow empty body — refresh token may come from httpOnly cookie
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !decodeOptionalJSONInto(w, r, &req) {
+		return
+	}
 
 	// Fall back to cookie if body didn't include refresh_token
 	if req.RefreshToken == "" {
@@ -434,7 +435,9 @@ type logoutRequest struct {
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req logoutRequest
 	// Allow empty body — refresh token may be in cookie only
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !decodeOptionalJSONInto(w, r, &req) {
+		return
+	}
 
 	// Fall back to cookie if body didn't include refresh_token
 	if req.RefreshToken == "" {
@@ -517,11 +520,8 @@ func (h *AuthHandler) trackSession(r *http.Request, userID, refreshToken string)
 		return
 	}
 
-	// Get client IP and User-Agent
-	ip := r.RemoteAddr
-	if fwdFor := r.Header.Get("X-Forwarded-For"); fwdFor != "" {
-		ip = fwdFor
-	}
+	// Get client IP and User-Agent (never trust X-Forwarded-For — it can be spoofed)
+	ip := middleware.RealIPNoXFF(r)
 	userAgent := r.Header.Get("User-Agent")
 
 	// Store session tracking info
@@ -621,6 +621,14 @@ func generateSlug(name string) string {
 		slug = core.GenerateID()[:8]
 	}
 	return slug
+}
+
+func registrationTenantSlug(name string) string {
+	base := generateSlug(name)
+	if len(base) > 80 {
+		base = base[:80]
+	}
+	return base + "-" + core.ShortID(core.GenerateID(), 8)
 }
 
 // Per-account rate limiting: track failed login attempts per email address.

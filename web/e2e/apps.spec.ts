@@ -51,6 +51,7 @@ test.describe('Applications Page', () => {
     // Also accepts the stats bar showing "0 applications deployed".
     const emptyHeading = page.getByText('No applications yet');
     const deployBtn = page.getByText(/deploy your first app/i);
-    await expect(emptyHeading.or(deployBtn).first()).toBeVisible({ timeout: 10_000 });
+    const zeroStats = page.getByText(/0 applications deployed/i);
+    await expect(emptyHeading.or(deployBtn).or(zeroStats).first()).toBeVisible({ timeout: 10_000 });
   });
 });

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -671,6 +672,75 @@ func TestAlertEngine_Evaluate_AlertResolves(t *testing.T) {
 
 	// Give async handlers time
 	time.Sleep(50 * time.Millisecond)
+}
+
+func TestAlertEngine_Evaluate_NilEventBus(t *testing.T) {
+	ae := NewAlertEngine(nil, testLogger())
+
+	highMetrics := &core.ServerMetrics{
+		ServerID:   "srv-1",
+		Timestamp:  time.Now(),
+		CPUPercent: 95,
+		RAMUsedMB:  100,
+		RAMTotalMB: 1000,
+	}
+	ae.Evaluate(context.Background(), highMetrics)
+
+	normalMetrics := &core.ServerMetrics{
+		ServerID:   "srv-1",
+		Timestamp:  time.Now(),
+		CPUPercent: 50,
+		RAMUsedMB:  100,
+		RAMTotalMB: 1000,
+	}
+	ae.Evaluate(context.Background(), normalMetrics)
+
+	ae.mu.RLock()
+	state := ae.states["high_cpu"]
+	ae.mu.RUnlock()
+	if state == nil {
+		t.Fatal("high_cpu state should exist")
+	}
+	if state.Firing {
+		t.Error("high_cpu should resolve without an EventBus")
+	}
+	if state.FiredAt.IsZero() {
+		t.Error("FiredAt should be set after firing without an EventBus")
+	}
+	if state.ResolvedAt.IsZero() {
+		t.Error("ResolvedAt should be set after resolving without an EventBus")
+	}
+}
+
+func TestAlertEngine_Evaluate_Concurrent(t *testing.T) {
+	ae := NewAlertEngine(nil, testLogger())
+	metrics := &core.ServerMetrics{
+		ServerID:    "srv-1",
+		Timestamp:   time.Now(),
+		CPUPercent:  95,
+		RAMUsedMB:   950,
+		RAMTotalMB:  1000,
+		DiskUsedMB:  960,
+		DiskTotalMB: 1000,
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				ae.Evaluate(context.Background(), metrics)
+			}
+		}()
+	}
+	wg.Wait()
+
+	ae.mu.RLock()
+	defer ae.mu.RUnlock()
+	if !ae.states["high_cpu"].Firing {
+		t.Error("high_cpu should be firing after concurrent high metrics")
+	}
 }
 
 func TestAlertEngine_Evaluate_AlreadyFiring_StaysFiring(t *testing.T) {

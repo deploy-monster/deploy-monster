@@ -37,7 +37,7 @@ func (h *PlatformStatsHandler) Overview(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	eventStats := h.core.Events.Stats()
+	eventStats := eventBusStats(h.core.Events)
 
 	// Container counts
 	var containers int

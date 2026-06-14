@@ -263,3 +263,10 @@ func TestNewAutoRollbackManager(t *testing.T) {
 		t.Error("lastAttempt map not initialized")
 	}
 }
+
+func TestAutoRollbackManager_Start_NilEventBus(t *testing.T) {
+	ar := NewAutoRollbackManager(newMockStore(), &mockRuntime{}, nil, slog.Default())
+
+	ar.Start()
+	ar.Stop()
+}

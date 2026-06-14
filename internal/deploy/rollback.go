@@ -76,10 +76,10 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 		return nil, fmt.Errorf("create rollback deployment: %w", err)
 	}
 	newVersion := deployment.Version
-	_ = r.store.UpdateAppStatus(ctx, appID, "deploying")
+	_ = r.store.UpdateAppStatus(ctx, appID, "deploying", app.TenantID)
 
 	// Get domains for routing labels
-	domains, _ := r.store.ListDomainsByApp(ctx, appID)
+	domains, _ := r.store.ListDomainsByApp(ctx, appID, app.TenantID)
 	port := app.Port
 	if port <= 0 {
 		port = 80
@@ -120,7 +120,7 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 			failed := time.Now()
 			deployment.FinishedAt = &failed
 			_ = r.store.UpdateDeployment(ctx, deployment)
-			_ = r.store.UpdateAppStatus(ctx, appID, "failed")
+			_ = r.store.UpdateAppStatus(ctx, appID, "failed", app.TenantID)
 			// Attempt cleanup of partially created container
 			_ = r.runtime.Stop(ctx, containerName, 10)
 			_ = r.runtime.Remove(ctx, containerName, true)
@@ -157,7 +157,7 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 				failed := time.Now()
 				deployment.FinishedAt = &failed
 				_ = r.store.UpdateDeployment(ctx, deployment)
-				_ = r.store.UpdateAppStatus(ctx, appID, "running")
+				_ = r.store.UpdateAppStatus(ctx, appID, "running", app.TenantID)
 				return nil, fmt.Errorf("new container failed health check during rollback")
 			}
 		}
@@ -176,17 +176,19 @@ func (r *RollbackEngine) Rollback(ctx context.Context, appID string, targetVersi
 	if err := r.store.UpdateDeployment(ctx, deployment); err != nil {
 		return nil, fmt.Errorf("persist rollback deployment status: %w", err)
 	}
-	_ = r.store.UpdateAppStatus(ctx, appID, "running")
+	_ = r.store.UpdateAppStatus(ctx, appID, "running", app.TenantID)
 
-	_ = r.events.Publish(ctx, core.NewEvent(core.EventRollbackDone, "deploy",
-		core.DeployEventData{
-			AppID:        appID,
-			DeploymentID: deployment.ID,
-			Version:      newVersion,
-			Image:        targetDeploy.Image,
-			Strategy:     "rollback",
-		},
-	))
+	if r.events != nil {
+		_ = r.events.Publish(ctx, core.NewEvent(core.EventRollbackDone, "deploy",
+			core.DeployEventData{
+				AppID:        appID,
+				DeploymentID: deployment.ID,
+				Version:      newVersion,
+				Image:        targetDeploy.Image,
+				Strategy:     "rollback",
+			},
+		))
+	}
 
 	return deployment, nil
 }

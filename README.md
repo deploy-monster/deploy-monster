@@ -210,9 +210,10 @@ bundle-size budget).
 - **17** fuzz targets (input parsing, webhook HMAC, JWT validate, secret resolver, cross-tenant router)
 - **44** benchmarks
 - **~24 MB** single binary with embedded UI
-- **Coverage:** statement-weighted **85.0 %** after stripping the
+- **Coverage:** statement-weighted **85.3 %** after stripping the
   `tests/loadtest` and `tests/soak` harness packages from the
-  profile. The CI gate enforces the filtered-85 % threshold (see
+  profile. Raw coverage including those harnesses is 83.9 %. The CI
+  gate enforces the filtered-85 % threshold (see
   `.github/workflows/ci.yml`). Current validation also runs Vitest,
   Playwright E2E, OpenAPI drift, bundle-size, and govulncheck gates.
 

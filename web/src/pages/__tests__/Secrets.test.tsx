@@ -34,6 +34,7 @@ vi.mock('@/api/secrets', () => ({
 
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
+const clipboardWriteMock = vi.fn();
 vi.mock('@/stores/toastStore', () => ({
   toast: {
     success: (msg: string) => toastSuccessMock(msg),
@@ -73,9 +74,14 @@ describe('Secrets page', () => {
   beforeEach(() => {
     useApiState.data = null;
     useApiState.loading = true;
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteMock },
+    });
     refetchMock.mockReset();
     createMock.mockReset().mockResolvedValue(undefined);
     deleteMock.mockReset().mockResolvedValue(undefined);
+    clipboardWriteMock.mockReset().mockResolvedValue(undefined);
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
   });
@@ -117,6 +123,20 @@ describe('Secrets page', () => {
     expect(screen.getAllByText('Project').length).toBeGreaterThan(0);
   });
 
+  it('lists secrets from a paginated envelope response', () => {
+    useApiState.data = {
+      data: [
+        fakeSecret({ id: 's1', name: 'DB_URL', scope: 'tenant' }),
+      ],
+      total: 1,
+    };
+    useApiState.loading = false;
+    renderSecrets();
+
+    expect(screen.getByText('DB_URL')).toBeInTheDocument();
+    expect(screen.getByText(/1 secret/i)).toBeInTheDocument();
+  });
+
   it('filters the table as the user types in the search input', () => {
     useApiState.data = [
       fakeSecret({ id: 's1', name: 'STRIPE_KEY', scope: 'tenant' }),
@@ -131,6 +151,22 @@ describe('Secrets page', () => {
 
     expect(screen.getByText('STRIPE_KEY')).toBeInTheDocument();
     expect(screen.queryByText('DB_URL')).not.toBeInTheDocument();
+  });
+
+  it('copies a secret reference and reports clipboard failures', async () => {
+    useApiState.data = [fakeSecret({ id: 's1', name: 'DB_URL' })];
+    useApiState.loading = false;
+    renderSecrets();
+
+    fireEvent.click(screen.getByLabelText(/copy reference/i));
+
+    await waitFor(() => expect(clipboardWriteMock).toHaveBeenCalledWith('${SECRET:DB_URL}'));
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Reference copied to clipboard'));
+
+    clipboardWriteMock.mockRejectedValueOnce(new Error('denied'));
+    fireEvent.click(screen.getByLabelText(/copy reference/i));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('Failed to copy reference'));
   });
 
   it('posts the new secret through secretsAPI.create on dialog submit', async () => {

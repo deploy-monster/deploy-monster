@@ -65,12 +65,11 @@ export default function App() {
   const initTheme = useThemeStore((s) => s.initialize);
 
   useEffect(() => {
+    const cleanupTheme = initTheme();
     initAuth();
-    initTheme();
-    // initAuth/initTheme are stable Zustand function refs — intentionally omit deps
-    // to prevent double-initialization in React 19 StrictMode
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // initAuth is stable; cleanupTheme removes the matchMedia listener on unmount
+    return cleanupTheme;
+  }, [initAuth, initTheme]);
 
   return (
     <ErrorBoundary>

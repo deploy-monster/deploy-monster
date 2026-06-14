@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
@@ -23,6 +24,12 @@ type testNotificationRequest struct {
 // Test handles POST /api/v1/notifications/test
 // Sends a test notification to verify channel configuration.
 func (h *NotificationHandler) Test(w http.ResponseWriter, r *http.Request) {
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	var req testNotificationRequest
 	if !decodeJSONInto(w, r, &req) {
 		return

@@ -34,13 +34,22 @@ export function AppEnvVars({ appId, envVars, onRefetch }: AppEnvVarsProps) {
   const { mutate: persistEnvVars, loading: envSaving } = useMutation<{ vars: { key: string; value: string }[] }, void>('put', `/apps/${appId}/env`);
 
   const handlePersist = (next: { key: string; value: string }[]) => {
-    persistEnvVars(
+    void persistEnvVars(
       { vars: next },
       {
         onSuccess: () => onRefetch(),
         onError: (err) => { toast.error(err); },
       },
-    );
+    ).catch(() => undefined);
+  };
+
+  const handleCopyValue = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success('Environment value copied');
+    } catch {
+      toast.error('Failed to copy environment value');
+    }
   };
 
   const addEnvVar = () => {
@@ -171,7 +180,7 @@ export function AppEnvVars({ appId, envVars, onRefetch }: AppEnvVarsProps) {
                             variant="ghost"
                             size="icon"
                             className="size-7 cursor-pointer"
-                            onClick={() => navigator.clipboard.writeText(v.value)}
+                            onClick={() => void handleCopyValue(v.value)}
                           >
                             <Copy className="size-3" />
                           </Button>

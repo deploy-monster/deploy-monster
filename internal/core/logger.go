@@ -35,6 +35,8 @@ type LokiSink struct {
 	logger   *slog.Logger
 	stopOnce sync.Once
 	stopCh   chan struct{}
+	mu       sync.Mutex
+	closing  bool
 }
 
 // NewLokiSink creates a Loki log sink. The url should be the full Loki
@@ -74,12 +76,18 @@ func (ls *LokiSink) loop() {
 			}
 			ls.send(r)
 		case <-ls.stopCh:
-			close(ls.ch)
+			ls.flush()
+			return
 		}
 	}
 }
 
 func (ls *LokiSink) Handle(r slog.Record) {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	if ls.closing {
+		return
+	}
 	select {
 	case ls.ch <- r:
 	default:
@@ -89,7 +97,12 @@ func (ls *LokiSink) Handle(r slog.Record) {
 }
 
 func (ls *LokiSink) Close() error {
-	ls.stopOnce.Do(func() { close(ls.stopCh) })
+	ls.stopOnce.Do(func() {
+		ls.mu.Lock()
+		ls.closing = true
+		close(ls.stopCh)
+		ls.mu.Unlock()
+	})
 	ls.wg.Wait()
 	return nil
 }

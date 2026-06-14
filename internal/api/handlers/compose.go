@@ -120,12 +120,12 @@ func (h *ComposeHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 			EnvVars:   req.EnvVars,
 		})
 		if err != nil {
-			h.store.UpdateAppStatus(ctx, appID, "failed")
+			h.store.UpdateAppStatus(ctx, appID, "failed", app.TenantID)
 		} else {
-			h.store.UpdateAppStatus(ctx, appID, "running")
+			h.store.UpdateAppStatus(ctx, appID, "running", app.TenantID)
 		}
 	}, func(_ any) {
-		h.store.UpdateAppStatus(h.serverCtx, appID, "failed")
+		h.store.UpdateAppStatus(h.serverCtx, appID, "failed", app.TenantID)
 	})
 
 	writeJSON(w, http.StatusAccepted, map[string]any{

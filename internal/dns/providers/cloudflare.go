@@ -86,12 +86,51 @@ func (c *Cloudflare) DeleteRecord(ctx context.Context, record core.DNSRecord) er
 }
 
 func (c *Cloudflare) Verify(ctx context.Context, fqdn string) (bool, error) {
+	// SSRF protection: resolve the FQDN and reject if it points to an internal IP.
+	// This prevents attackers from using DNS verification to probe cloud metadata
+	// endpoints (e.g., 169.254.169.254 for AWS, metadata.google.internal for GCP).
 	resolver := &net.Resolver{}
-	_, err := resolver.LookupHost(ctx, fqdn)
+	ips, err := resolver.LookupHost(ctx, fqdn)
 	if err != nil {
 		return false, nil
 	}
-	return true, nil
+	for _, ipStr := range ips {
+		ip := net.ParseIP(ipStr)
+		if ip != nil && isPublicIP(ip) {
+			return true, nil
+		}
+	}
+	// All resolved IPs are private/non-routable — reject the domain
+	return false, nil
+}
+
+// isPublicIP returns true if the IP is a routable public address.
+// Uses Go 1.17+'s built-in IsPrivate() which covers 10.x, 172.16-31.x, 192.168.x,
+// loopback, link-local, and multicast. Additionally checks for cloud metadata ranges.
+func isPublicIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	// IsPrivate() covers RFC 1918 (10.x, 172.16-31.x, 192.168.x), loopback, link-local, multicast
+	if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return false
+	}
+	// Reject cloud metadata endpoints (169.254.169.254, 169.254.169.253, etc.)
+	metadataRanges := []string{
+		"169.254.169.254/32", // AWS, Azure, GCP metadata
+		"169.254.169.253/32", // Azure backup
+		"metadata.google.internal/32", // GCP metadata
+	}
+	ip4 := ip.To4()
+	if ip4 != nil {
+		for _, r := range metadataRanges {
+			_, cidr, _ := net.ParseCIDR(r)
+			if cidr.Contains(ip) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // findZone looks up the Cloudflare zone ID for a domain.

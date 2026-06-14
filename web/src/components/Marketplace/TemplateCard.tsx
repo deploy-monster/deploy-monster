@@ -86,8 +86,8 @@ export function TemplateCard({ template, onDeploy, onClick }: TemplateCardProps)
         <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
         {template.tags && template.tags.length > 0 && (
           <div className="flex gap-1.5 mt-3 flex-wrap">
-            {template.tags.slice(0, 3).map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-[10px] font-normal px-1.5 py-0.5">
+            {template.tags.slice(0, 3).map((tag, index) => (
+              <Badge key={`${tag}-${index}`} variant="secondary" className="text-[10px] font-normal px-1.5 py-0.5">
                 {tag}
               </Badge>
             ))}

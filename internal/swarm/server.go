@@ -1,7 +1,6 @@
 package swarm
 
 import (
-	"bufio"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
@@ -88,7 +87,7 @@ type AgentConn struct {
 	Info     core.AgentInfo
 	conn     net.Conn
 	encoder  *json.Encoder
-	decoder  *json.Decoder
+	decoder  agentDecoder
 	sendMu   sync.Mutex
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -235,7 +234,7 @@ func (s *AgentServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	ac := &AgentConn{
 		conn:     conn,
 		encoder:  json.NewEncoder(conn),
-		decoder:  json.NewDecoder(bufio.NewReader(conn)),
+		decoder:  newAgentProtocolDecoder(conn),
 		ctx:      ctx,
 		cancel:   cancel,
 		pending:  make(map[string]chan core.AgentMessage),

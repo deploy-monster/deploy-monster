@@ -423,13 +423,13 @@ func (s *Scheduler) backupApp(ctx context.Context, tenant core.Tenant, app core.
 	backupID := core.GenerateID()
 	payload, err := json.MarshalIndent(app, "", "  ")
 	if err != nil {
-		s.markFailed(ctx, backupID, "marshal error", err)
+		s.markFailed(ctx, backupID, tenant.ID, "marshal error", err)
 		return false
 	}
 
 	backupSize := int64(len(payload))
 	if backupSize == 0 {
-		s.markFailed(ctx, backupID, "empty payload", nil)
+		s.markFailed(ctx, backupID, tenant.ID, "empty payload", nil)
 		return false
 	}
 
@@ -479,12 +479,12 @@ func (s *Scheduler) backupApp(ctx context.Context, tenant core.Tenant, app core.
 	if !incremental {
 		if err := storage.Upload(ctx, key, bytes.NewReader(payload), backupSize); err != nil {
 			s.logger.Error("failed to upload backup", "app", app.ID, "error", err)
-			s.markFailed(ctx, backupID, "upload failed", err)
+			s.markFailed(ctx, backupID, tenant.ID, "upload failed", err)
 			return false
 		}
 	}
 
-	if err := s.store.UpdateBackupStatus(ctx, backupID, "completed", backupSize); err != nil {
+	if err := s.store.UpdateBackupStatus(ctx, backupID, "completed", backupSize, tenant.ID); err != nil {
 		s.logger.Error("failed to update backup status", "app", app.ID, "error", err)
 	}
 	s.logger.Debug("backup completed", "app", app.ID, "type", backup.BackupType, "key", key, "size", backupSize)
@@ -520,8 +520,8 @@ func (s *Scheduler) findLastBackupForApp(ctx context.Context, tenantID, appID st
 // markFailed writes a "failed" status to the backup row and logs any
 // error — callers used to `_ =` the return value, silently hiding
 // database failures inside the failure handler.
-func (s *Scheduler) markFailed(ctx context.Context, backupID, reason string, cause error) {
-	if err := s.store.UpdateBackupStatus(ctx, backupID, "failed", 0); err != nil {
+func (s *Scheduler) markFailed(ctx context.Context, backupID, tenantID, reason string, cause error) {
+	if err := s.store.UpdateBackupStatus(ctx, backupID, "failed", 0, tenantID); err != nil {
 		s.logger.Warn("failed to mark backup failed",
 			"backup_id", backupID,
 			"reason", reason,

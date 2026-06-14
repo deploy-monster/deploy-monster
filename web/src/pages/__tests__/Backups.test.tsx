@@ -128,6 +128,20 @@ describe('Backups page', () => {
     expect(screen.getByText('Failed')).toBeInTheDocument();
   });
 
+  it('renders backup rows from a paginated envelope response', () => {
+    useApiState.data = {
+      data: [
+        fakeBackup({ key: 'full-envelope.tar', type: 'full', status: 'completed' }),
+      ],
+      total: 1,
+    };
+    useApiState.loading = false;
+    renderBackups();
+
+    expect(screen.getByText('full-envelope.tar')).toBeInTheDocument();
+    expect(screen.getByText(/1 backup/i)).toBeInTheDocument();
+  });
+
   it('calls backupsAPI.create when Create Backup is clicked from the header', async () => {
     useApiState.data = [fakeBackup()];
     useApiState.loading = false;

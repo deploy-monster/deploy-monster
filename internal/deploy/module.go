@@ -147,9 +147,6 @@ func (m *Module) reclaimStaleDeployments(ctx context.Context) {
 			finished := time.Now()
 			d.Status = "failed"
 			d.FinishedAt = &finished
-			// BuildLog is a free-text field; append a reclaim marker so
-			// operators reading the deployment log see exactly why this
-			// row was transitioned to failed on startup.
 			reason := "[reclaimed on startup after crash — previous status: " + staleStatus + "]"
 			if d.BuildLog == "" {
 				d.BuildLog = reason
@@ -163,11 +160,14 @@ func (m *Module) reclaimStaleDeployments(ctx context.Context) {
 			}
 			// Reflect the reclaim on the app's own status so the app list
 			// doesn't show a stale "deploying" badge after a crash.
-			if err := m.store.UpdateAppStatus(ctx, d.AppID, "failed"); err != nil {
-				m.logger.Warn("reclaim sweep: app status update failed",
-					"app_id", d.AppID, "error", err)
+			app, aerr := m.store.GetApp(ctx, d.AppID)
+			if aerr == nil && app != nil {
+				if err := m.store.UpdateAppStatus(ctx, d.AppID, "failed", app.TenantID); err != nil {
+					m.logger.Warn("reclaim sweep: app status update failed",
+						"app_id", d.AppID, "error", err)
+				}
+				reclaimed++
 			}
-			reclaimed++
 		}
 	}
 	if reclaimed > 0 {
@@ -175,9 +175,7 @@ func (m *Module) reclaimStaleDeployments(ctx context.Context) {
 	}
 }
 
-// cleanOrphanContainers removes containers with monster.managed=true whose
-// app no longer exists in the store. This handles containers left behind by
-// a crash or unclean shutdown.
+
 func (m *Module) cleanOrphanContainers(ctx context.Context) {
 	containers, err := m.docker.ListByLabels(ctx, map[string]string{"monster.managed": "true"})
 	if err != nil {

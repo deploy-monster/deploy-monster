@@ -44,8 +44,8 @@ func (h *MCPHandler) CallTool(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var input json.RawMessage
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		input = []byte("{}")
+	if !decodeJSONInto(w, r, &input) {
+		return
 	}
 
 	result, err := h.handler.HandleToolCall(r.Context(), toolName, input)

@@ -238,6 +238,22 @@ func TestMarketplaceDeploy_InvalidJSON(t *testing.T) {
 	assertErrorMessage(t, rr, "invalid request body")
 }
 
+func TestMarketplaceDeploy_RejectsUnknownFields(t *testing.T) {
+	store := newMockStore()
+	h := newDeployHandler(store)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/marketplace/deploy", bytes.NewReader([]byte(`{"slug":"wordpress","extra":true}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req = withClaims(req, "u", "t", "r", "e@x")
+	rr := httptest.NewRecorder()
+
+	h.Deploy(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want 400", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 // TestMarketplaceDeploy_MissingSlug rejects requests without a template slug.
 func TestMarketplaceDeploy_MissingSlug(t *testing.T) {
 	store := newMockStore()

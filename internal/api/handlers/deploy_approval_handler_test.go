@@ -264,3 +264,28 @@ func TestDeployApproval_Reject_NoReason(t *testing.T) {
 		t.Errorf("expected empty reason, got %q", resp["reason"])
 	}
 }
+
+func TestDeployApproval_Reject_InvalidJSON(t *testing.T) {
+	handler := NewDeployApprovalHandler(newMockStore(), nil)
+	handler.pending["appr1"] = &ApprovalRequest{
+		ID:       "appr1",
+		AppID:    "app1",
+		TenantID: "tenant1",
+		Status:   "pending",
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deploy/approvals/appr1/reject", bytes.NewReader([]byte("bad")))
+	req.SetPathValue("id", "appr1")
+	req = withClaims(req, "user1", "tenant1", "role_admin", "admin@test.com")
+	rr := httptest.NewRecorder()
+
+	handler.Reject(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+	if got := handler.pending["appr1"].Status; got != "pending" {
+		t.Fatalf("status changed to %q, want pending", got)
+	}
+}

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { useDebouncedValue } from '../hooks';
 import { Search, Star, ShieldCheck, Box, Sparkles } from 'lucide-react';
-import { marketplaceAPI, type Template, type MarketplaceResponse } from '@/api/marketplace';
+import { marketplaceAPI, type DeployTemplateResponse, type Template, type MarketplaceResponse } from '@/api/marketplace';
 import { useApi } from '../hooks';
 import { cn } from '@/lib/utils';
 import { toast } from '@/stores/toastStore';
@@ -26,7 +26,7 @@ const RATING_CATEGORIES = [
 export function Marketplace() {
   const navigate = useNavigate();
   const { data: templatesResp, loading } = useApi<MarketplaceResponse>('/marketplace');
-  const templates = templatesResp?.data ?? [];
+  const templates = useMemo(() => templatesResp?.data ?? [], [templatesResp]);
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
@@ -47,25 +47,34 @@ export function Marketplace() {
   }, [templates, category, debouncedSearch]);
 
   const featuredTemplates = useMemo(() => {
-    const sorted = [...templates].sort(() => Math.random() - 0.5).slice(0, 8);
-    return ratingTab === 'popular' ? sorted.sort((a, b) => (b.stars || 0) - (a.stars || 0)).slice(0, 6) :
-           ratingTab === 'newest' ? sorted.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 6) :
-           sorted.filter((t) => t.verified).slice(0, 6);
+    const sorted = templates.filter((t) => t.featured);
+    if (ratingTab === 'popular') {
+      return sorted.sort((a, b) => (b.stars || 0) - (a.stars || 0)).slice(0, 6);
+    }
+    if (ratingTab === 'newest') {
+      return sorted
+        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+        .slice(0, 6);
+    }
+    return sorted.filter((t) => t.verified).slice(0, 6);
   }, [templates, ratingTab]);
 
-  const handleDeployTemplate = async (template: Template, variables: Record<string, string>, appName: string) => {
-    try {
-      const app = await marketplaceAPI.deploy({
-        slug: template.slug,
-        name: appName,
-        config: variables,
-      });
-      toast.success(`${template.name} deployment started`);
+  const handleDeployTemplate = async (
+    template: Template,
+    variables: Record<string, string>,
+    appName: string,
+  ): Promise<DeployTemplateResponse> => {
+    const app = await marketplaceAPI.deploy({
+      slug: template.slug,
+      name: appName,
+      config: variables,
+    });
+    toast.success(`${template.name} deployment started`);
+    if (!app.generated_secrets || Object.keys(app.generated_secrets).length === 0) {
       setDeployingTemplate(null);
       navigate(`/apps/${app.app_id}`);
-    } catch (err) {
-      throw err;
     }
+    return app;
   };
 
   const categoryCounts = useMemo(() => {
@@ -124,7 +133,7 @@ export function Marketplace() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search templates..."
+            placeholder="Search templates by name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 w-full sm:w-64"
@@ -160,7 +169,7 @@ export function Marketplace() {
           <div className="flex gap-4 overflow-x-auto pb-4 -mx-2 px-2 scrollbar-hide">
             {featuredTemplates.map((t) => (
               <FeaturedTemplateCard
-                key={t.id}
+                key={t.id ?? t.slug}
                 template={t}
                 onDeploy={(template) => setDeployingTemplate(template)}
                 onClick={(template) => navigate(`/marketplace/${template.slug}`)}
@@ -183,17 +192,28 @@ export function Marketplace() {
       {!loading || filtered.length > 0 ? filtered.length > 0 ? (
         <>
           {category !== 'all' && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="template-count-summary">
               <span>
-                <strong className="text-foreground">{filtered.length}</strong> template{filtered.length !== 1 ? 's' : ''} in{' '}
+                <strong className="text-foreground">{filtered.length} template{filtered.length !== 1 ? 's' : ''}</strong> in{' '}
                 <span className="capitalize text-foreground font-medium">{category}</span>
               </span>
             </div>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {category === 'all' && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="template-count-summary">
+              <span>
+                <strong className="text-foreground">{filtered.length} template{filtered.length !== 1 ? 's' : ''}</strong>
+              </span>
+              <span>/</span>
+              <span>
+                <strong className="text-foreground">{templates.filter((t) => t.featured).length} featured</strong>
+              </span>
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" data-testid="template-grid">
             {filtered.map((t) => (
               <TemplateCard
-                key={t.id}
+                key={t.id ?? t.slug}
                 template={t}
                 onDeploy={(template) => setDeployingTemplate(template)}
                 onClick={(template) => navigate(`/marketplace/${template.slug}`)}
@@ -210,8 +230,22 @@ export function Marketplace() {
           <p className="text-muted-foreground max-w-sm">
             {debouncedSearch
               ? `No templates match "${debouncedSearch}". Try adjusting your search.`
-              : `No templates in this category yet. Check back later.`}
+              : category === 'all'
+                ? 'The marketplace is empty. Check back later.'
+                : `No templates in this category yet. Check back later.`}
           </p>
+          {debouncedSearch && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setCategory('all');
+              }}
+              className="mt-4 text-sm font-medium text-primary hover:underline cursor-pointer"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       ) : null}
 
@@ -221,6 +255,7 @@ export function Marketplace() {
         open={!!deployingTemplate}
         onClose={() => setDeployingTemplate(null)}
         onDeploy={handleDeployTemplate}
+        onOpenApp={(appId) => navigate(`/apps/${appId}`)}
       />
     </div>
   );

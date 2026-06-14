@@ -7,18 +7,82 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ─── Test constants ──────────────────────────────────────────────────────────
 
 const testJWTSecret = "test-secret-key-for-jwt-signing-min32"
+
+func TestDecodeJSONIntoRejectsTrailingJSONValue(t *testing.T) {
+	type payload struct {
+		Name string `json:"name"`
+	}
+
+	tests := []struct {
+		name       string
+		body       string
+		wantOK     bool
+		wantStatus int
+	}{
+		{
+			name:       "valid JSON",
+			body:       `{"name":"app"}`,
+			wantOK:     true,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "valid JSON with trailing whitespace",
+			body:       "{\"name\":\"app\"}\n\t ",
+			wantOK:     true,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "trailing JSON object",
+			body:       `{"name":"app"} {"name":"other"}`,
+			wantOK:     false,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "unknown field",
+			body:       `{"name":"app","unknown":true}`,
+			wantOK:     false,
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tc.body))
+			rr := httptest.NewRecorder()
+			var got payload
+
+			ok := decodeJSONInto(rr, req, &got)
+
+			if ok != tc.wantOK {
+				t.Fatalf("decodeJSONInto ok = %v, want %v", ok, tc.wantOK)
+			}
+			if tc.wantOK {
+				if got.Name != "app" {
+					t.Fatalf("decoded name = %q, want app", got.Name)
+				}
+				return
+			}
+			if rr.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", rr.Code, tc.wantStatus)
+			}
+		})
+	}
+}
 
 // ─── Mock Store ──────────────────────────────────────────────────────────────
 
@@ -417,11 +481,11 @@ func (m *mockStore) GetAppsByIDs(_ context.Context, ids []string) ([]core.Applic
 	return result, nil
 }
 
-func (m *mockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
+func (m *mockStore) ListAppsByProject(_ context.Context, _ string, _ string) ([]core.Application, error) {
 	panic("mockStore.ListAppsByProject not implemented")
 }
 
-func (m *mockStore) UpdateAppStatus(_ context.Context, id, status string) error {
+func (m *mockStore) UpdateAppStatus(_ context.Context, id, status, _ string) error {
 	if m.errUpdateAppStatus != nil {
 		return m.errUpdateAppStatus
 	}
@@ -431,7 +495,7 @@ func (m *mockStore) UpdateAppStatus(_ context.Context, id, status string) error 
 	return nil
 }
 
-func (m *mockStore) DeleteApp(_ context.Context, id string) error {
+func (m *mockStore) DeleteApp(_ context.Context, id string, _ string) error {
 	if m.errDeleteApp != nil {
 		return m.errDeleteApp
 	}
@@ -469,7 +533,7 @@ func (m *mockStore) UpdateTenant(_ context.Context, _ *core.Tenant) error {
 	panic("mockStore.UpdateTenant not implemented")
 }
 
-func (m *mockStore) DeleteTenant(_ context.Context, _ string) error {
+func (m *mockStore) DeleteTenant(_ context.Context, _ string, _ string) error {
 	panic("mockStore.DeleteTenant not implemented")
 }
 
@@ -662,7 +726,7 @@ func (m *mockStore) GetDomain(_ context.Context, id string) (*core.Domain, error
 	return d, nil
 }
 
-func (m *mockStore) ListDomainsByApp(_ context.Context, appID string) ([]core.Domain, error) {
+func (m *mockStore) ListDomainsByApp(_ context.Context, appID string, _ string) ([]core.Domain, error) {
 	if m.errListDomainsByApp != nil {
 		return nil, m.errListDomainsByApp
 	}
@@ -671,7 +735,7 @@ func (m *mockStore) ListDomainsByApp(_ context.Context, appID string) ([]core.Do
 	return m.domainsByApp[appID], nil
 }
 
-func (m *mockStore) DeleteDomain(_ context.Context, id string) error {
+func (m *mockStore) DeleteDomain(_ context.Context, id string, _ string) error {
 	if m.errDeleteDomain != nil {
 		return m.errDeleteDomain
 	}
@@ -687,7 +751,7 @@ func (m *mockStore) DeleteDomain(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) {
+func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string, _ string) (int, error) {
 	return 0, nil
 }
 
@@ -863,7 +927,7 @@ func (m *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { retu
 func (m *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error { return nil }
 
 func (m *mockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, error) {
 	if m.errListMigrations != nil {
@@ -876,7 +940,7 @@ func (m *mockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, e
 	return out, nil
 }
 
-func (m *mockStore) Close() error                 { return nil }
+func (m *mockStore) Close() error { return nil }
 func (m *mockStore) CreateDeploymentAtomicVersion(ctx context.Context, dep *core.Deployment) error {
 	v, vErr := m.AtomicNextDeployVersion(ctx, dep.AppID)
 	if vErr != nil {
@@ -892,9 +956,21 @@ func (m *mockStore) CreateDeploymentAtomicVersion(ctx context.Context, dep *core
 	dep.Version = v
 	return nil
 }
-func (m *mockStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) { return nil, nil }
-func (m *mockStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) { return nil, nil }
-func (m *mockStore) ListDomainsByAppIDs(_ context.Context, appIDs []string) (map[string][]core.Domain, error) {
+func (m *mockStore) GetLatestDeploymentsByAppIDs(_ context.Context, appIDs []string) (map[string]*core.Deployment, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make(map[string]*core.Deployment, len(appIDs))
+	for _, appID := range appIDs {
+		if dep, ok := m.latestDeployments[appID]; ok {
+			result[appID] = dep
+		}
+	}
+	return result, nil
+}
+func (m *mockStore) GetUsersByIDs(_ context.Context, _ []string, _ string) ([]core.User, error) {
+	return nil, nil
+}
+func (m *mockStore) ListDomainsByAppIDs(_ context.Context, appIDs []string, _ string) (map[string][]core.Domain, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	result := make(map[string][]core.Domain)
@@ -948,16 +1024,17 @@ func testCore() *core.Core {
 }
 
 // seedTestUser creates a user in the mock store with a bcrypt-hashed password
-// and a matching membership. Returns the user.
+// and a matching membership. The low test cost keeps handler tests fast while
+// still exercising bcrypt's encoded-cost verification path.
 func seedTestUser(store *mockStore, id, email, password, tenantID, roleID string) *core.User {
-	hash, err := auth.HashPassword(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
 	if err != nil {
 		panic("seedTestUser: " + err.Error())
 	}
 	u := &core.User{
 		ID:           id,
 		Email:        email,
-		PasswordHash: hash,
+		PasswordHash: string(hash),
 		Name:         "Test User",
 		Status:       "active",
 	}
@@ -1062,7 +1139,7 @@ func (m *mockContainerRuntime) Exec(_ context.Context, _ string, cmd []string) (
 }
 
 func (m *mockContainerRuntime) Stats(_ context.Context, _ string) (*core.ContainerStats, error) {
-	return &core.ContainerStats{}, nil
+	return &core.ContainerStats{Running: true}, nil
 }
 
 func (m *mockContainerRuntime) ImagePull(_ context.Context, _ string) error { return nil }

@@ -339,6 +339,30 @@ func TestReloadConfig_AppliesSafeFields(t *testing.T) {
 	}
 }
 
+func TestReloadConfig_AppliesSafeFields_NilEventBus(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "monster.yaml")
+
+	os.WriteFile(yamlPath, []byte("server:\n  port: 8443\n  host: 0.0.0.0\n  log_level: info\n"), 0644)
+
+	c := &Core{
+		Config: &Config{},
+		Logger: discardLogger(),
+	}
+	applyDefaults(c.Config)
+	c.Config.Server.LogLevel = "info"
+	c.ConfigPath = yamlPath
+
+	os.WriteFile(yamlPath, []byte("server:\n  port: 8443\n  host: 0.0.0.0\n  log_level: debug\n"), 0644)
+
+	if err := c.ReloadConfig(); err != nil {
+		t.Fatalf("ReloadConfig: %v", err)
+	}
+	if c.Config.Server.LogLevel != "debug" {
+		t.Errorf("log_level = %q, want debug", c.Config.Server.LogLevel)
+	}
+}
+
 func TestReloadConfig_NoChanges(t *testing.T) {
 	dir := t.TempDir()
 	yamlPath := filepath.Join(dir, "monster.yaml")
@@ -370,6 +394,24 @@ func TestReloadConfig_InvalidFile(t *testing.T) {
 	err := c.ReloadConfig()
 	if err == nil {
 		t.Fatal("ReloadConfig should fail with invalid file path")
+	}
+}
+
+func TestCore_Run_NilEventBusAndScheduler(t *testing.T) {
+	cfg := &Config{}
+	applyDefaults(cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	c := &Core{
+		Config:   cfg,
+		Build:    BuildInfo{Version: "test"},
+		Registry: NewRegistry(),
+		Logger:   discardLogger(),
+	}
+
+	if err := c.Run(ctx); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 }
 

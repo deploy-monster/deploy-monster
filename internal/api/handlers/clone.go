@@ -57,7 +57,7 @@ func (h *CloneHandler) Clone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.Publish(r.Context(), core.NewEvent(core.EventAppCreated, "api",
+	publishEvent(r.Context(), h.events, core.NewEvent(core.EventAppCreated, "api",
 		core.AppEventData{AppID: clone.ID, AppName: clone.Name}))
 
 	writeJSON(w, http.StatusCreated, clone)

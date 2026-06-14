@@ -290,6 +290,34 @@ func TestDetailedHealth_Success(t *testing.T) {
 	}
 }
 
+func TestDetailedHealth_NilEventBus(t *testing.T) {
+	c := testCore()
+	c.Events = nil
+	c.Store = newMockStore()
+	c.Registry = core.NewRegistry()
+
+	handler := NewDetailedHealthHandler(c)
+
+	req := httptest.NewRequest(http.MethodGet, "/health/detailed", nil)
+	rr := httptest.NewRecorder()
+
+	handler.DetailedHealth(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	checks := resp["checks"].(map[string]any)
+	events := checks["events"].(map[string]any)
+	if events["healthy"] != false {
+		t.Errorf("expected events healthy=false, got %v", events["healthy"])
+	}
+}
+
 func TestDetailedHealth_NilStore(t *testing.T) {
 	c := testCore()
 	c.Store = nil // no store

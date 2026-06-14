@@ -148,7 +148,7 @@ function AuditSkeleton() {
 
 export function Team() {
   const { data: membersResp, loading: membersLoading, refetch: refetchMembers } = useApi<
-    { data: TeamMember[]; total: number } | TeamMember[]
+    PaginatedResponse<TeamMember> | TeamMember[]
   >('/team/members');
   const members = Array.isArray(membersResp) ? membersResp : membersResp?.data;
   const { data: auditLog, loading: auditLoading } = useApi<PaginatedResponse<AuditEntry> | AuditEntry[]>('/team/audit-log');

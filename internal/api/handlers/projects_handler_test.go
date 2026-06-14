@@ -159,6 +159,23 @@ func TestCreateProject_DefaultEnvironment(t *testing.T) {
 	}
 }
 
+func TestCreateProject_RejectsUnknownFields(t *testing.T) {
+	store := newMockStore()
+	handler := NewProjectHandler(store, testCore().Events)
+
+	body := []byte(`{"name":"Test","extra":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/projects", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestCreateProject_NoClaims(t *testing.T) {
 	store := newMockStore()
 	handler := NewProjectHandler(store, testCore().Events)

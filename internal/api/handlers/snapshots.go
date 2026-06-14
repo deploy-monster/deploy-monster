@@ -38,7 +38,7 @@ func (h *SnapshotHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Would use docker commit to create snapshot image
 	snapshotID := core.GenerateID()
 
-	h.events.PublishAsync(r.Context(), core.NewEvent("app.snapshot.created", "api",
+	publishEventAsync(r.Context(), h.events, core.NewEvent("app.snapshot.created", "api",
 		map[string]string{"app_id": app.ID, "snapshot_id": snapshotID}))
 
 	writeJSON(w, http.StatusCreated, SnapshotInfo{

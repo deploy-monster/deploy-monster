@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -171,8 +170,7 @@ func (h *TopologyHandler) Save(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req TopologyDeployRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONAllowUnknownInto(w, r, &req) {
 		return
 	}
 
@@ -267,8 +265,7 @@ func (h *TopologyHandler) Compile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req TopologyDeployRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONAllowUnknownInto(w, r, &req) {
 		return
 	}
 
@@ -329,8 +326,7 @@ func (h *TopologyHandler) Validate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req TopologyDeployRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONAllowUnknownInto(w, r, &req) {
 		return
 	}
 
@@ -352,8 +348,7 @@ func (h *TopologyHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req TopologyDeployRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONAllowUnknownInto(w, r, &req) {
 		return
 	}
 

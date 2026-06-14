@@ -39,7 +39,7 @@ type AgentClient struct {
 	runtime     core.ContainerRuntime
 	conn        net.Conn
 	encoder     *json.Encoder
-	decoder     *json.Decoder
+	decoder     agentDecoder
 	sendMu      sync.Mutex
 	logger      *slog.Logger
 	sys         core.SysMetricsReader
@@ -238,7 +238,7 @@ func (c *AgentClient) dial(ctx context.Context) error {
 
 	c.conn = conn
 	c.encoder = json.NewEncoder(conn)
-	c.decoder = json.NewDecoder(reader)
+	c.decoder = newAgentProtocolDecoder(reader)
 
 	return nil
 }
@@ -265,7 +265,7 @@ func (c *AgentClient) readLoop(ctx context.Context) error {
 
 // handleMessage dispatches a command from the master.
 func (c *AgentClient) handleMessage(ctx context.Context, msg core.AgentMessage) {
-	c.sem <- struct{}{}           // acquire concurrency slot; deferred <-c.sem releases it
+	c.sem <- struct{}{} // acquire concurrency slot; deferred <-c.sem releases it
 	defer func() { <-c.sem }()
 
 	if r := recover(); r != nil {

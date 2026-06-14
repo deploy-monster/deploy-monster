@@ -47,7 +47,7 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if ls.runtime == nil {
-		_, _ = w.Write([]byte("event: error\ndata: container runtime not available\n\n"))
+		writeSSEEvent(w, "error", "container runtime not available")
 		flusher.Flush()
 		return
 	}
@@ -57,7 +57,7 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 		"monster.app.id": appID,
 	})
 	if err != nil || len(containers) == 0 {
-		_, _ = w.Write([]byte("event: error\ndata: no container found\n\n"))
+		writeSSEEvent(w, "error", "no container found")
 		flusher.Flush()
 		return
 	}
@@ -70,7 +70,7 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 
 	logReader, err := ls.runtime.Logs(ctx, containerID, tail, true)
 	if err != nil {
-		_, _ = w.Write([]byte("event: error\ndata: " + err.Error() + "\n\n"))
+		writeSSEEvent(w, "error", err.Error())
 		flusher.Flush()
 		return
 	}
@@ -78,8 +78,7 @@ func (ls *LogStreamer) StreamLogs(w http.ResponseWriter, r *http.Request) {
 
 	scanner := bufio.NewScanner(logReader)
 	for scanner.Scan() {
-		line := scanner.Text()
-		_, _ = w.Write([]byte("data: " + line + "\n\n"))
+		writeSSEEvent(w, "", scanner.Text())
 		flusher.Flush()
 	}
 }
@@ -113,6 +112,12 @@ func (es *EventStreamer) StreamEvents(w http.ResponseWriter, r *http.Request) {
 		return // response already started; cannot send error status
 	}
 
+	if es.events == nil {
+		writeSSEEvent(w, "error", "event bus not available")
+		flusher.Flush()
+		return
+	}
+
 	// Channel to receive events
 	ch := make(chan core.Event, 100)
 
@@ -134,7 +139,10 @@ func (es *EventStreamer) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	// Reset helper to restart the keepalive timer after each ping or event.
 	resetTimer := func() {
 		if !timer.Stop() {
-			<-timer.C // Drain expired channel if stopped
+			select {
+			case <-timer.C:
+			default:
+			}
 		}
 		timer.Reset(30 * time.Second)
 	}
@@ -149,12 +157,12 @@ func (es *EventStreamer) StreamEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		case event := <-ch:
 			data := event.DebugString()
-			_, _ = w.Write([]byte("event: " + event.Type + "\ndata: " + data + "\n\n"))
+			writeSSEEvent(w, event.Type, data)
 			flusher.Flush()
 			resetTimer()
 		case <-timer.C:
 			// Keepalive ping — reset and continue
-			_, _ = w.Write([]byte(": keepalive\n\n"))
+			writeSSEComment(w, "keepalive")
 			flusher.Flush()
 			resetTimer()
 		}

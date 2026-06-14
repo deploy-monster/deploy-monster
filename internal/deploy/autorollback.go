@@ -81,6 +81,10 @@ func NewAutoRollbackManager(store core.Store, runtime core.ContainerRuntime, eve
 // expose an unsubscribe API) but the closed-flag guard inside
 // handleFailure short-circuits after Stop.
 func (ar *AutoRollbackManager) Start() {
+	if ar.events == nil {
+		return
+	}
+
 	ar.events.SubscribeAsync(core.EventDeployFailed, func(ctx context.Context, event core.Event) error {
 		// Fast path: after Stop the whole handler is a no-op. This
 		// prevents a deploy.failed event published during shutdown

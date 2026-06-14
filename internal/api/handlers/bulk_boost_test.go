@@ -172,24 +172,24 @@ type errorAfterCountStore struct {
 	failed   bool
 }
 
-func (s *errorAfterCountStore) UpdateAppStatus(ctx context.Context, id, status string) error {
+func (s *errorAfterCountStore) UpdateAppStatus(ctx context.Context, id, status, tenantID string) error {
 	if s.failOnce && s.failed {
-		return s.mockStore.UpdateAppStatus(ctx, id, status)
+		return s.mockStore.UpdateAppStatus(ctx, id, status, tenantID)
 	}
 	if s.count >= s.after && (s.errOn == "start" || s.errOn == "stop" || s.errOn == "restart") {
 		s.failed = true
 		return errors.New("simulated failure after count")
 	}
 	s.count++
-	return s.mockStore.UpdateAppStatus(ctx, id, status)
+	return s.mockStore.UpdateAppStatus(ctx, id, status, tenantID)
 }
 
-func (s *errorAfterCountStore) DeleteApp(ctx context.Context, id string) error {
+func (s *errorAfterCountStore) DeleteApp(ctx context.Context, id, tenantID string) error {
 	if s.count >= s.after && s.errOn == "delete" {
 		return errors.New("simulated delete failure")
 	}
 	s.count++
-	return s.mockStore.DeleteApp(ctx, id)
+	return s.mockStore.DeleteApp(ctx, id, tenantID)
 }
 
 // Test BulkExecute rollback when the second app fails (first succeeds).

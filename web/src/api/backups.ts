@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, type PaginatedResponse } from './client';
 
 export interface BackupEntry {
   key: string;
@@ -14,7 +14,7 @@ interface CreateBackupRequest {
 }
 
 export const backupsAPI = {
-  list: () => api.get<BackupEntry[]>('/backups'),
+  list: () => api.get<PaginatedResponse<BackupEntry>>('/backups'),
   create: (data: CreateBackupRequest) => api.post('/backups', data),
   restore: (key: string) => api.post(`/backups/restore/${encodeBackupKey(key)}`, {}),
   downloadURL: (key: string) => `/api/v1/backups/download/${encodeBackupKey(key)}`,

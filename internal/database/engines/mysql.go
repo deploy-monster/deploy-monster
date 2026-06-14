@@ -1,6 +1,9 @@
 package engines
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+)
 
 // MySQL implements the Engine interface for MySQL.
 type MySQL struct{}
@@ -27,8 +30,9 @@ func (m *MySQL) HealthCmd() []string {
 }
 
 func (m *MySQL) ConnectionString(host string, port int, creds Credentials) string {
+	// QueryEscape handles special chars in user/password: @ / # : etc.
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-		creds.User, creds.Password, host, port, creds.Database)
+		url.QueryEscape(creds.User), url.QueryEscape(creds.Password), host, port, creds.Database)
 }
 
 // MariaDB implements the Engine interface for MariaDB.
@@ -56,6 +60,7 @@ func (m *MariaDB) HealthCmd() []string {
 }
 
 func (m *MariaDB) ConnectionString(host string, port int, creds Credentials) string {
+	// QueryEscape handles special chars in user/password: @ / # : etc.
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-		creds.User, creds.Password, host, port, creds.Database)
+		url.QueryEscape(creds.User), url.QueryEscape(creds.Password), host, port, creds.Database)
 }

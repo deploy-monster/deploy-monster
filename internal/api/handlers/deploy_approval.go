@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
@@ -131,7 +130,9 @@ func (h *DeployApprovalHandler) Reject(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Reason string `json:"reason"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body) // Reason is optional
+	if !decodeOptionalJSONInto(w, r, &body) { // Reason is optional
+		return
+	}
 
 	h.mu.Lock()
 	req, exists := h.pending[approvalID]

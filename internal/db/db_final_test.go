@@ -21,7 +21,7 @@ func TestSQLite_ListAppsByProject(t *testing.T) {
 	app1 := createApp(t, db, tenantID, projectID, "app-alpha")
 	app2 := createApp(t, db, tenantID, projectID, "app-beta")
 
-	apps, err := db.ListAppsByProject(ctx, projectID)
+	apps, err := db.ListAppsByProject(ctx, projectID, "t-final"
 	if err != nil {
 		t.Fatalf("ListAppsByProject: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestSQLite_ListAppsByProject_Empty(t *testing.T) {
 
 	_, projectID := setupTenantAndProject(t, db)
 
-	apps, err := db.ListAppsByProject(ctx, projectID)
+	apps, err := db.ListAppsByProject(ctx, projectID, "t-final"
 	if err != nil {
 		t.Fatalf("ListAppsByProject: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestSQLite_ListDomainsByApp_WithDomains(t *testing.T) {
 	db.CreateDomain(ctx, d1)
 	db.CreateDomain(ctx, d2)
 
-	domains, err := db.ListDomainsByApp(ctx, app.ID)
+	domains, err := db.ListDomainsByApp(ctx, app.ID, "t-final"
 	if err != nil {
 		t.Fatalf("ListDomainsByApp: %v", err)
 	}

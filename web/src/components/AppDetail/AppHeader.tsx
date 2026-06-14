@@ -3,7 +3,7 @@ import { ArrowLeft, Play, Square, RotateCcw, Trash2, GitBranch, Upload } from 'l
 import { type App } from '@/api/apps';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { cn, getStatusConfig } from './AppStatsCards';
+import { cn, getStatusConfig } from './helpers';
 
 interface AppHeaderProps {
   app: App;

@@ -12,6 +12,7 @@ package autoscale
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -138,11 +139,20 @@ func (m *Module) evaluateAll() {
 	bolt := m.core.DB.Bolt
 	keys, err := bolt.List("autoscale")
 	if err != nil {
+		if !errors.Is(err, core.ErrKVNotFound) {
+			m.logger.Warn("autoscale: list config bucket failed", "error", err)
+		}
 		return
 	}
 	for _, appID := range keys {
 		var cfg autoscaleConfig
-		if err := bolt.Get("autoscale", appID, &cfg); err != nil || !cfg.Enabled {
+		if err := bolt.Get("autoscale", appID, &cfg); err != nil {
+			if !errors.Is(err, core.ErrKVNotFound) {
+				m.logger.Warn("autoscale: get config entry failed", "app_id", appID, "error", err)
+			}
+			continue
+		}
+		if !cfg.Enabled {
 			continue
 		}
 		m.evaluate(appID, cfg)
@@ -253,8 +263,10 @@ func (m *Module) evaluate(appID string, cfg autoscaleConfig) {
 			m.persist(d)
 			return
 		}
-		m.core.Events.PublishAsync(ctx, core.NewEvent(core.EventAppScaled, "autoscale",
-			core.AppEventData{AppID: appID, AppName: app.Name, Status: app.Status}))
+		if m.core.Events != nil {
+			m.core.Events.PublishAsync(ctx, core.NewEvent(core.EventAppScaled, "autoscale",
+				core.AppEventData{AppID: appID, AppName: app.Name, Status: app.Status}))
+		}
 	}
 
 	m.persist(d)

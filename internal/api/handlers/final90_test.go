@@ -219,7 +219,7 @@ func (e *errOnSetBolt) Set(_, _ string, _ any, _ int64) error {
 	return fmt.Errorf("bolt write error")
 }
 func (e *errOnSetBolt) Get(_, _ string, _ any) error {
-	return fmt.Errorf("key not found")
+	return fmt.Errorf("key not found: %w", core.ErrKVNotFound)
 }
 
 // =============================================================================
@@ -299,6 +299,33 @@ func TestPlatformStatsHandler_Success(t *testing.T) {
 	platform := resp["platform"].(map[string]any)
 	if platform["version"] != "1.0.0" {
 		t.Errorf("version = %v", platform["version"])
+	}
+}
+
+func TestPlatformStatsHandler_NilEventBus(t *testing.T) {
+	c := &core.Core{
+		Config:   &core.Config{},
+		Services: core.NewServices(),
+		Logger:   slog.Default(),
+		Build:    core.BuildInfo{Version: "1.0.0"},
+		Registry: core.NewRegistry(),
+	}
+	h := NewPlatformStatsHandler(c)
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/stats", nil)
+	req = withClaims(req, "u1", "t1", "role_super_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Overview(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp["events"] == nil {
+		t.Fatal("expected events field")
 	}
 }
 
@@ -455,6 +482,19 @@ func TestSSHTestHandler_InvalidBody(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
+}
+
+func TestSSHTestHandler_RejectsUnknownFields(t *testing.T) {
+	h := NewSSHTestHandler(core.NewServices())
+
+	req := httptest.NewRequest("POST", "/api/v1/servers/test-ssh", strings.NewReader(`{"host":"127.0.0.1","extra":true}`))
+	rr := httptest.NewRecorder()
+	h.Test(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 func TestSSHTestHandler_UnreachableHost(t *testing.T) {

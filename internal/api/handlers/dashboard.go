@@ -36,7 +36,7 @@ func (h *DashboardHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	// Domain count, scoped through the current tenant's applications.
 	domainCount := 0
 	for _, app := range tenantApps {
-		domains, err := h.store.ListDomainsByApp(r.Context(), app.ID)
+		domains, err := h.store.ListDomainsByApp(r.Context(), app.ID, claims.TenantID)
 		if err != nil {
 			slog.Warn("dashboard: failed to list domains", "app_id", app.ID, "error", err)
 			continue

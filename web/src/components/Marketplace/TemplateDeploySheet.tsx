@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Copy, AlertCircle, CheckCircle2 } from 'lucide-react';
-import type { Template } from '@/api/marketplace';
+import type { DeployTemplateResponse, Template } from '@/api/marketplace';
 import { cn } from '@/lib/utils';
+import { formatGeneratedSecrets, generatedSecretEntries } from '@/lib/generatedSecrets';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,10 +17,12 @@ import { toast } from '@/stores/toastStore';
 interface ConfigVariable {
   name: string;
   label?: string;
+  title?: string;
   type: string;
   description?: string;
   default?: string;
   required?: boolean;
+  secret?: boolean;
   options?: string[];
 }
 
@@ -27,14 +30,18 @@ interface TemplateDeploySheetProps {
   template: Template | null;
   open: boolean;
   onClose: () => void;
-  onDeploy: (t: Template, variables: Record<string, string>, appName: string) => Promise<void>;
+  onDeploy: (t: Template, variables: Record<string, string>, appName: string) => Promise<DeployTemplateResponse | void>;
+  onOpenApp?: (appId: string) => void;
 }
 
-export function TemplateDeploySheet({ template, open, onClose, onDeploy }: TemplateDeploySheetProps) {
+export function TemplateDeploySheet({ template, open, onClose, onDeploy, onOpenApp }: TemplateDeploySheetProps) {
   const [appName, setAppName] = useState('');
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [deploying, setDeploying] = useState(false);
   const [deployError, setDeployError] = useState('');
+  const [generatedSecrets, setGeneratedSecrets] = useState<Record<string, string>>({});
+  const [deployedAppId, setDeployedAppId] = useState('');
+  const [credentialsCopied, setCredentialsCopied] = useState(false);
 
   const handleOpenChange = (o: boolean) => {
     if (!o) {
@@ -42,16 +49,27 @@ export function TemplateDeploySheet({ template, open, onClose, onDeploy }: Templ
       setVariables({});
       setAppName('');
       setDeployError('');
+      setGeneratedSecrets({});
+      setDeployedAppId('');
+      setCredentialsCopied(false);
     }
   };
 
   const handleDeploy = async () => {
-    if (!template || !appName.trim()) return;
+    if (!template) return;
+    const resolvedAppName = appName.trim() || template.slug;
     setDeploying(true);
     setDeployError('');
     try {
-      await onDeploy(template, variables, appName);
-      handleOpenChange(false);
+      const result = await onDeploy(template, variables, resolvedAppName);
+      const secrets = result?.generated_secrets || {};
+      if (Object.keys(secrets).length > 0) {
+        setGeneratedSecrets(secrets);
+        setDeployedAppId(result?.app_id || '');
+        setCredentialsCopied(false);
+      } else {
+        handleOpenChange(false);
+      }
     } catch (err) {
       setDeployError(err instanceof Error ? err.message : 'Deployment failed');
     } finally {
@@ -63,9 +81,22 @@ export function TemplateDeploySheet({ template, open, onClose, onDeploy }: Templ
     ([name, field]) => ({
       name,
       ...field,
+      label: field.title || name,
       required: template?.config_schema?.required?.includes(name) ?? false,
     })
   );
+  const hasGeneratedSecrets = Object.keys(generatedSecrets).length > 0;
+
+  const handleCopyGeneratedSecrets = async () => {
+    try {
+      await navigator.clipboard.writeText(formatGeneratedSecrets(generatedSecrets));
+      setCredentialsCopied(true);
+      toast.success('Credentials copied');
+    } catch {
+      setCredentialsCopied(true);
+      toast.error('Failed to copy credentials');
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -74,7 +105,7 @@ export function TemplateDeploySheet({ template, open, onClose, onDeploy }: Templ
           <div className="flex items-center gap-3">
             {template && <TemplateIcon template={template} size="size-8" />}
             <div>
-              <SheetTitle>{template?.name}</SheetTitle>
+              <SheetTitle>{template ? `Deploy ${template.name}` : 'Deploy Template'}</SheetTitle>
               <SheetDescription>
                 Configure and deploy this template
               </SheetDescription>
@@ -83,6 +114,37 @@ export function TemplateDeploySheet({ template, open, onClose, onDeploy }: Templ
         </SheetHeader>
 
         <SheetBody className="flex-1 overflow-y-auto">
+          {hasGeneratedSecrets ? (
+            <div className="space-y-4">
+              <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+                <Label className="text-sm font-medium">Generated Credentials</Label>
+                <p className="text-xs text-muted-foreground">
+                  These generated values are shown once. Copy or save them before opening the app.
+                </p>
+                <div className="space-y-2">
+                  {generatedSecretEntries(generatedSecrets).map(([key, value]) => (
+                    <div key={key} className="grid gap-1 rounded-md border bg-background px-3 py-2">
+                      <span className="text-xs font-medium text-muted-foreground">{key}</span>
+                      <code className="break-all text-sm">{value}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button variant="outline" onClick={handleCopyGeneratedSecrets}>
+                  <Copy className="size-4" />
+                  Copy Credentials
+                </Button>
+                <Button
+                  onClick={() => deployedAppId && onOpenApp?.(deployedAppId)}
+                  disabled={!credentialsCopied || !deployedAppId}
+                >
+                  Open App
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
           {template?.verified && (
             <div className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2.5 text-sm text-blue-700 dark:text-blue-400 mb-4">
               <CheckCircle2 className="size-4 shrink-0" />
@@ -92,7 +154,7 @@ export function TemplateDeploySheet({ template, open, onClose, onDeploy }: Templ
 
           {/* App name */}
           <div className="space-y-1.5 mb-6">
-            <Label htmlFor="deploy-app-name">Application Name *</Label>
+            <Label htmlFor="deploy-app-name">Stack Name *</Label>
             <Input
               id="deploy-app-name"
               value={appName}
@@ -122,20 +184,24 @@ export function TemplateDeploySheet({ template, open, onClose, onDeploy }: Templ
               {deployError}
             </div>
           )}
+            </>
+          )}
         </SheetBody>
 
-        <div className="flex items-center gap-2 pt-4 border-t mt-4">
+        {!hasGeneratedSecrets && (
+          <div className="flex items-center gap-2 pt-4 border-t mt-4">
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={deploying} className="flex-1 cursor-pointer">
             Cancel
           </Button>
           <Button
             onClick={handleDeploy}
-            disabled={!appName.trim() || deploying}
+            disabled={!template || deploying}
             className="flex-1 cursor-pointer"
           >
             {deploying ? 'Deploying...' : 'Deploy Now'}
           </Button>
-        </div>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
@@ -152,7 +218,11 @@ interface VariableFieldProps {
 }
 
 function VariableField({ field, value, onChange }: VariableFieldProps) {
-  const isSecret = field.type === 'password' || field.name.toLowerCase().includes('secret') || field.name.toLowerCase().includes('password');
+  const isSecret =
+    field.secret ||
+    field.type === 'password' ||
+    field.name.toLowerCase().includes('secret') ||
+    field.name.toLowerCase().includes('password');
   const isRequired = field.required ?? false;
 
   return (
@@ -235,51 +305,6 @@ function VariableField({ field, value, onChange }: VariableFieldProps) {
       {field.description && (
         <p className="text-[11px] text-muted-foreground mt-0.5">{field.description}</p>
       )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Generated secrets copy button                                      */
-/* ------------------------------------------------------------------ */
-
-interface GeneratedSecretsProps {
-  entries: { key: string; value: string }[];
-}
-
-export function GeneratedSecrets({ entries }: GeneratedSecretsProps) {
-  if (entries.length === 0) return null;
-
-  return (
-    <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">Generated secrets — copy to use in your app</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 text-xs cursor-pointer"
-          onClick={() => {
-            const text = entries.map((e) => `${e.key}=${e.value}`).join('\n');
-            navigator.clipboard.writeText(text).then(() => toast.success('Copied!'));
-          }}
-        >
-          <Copy className="size-3" />
-          Copy all
-        </Button>
-      </div>
-      {entries.map((e) => (
-        <div key={e.key} className="flex items-center gap-2 text-xs">
-          <code className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{e.key}</code>
-          <code className="font-mono text-[10px] text-foreground bg-muted px-1.5 py-0.5 rounded flex-1 truncate">{e.value}</code>
-          <button
-            type="button"
-            onClick={() => navigator.clipboard.writeText(e.value).then(() => toast.success('Copied'))}
-            className="text-muted-foreground hover:text-foreground cursor-pointer"
-          >
-            <Copy className="size-3" />
-          </button>
-        </div>
-      ))}
     </div>
   );
 }

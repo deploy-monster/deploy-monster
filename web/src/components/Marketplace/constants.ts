@@ -1,4 +1,4 @@
-export const CATEGORY_COLORS: Record<string, { bg: string; text: string; iconBg: string }> = {
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; iconBg: string }> = {
   ai:            { bg: 'bg-violet-500/10',  text: 'text-violet-600 dark:text-violet-400',  iconBg: 'bg-violet-500' },
   cms:           { bg: 'bg-blue-500/10',    text: 'text-blue-600 dark:text-blue-400',      iconBg: 'bg-blue-500' },
   monitoring:    { bg: 'bg-emerald-500/10',  text: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-500' },
@@ -20,7 +20,7 @@ export const CATEGORY_COLORS: Record<string, { bg: string; text: string; iconBg:
   networking:    { bg: 'bg-slate-500/10',   text: 'text-slate-600 dark:text-slate-400',    iconBg: 'bg-slate-500' },
 };
 
-export const DEFAULT_CATEGORY_COLOR = { bg: 'bg-muted', text: 'text-muted-foreground', iconBg: 'bg-muted-foreground' };
+const DEFAULT_CATEGORY_COLOR = { bg: 'bg-muted', text: 'text-muted-foreground', iconBg: 'bg-muted-foreground' };
 
 export function getCategoryColor(category: string) {
   return CATEGORY_COLORS[category.toLowerCase()] || DEFAULT_CATEGORY_COLOR;

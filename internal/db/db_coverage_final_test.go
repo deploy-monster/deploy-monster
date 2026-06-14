@@ -122,7 +122,7 @@ func TestSQLite_ListAppsByProject_ClosedDB(t *testing.T) {
 	}
 	db.Close()
 
-	_, err = db.ListAppsByProject(context.Background(), "proj-1")
+	_, err = db.ListAppsByProject(context.Background(), "proj-1", "t-coverage")
 	if err == nil {
 		t.Error("expected error for ListAppsByProject on closed DB")
 	}
@@ -164,7 +164,7 @@ func TestSQLite_ListDomainsByApp_ClosedDB(t *testing.T) {
 	}
 	db.Close()
 
-	_, err = db.ListDomainsByApp(context.Background(), "app-1")
+	_, err = db.ListDomainsByApp(context.Background(), "app-1", "t-coverage")
 	if err == nil {
 		t.Error("expected error for ListDomainsByApp on closed DB")
 	}
@@ -454,7 +454,7 @@ func TestSQLite_DeleteTenant_ClosedDB(t *testing.T) {
 	}
 	db.Close()
 
-	err = db.DeleteTenant(context.Background(), "t-1")
+	err = db.DeleteTenant(context.Background(), "t-1", "t-coverage")
 	if err == nil {
 		t.Error("expected error for DeleteTenant on closed DB")
 	}
@@ -540,7 +540,7 @@ func TestSQLite_UpdateAppStatus_ClosedDB(t *testing.T) {
 	}
 	db.Close()
 
-	err = db.UpdateAppStatus(context.Background(), "a-1", "stopped")
+	err = db.UpdateAppStatus(context.Background(), "a-1", "stopped", "t-coverage")
 	if err == nil {
 		t.Error("expected error for UpdateAppStatus on closed DB")
 	}
@@ -554,7 +554,7 @@ func TestSQLite_DeleteApp_ClosedDB(t *testing.T) {
 	}
 	db.Close()
 
-	err = db.DeleteApp(context.Background(), "a-1")
+	err = db.DeleteApp(context.Background(), "a-1", "t-coverage")
 	if err == nil {
 		t.Error("expected error for DeleteApp on closed DB")
 	}
@@ -601,7 +601,7 @@ func TestSQLite_DeleteDomain_ClosedDB(t *testing.T) {
 	}
 	db.Close()
 
-	err = db.DeleteDomain(context.Background(), "d-1")
+	err = db.DeleteDomain(context.Background(), "d-1", "t-coverage")
 	if err == nil {
 		t.Error("expected error for DeleteDomain on closed DB")
 	}
@@ -807,7 +807,7 @@ func TestSQLite_DeleteTenant(t *testing.T) {
 	tenant := &core.Tenant{Name: "DelMe", Slug: "del-" + core.GenerateID()[:8], Status: "active", PlanID: "free"}
 	db.CreateTenant(ctx, tenant)
 
-	if err := db.DeleteTenant(ctx, tenant.ID); err != nil {
+	if err := db.DeleteTenant(ctx, tenant.ID, tenant.ID); err != nil {
 		t.Fatalf("DeleteTenant: %v", err)
 	}
 
@@ -849,7 +849,7 @@ func TestSQLite_DeleteApp(t *testing.T) {
 	tenantID, projectID := setupTenantAndProject(t, db)
 	app := createApp(t, db, tenantID, projectID, "delete-me-app")
 
-	if err := db.DeleteApp(ctx, app.ID); err != nil {
+	if err := db.DeleteApp(ctx, app.ID, app.TenantID); err != nil {
 		t.Fatalf("DeleteApp: %v", err)
 	}
 
@@ -869,7 +869,7 @@ func TestSQLite_DeleteDomain(t *testing.T) {
 	dom := &core.Domain{AppID: app.ID, FQDN: "delete.example.com", Type: "custom", DNSProvider: "cf"}
 	db.CreateDomain(ctx, dom)
 
-	if err := db.DeleteDomain(ctx, dom.ID); err != nil {
+	if err := db.DeleteDomain(ctx, dom.ID, dom.AppID; err != nil {
 		t.Fatalf("DeleteDomain: %v", err)
 	}
 
@@ -905,7 +905,7 @@ func TestSQLite_UpdateAppStatus(t *testing.T) {
 	tenantID, projectID := setupTenantAndProject(t, db)
 	app := createApp(t, db, tenantID, projectID, "status-app")
 
-	if err := db.UpdateAppStatus(ctx, app.ID, "stopped"); err != nil {
+	if err := db.UpdateAppStatus(ctx, app.ID, "stopped", app.TenantID; err != nil {
 		t.Fatalf("UpdateAppStatus: %v", err)
 	}
 

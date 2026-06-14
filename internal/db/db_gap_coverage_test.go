@@ -137,7 +137,7 @@ func TestSQLite_Backup_CRUD(t *testing.T) {
 	}
 
 	// Update status → completed
-	if err := db.UpdateBackupStatus(ctx, backup.ID, "completed", 1024); err != nil {
+	if err := db.UpdateBackupStatus(ctx, backup.ID, "completed", 1024, backup.TenantID; err != nil {
 		t.Fatalf("UpdateBackupStatus completed: %v", err)
 	}
 
@@ -167,7 +167,7 @@ func TestSQLite_Backup_CRUD(t *testing.T) {
 	if err := db.CreateBackup(ctx, backup2); err != nil {
 		t.Fatalf("CreateBackup 2: %v", err)
 	}
-	if err := db.UpdateBackupStatus(ctx, backup2.ID, "failed", 0); err != nil {
+	if err := db.UpdateBackupStatus(ctx, backup2.ID, "failed", 0, backup2.TenantID; err != nil {
 		t.Fatalf("UpdateBackupStatus failed: %v", err)
 	}
 

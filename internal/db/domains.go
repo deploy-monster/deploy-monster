@@ -50,12 +50,15 @@ func (s *SQLiteDB) GetDomain(ctx context.Context, id string) (*core.Domain, erro
 	return d, err
 }
 
-// ListDomainsByApp returns all domains for an application.
-func (s *SQLiteDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.Domain, error) {
+// ListDomainsByApp returns all domains for an application, scoped to tenantID.
+func (s *SQLiteDB) ListDomainsByApp(ctx context.Context, appID, tenantID string) ([]core.Domain, error) {
 	rows, err := s.QueryContext(ctx,
-		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
-		 FROM domains WHERE app_id = ? ORDER BY created_at LIMIT 500`,
-		appID,
+		`SELECT d.id, d.app_id, d.fqdn, d.type, d.dns_provider, d.dns_synced, d.verified, d.created_at
+		 FROM domains d
+		 JOIN applications a ON a.id = d.app_id
+		 WHERE d.app_id = ? AND a.tenant_id = ?
+		 ORDER BY d.created_at LIMIT 500`,
+		appID, tenantID,
 	)
 	if err != nil {
 		return nil, err
@@ -74,9 +77,13 @@ func (s *SQLiteDB) ListDomainsByApp(ctx context.Context, appID string) ([]core.D
 	return domains, rows.Err()
 }
 
-// DeleteDomainsByApp removes all domains for an application. Returns the count deleted.
-func (s *SQLiteDB) DeleteDomainsByApp(ctx context.Context, appID string) (int, error) {
-	result, err := s.ExecContext(ctx, `DELETE FROM domains WHERE app_id = ?`, appID)
+// DeleteDomainsByApp removes all domains for an application, scoped to tenantID.
+func (s *SQLiteDB) DeleteDomainsByApp(ctx context.Context, appID, tenantID string) (int, error) {
+	result, err := s.ExecContext(ctx,
+		`DELETE FROM domains WHERE app_id = ? AND app_id IN (
+			SELECT id FROM applications WHERE id = ? AND tenant_id = ?
+		)`,
+		appID, appID, tenantID)
 	if err != nil {
 		return 0, err
 	}
@@ -107,44 +114,78 @@ func (s *SQLiteDB) ListAllDomains(ctx context.Context) ([]core.Domain, error) {
 	return domains, rows.Err()
 }
 
-// DeleteDomain removes a domain by ID.
-func (s *SQLiteDB) DeleteDomain(ctx context.Context, id string) error {
+// DeleteDomain removes a domain by ID, scoped to tenantID.
+func (s *SQLiteDB) DeleteDomain(ctx context.Context, id, tenantID string) error {
 	return s.Tx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `DELETE FROM domains WHERE id = ?`, id)
+		_, err := tx.ExecContext(ctx,
+			`DELETE FROM domains WHERE id = ? AND app_id IN (
+				SELECT id FROM applications WHERE tenant_id = ?
+			)`,
+			id, tenantID)
 		return err
 	})
 }
 
-// ListDomainsByAppIDs retrieves domains for multiple apps in a single query.
-// Returns a map from appID to its domains.
-func (s *SQLiteDB) ListDomainsByAppIDs(ctx context.Context, appIDs []string) (map[string][]core.Domain, error) {
+// ListDomainsByAppIDs retrieves domains for multiple apps in a single query,
+// scoped to tenantID. Only returns domains for apps owned by the tenant.
+func (s *SQLiteDB) ListDomainsByAppIDs(ctx context.Context, appIDs []string, tenantID string) (map[string][]core.Domain, error) {
 	if len(appIDs) == 0 {
 		return nil, nil
 	}
-	placeholders := strings.Repeat("?,", len(appIDs))
-	placeholders = placeholders[:len(placeholders)-1]
-	query := fmt.Sprintf(
-		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
-		 FROM domains WHERE app_id IN (%s) ORDER BY created_at`,
-		placeholders,
+	// Filter appIDs to only those belonging to the tenant.
+	allowedPlaceholders := strings.Repeat("?,", len(appIDs))
+	allowedPlaceholders = allowedPlaceholders[:len(allowedPlaceholders)-1]
+	allowedQuery := fmt.Sprintf(
+		`SELECT id FROM applications WHERE id IN (%s) AND tenant_id = ?`,
+		allowedPlaceholders,
 	)
-	args := make([]any, len(appIDs))
+	args := make([]any, len(appIDs)+1)
 	for i, id := range appIDs {
 		args[i] = id
 	}
-	rows, err := s.QueryContext(ctx, query, args...)
+	args[len(appIDs)] = tenantID
+	rows, err := s.QueryContext(ctx, allowedQuery, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	result := make(map[string][]core.Domain)
+	var allowedIDs []string
 	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		allowedIDs = append(allowedIDs, id)
+	}
+	rows.Close()
+	if len(allowedIDs) == 0 {
+		return map[string][]core.Domain{}, nil
+	}
+	// Query domains for the allowed appIDs.
+	domainPlaceholders := strings.Repeat("?,", len(allowedIDs))
+	domainPlaceholders = domainPlaceholders[:len(domainPlaceholders)-1]
+	domainQuery := fmt.Sprintf(
+		`SELECT id, app_id, fqdn, type, dns_provider, dns_synced, verified, created_at
+		 FROM domains WHERE app_id IN (%s) ORDER BY created_at`,
+		domainPlaceholders,
+	)
+	domainArgs := make([]any, len(allowedIDs))
+	for i, id := range allowedIDs {
+		domainArgs[i] = id
+	}
+	domainRows, err := s.QueryContext(ctx, domainQuery, domainArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer domainRows.Close()
+	result := make(map[string][]core.Domain)
+	for domainRows.Next() {
 		var d core.Domain
-		if err := rows.Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider,
+		if err := domainRows.Scan(&d.ID, &d.AppID, &d.FQDN, &d.Type, &d.DNSProvider,
 			&d.DNSSynced, &d.Verified, &d.CreatedAt); err != nil {
 			return nil, err
 		}
 		result[d.AppID] = append(result[d.AppID], d)
 	}
-	return result, rows.Err()
+	return result, domainRows.Err()
 }

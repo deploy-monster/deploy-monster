@@ -34,6 +34,7 @@ vi.mock('@/api/client', () => ({
 
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
+const clipboardWriteMock = vi.fn();
 vi.mock('@/stores/toastStore', () => ({
   toast: {
     success: (msg: string) => toastSuccessMock(msg),
@@ -79,9 +80,14 @@ describe('Domains page', () => {
   beforeEach(() => {
     useApiState.data = null;
     useApiState.loading = true;
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteMock },
+    });
     refetchMock.mockReset();
     apiPostMock.mockReset().mockResolvedValue(undefined);
     apiDeleteMock.mockReset().mockResolvedValue(undefined);
+    clipboardWriteMock.mockReset().mockResolvedValue(undefined);
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
   });
@@ -145,6 +151,22 @@ describe('Domains page', () => {
 
     expect(screen.queryByText('alpha.example.com')).not.toBeInTheDocument();
     expect(screen.getByText('beta.example.com')).toBeInTheDocument();
+  });
+
+  it('copies a domain name and reports clipboard failures', async () => {
+    useApiState.data = [fakeDomain({ id: 'd1', fqdn: 'copy.example.com' })];
+    useApiState.loading = false;
+    renderDomains();
+
+    fireEvent.click(screen.getByTitle(/copy domain/i));
+
+    await waitFor(() => expect(clipboardWriteMock).toHaveBeenCalledWith('copy.example.com'));
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Domain copied to clipboard'));
+
+    clipboardWriteMock.mockRejectedValueOnce(new Error('denied'));
+    fireEvent.click(screen.getByTitle(/copy domain/i));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('Failed to copy domain'));
   });
 
   it('shows the "no results" copy when the search matches nothing', () => {

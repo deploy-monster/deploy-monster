@@ -265,6 +265,22 @@ func TestCreateVolume_InvalidJSON(t *testing.T) {
 	assertErrorMessage(t, rr, "invalid request body")
 }
 
+func TestCreateVolume_RejectsUnknownFields(t *testing.T) {
+	handler := NewVolumeHandler(nil, nil, testCore().Events)
+
+	body := []byte(`{"name":"my-volume","extra":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/volumes", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestCreateVolume_MissingName(t *testing.T) {
 	handler := NewVolumeHandler(nil, nil, testCore().Events)
 

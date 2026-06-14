@@ -30,7 +30,7 @@ func (h *WebhookReplayHandler) Replay(w http.ResponseWriter, r *http.Request) {
 	// Would look up the original webhook payload from webhook_logs table
 	// and re-dispatch it through the build→deploy pipeline
 
-	h.events.PublishAsync(r.Context(), core.NewEvent(core.EventWebhookReceived, "api",
+	publishEventAsync(r.Context(), h.events, core.NewEvent(core.EventWebhookReceived, "api",
 		core.WebhookEventData{WebhookID: logID, Provider: "replay"}))
 
 	writeJSON(w, http.StatusAccepted, map[string]any{

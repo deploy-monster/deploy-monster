@@ -222,6 +222,47 @@ func TestTopologyHandler_Validate_Success(t *testing.T) {
 	}
 }
 
+func TestTopologyHandler_Validate_AllowsReactFlowNodeMetadata(t *testing.T) {
+	store := newMockStore()
+	bolt := newMockBoltStore()
+	c := &core.Core{DB: &core.Database{Bolt: bolt}}
+	h := NewTopologyHandler(store, c)
+
+	body := []byte(`{
+		"nodes":[{
+			"id":"app-1",
+			"type":"app",
+			"position":{"x":100,"y":100},
+			"data":{"name":"api","gitUrl":"https://github.com/user/api","branch":"main","port":3000},
+			"measured":{"width":180,"height":80},
+			"selected":true,
+			"dragging":false
+		}],
+		"edges":[],
+		"projectId":"proj-1",
+		"environment":"production"
+	}`)
+	httpReq := httptest.NewRequest("POST", "/api/v1/topology/validate", bytes.NewReader(body))
+	ctx := auth.ContextWithClaims(httpReq.Context(), &auth.Claims{
+		UserID:   "user-1",
+		TenantID: "tenant-1",
+		RoleID:   "admin",
+	})
+	httpReq = httpReq.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	h.Validate(w, httpReq)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["valid"] != true {
+		t.Errorf("expected valid=true, got %v", resp["valid"])
+	}
+}
+
 func TestTopologyHandler_Validate_NoClaims(t *testing.T) {
 	store := newMockStore()
 	bolt := newMockBoltStore()

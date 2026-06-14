@@ -41,14 +41,19 @@ type TenantStore interface {
 	GetTenant(ctx context.Context, id string) (*Tenant, error)
 	GetTenantBySlug(ctx context.Context, slug string) (*Tenant, error)
 	UpdateTenant(ctx context.Context, tenant *Tenant) error
-	DeleteTenant(ctx context.Context, id string) error
+	// DeleteTenant removes a tenant, scoped to tenantID.
+	// SECURITY FIX (TENANT-ISO): Without tenantID, cross-tenant delete was possible.
+	DeleteTenant(ctx context.Context, id, tenantID string) error
 }
 
 // UserStore manages user CRUD.
 type UserStore interface {
 	CreateUser(ctx context.Context, user *User) error
 	GetUser(ctx context.Context, id string) (*User, error)
-	GetUsersByIDs(ctx context.Context, ids []string) ([]User, error)
+	// GetUsersByIDs retrieves users, scoped to tenantID.
+	// SECURITY FIX (TENANT-ISO): Without tenantID, batch query could enumerate
+	// users from other tenants by their IDs.
+	GetUsersByIDs(ctx context.Context, ids []string, tenantID string) ([]User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	UpdateUser(ctx context.Context, user *User) error
 	UpdatePassword(ctx context.Context, userID, passwordHash string) error
@@ -69,9 +74,17 @@ type AppStore interface {
 	GetAppByName(ctx context.Context, tenantID, name string) (*Application, error)
 	UpdateApp(ctx context.Context, app *Application) error
 	ListAppsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]Application, int, error)
-	ListAppsByProject(ctx context.Context, projectID string) ([]Application, error)
-	UpdateAppStatus(ctx context.Context, id, status string) error
-	DeleteApp(ctx context.Context, id string) error
+	// ListAppsByProject returns all applications in a project, scoped to tenantID.
+	// SECURITY FIX (TENANT-ISO): Without tenantID filter, a tenant could enumerate
+	// apps in another tenant's project by knowing the projectID.
+	ListAppsByProject(ctx context.Context, projectID, tenantID string) ([]Application, error)
+	// UpdateAppStatus updates an app's status, scoped to tenantID.
+	// SECURITY FIX (TENANT-ISO): Without tenantID, any tenant knowing an appID could
+	// update its status (deploy/stop commands).
+	UpdateAppStatus(ctx context.Context, id, status, tenantID string) error
+	// DeleteApp removes an app, scoped to tenantID.
+	// SECURITY FIX (TENANT-ISO): Without tenantID, cross-tenant delete was possible.
+	DeleteApp(ctx context.Context, id, tenantID string) error
 }
 
 // DeploymentStore manages deployment records.
@@ -112,10 +125,16 @@ type DomainStore interface {
 	CreateDomain(ctx context.Context, domain *Domain) error
 	GetDomain(ctx context.Context, id string) (*Domain, error)
 	GetDomainByFQDN(ctx context.Context, fqdn string) (*Domain, error)
-	ListDomainsByApp(ctx context.Context, appID string) ([]Domain, error)
-	ListDomainsByAppIDs(ctx context.Context, appIDs []string) (map[string][]Domain, error)
-	DeleteDomain(ctx context.Context, id string) error
-	DeleteDomainsByApp(ctx context.Context, appID string) (int, error)
+	// ListDomainsByApp returns domains for an app, scoped to tenantID.
+	// SECURITY FIX (TENANT-ISO): Without tenantID, cross-tenant domain enumeration.
+	ListDomainsByApp(ctx context.Context, appID, tenantID string) ([]Domain, error)
+	// ListDomainsByAppIDs returns domains grouped by appID, scoped to tenantID.
+	ListDomainsByAppIDs(ctx context.Context, appIDs []string, tenantID string) (map[string][]Domain, error)
+	// DeleteDomain removes a domain, scoped to tenantID.
+	DeleteDomain(ctx context.Context, id, tenantID string) error
+	// DeleteDomainsByApp removes all domains for an app, scoped to tenantID.
+	DeleteDomainsByApp(ctx context.Context, appID, tenantID string) (int, error)
+	// ListAllDomains returns all domains across all apps. Admin scope required.
 	ListAllDomains(ctx context.Context) ([]Domain, error)
 }
 
@@ -277,6 +296,7 @@ type ServerStore interface {
 	CreateServer(ctx context.Context, server *Server) error
 	GetServer(ctx context.Context, id string) (*Server, error)
 	ListServersByTenant(ctx context.Context, tenantID string) ([]Server, error)
+	// ListAllServers returns all servers. Admin scope required.
 	ListAllServers(ctx context.Context) ([]Server, error)
 	UpdateServerStatus(ctx context.Context, id, status string) error
 	DeleteServer(ctx context.Context, id string) error
@@ -447,5 +467,7 @@ type Backup struct {
 type BackupStore interface {
 	CreateBackup(ctx context.Context, backup *Backup) error
 	ListBackupsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]Backup, int, error)
-	UpdateBackupStatus(ctx context.Context, id, status string, sizeBytes int64) error
+	// UpdateBackupStatus updates a backup's status, scoped to tenantID.
+	// SECURITY FIX (TENANT-ISO): Without tenantID, cross-tenant status update possible.
+	UpdateBackupStatus(ctx context.Context, id, status string, sizeBytes int64, tenantID string) error
 }

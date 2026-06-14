@@ -56,7 +56,7 @@ func (h *WebhookTestDeliveryHandler) TestDeliver(w http.ResponseWriter, r *http.
 	payload, _ := json.Marshal(testPayload)
 
 	// Emit event so the outbound webhook system picks it up
-	h.events.Publish(r.Context(), core.NewEvent("webhook.test."+appID, "api", map[string]any{
+	publishEvent(r.Context(), h.events, core.NewEvent("webhook.test."+appID, "api", map[string]any{
 		"app_id":      appID,
 		"delivery_id": deliveryID,
 		"payload":     string(payload),

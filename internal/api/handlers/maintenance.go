@@ -64,7 +64,7 @@ func (h *MaintenanceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		action = "enabled"
 	}
 
-	h.events.PublishAsync(r.Context(), core.NewEvent("app.maintenance", "api",
+	publishEventAsync(r.Context(), h.events, core.NewEvent("app.maintenance", "api",
 		map[string]string{"app_id": appID, "action": action}))
 
 	writeJSON(w, http.StatusOK, map[string]any{

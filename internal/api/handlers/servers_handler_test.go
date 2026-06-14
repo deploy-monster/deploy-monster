@@ -383,6 +383,25 @@ func TestProvision_InvalidJSON(t *testing.T) {
 	assertErrorMessage(t, rr, "invalid request body")
 }
 
+func TestProvision_RejectsUnknownFields(t *testing.T) {
+	services := core.NewServices()
+	store := newMockStore()
+	events := core.NewEventBus(nil)
+	handler := NewServerHandler(store, services, events)
+
+	body := []byte(`{"provider":"custom","name":"srv","region":"custom","size":"custom","ip_address":"127.0.0.1","extra":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/provision", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
+	rr := httptest.NewRecorder()
+
+	handler.Provision(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestProvision_MissingFields(t *testing.T) {
 	services := core.NewServices()
 	store := newMockStore()

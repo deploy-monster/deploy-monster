@@ -176,6 +176,35 @@ func TestNotificationModule_Send_UnknownChannel(t *testing.T) {
 	}
 }
 
+func TestNotificationModule_Start_NilEventBus(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	c := &core.Core{
+		Config:   &core.Config{},
+		Services: core.NewServices(),
+		Logger:   logger,
+	}
+	m := New()
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start with nil EventBus: %v", err)
+	}
+	if err := m.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+}
+
+func TestNotificationModule_Send_NilEventBus(t *testing.T) {
+	m := newTestModule(t)
+	m.core.Events = nil
+	m.dispatcher.RegisterProvider(newStubProvider("stub"))
+
+	if err := m.Send(context.Background(), core.Notification{Channel: "stub", Body: "x"}); err != nil {
+		t.Fatalf("Send with nil EventBus: %v", err)
+	}
+}
+
 func TestNotificationModule_Send_ConcurrentRespectClosed(t *testing.T) {
 	// 50 concurrent Sends race against a Stop. Every Send must either
 	// succeed (wg properly balanced) or return ErrNotificationsClosed.

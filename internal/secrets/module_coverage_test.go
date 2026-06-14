@@ -79,7 +79,7 @@ func (m *mockSecretStore) GetTenantBySlug(_ context.Context, _ string) (*core.Te
 	return nil, core.ErrNotFound
 }
 func (m *mockSecretStore) UpdateTenant(_ context.Context, _ *core.Tenant) error { return nil }
-func (m *mockSecretStore) DeleteTenant(_ context.Context, _ string) error       { return nil }
+func (m *mockSecretStore) DeleteTenant(_ context.Context, _ string, _ string) error       { return nil }
 func (m *mockSecretStore) CreateTenantWithDefaults(_ context.Context, _, _ string) (string, error) {
 	return "", nil
 }
@@ -108,11 +108,11 @@ func (m *mockSecretStore) UpdateApp(_ context.Context, _ *core.Application) erro
 func (m *mockSecretStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
 	return nil, 0, nil
 }
-func (m *mockSecretStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
+func (m *mockSecretStore) ListAppsByProject(_ context.Context, _ string, _ string) ([]core.Application, error) {
 	return nil, nil
 }
-func (m *mockSecretStore) UpdateAppStatus(_ context.Context, _, _ string) error { return nil }
-func (m *mockSecretStore) DeleteApp(_ context.Context, _ string) error          { return nil }
+func (m *mockSecretStore) UpdateAppStatus(_ context.Context, _, _, _ string) error { return nil }
+func (m *mockSecretStore) DeleteApp(_ context.Context, _ string, _ string) error          { return nil }
 func (m *mockSecretStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
 	return nil, core.ErrNotFound
 }
@@ -140,11 +140,11 @@ func (m *mockSecretStore) GetDomain(_ context.Context, _ string) (*core.Domain, 
 func (m *mockSecretStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, core.ErrNotFound
 }
-func (m *mockSecretStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+func (m *mockSecretStore) ListDomainsByApp(_ context.Context, _ string, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (m *mockSecretStore) DeleteDomain(_ context.Context, _ string) error              { return nil }
-func (m *mockSecretStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
+func (m *mockSecretStore) DeleteDomain(_ context.Context, _ string, _ string) error              { return nil }
+func (m *mockSecretStore) DeleteDomainsByApp(_ context.Context, _ string, _ string) (int, error) { return 0, nil }
 func (m *mockSecretStore) ListAllDomains(_ context.Context) ([]core.Domain, error)     { return nil, nil }
 func (m *mockSecretStore) CreateProject(_ context.Context, _ *core.Project) error      { return nil }
 func (m *mockSecretStore) GetProject(_ context.Context, _ string) (*core.Project, error) {
@@ -179,7 +179,7 @@ func (m *mockSecretStore) CreateBackup(_ context.Context, _ *core.Backup) error 
 func (m *mockSecretStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (m *mockSecretStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+func (m *mockSecretStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
 	return nil
 }
 func (m *mockSecretStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
@@ -197,10 +197,10 @@ func (m *mockSecretStore) CreateDeploymentAtomicVersion(_ context.Context, _ *co
 func (m *mockSecretStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) {
 	return nil, nil
 }
-func (m *mockSecretStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) {
+func (m *mockSecretStore) ListDomainsByAppIDs(_ context.Context, _ []string, _ string) (map[string][]core.Domain, error) {
 	return nil, nil
 }
-func (m *mockSecretStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) {
+func (m *mockSecretStore) GetUsersByIDs(_ context.Context, _ []string, _ string) ([]core.User, error) {
 	return nil, nil
 }
 func (m *mockSecretStore) GetAppsByIDs(_ context.Context, _ []string) ([]core.Application, error) {

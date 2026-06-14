@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className="text-center max-w-md">
             <AlertTriangle size={48} className="mx-auto mb-4 text-red-500" />
             <h1 className="text-xl font-semibold text-text-primary mb-2">Something went wrong</h1>
-            <p className="text-text-secondary mb-4">{this.state.error?.message || 'An unexpected error occurred'}</p>
+            <p className="text-text-secondary mb-4" suppressContentEditableWarning={true} contentEditable={false}>{this.state.error ? String(this.state.error.message) : 'An unexpected error occurred'}</p>
             <button onClick={() => window.location.reload()}
               className="px-4 py-2 bg-monster-green text-white rounded-lg hover:bg-monster-green-dark transition-colors">
               Reload Page

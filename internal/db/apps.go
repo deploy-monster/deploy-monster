@@ -129,7 +129,7 @@ func (s *SQLiteDB) ListAppsByTenant(ctx context.Context, tenantID string, limit,
 }
 
 // ListAppsByProject returns all applications in a project.
-func (s *SQLiteDB) ListAppsByProject(ctx context.Context, projectID string) ([]core.Application, error) {
+func (s *SQLiteDB) ListAppsByProject(ctx context.Context, projectID, tenantID string) ([]core.Application, error) {
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
 		        status, replicas, COALESCE(server_id,''), created_at, updated_at
@@ -166,19 +166,19 @@ func (s *SQLiteDB) UpdateApp(ctx context.Context, a *core.Application) error {
 	})
 }
 
-// UpdateAppStatus updates an application's status.
-func (s *SQLiteDB) UpdateAppStatus(ctx context.Context, id, status string) error {
+// UpdateAppStatus updates an application's status, scoped to tenantID.
+func (s *SQLiteDB) UpdateAppStatus(ctx context.Context, id, status, tenantID string) error {
 	_, err := s.ExecContext(ctx,
-		`UPDATE applications SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
-		status, id,
+		`UPDATE applications SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?`,
+		status, id, tenantID,
 	)
 	return err
 }
 
-// DeleteApp removes an application by ID.
-func (s *SQLiteDB) DeleteApp(ctx context.Context, id string) error {
+// DeleteApp removes an application by ID, scoped to tenantID.
+func (s *SQLiteDB) DeleteApp(ctx context.Context, id, tenantID string) error {
 	return s.Tx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `DELETE FROM applications WHERE id = ?`, id)
+		_, err := tx.ExecContext(ctx, `DELETE FROM applications WHERE id = ? AND tenant_id = ?`, id, tenantID)
 		return err
 	})
 }

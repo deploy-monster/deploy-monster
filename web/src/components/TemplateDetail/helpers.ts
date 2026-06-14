@@ -1,20 +1,3 @@
-export function getInitials(name: string) {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-export function formatDate(date: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(new Date(date));
-}
-
 /** Parse service names from compose YAML */
 export function parseServices(yaml: string): string[] {
   const services: string[] = [];

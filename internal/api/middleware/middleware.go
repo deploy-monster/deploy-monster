@@ -314,5 +314,12 @@ func (sw *statusWriter) Unwrap() http.ResponseWriter {
 // behind a trusted reverse proxy that needs the real client IP in audit logs,
 // add an explicit trusted-proxy config and thread it through safeClientIP.
 func realIP(r *http.Request) string {
-	return safeClientIP(r, true)
+	return safeClientIP(r, false)
+}
+
+// RealIPNoXFF returns the direct-connection client IP, never trusting
+// X-Forwarded-For or X-Real-IP. Use this in handlers when the IP is stored
+// in a database (e.g., session tracking, audit logs) to prevent spoofing.
+func RealIPNoXFF(r *http.Request) string {
+	return safeClientIP(r, false)
 }

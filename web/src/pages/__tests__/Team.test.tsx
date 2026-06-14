@@ -123,6 +123,20 @@ describe('Team page', () => {
     expect(screen.getByText('Developer')).toBeInTheDocument();
   });
 
+  it('lists team members from a paginated envelope response', () => {
+    setApi('/team/members', {
+      data: [
+        fakeMember({ id: 'm1', name: 'Alice Zhang', email: 'alice@example.com', role: 'role_admin' }),
+      ],
+      total: 1,
+    });
+    setApi('/team/audit-log', []);
+    renderTeam();
+
+    expect(screen.getByText('Alice Zhang')).toBeInTheDocument();
+    expect(screen.getByText(/1 member/i)).toBeInTheDocument();
+  });
+
   it('opens the invite dialog when Invite Member is clicked', () => {
     setApi('/team/members', [fakeMember()]);
     setApi('/team/audit-log', []);
@@ -269,5 +283,29 @@ describe('Team page', () => {
     expect(screen.getByText('Bob')).toBeInTheDocument();
     expect(screen.getByText('sess-1')).toBeInTheDocument();
     expect(screen.getByText('app-42')).toBeInTheDocument();
+  });
+
+  it('renders audit log entries from a paginated envelope response', () => {
+    setApi('/team/members', [fakeMember()]);
+    setApi('/team/audit-log', {
+      data: [
+        {
+          id: 1,
+          action: 'login',
+          user_name: 'Alice',
+          resource_type: 'session',
+          resource_id: 'sess-1',
+          ip_address: '10.0.0.1',
+          created_at: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+    });
+    renderTeam();
+
+    fireEvent.click(screen.getByRole('tab', { name: /audit log/i }));
+
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByText('sess-1')).toBeInTheDocument();
   });
 });

@@ -1,9 +1,11 @@
 package autoscale
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
@@ -14,7 +16,9 @@ import (
 )
 
 type testBolt struct {
-	data map[string]map[string][]byte
+	data    map[string]map[string][]byte
+	getErr  error
+	listErr error
 }
 
 func newTestBolt() *testBolt {
@@ -43,9 +47,12 @@ func (b *testBolt) BatchSet(items []core.BoltBatchItem) error {
 }
 
 func (b *testBolt) Get(bucket, key string, dest any) error {
+	if b.getErr != nil {
+		return b.getErr
+	}
 	raw, ok := b.data[bucket][key]
 	if !ok {
-		return errors.New("key not found")
+		return fmt.Errorf("key %q: %w", key, core.ErrKVNotFound)
 	}
 	return json.Unmarshal(raw, dest)
 }
@@ -56,6 +63,9 @@ func (b *testBolt) Delete(bucket, key string) error {
 }
 
 func (b *testBolt) List(bucket string) ([]string, error) {
+	if b.listErr != nil {
+		return nil, b.listErr
+	}
 	keys := make([]string, 0, len(b.data[bucket]))
 	for key := range b.data[bucket] {
 		keys = append(keys, key)
@@ -162,6 +172,45 @@ func TestModuleLifecycle(t *testing.T) {
 	}
 }
 
+func TestEvaluateAllTreatsMissingAutoscaleBucketAsEmpty(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	bolt := &testBolt{
+		data:    make(map[string]map[string][]byte),
+		listErr: fmt.Errorf("bucket %q: %w", "autoscale", core.ErrKVNotFound),
+	}
+	m := testModule(&autoscaleStore{}, &autoscaleRuntime{}, bolt)
+	m.logger = logger
+
+	m.evaluateAll()
+
+	if logs.Len() != 0 {
+		t.Fatalf("missing autoscale bucket should not warn, got logs: %q", logs.String())
+	}
+}
+
+func TestEvaluateAllLogsConfigReadError(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	bolt := newTestBolt()
+	if err := bolt.Set("autoscale", "app-1", autoscaleConfig{Enabled: true}, 0); err != nil {
+		t.Fatalf("seed autoscale config: %v", err)
+	}
+	bolt.getErr = errors.New("decode failed")
+	store := &autoscaleStore{app: &core.Application{ID: "app-1", Replicas: 1}}
+	m := testModule(store, &autoscaleRuntime{}, bolt)
+	m.logger = logger
+
+	m.evaluateAll()
+
+	if !bytes.Contains(logs.Bytes(), []byte("autoscale: get config entry failed")) {
+		t.Fatalf("expected autoscale config warning, got logs: %q", logs.String())
+	}
+	if store.updated != nil {
+		t.Fatalf("corrupt autoscale config should not update app, got %#v", store.updated)
+	}
+}
+
 func TestEvaluateScaleUpPersistsDecisionAndUpdatesApp(t *testing.T) {
 	bolt := newTestBolt()
 	store := &autoscaleStore{app: &core.Application{ID: "app-1", Name: "api", Status: "running", Replicas: 1}}
@@ -185,6 +234,27 @@ func TestEvaluateScaleUpPersistsDecisionAndUpdatesApp(t *testing.T) {
 	}
 	if got.Action != "scale_up" || got.DesiredReps != 2 {
 		t.Fatalf("decision = %#v, want scale_up to 2", got)
+	}
+}
+
+func TestEvaluateScaleUpWithNilEventBusStillPersistsDecision(t *testing.T) {
+	bolt := newTestBolt()
+	store := &autoscaleStore{app: &core.Application{ID: "app-1", Name: "api", Status: "running", Replicas: 1}}
+	runtime := &autoscaleRuntime{
+		containers: []core.ContainerInfo{{ID: "ctr-1"}},
+		stats:      map[string]*core.ContainerStats{"ctr-1": {CPUPercent: 95, MemoryPercent: 40}},
+	}
+	m := testModule(store, runtime, bolt)
+	m.core.Events = nil
+
+	m.evaluate("app-1", autoscaleConfig{Enabled: true, MinReplicas: 1, MaxReplicas: 3, CPUTarget: 75, RAMTarget: 90})
+
+	if store.updated == nil || store.updated.Replicas != 2 {
+		t.Fatalf("updated replicas = %#v, want 2", store.updated)
+	}
+	got, ok := m.lastDecision("app-1")
+	if !ok || got.Action != "scale_up" {
+		t.Fatalf("decision = %#v, ok=%v, want scale_up", got, ok)
 	}
 }
 

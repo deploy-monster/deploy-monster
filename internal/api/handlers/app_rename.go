@@ -46,7 +46,7 @@ func (h *RenameHandler) Rename(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.PublishAsync(r.Context(), core.NewEvent(core.EventAppUpdated, "api",
+	publishEventAsync(r.Context(), h.events, core.NewEvent(core.EventAppUpdated, "api",
 		map[string]string{"app_id": appID, "old_name": oldName, "new_name": req.Name}))
 
 	writeJSON(w, http.StatusOK, map[string]string{

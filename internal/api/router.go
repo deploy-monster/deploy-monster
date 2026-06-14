@@ -95,7 +95,7 @@ func (r *Router) Handler() http.Handler {
 
 func (r *Router) registerRoutes() {
 	authMiddleware := middleware.RequireAuth(r.authMod.JWT(), r.core.DB.Bolt, r.store)
-	tenantRL := middleware.NewTenantRateLimiter(r.core.DB.Bolt, 100, time.Minute)
+	tenantRL := middleware.NewTenantRateLimiter(r.core.DB.Bolt, r.core.Config.Server.RateLimitPerMinute, time.Minute)
 	// protected applies auth then per-tenant rate limiting
 	protected := func(next http.Handler) http.Handler {
 		return authMiddleware(tenantRL.Middleware(next))
@@ -145,7 +145,11 @@ func (r *Router) registerRoutes() {
 
 	// ── Session / Profile ─────────────────────────────
 	sessionH := handlers.NewSessionHandler(r.store, r.core.DB.Bolt, r.authMod)
-	r.mux.Handle("GET /api/v1/auth/me", protected(http.HandlerFunc(sessionH.GetCurrentUser)))
+	// Auth bootstrap is called by every browser context on app load. Keep it
+	// authenticated, but do not spend tenant API quota just to restore session
+	// state; otherwise navigation-heavy clients can rate-limit themselves into
+	// a false logout.
+	r.mux.Handle("GET /api/v1/auth/me", authMiddleware(http.HandlerFunc(sessionH.GetCurrentUser)))
 	r.mux.Handle("PATCH /api/v1/auth/me", protected(http.HandlerFunc(sessionH.UpdateProfile)))
 	r.mux.Handle("POST /api/v1/auth/change-password", protected(http.HandlerFunc(sessionH.ChangePassword)))
 	r.mux.Handle("GET /api/v1/auth/sessions", protected(http.HandlerFunc(sessionH.ListSessions)))

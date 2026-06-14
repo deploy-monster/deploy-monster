@@ -82,7 +82,7 @@ func (m *mockStore) GetAppByName(_ context.Context, _, _ string) (*core.Applicat
 	return nil, core.ErrNotFound
 }
 
-func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) {
+func (m *mockStore) DeleteDomainsByApp(_ context.Context, _ string, _ string) (int, error) {
 	return 0, nil
 }
 
@@ -347,6 +347,25 @@ func TestEventStreamer_StreamEvents_DefaultFilter(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestEventStreamer_StreamEvents_NilEventBus(t *testing.T) {
+	es := NewEventStreamer(nil, discardLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/events/stream", nil)
+	w := newFlushRecorder()
+
+	es.StreamEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if !strings.Contains(w.Body.String(), "event bus not available") {
+		t.Errorf("body = %q, want event bus error", w.Body.String())
+	}
+	if w.flushed == 0 {
+		t.Error("expected error event to flush")
 	}
 }
 
@@ -641,6 +660,51 @@ func TestTerminal_SendCommand_InvalidJSON(t *testing.T) {
 	term := NewTerminal(&mockRuntime{}, nil, discardLogger())
 
 	body := strings.NewReader(`not json`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app-1/terminal", body)
+	req.SetPathValue("id", "app-1")
+	w := httptest.NewRecorder()
+
+	term.SendCommand(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestTerminal_SendCommand_RejectsUnknownFields(t *testing.T) {
+	term := NewTerminal(&mockRuntime{}, nil, discardLogger())
+
+	body := strings.NewReader(`{"command":"ls","extra":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app-1/terminal", body)
+	req.SetPathValue("id", "app-1")
+	w := httptest.NewRecorder()
+
+	term.SendCommand(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestTerminal_SendCommand_RejectsTrailingJSON(t *testing.T) {
+	term := NewTerminal(&mockRuntime{}, nil, discardLogger())
+
+	body := strings.NewReader(`{"command":"ls"}{"command":"pwd"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app-1/terminal", body)
+	req.SetPathValue("id", "app-1")
+	w := httptest.NewRecorder()
+
+	term.SendCommand(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestTerminal_SendCommand_RejectsOversizedBody(t *testing.T) {
+	term := NewTerminal(&mockRuntime{}, nil, discardLogger())
+
+	body := strings.NewReader(`{"command":"` + strings.Repeat("x", maxTerminalCommandBodySize+1) + `"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app-1/terminal", body)
 	req.SetPathValue("id", "app-1")
 	w := httptest.NewRecorder()

@@ -1,10 +1,12 @@
-import { Trash2, Settings } from 'lucide-react';
+import { useState } from 'react';
+import { Trash2, Copy, Check } from 'lucide-react';
 import { type App } from '@/api/apps';
 import type { ServerNode } from '@/api/servers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { toast } from '@/stores/toastStore';
 
 interface AppSettingsProps {
   app: App;
@@ -41,6 +43,19 @@ export function AppSettings({
   onServerIDChange,
   onReset,
 }: AppSettingsProps) {
+  const [copiedAppID, setCopiedAppID] = useState(false);
+
+  const handleCopyAppID = async () => {
+    try {
+      await navigator.clipboard.writeText(app.id);
+      setCopiedAppID(true);
+      setTimeout(() => setCopiedAppID(false), 2000);
+      toast.success('Application ID copied to clipboard');
+    } catch {
+      toast.error('Failed to copy application ID');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-lg border bg-card p-6">
@@ -67,9 +82,9 @@ export function AppSettings({
                   size="icon"
                   aria-label="Copy application ID"
                   className="cursor-pointer"
-                  onClick={() => navigator.clipboard.writeText(app.id)}
+                  onClick={() => { void handleCopyAppID(); }}
                 >
-                  <Settings className="size-4" />
+                  {copiedAppID ? <Check className="size-4" /> : <Copy className="size-4" />}
                 </Button>
               </div>
             </div>

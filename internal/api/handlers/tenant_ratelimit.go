@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -60,8 +59,7 @@ func (h *TenantRateLimitHandler) Update(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var cfg RateLimitConfig
-	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &cfg) {
 		return
 	}
 

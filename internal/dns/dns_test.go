@@ -81,7 +81,7 @@ func (s *mockStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, 
 	return nil, nil
 }
 func (s *mockStore) UpdateTenant(_ context.Context, _ *core.Tenant) error { return nil }
-func (s *mockStore) DeleteTenant(_ context.Context, _ string) error       { return nil }
+func (s *mockStore) DeleteTenant(_ context.Context, _ string, _ string) error       { return nil }
 func (s *mockStore) CreateUser(_ context.Context, _ *core.User) error     { return nil }
 func (s *mockStore) GetUser(_ context.Context, _ string) (*core.User, error) {
 	return nil, nil
@@ -111,11 +111,11 @@ func (s *mockStore) GetAppsByIDs(_ context.Context, _ []string) ([]core.Applicat
 	return nil, nil
 }
 
-func (s *mockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
+func (s *mockStore) ListAppsByProject(_ context.Context, _ string, _ string) ([]core.Application, error) {
 	return nil, nil
 }
-func (s *mockStore) UpdateAppStatus(_ context.Context, _, _ string) error { return nil }
-func (s *mockStore) DeleteApp(_ context.Context, _ string) error          { return nil }
+func (s *mockStore) UpdateAppStatus(_ context.Context, _, _, _ string) error { return nil }
+func (s *mockStore) DeleteApp(_ context.Context, _ string, _ string) error          { return nil }
 func (s *mockStore) CreateDeployment(_ context.Context, _ *core.Deployment) error {
 	return nil
 }
@@ -143,10 +143,10 @@ func (s *mockStore) CreateDeploymentAtomicVersion(_ context.Context, _ *core.Dep
 func (s *mockStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) {
 	return nil, nil
 }
-func (s *mockStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) {
+func (s *mockStore) ListDomainsByAppIDs(_ context.Context, _ []string, _ string) (map[string][]core.Domain, error) {
 	return nil, nil
 }
-func (s *mockStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) {
+func (s *mockStore) GetUsersByIDs(_ context.Context, _ []string, _ string) ([]core.User, error) {
 	return nil, nil
 }
 func (s *mockStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
@@ -156,11 +156,11 @@ func (s *mockStore) GetDomain(_ context.Context, _ string) (*core.Domain, error)
 func (s *mockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, nil
 }
-func (s *mockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+func (s *mockStore) ListDomainsByApp(_ context.Context, _ string, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (s *mockStore) DeleteDomain(_ context.Context, _ string) error              { return nil }
-func (s *mockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
+func (s *mockStore) DeleteDomain(_ context.Context, _ string, _ string) error              { return nil }
+func (s *mockStore) DeleteDomainsByApp(_ context.Context, _ string, _ string) (int, error) { return 0, nil }
 func (s *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
 	return nil, nil
 }
@@ -222,7 +222,7 @@ func (s *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { retu
 func (s *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (s *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+func (s *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error { return nil }
 func (s *mockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, error) {
 	return nil, nil
 }
@@ -361,6 +361,31 @@ func TestModule_Start(t *testing.T) {
 	}
 
 	// Clean up
+	if err := m.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error: %v", err)
+	}
+}
+
+func TestModule_Start_NilEventBus(t *testing.T) {
+	c := testCore("")
+	c.Events = nil
+	m := New()
+
+	if err := m.Init(context.Background(), c); err != nil {
+		t.Fatalf("Init() error: %v", err)
+	}
+
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	if m.syncQueue == nil {
+		t.Fatal("syncQueue should not be nil after Start()")
+	}
+	if h := m.Health(); h != core.HealthOK {
+		t.Errorf("Health() after start = %v, want HealthOK", h)
+	}
+
 	if err := m.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error: %v", err)
 	}

@@ -684,6 +684,20 @@ func TestFinal95_SSHKey_Generate_InvalidBody(t *testing.T) {
 	}
 }
 
+func TestFinal95_SSHKey_Generate_RejectsTrailingJSON(t *testing.T) {
+	h := NewSSHKeyHandler(newMockStore(), newMockBoltStore())
+
+	req := httptest.NewRequest("POST", "/api/v1/ssh-keys/generate", strings.NewReader(`{"name":"my-key"}{"name":"other"}`))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Generate(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 // =============================================================================
 // SSHKeyHandler.List — with existing keys
 // =============================================================================
@@ -962,6 +976,22 @@ func TestFinal95_TenantSettings_Update_InvalidBody(t *testing.T) {
 	}
 }
 
+func TestFinal95_TenantSettings_Update_RejectsUnknownFields(t *testing.T) {
+	ms := newMockStore()
+	ms.addTenant(&core.Tenant{ID: "t1", Name: "Test"})
+	h := NewTenantSettingsHandler(&mockStoreWithUpdateTenant{mockStore: ms})
+
+	req := httptest.NewRequest("PATCH", "/api/v1/tenant/settings", strings.NewReader(`{"name":"X","extra":true}`))
+	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
 func TestFinal95_TenantSettings_Update_TenantNotFound(t *testing.T) {
 	ms := newMockStore()
 	// No tenant added — GetTenant will return ErrNotFound
@@ -1126,16 +1156,37 @@ func TestFinal95_MCPHandler_CallTool_InvalidBody(t *testing.T) {
 	}
 	h := NewMCPHandler(c, newMockStore(), &mockContainerRuntime{}, c.Events)
 
-	// Invalid JSON body — should fall back to {}
 	req := httptest.NewRequest("POST", "/mcp/v1/tools/list_apps", strings.NewReader("not json"))
 	req.SetPathValue("name", "list_apps")
 	rr := httptest.NewRecorder()
 	h.CallTool(rr, req)
 
-	// Should not panic; just verify it returns a response
-	if rr.Code != http.StatusOK && rr.Code != http.StatusBadRequest {
-		t.Errorf("expected 200 or 400, got %d", rr.Code)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
 	}
+	assertErrorMessage(t, rr, "invalid request body")
+}
+
+func TestFinal95_MCPHandler_CallTool_RejectsTrailingJSON(t *testing.T) {
+	c := &core.Core{
+		Config:   &core.Config{},
+		Events:   core.NewEventBus(slog.Default()),
+		Services: core.NewServices(),
+		Logger:   slog.Default(),
+		Build:    core.BuildInfo{Version: "1.0.0"},
+		Registry: core.NewRegistry(),
+	}
+	h := NewMCPHandler(c, newMockStore(), &mockContainerRuntime{}, c.Events)
+
+	req := httptest.NewRequest("POST", "/mcp/v1/tools/list_apps", strings.NewReader(`{} {}`))
+	req.SetPathValue("name", "list_apps")
+	rr := httptest.NewRecorder()
+	h.CallTool(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid request body")
 }
 
 // =============================================================================

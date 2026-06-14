@@ -13,7 +13,7 @@ record deltas rather than re-auditing from scratch.
 
 | Category         | Tool          | Raw findings | After triage | Status |
 |------------------|---------------|:------------:|:------------:|--------|
-| CVEs (reachable) | govulncheck   | 6            | 2            | 4 fixed (toolchain bump), 2 upstream |
+| CVEs (reachable) | govulncheck   | 8            | 0            | 6 fixed (toolchain bumps), 2 upstream unreachable |
 | Style / bugs     | staticcheck   | 41           | 7 fixed      | 34 test-only nil-context warnings deferred |
 | Security rules   | gosec (HIGH)  | 27           | 3 fixed      | 24 false positive / intentional |
 | `go vet`         | go vet        | 0            | 0            | clean |
@@ -30,25 +30,25 @@ Ran `govulncheck ./...` across the full module.
 | GO-2026-4946   | `crypto/x509` (stdlib)               | high     | Fixed — bumped Go to 1.26.2 |
 | GO-2026-4870   | `crypto/tls` (stdlib)                | high     | Fixed — bumped Go to 1.26.2 |
 | GO-2026-4866   | `crypto/x509` (stdlib)               | high     | Fixed — bumped Go to 1.26.2 |
-| GO-2026-4887   | `github.com/docker/docker@v28.5.2+incompatible` | medium | **Upstream** — Moby daemon-side AuthZ plugin bypass. DeployMonster calls the Docker daemon as a *client* and never runs as the daemon, so the vulnerable code path is not reachable through our binary. No upstream fix available at audit time. |
-| GO-2026-4883   | `github.com/docker/docker@v28.5.2+incompatible` | medium | **Upstream** — Moby daemon-side plugin-privilege off-by-one. Same analysis as 4887. |
+| GO-2026-4887   | `github.com/docker/docker@v28.5.2+incompatible` | medium | **Unreachable upstream import** — Moby daemon-side AuthZ plugin bypass. DeployMonster calls the Docker daemon as a *client* and never runs as the daemon, so the vulnerable code path is not reachable through our binary. No upstream fix available at audit time. |
+| GO-2026-4883   | `github.com/docker/docker@v28.5.2+incompatible` | medium | **Unreachable upstream import** — Moby daemon-side plugin-privilege off-by-one. Same analysis as 4887. |
 
 ### Fix applied
 
 A `toolchain` directive was added to `go.mod`, pinning the build toolchain at
-1.26.2 while leaving the minimum language version at 1.26.1:
+the patched Go release while leaving the minimum language version at 1.26.1:
 
 ```
 go 1.26.1
 
-toolchain go1.26.2
+toolchain go1.26.4
 ```
 
-With `GOTOOLCHAIN=auto` (the default), Go automatically downloads 1.26.2 on the
+With `GOTOOLCHAIN=auto` (the default), Go automatically downloads 1.26.4 on the
 first build via the toolchain directive. CI jobs pin `go-version: '1.26'` via
 `setup-go`, which resolves to the latest 1.26.x patch on each runner — the
 toolchain directive in `go.mod` then acts as a hard floor so any runner that
-somehow landed on 1.26.1 still pulls 1.26.2 before compiling. Using a
+somehow landed on an older patch still pulls 1.26.4 before compiling. Using a
 toolchain directive instead of raising the `go` line keeps downstream module
 consumers free to stay on 1.26.1 while our compiled binary always gets the
 patched stdlib.
@@ -57,21 +57,28 @@ This fix was reconciled against reality in Tier 95 after `govulncheck` surfaced
 that the original documentation claim (bumping the `go` line) was never
 actually committed — only the toolchain pin landed.
 
+On 2026-06-10, a follow-up local CI audit with Go 1.26.3 surfaced two new
+reachable stdlib findings:
+
+| ID             | Package                  | Severity | Disposition |
+|----------------|--------------------------|----------|-------------|
+| GO-2026-5039   | `net/textproto` (stdlib) | high     | Fixed — bumped Go toolchain to 1.26.4 |
+| GO-2026-5037   | `crypto/x509` (stdlib)   | high     | Fixed — bumped Go toolchain to 1.26.4 |
+
 ### Post-fix
 
 ```
 $ govulncheck ./...
-Vulnerability #1: GO-2026-4887  (docker/docker — daemon-side, not applicable)
-Vulnerability #2: GO-2026-4883  (docker/docker — daemon-side, not applicable)
-Your code is affected by 2 vulnerabilities from 1 module.
+No vulnerabilities found.
+Your code is affected by 0 vulnerabilities.
 ```
 
 ### CI integration
 
 A `govulncheck` step was added to the `lint` job in `.github/workflows/ci.yml`.
 It runs `govulncheck ./...` and fails the build on any **new** vulnerability
-not in the allow-list. The two unresolved Docker SDK findings above are
-allow-listed pending upstream fixes.
+not in the allow-list. The Docker SDK findings above are tracked as imported
+but unreachable until an upstream fixed release is available.
 
 ## staticcheck
 
@@ -250,8 +257,9 @@ The following items are accepted risk as of this audit and should be revisited
 on each subsequent audit:
 
 1. **`github.com/docker/docker@v28.5.2+incompatible` — GO-2026-4887,
-   GO-2026-4883.** Re-check upstream monthly. Bump the module and re-audit as
-   soon as a fixed version is published.
+   GO-2026-4883.** Re-check upstream monthly. These are imported but not called
+   by DeployMonster; bump the module and re-audit as soon as a fixed version is
+   published.
 2. **staticcheck SA1012 in test files.** Convert to `context.TODO()` as part
    of the next test-file cleanup pass. No runtime impact.
 3. **gosec G115 on metrics conversions.** Excluded in `.gosec.yaml`. Leave
@@ -263,7 +271,7 @@ on each subsequent audit:
 
 ```bash
 # Toolchain
-go version   # must be >= 1.26.2
+go version   # must be >= 1.26.4
 
 # Vulnerability scan (CI-gated)
 govulncheck ./...

@@ -1,4 +1,3 @@
-export * from './constants';
-export { TemplateCardSkeleton, TemplateIcon, TemplateCard, FeaturedTemplateCard } from './TemplateCard';
-export { PasswordInput } from './PasswordInput';
-export { TemplateDeploySheet, GeneratedSecrets } from './TemplateDeploySheet';
+export { getCategoryColor } from './constants';
+export { TemplateCardSkeleton, TemplateCard, FeaturedTemplateCard } from './TemplateCard';
+export { TemplateDeploySheet } from './TemplateDeploySheet';

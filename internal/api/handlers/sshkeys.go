@@ -3,7 +3,6 @@ package handlers
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"encoding/json"
 	"encoding/pem"
 	"net/http"
 
@@ -47,7 +46,10 @@ func (h *SSHKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+	if !decodeJSONInto(w, r, &req) {
+		return
+	}
+	if req.Name == "" {
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}

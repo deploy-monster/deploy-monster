@@ -166,8 +166,8 @@ func (ae *AlertEngine) SetAlertmanagerClient(client *AlertmanagerClient) {
 
 // Evaluate checks all rules against current metrics.
 func (ae *AlertEngine) Evaluate(ctx context.Context, metrics *core.ServerMetrics) {
-	ae.mu.RLock()
-	defer ae.mu.RUnlock()
+	ae.mu.Lock()
+	defer ae.mu.Unlock()
 
 	for _, rule := range ae.rules {
 		value := extractMetricValue(rule.Metric, metrics)
@@ -213,7 +213,7 @@ func (ae *AlertEngine) Evaluate(ctx context.Context, metrics *core.ServerMetrics
 				}()
 			}
 
-			ae.events.PublishAsync(ctx, core.NewEvent(
+			ae.publish(ctx, core.NewEvent(
 				core.EventAlertTriggered, "resource",
 				core.AlertEventData{
 					Name:     rule.Name,
@@ -229,7 +229,7 @@ func (ae *AlertEngine) Evaluate(ctx context.Context, metrics *core.ServerMetrics
 
 			ae.logger.Info("alert resolved", "rule", rule.Name)
 
-			ae.events.PublishAsync(ctx, core.NewEvent(
+			ae.publish(ctx, core.NewEvent(
 				core.EventAlertResolved, "resource",
 				core.AlertEventData{
 					Name:     rule.Name,
@@ -240,6 +240,13 @@ func (ae *AlertEngine) Evaluate(ctx context.Context, metrics *core.ServerMetrics
 			))
 		}
 	}
+}
+
+func (ae *AlertEngine) publish(ctx context.Context, event core.Event) {
+	if ae.events == nil {
+		return
+	}
+	ae.events.PublishAsync(ctx, event)
 }
 
 // extractMetricValue reads a metric value from server metrics.

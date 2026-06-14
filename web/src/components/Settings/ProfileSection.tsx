@@ -1,5 +1,5 @@
 // P1-12: Migrate hand-rolled mutation state to useMutation hook
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { User, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,14 +9,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { useAuthStore } from '@/stores/auth';
 import { useMutation } from '@/hooks';
 import { toast } from '@/stores/toastStore';
-
-function getInitials(name: string) {
-  return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
-}
-
-export function getInitialsValue(name: string) {
-  return getInitials(name);
-}
+import { getInitialsValue } from './helpers';
 
 interface ProfileSectionProps {
   onSave?: () => void;
@@ -25,12 +18,24 @@ interface ProfileSectionProps {
 export function ProfileSection({ onSave }: ProfileSectionProps) {
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
-  const [editName, setEditName] = useState(user?.name || '');
+  const userID = user?.id ?? '';
+  const userName = user?.name ?? '';
+  const [editName, setEditName] = useState(userName);
+  const initializedUserID = useRef(userID);
+  const lastSyncedName = useRef(userName);
+
+  useEffect(() => {
+    if (userID !== initializedUserID.current || editName === lastSyncedName.current) {
+      initializedUserID.current = userID;
+      lastSyncedName.current = userName;
+      setEditName(userName);
+    }
+  }, [editName, userID, userName]);
 
   const { mutate: saveProfile, loading: saving } = useMutation<{ name: string }, { name?: string }>('patch', '/auth/me');
 
   const handleSaveProfile = () => {
-    saveProfile(
+    void saveProfile(
       { name: editName },
       {
         onSuccess: (updatedUser) => {
@@ -40,7 +45,7 @@ export function ProfileSection({ onSave }: ProfileSectionProps) {
         },
         onError: (err) => { toast.error(err); },
       },
-    );
+    ).catch(() => undefined);
   };
 
   return (
@@ -57,7 +62,7 @@ export function ProfileSection({ onSave }: ProfileSectionProps) {
         <div className="flex items-center gap-4">
           <Avatar className="size-16">
             <AvatarFallback className="text-lg bg-primary/10 text-primary">
-              {getInitials(user?.name || 'U')}
+              {getInitialsValue(user?.name || 'U')}
             </AvatarFallback>
           </Avatar>
           <div>
@@ -104,7 +109,7 @@ export function ProfileSection({ onSave }: ProfileSectionProps) {
           <Button
             size="sm"
             onClick={handleSaveProfile}
-            disabled={saving || !editName.trim() || editName === user?.name}
+            disabled={saving || !editName.trim()}
             className="cursor-pointer"
           >
             {saving ? (
@@ -115,7 +120,7 @@ export function ProfileSection({ onSave }: ProfileSectionProps) {
             ) : (
               <>
                 <Save className="size-3.5" />
-                Save Changes
+                Save Profile
               </>
             )}
           </Button>

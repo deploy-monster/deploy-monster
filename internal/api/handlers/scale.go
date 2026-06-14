@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -30,8 +29,7 @@ func (h *ScaleHandler) Scale(w http.ResponseWriter, r *http.Request) {
 	appID := app.ID
 
 	var req scaleRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if !decodeJSONInto(w, r, &req) {
 		return
 	}
 
@@ -48,7 +46,7 @@ func (h *ScaleHandler) Scale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.events.Publish(r.Context(), core.NewEvent(core.EventAppScaled, "api",
+	publishEvent(r.Context(), h.events, core.NewEvent(core.EventAppScaled, "api",
 		core.AppEventData{
 			AppID:   appID,
 			AppName: app.Name,

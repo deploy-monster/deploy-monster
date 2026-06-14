@@ -3,7 +3,6 @@ package handlers
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -57,7 +56,10 @@ func (h *LicenseHandler) Activate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Key string `json:"key"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Key == "" {
+	if !decodeJSONInto(w, r, &req) {
+		return
+	}
+	if req.Key == "" {
 		writeError(w, http.StatusBadRequest, "license key required")
 		return
 	}
