@@ -254,6 +254,6 @@ func (s *teamStoreMock) RemoveTeamMember(_ context.Context, _ string, memberID s
 	return s.removeErr
 }
 
-func (s *teamStoreMock) GetUsersByIDs(context.Context, []string) ([]core.User, error) {
+func (s *teamStoreMock) GetUsersByIDs(context.Context, []string, string) ([]core.User, error) {
 	return s.users, s.usersErr
 }
