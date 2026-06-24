@@ -80,7 +80,7 @@ func (s *crossTenantStore) GetDomainByFQDN(_ context.Context, _ string) (*core.D
 	return nil, core.ErrNotFound
 }
 
-func (s *crossTenantStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+func (s *crossTenantStore) ListDomainsByApp(_ context.Context, _, _ string) ([]core.Domain, error) {
 	// Handlers reach ListDomainsByApp only after they resolve the app via
 	// GetApp, so cross-tenant ownership is enforced upstream. Return empty
 	// rather than nil to keep downstream writers from nil-deref panics.

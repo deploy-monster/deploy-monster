@@ -179,7 +179,7 @@ func (m *mockPermStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tena
 	return nil, nil
 }
 func (m *mockPermStore) UpdateTenant(_ context.Context, _ *core.Tenant) error   { return nil }
-func (m *mockPermStore) DeleteTenant(_ context.Context, _ string) error         { return nil }
+func (m *mockPermStore) DeleteTenant(_ context.Context, _, _ string) error      { return nil }
 func (m *mockPermStore) CreateApp(_ context.Context, _ *core.Application) error { return nil }
 func (m *mockPermStore) GetApp(_ context.Context, _ string) (*core.Application, error) {
 	return nil, nil
@@ -188,14 +188,14 @@ func (m *mockPermStore) UpdateApp(_ context.Context, _ *core.Application) error 
 func (m *mockPermStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
 	return nil, 0, nil
 }
-func (m *mockPermStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
+func (m *mockPermStore) ListAppsByProject(_ context.Context, _, _ string) ([]core.Application, error) {
 	return nil, nil
 }
 func (m *mockPermStore) GetAppsByIDs(_ context.Context, _ []string) ([]core.Application, error) {
 	return nil, nil
 }
-func (m *mockPermStore) UpdateAppStatus(_ context.Context, _, _ string) error         { return nil }
-func (m *mockPermStore) DeleteApp(_ context.Context, _ string) error                  { return nil }
+func (m *mockPermStore) UpdateAppStatus(_ context.Context, _, _, _ string) error      { return nil }
+func (m *mockPermStore) DeleteApp(_ context.Context, _, _ string) error               { return nil }
 func (m *mockPermStore) CreateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
 func (m *mockPermStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) {
 	return nil, nil
@@ -217,20 +217,20 @@ func (m *mockPermStore) CreateDeploymentAtomicVersion(_ context.Context, _ *core
 func (m *mockPermStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) {
 	return nil, nil
 }
-func (m *mockPermStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) {
+func (m *mockPermStore) ListDomainsByAppIDs(_ context.Context, _ []string, _ string) (map[string][]core.Domain, error) {
 	return nil, nil
 }
-func (m *mockPermStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) {
+func (m *mockPermStore) GetUsersByIDs(_ context.Context, _ []string, _ string) ([]core.User, error) {
 	return nil, nil
 }
 func (m *mockPermStore) CreateDomain(_ context.Context, _ *core.Domain) error { return nil }
 func (m *mockPermStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, nil
 }
-func (m *mockPermStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+func (m *mockPermStore) ListDomainsByApp(_ context.Context, _, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (m *mockPermStore) DeleteDomain(_ context.Context, _ string) error          { return nil }
+func (m *mockPermStore) DeleteDomain(_ context.Context, _, _ string) error       { return nil }
 func (m *mockPermStore) ListAllDomains(_ context.Context) ([]core.Domain, error) { return nil, nil }
 func (m *mockPermStore) CreateProject(_ context.Context, _ *core.Project) error  { return nil }
 func (m *mockPermStore) GetProject(_ context.Context, _ string) (*core.Project, error) {
@@ -283,11 +283,15 @@ func (m *mockPermStore) CreateBackup(_ context.Context, _ *core.Backup) error { 
 func (m *mockPermStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (m *mockPermStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error { return nil }
+func (m *mockPermStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
+	return nil
+}
 func (m *mockPermStore) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
 	return nil, 0, nil
 }
-func (m *mockPermStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
+func (m *mockPermStore) DeleteDomainsByApp(_ context.Context, _, _ string) (int, error) {
+	return 0, nil
+}
 func (m *mockPermStore) GetDomain(_ context.Context, _ string) (*core.Domain, error) { return nil, nil }
 func (m *mockPermStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
 	return nil, nil

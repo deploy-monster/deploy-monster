@@ -45,7 +45,7 @@ func (s *auditMockStore) GetTenantBySlug(_ context.Context, _ string) (*core.Ten
 	return nil, core.ErrNotFound
 }
 func (s *auditMockStore) UpdateTenant(_ context.Context, _ *core.Tenant) error { return nil }
-func (s *auditMockStore) DeleteTenant(_ context.Context, _ string) error       { return nil }
+func (s *auditMockStore) DeleteTenant(_ context.Context, _, _ string) error    { return nil }
 
 func (s *auditMockStore) CreateUser(_ context.Context, _ *core.User) error { return nil }
 func (s *auditMockStore) GetUser(_ context.Context, _ string) (*core.User, error) {
@@ -70,14 +70,14 @@ func (s *auditMockStore) UpdateApp(_ context.Context, _ *core.Application) error
 func (s *auditMockStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
 	return nil, 0, nil
 }
-func (s *auditMockStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
+func (s *auditMockStore) ListAppsByProject(_ context.Context, _, _ string) ([]core.Application, error) {
 	return nil, nil
 }
 func (s *auditMockStore) GetAppsByIDs(_ context.Context, _ []string) ([]core.Application, error) {
 	return nil, nil
 }
-func (s *auditMockStore) UpdateAppStatus(_ context.Context, _, _ string) error { return nil }
-func (s *auditMockStore) DeleteApp(_ context.Context, _ string) error          { return nil }
+func (s *auditMockStore) UpdateAppStatus(_ context.Context, _, _, _ string) error { return nil }
+func (s *auditMockStore) DeleteApp(_ context.Context, _, _ string) error          { return nil }
 func (s *auditMockStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
 	return nil, core.ErrNotFound
 }
@@ -107,10 +107,10 @@ func (s *auditMockStore) CreateDeploymentAtomicVersion(_ context.Context, _ *cor
 func (s *auditMockStore) GetLatestDeploymentsByAppIDs(_ context.Context, _ []string) (map[string]*core.Deployment, error) {
 	return nil, nil
 }
-func (s *auditMockStore) ListDomainsByAppIDs(_ context.Context, _ []string) (map[string][]core.Domain, error) {
+func (s *auditMockStore) ListDomainsByAppIDs(_ context.Context, _ []string, _ string) (map[string][]core.Domain, error) {
 	return nil, nil
 }
-func (s *auditMockStore) GetUsersByIDs(_ context.Context, _ []string) ([]core.User, error) {
+func (s *auditMockStore) GetUsersByIDs(_ context.Context, _ []string, _ string) ([]core.User, error) {
 	return nil, nil
 }
 
@@ -121,12 +121,14 @@ func (s *auditMockStore) GetDomain(_ context.Context, _ string) (*core.Domain, e
 func (s *auditMockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, core.ErrNotFound
 }
-func (s *auditMockStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+func (s *auditMockStore) ListDomainsByApp(_ context.Context, _, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (s *auditMockStore) DeleteDomain(_ context.Context, _ string) error              { return nil }
-func (s *auditMockStore) DeleteDomainsByApp(_ context.Context, _ string) (int, error) { return 0, nil }
-func (s *auditMockStore) ListAllDomains(_ context.Context) ([]core.Domain, error)     { return nil, nil }
+func (s *auditMockStore) DeleteDomain(_ context.Context, _, _ string) error { return nil }
+func (s *auditMockStore) DeleteDomainsByApp(_ context.Context, _, _ string) (int, error) {
+	return 0, nil
+}
+func (s *auditMockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) { return nil, nil }
 
 func (s *auditMockStore) CreateProject(_ context.Context, _ *core.Project) error { return nil }
 func (s *auditMockStore) GetProject(_ context.Context, _ string) (*core.Project, error) {
@@ -198,7 +200,7 @@ func (s *auditMockStore) CreateBackup(_ context.Context, _ *core.Backup) error {
 func (s *auditMockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (s *auditMockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+func (s *auditMockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
 	return nil
 }
 func (s *auditMockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {

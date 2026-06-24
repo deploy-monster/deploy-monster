@@ -1238,7 +1238,7 @@ func (s *testStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, 
 	return nil, nil
 }
 func (s *testStore) UpdateTenant(_ context.Context, _ *core.Tenant) error           { return nil }
-func (s *testStore) DeleteTenant(_ context.Context, _ string, _ string) error                 { return nil }
+func (s *testStore) DeleteTenant(_ context.Context, _ string, _ string) error       { return nil }
 func (s *testStore) CreateUser(_ context.Context, _ *core.User) error               { return nil }
 func (s *testStore) GetUser(_ context.Context, _ string) (*core.User, error)        { return nil, nil }
 func (s *testStore) GetUserByEmail(_ context.Context, _ string) (*core.User, error) { return nil, nil }
@@ -1251,11 +1251,11 @@ func (s *testStore) UpdateApp(_ context.Context, _ *core.Application) error     
 func (s *testStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) ([]core.Application, int, error) {
 	return nil, 0, nil
 }
-func (s *testStore) ListAppsByProject(_ context.Context, _ string) ([]core.Application, error) {
+func (s *testStore) ListAppsByProject(_ context.Context, _, _ string) ([]core.Application, error) {
 	return nil, nil
 }
-func (s *testStore) UpdateAppStatus(_ context.Context, _, _, _ string) error         { return nil }
-func (s *testStore) DeleteApp(_ context.Context, _ string, _ string) error                  { return nil }
+func (s *testStore) UpdateAppStatus(_ context.Context, _, _, _ string) error      { return nil }
+func (s *testStore) DeleteApp(_ context.Context, _ string, _ string) error        { return nil }
 func (s *testStore) CreateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
 func (s *testStore) GetLatestDeployment(_ context.Context, _ string) (*core.Deployment, error) {
 	return nil, nil
@@ -1272,10 +1272,10 @@ func (s *testStore) CreateDomain(_ context.Context, _ *core.Domain) error       
 func (s *testStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, error) {
 	return nil, nil
 }
-func (s *testStore) ListDomainsByApp(_ context.Context, _ string) ([]core.Domain, error) {
+func (s *testStore) ListDomainsByApp(_ context.Context, _, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (s *testStore) DeleteDomain(_ context.Context, _ string) error                { return nil }
+func (s *testStore) DeleteDomain(_ context.Context, _, _ string) error             { return nil }
 func (s *testStore) ListAllDomains(_ context.Context) ([]core.Domain, error)       { return nil, nil }
 func (s *testStore) CreateProject(_ context.Context, _ *core.Project) error        { return nil }
 func (s *testStore) GetProject(_ context.Context, _ string) (*core.Project, error) { return nil, nil }
