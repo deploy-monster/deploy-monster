@@ -288,7 +288,7 @@ func TestBuildScopeHierarchy_Empty(t *testing.T) {
 
 func TestResolve_StoreNotInitialized(t *testing.T) {
 	m := &Module{store: nil}
-	_, err := m.Resolve("global", "test-secret")
+	_, err := m.Resolve(context.Background(), "global", "test-secret")
 	if err == nil {
 		t.Fatal("expected error for nil store")
 	}
@@ -301,7 +301,7 @@ func TestResolve_SecretNotFound(t *testing.T) {
 	store := newMockSecretStore()
 	m := &Module{store: store, vault: NewVault("test-key-32-bytes-long-12345678")}
 
-	_, err := m.Resolve("global", "nonexistent")
+	_, err := m.Resolve(context.Background(), "global", "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for nonexistent secret")
 	}
@@ -326,7 +326,7 @@ func TestResolve_SecretFound(t *testing.T) {
 
 	m := &Module{store: store, vault: vault}
 
-	result, err := m.Resolve("global", "db-password")
+	result, err := m.Resolve(context.Background(), "global", "db-password")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -352,7 +352,7 @@ func TestResolve_ScopeFallback(t *testing.T) {
 	m := &Module{store: store, vault: vault}
 
 	// Request from tenant scope - should fall back to global
-	result, err := m.Resolve("tenant/tenant123", "api-key")
+	result, err := m.Resolve(context.Background(), "tenant/tenant123", "api-key")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -368,11 +368,12 @@ func TestResolve_VersionNotFound(t *testing.T) {
 	// Secret exists but no version
 	secret := &core.Secret{ID: "secret-3", Scope: "global", Name: "orphan-secret"}
 	store.secrets["global/orphan-secret"] = secret
+
 	// No version added
 
 	m := &Module{store: store, vault: vault}
 
-	_, err := m.Resolve("global", "orphan-secret")
+	_, err := m.Resolve(context.Background(), "global", "orphan-secret")
 	if err == nil {
 		t.Fatal("expected error for missing version")
 	}
@@ -384,7 +385,7 @@ func TestResolve_StoreError(t *testing.T) {
 
 	m := &Module{store: store, vault: NewVault("test-key-32-bytes-long-12345678")}
 
-	_, err := m.Resolve("global", "test")
+	_, err := m.Resolve(context.Background(), "global", "test")
 	if err == nil {
 		t.Fatal("expected error from store")
 	}
@@ -403,7 +404,7 @@ func TestResolve_DecryptError(t *testing.T) {
 
 	m := &Module{store: store, vault: vault}
 
-	_, err := m.Resolve("global", "bad-enc")
+	_, err := m.Resolve(context.Background(), "global", "bad-enc")
 	if err == nil {
 		t.Fatal("expected decrypt error")
 	}
@@ -416,7 +417,7 @@ func TestResolve_NilSecret(t *testing.T) {
 
 	m := &Module{store: store, vault: NewVault("test-key-32-bytes-long-12345678")}
 
-	_, err := m.Resolve("global", "nil-secret")
+	_, err := m.Resolve(context.Background(), "global", "nil-secret")
 	if err == nil {
 		t.Fatal("expected error for nil secret")
 	}
@@ -429,7 +430,7 @@ func TestResolve_NilSecret(t *testing.T) {
 func TestResolveAll_NoSecrets(t *testing.T) {
 	m := &Module{store: newMockSecretStore(), vault: NewVault("test-key")}
 
-	result, err := m.ResolveAll("global", "hello world")
+	result, err := m.ResolveAll(context.Background(), "global", "hello world")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -452,7 +453,7 @@ func TestResolveAll_MultipleSecrets(t *testing.T) {
 
 	m := &Module{store: store, vault: vault}
 
-	result, err := m.ResolveAll("global", "user=${SECRET:db-user}&pass=${SECRET:db-pass}")
+	result, err := m.ResolveAll(context.Background(), "global", "user=${SECRET:db-user}&pass=${SECRET:db-pass}")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -465,7 +466,7 @@ func TestResolveAll_MultipleSecrets(t *testing.T) {
 func TestResolveAll_UnclosedPattern(t *testing.T) {
 	m := &Module{store: newMockSecretStore(), vault: NewVault("test-key")}
 
-	result, err := m.ResolveAll("global", "value=${SECRET:name")
+	result, err := m.ResolveAll(context.Background(), "global", "value=${SECRET:name")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -478,7 +479,7 @@ func TestResolveAll_UnclosedPattern(t *testing.T) {
 func TestResolveAll_EmptyTemplate(t *testing.T) {
 	m := &Module{store: newMockSecretStore(), vault: NewVault("test-key")}
 
-	result, err := m.ResolveAll("global", "")
+	result, err := m.ResolveAll(context.Background(), "global", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

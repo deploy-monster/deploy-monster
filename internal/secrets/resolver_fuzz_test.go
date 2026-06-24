@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -69,7 +70,7 @@ func FuzzResolveAll(f *testing.F) {
 
 		// The contract is: no panic, no infinite loop. An error return
 		// is fine — half the seeds intentionally fail to resolve.
-		out, err := m.ResolveAll("global", template)
+		out, err := m.ResolveAll(context.Background(), "global", template)
 		if err != nil {
 			return
 		}

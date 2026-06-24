@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"context"
 	"encoding/base64"
 	"strings"
 	"testing"
@@ -132,7 +133,7 @@ func TestFinal_Module_ResolveAll_NoSecretRefs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := m.ResolveAll("scope", tt.template)
+			result, err := m.ResolveAll(context.Background(), "scope", tt.template)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -159,7 +160,7 @@ func TestFinal_Module_ResolveAll_UnclosedBraceVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := m.ResolveAll("scope", tt.template)
+			result, err := m.ResolveAll(context.Background(), "scope", tt.template)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -175,7 +176,7 @@ func TestFinal_Module_ResolveAll_UnclosedBraceVariants(t *testing.T) {
 func TestFinal_Module_ResolveAll_ResolveReturnsError(t *testing.T) {
 	m := New()
 
-	_, err := m.ResolveAll("global", "db_pass=${SECRET:db_password}")
+	_, err := m.ResolveAll(context.Background(), "global", "db_pass=${SECRET:db_password}")
 	if err == nil {
 		t.Fatal("expected error from Resolve stub")
 	}
@@ -188,7 +189,7 @@ func TestFinal_Module_ResolveAll_ResolveReturnsError(t *testing.T) {
 func TestFinal_Module_Resolve_StubError(t *testing.T) {
 	m := New()
 
-	_, err := m.Resolve("global", "any-name")
+	_, err := m.Resolve(context.Background(), "global", "any-name")
 	if err == nil {
 		t.Fatal("expected error from stub")
 	}

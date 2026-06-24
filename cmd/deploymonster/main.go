@@ -102,7 +102,13 @@ func runHealthCheck() {
 		fmt.Fprintf(os.Stderr, "health request error: %v\n", err)
 		os.Exit(1)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	// Use a scoped client so ResponseHeaderTimeout actually bounds the
+	// network call — http.DefaultClient has no timeout, so context.WithTimeout
+	// alone only bounds NewRequestWithContext (instant), not Do (hangs forever).
+	client := &http.Client{
+		Transport: &http.Transport{ResponseHeaderTimeout: 5 * time.Second},
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "health check failed: %v\n", err)
 		os.Exit(1)

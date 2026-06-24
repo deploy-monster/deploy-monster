@@ -192,8 +192,8 @@ type SSHClient interface {
 // Implemented by: secrets module
 // Usage: ${SECRET:name} syntax in env vars, compose files, etc.
 type SecretResolver interface {
-	Resolve(scope, name string) (string, error)
-	ResolveAll(scope string, template string) (string, error)
+	Resolve(ctx context.Context, scope, name string) (string, error)
+	ResolveAll(ctx context.Context, scope string, template string) (string, error)
 }
 
 // KeyStore is the pluggable backend for secret key material.

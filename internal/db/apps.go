@@ -133,8 +133,8 @@ func (s *SQLiteDB) ListAppsByProject(ctx context.Context, projectID, tenantID st
 	rows, err := s.QueryContext(ctx,
 		`SELECT id, project_id, tenant_id, name, type, source_type, source_url, branch,
 		        status, replicas, COALESCE(server_id,''), created_at, updated_at
-		 FROM applications WHERE project_id = ? ORDER BY name LIMIT 1000`,
-		projectID,
+		 FROM applications WHERE project_id = ? AND tenant_id = ? ORDER BY name LIMIT 1000`,
+		projectID, tenantID,
 	)
 	if err != nil {
 		return nil, err

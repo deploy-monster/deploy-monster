@@ -182,9 +182,13 @@ func (eb *EventBus) Publish(ctx context.Context, event Event) error {
 					<-eb.asyncSem
 					slotReleased = true
 
-					// Respect context cancellation during backoff.
+					// Respect context cancellation during backoff
+					// FIX: time.After() leaks a goroutine on every retry loop iteration.
+					// Use time.NewTimer() + Stop() to avoid goroutine leak.
+					timer := time.NewTimer(500 * time.Millisecond)
+					defer timer.Stop()
 					select {
-					case <-time.After(500 * time.Millisecond):
+					case <-timer.C:
 					case <-ctx.Done():
 						// Context canceled; invoke error callback and abandon retry.
 						eb.errorCount.Add(1)

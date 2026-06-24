@@ -195,7 +195,7 @@ func TestModule_FullLifecycle(t *testing.T) {
 	}
 
 	// Resolve (stub — returns error)
-	_, err = m.Resolve("global", "some-secret")
+	_, err = m.Resolve(context.Background(), "global", "some-secret")
 	if err == nil {
 		t.Error("Resolve stub should return error")
 	}
@@ -218,7 +218,7 @@ func TestModule_FullLifecycle(t *testing.T) {
 func TestModule_ResolveAll_AdjacentSecrets(t *testing.T) {
 	m := New()
 	// Two secret references back-to-back: the first will fail
-	_, err := m.ResolveAll("global", "${SECRET:a}${SECRET:b}")
+	_, err := m.ResolveAll(context.Background(), "global", "${SECRET:a}${SECRET:b}")
 	if err == nil {
 		t.Fatal("expected error from Resolve stub")
 	}
@@ -229,7 +229,7 @@ func TestModule_ResolveAll_AdjacentSecrets(t *testing.T) {
 
 func TestModule_ResolveAll_OnlySecretRef(t *testing.T) {
 	m := New()
-	_, err := m.ResolveAll("tenant", "${SECRET:only}")
+	_, err := m.ResolveAll(context.Background(), "tenant", "${SECRET:only}")
 	if err == nil {
 		t.Fatal("expected error")
 	}

@@ -260,11 +260,11 @@ func buildScopeHierarchy(scope string) []string {
 // Resolve implements core.SecretResolver.
 // Looks up a secret by scope/name and returns the decrypted value.
 // Falls back through scope hierarchy: exact scope -> global
-func (m *Module) Resolve(scope, name string) (string, error) {
+func (m *Module) Resolve(ctx context.Context, scope, name string) (string, error) {
 	if m.store == nil {
 		return "", fmt.Errorf("secret %s/%s: not found (store not initialized)", scope, name)
 	}
-	ctx := context.Background()
+	// ctx is passed from caller — respects their timeout/shutdown
 	scopeHierarchy := buildScopeHierarchy(scope)
 
 	var lastErr error
@@ -382,7 +382,7 @@ func (m *Module) RotateEncryptionKey(ctx context.Context, newMasterSecret string
 
 // ResolveAll implements core.SecretResolver.
 // Replaces all ${SECRET:name} references in a template string.
-func (m *Module) ResolveAll(scope, template string) (string, error) {
+func (m *Module) ResolveAll(ctx context.Context, scope, template string) (string, error) {
 	result := template
 
 	for {
@@ -397,7 +397,7 @@ func (m *Module) ResolveAll(scope, template string) (string, error) {
 		}
 
 		ref := result[idx+9 : idx+end] // Extract name from ${SECRET:name}
-		value, err := m.Resolve(scope, ref)
+		value, err := m.Resolve(ctx, scope, ref)
 		if err != nil {
 			return "", fmt.Errorf("resolve secret %q: %w", ref, err)
 		}

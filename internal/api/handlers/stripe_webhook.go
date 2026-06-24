@@ -80,9 +80,10 @@ func (h *StripeWebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	ip := stripPort(r.RemoteAddr)
 	h.mu.Lock()
-	entry, ok := h.ipLimits[ip]
 	now := time.Now()
+	entry, ok := h.ipLimits[ip]
 	if !ok || now.After(entry.ResetAt) {
+		// New or expired entry — create and store before releasing lock.
 		entry = &stripeRateLimitEntry{
 			Count:   1,
 			ResetAt: now.Add(stripeWebhookRateWindow),
@@ -90,6 +91,7 @@ func (h *StripeWebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		h.ipLimits[ip] = entry
 		h.mu.Unlock()
 	} else if entry.Count >= stripeWebhookRateLimit {
+		// Rate limited — read all fields, then release.
 		retryAfter := int(entry.ResetAt.Sub(now).Seconds())
 		if retryAfter < 1 {
 			retryAfter = 1
@@ -99,6 +101,8 @@ func (h *StripeWebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
 		return
 	} else {
+		// Increment under the same lock — prevents another goroutine
+		// from overwriting the map entry between Unlock and Count++.
 		entry.Count++
 		h.mu.Unlock()
 	}

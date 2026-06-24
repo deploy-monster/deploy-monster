@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"context"
 	"encoding/base64"
 	"strings"
 	"testing"
@@ -48,7 +49,7 @@ func TestModule_ResolveAll_NestedSecretRef(t *testing.T) {
 
 	// Template where a resolved value would itself contain ${SECRET:...}
 	// Since Resolve is a stub returning error, we just verify first ref fails
-	_, err := m.ResolveAll("scope", "prefix-${SECRET:outer}-suffix")
+	_, err := m.ResolveAll(context.Background(), "scope", "prefix-${SECRET:outer}-suffix")
 	if err == nil {
 		t.Fatal("expected error from Resolve stub")
 	}
@@ -65,7 +66,7 @@ func TestModule_ResolveAll_MidStringUnclosed(t *testing.T) {
 	m := New()
 
 	// This has ${SECRET: but the closing brace is missing at a weird offset
-	result, err := m.ResolveAll("scope", "abc${SECRET:name_no_close_here")
+	result, err := m.ResolveAll(context.Background(), "scope", "abc${SECRET:name_no_close_here")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -170,7 +170,7 @@ func TestModule_ResolveAll_SingleSecret(t *testing.T) {
 	m := New()
 	// ResolveAll calls Resolve internally, which returns "not found" for now.
 	// We verify the parsing logic: it should attempt to resolve the reference.
-	_, err := m.ResolveAll("global", "password=${SECRET:db_pass}")
+	_, err := m.ResolveAll(context.Background(), "global", "password=${SECRET:db_pass}")
 	if err == nil {
 		t.Fatal("expected error because Resolve is a stub returning 'not found'")
 	}
@@ -183,7 +183,7 @@ func TestModule_ResolveAll_MultipleSecrets(t *testing.T) {
 	m := New()
 	template := "host=${SECRET:db_host} pass=${SECRET:db_pass}"
 
-	_, err := m.ResolveAll("global", template)
+	_, err := m.ResolveAll(context.Background(), "global", template)
 	if err == nil {
 		t.Fatal("expected error from stub Resolve")
 	}
@@ -195,7 +195,7 @@ func TestModule_ResolveAll_MultipleSecrets(t *testing.T) {
 
 func TestModule_ResolveAll_NoSecrets(t *testing.T) {
 	m := New()
-	result, err := m.ResolveAll("global", "no-secrets-here")
+	result, err := m.ResolveAll(context.Background(), "global", "no-secrets-here")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestModule_ResolveAll_NoSecrets(t *testing.T) {
 
 func TestModule_ResolveAll_EmptyTemplate(t *testing.T) {
 	m := New()
-	result, err := m.ResolveAll("global", "")
+	result, err := m.ResolveAll(context.Background(), "global", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestModule_ResolveAll_EmptyTemplate(t *testing.T) {
 func TestModule_ResolveAll_UnclosedBrace(t *testing.T) {
 	m := New()
 	// ${SECRET:name without closing brace — should be left as-is
-	result, err := m.ResolveAll("global", "value=${SECRET:name")
+	result, err := m.ResolveAll(context.Background(), "global", "value=${SECRET:name")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestModule_ResolveAll_UnclosedBrace(t *testing.T) {
 
 func TestModule_Resolve_NotFound(t *testing.T) {
 	m := New()
-	_, err := m.Resolve("global", "nonexistent")
+	_, err := m.Resolve(context.Background(), "global", "nonexistent")
 	if err == nil {
 		t.Fatal("expected error from stub Resolve")
 	}
