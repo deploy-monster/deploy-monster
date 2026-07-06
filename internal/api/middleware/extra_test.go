@@ -84,8 +84,11 @@ func TestRealIP_XForwardedFor(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "5.6.7.8")
 
 	ip := realIP(req)
-	if ip != "5.6.7.8" {
-		t.Errorf("expected 5.6.7.8, got %q", ip)
+	if ip == "5.6.7.8" {
+		t.Error("realIP should ignore spoofable X-Forwarded-For header")
+	}
+	if ip == "" {
+		t.Error("expected non-empty IP from RemoteAddr")
 	}
 }
 

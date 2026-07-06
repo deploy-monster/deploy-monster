@@ -153,7 +153,7 @@ func TestSQLite_ListAppsByProject_FieldsMatch(t *testing.T) {
 	tenantID, projectID := setupTenantAndProject(t, db)
 	createApp(t, db, tenantID, projectID, "proj-app-1")
 
-	apps, err := db.ListAppsByProject(ctx, projectID)
+	apps, err := db.ListAppsByProject(ctx, projectID, tenantID)
 	if err != nil {
 		t.Fatalf("ListAppsByProject: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestSQLite_ListDomainsByApp_FieldsMatch(t *testing.T) {
 		t.Fatalf("CreateDomain: %v", err)
 	}
 
-	domains, err := db.ListDomainsByApp(ctx, app.ID)
+	domains, err := db.ListDomainsByApp(ctx, app.ID, tenantID)
 	if err != nil {
 		t.Fatalf("ListDomainsByApp: %v", err)
 	}

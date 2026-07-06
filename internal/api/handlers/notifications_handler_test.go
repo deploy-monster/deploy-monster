@@ -20,6 +20,7 @@ func TestNotificationTest_Success(t *testing.T) {
 		Recipient: "#ops",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/notifications/test", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Test(rr, req)
@@ -54,6 +55,7 @@ func TestNotificationTest_InvalidJSON(t *testing.T) {
 	handler := NewNotificationHandler(sender)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/notifications/test", bytes.NewReader([]byte("{")))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Test(rr, req)
@@ -72,6 +74,7 @@ func TestNotificationTest_MissingChannel(t *testing.T) {
 		Recipient: "#ops",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/notifications/test", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Test(rr, req)
@@ -90,6 +93,7 @@ func TestNotificationTest_NilSender(t *testing.T) {
 		Recipient: "#ops",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/notifications/test", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Test(rr, req)
@@ -109,6 +113,7 @@ func TestNotificationTest_SendError(t *testing.T) {
 		Recipient: "#ops",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/notifications/test", bytes.NewReader(body))
+	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
 	rr := httptest.NewRecorder()
 
 	handler.Test(rr, req)

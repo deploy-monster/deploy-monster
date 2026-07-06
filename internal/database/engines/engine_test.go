@@ -72,8 +72,11 @@ func TestRedis(t *testing.T) {
 	}
 
 	conn := e.ConnectionString("cache", 6379, Credentials{Password: "secret"})
-	if !strings.HasPrefix(conn, "redis://") {
-		t.Errorf("connection string should start with redis://")
+	if strings.Contains(conn, "secret") || strings.Contains(conn, "cache") {
+		t.Errorf("connection string should not expose password or host, got %q", conn)
+	}
+	if !strings.Contains(conn, "auth present") {
+		t.Errorf("connection string should indicate auth presence, got %q", conn)
 	}
 
 	// No password
@@ -91,8 +94,11 @@ func TestMongoDB(t *testing.T) {
 	}
 
 	conn := e.ConnectionString("mongo", 27017, Credentials{User: "root", Password: "pass", Database: "app"})
-	if !strings.HasPrefix(conn, "mongodb://") {
-		t.Errorf("connection string should start with mongodb://")
+	if strings.Contains(conn, "root") || strings.Contains(conn, "pass") || strings.Contains(conn, "mongo:27017") || strings.Contains(conn, "/app") {
+		t.Errorf("connection string should not expose credentials, host, or database, got %q", conn)
+	}
+	if !strings.Contains(conn, "auth present") {
+		t.Errorf("connection string should indicate auth presence, got %q", conn)
 	}
 }
 

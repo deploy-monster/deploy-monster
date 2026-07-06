@@ -84,7 +84,7 @@ func TestSQLite_Tenant_CRUD(t *testing.T) {
 	}
 
 	// Delete
-	if err := db.DeleteTenant(ctx, tenant.ID); err != nil {
+	if err := db.DeleteTenant(ctx, tenant.ID, tenant.ID); err != nil {
 		t.Fatalf("DeleteTenant: %v", err)
 	}
 }

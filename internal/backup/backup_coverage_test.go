@@ -482,7 +482,7 @@ func (m *mockStoreWithApps) CreateBackup(_ context.Context, _ *core.Backup) erro
 func (m *mockStoreWithApps) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (m *mockStoreWithApps) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+func (m *mockStoreWithApps) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
 	return nil
 }
 
@@ -663,7 +663,7 @@ func (m *mockStoreListAppsError) CreateBackup(_ context.Context, _ *core.Backup)
 func (m *mockStoreListAppsError) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (m *mockStoreListAppsError) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+func (m *mockStoreListAppsError) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
 	return nil
 }
 
@@ -698,7 +698,7 @@ func (m *mockStoreListTenantsError) CreateBackup(_ context.Context, _ *core.Back
 func (m *mockStoreListTenantsError) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (m *mockStoreListTenantsError) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+func (m *mockStoreListTenantsError) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
 	return nil
 }
 

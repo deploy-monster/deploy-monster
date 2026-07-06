@@ -226,9 +226,9 @@ func TestPostgresDB_GetDomain_NotFound(t *testing.T) {
 func TestPostgresDB_DeleteDomainsByApp_Success(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectExec("DELETE FROM domains WHERE app_id = \\$1").
-		WithArgs("a1").
+		WithArgs("a1", "t1").
 		WillReturnResult(sqlmock.NewResult(0, 3))
-	n, err := pg.DeleteDomainsByApp(context.Background(), "a1")
+	n, err := pg.DeleteDomainsByApp(context.Background(), "a1", "t1")
 	if err != nil || n != 3 {
 		t.Errorf("DeleteDomainsByApp: n=%d err=%v", n, err)
 	}
@@ -237,7 +237,7 @@ func TestPostgresDB_DeleteDomainsByApp_Success(t *testing.T) {
 func TestPostgresDB_DeleteDomainsByApp_Error(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectExec("DELETE FROM domains").WillReturnError(errors.New("delete failed"))
-	if _, err := pg.DeleteDomainsByApp(context.Background(), "a1"); err == nil {
+	if _, err := pg.DeleteDomainsByApp(context.Background(), "a1", "t1"); err == nil {
 		t.Error("expected error")
 	}
 }
@@ -401,10 +401,10 @@ func TestPostgresDB_ListBackupsByTenant_CountError(t *testing.T) {
 func TestPostgresDB_UpdateBackupStatus_Completed(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	// status=completed sets completed_at to time.Now().UTC()
-	mock.ExpectExec("UPDATE backups SET status = \\$1, size_bytes = \\$2, completed_at = \\$3 WHERE id = \\$4").
-		WithArgs("completed", int64(1024), sqlmock.AnyArg(), "b1").
+	mock.ExpectExec("UPDATE backups SET status = \\$1, size_bytes = \\$2, completed_at = \\$3 WHERE id = \\$4 AND tenant_id = \\$5").
+		WithArgs("completed", int64(1024), sqlmock.AnyArg(), "b1", "t1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	if err := pg.UpdateBackupStatus(context.Background(), "b1", "completed", 1024); err != nil {
+	if err := pg.UpdateBackupStatus(context.Background(), "b1", "completed", 1024, "t1"); err != nil {
 		t.Errorf("UpdateBackupStatus: %v", err)
 	}
 }
@@ -413,9 +413,9 @@ func TestPostgresDB_UpdateBackupStatus_Running(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	// status != completed/failed leaves completed_at as nil
 	mock.ExpectExec("UPDATE backups SET status").
-		WithArgs("running", int64(0), nil, "b1").
+		WithArgs("running", int64(0), nil, "b1", "t1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	if err := pg.UpdateBackupStatus(context.Background(), "b1", "running", 0); err != nil {
+	if err := pg.UpdateBackupStatus(context.Background(), "b1", "running", 0, "t1"); err != nil {
 		t.Errorf("UpdateBackupStatus: %v", err)
 	}
 }

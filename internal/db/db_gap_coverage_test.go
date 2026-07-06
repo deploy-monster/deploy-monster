@@ -63,7 +63,7 @@ func TestSQLite_DeleteDomainsByApp(t *testing.T) {
 	}
 
 	// Delete all
-	n, err := db.DeleteDomainsByApp(ctx, app.ID)
+	n, err := db.DeleteDomainsByApp(ctx, app.ID, tenantID)
 	if err != nil {
 		t.Fatalf("DeleteDomainsByApp: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestSQLite_DeleteDomainsByApp(t *testing.T) {
 	}
 
 	// Verify no domains remain
-	doms, err := db.ListDomainsByApp(ctx, app.ID)
+	doms, err := db.ListDomainsByApp(ctx, app.ID, tenantID)
 	if err != nil {
 		t.Fatalf("ListDomainsByApp: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestSQLite_DeleteDomainsByApp_NoDomains(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
 
-	n, err := db.DeleteDomainsByApp(ctx, "nonexistent-app")
+	n, err := db.DeleteDomainsByApp(ctx, "nonexistent-app", "t1")
 	if err != nil {
 		t.Fatalf("DeleteDomainsByApp: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestSQLite_Backup_CRUD(t *testing.T) {
 	}
 
 	// Update status → completed
-	if err := db.UpdateBackupStatus(ctx, backup.ID, "completed", 1024, backup.TenantID; err != nil {
+	if err := db.UpdateBackupStatus(ctx, backup.ID, "completed", 1024, backup.TenantID); err != nil {
 		t.Fatalf("UpdateBackupStatus completed: %v", err)
 	}
 
@@ -167,7 +167,7 @@ func TestSQLite_Backup_CRUD(t *testing.T) {
 	if err := db.CreateBackup(ctx, backup2); err != nil {
 		t.Fatalf("CreateBackup 2: %v", err)
 	}
-	if err := db.UpdateBackupStatus(ctx, backup2.ID, "failed", 0, backup2.TenantID; err != nil {
+	if err := db.UpdateBackupStatus(ctx, backup2.ID, "failed", 0, backup2.TenantID); err != nil {
 		t.Fatalf("UpdateBackupStatus failed: %v", err)
 	}
 
@@ -183,7 +183,7 @@ func TestSQLite_Backup_CRUD(t *testing.T) {
 	if err := db.CreateBackup(ctx, backup3); err != nil {
 		t.Fatalf("CreateBackup 3: %v", err)
 	}
-	if err := db.UpdateBackupStatus(ctx, backup3.ID, "running", 0); err != nil {
+	if err := db.UpdateBackupStatus(ctx, backup3.ID, "running", 0, backup3.TenantID); err != nil {
 		t.Fatalf("UpdateBackupStatus running: %v", err)
 	}
 }

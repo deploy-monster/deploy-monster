@@ -174,27 +174,21 @@ func TestRedis_ConnectionString_WithAndWithoutPassword(t *testing.T) {
 
 	t.Run("with password", func(t *testing.T) {
 		conn := e.ConnectionString("redis.local", 6379, Credentials{Password: "redispass"})
-		if !strings.HasPrefix(conn, "redis://") {
-			t.Errorf("should start with redis://, got %q", conn)
+		if !strings.Contains(conn, "auth present") {
+			t.Errorf("should indicate auth presence, got %q", conn)
 		}
-		if !strings.Contains(conn, ":redispass@") {
-			t.Errorf("should contain password, got %q", conn)
-		}
-		if !strings.Contains(conn, "redis.local:6379") {
-			t.Errorf("should contain host:port, got %q", conn)
+		if strings.Contains(conn, "redispass") || strings.Contains(conn, "redis.local") {
+			t.Errorf("redacted connection string should not expose secret or host, got %q", conn)
 		}
 	})
 
 	t.Run("without password", func(t *testing.T) {
 		conn := e.ConnectionString("cache", 6380, Credentials{})
-		if !strings.HasPrefix(conn, "redis://") {
-			t.Errorf("should start with redis://, got %q", conn)
+		if !strings.Contains(conn, "no auth") {
+			t.Errorf("should indicate missing auth, got %q", conn)
 		}
-		if strings.Contains(conn, "@") {
-			t.Errorf("no-password URL should not contain @, got %q", conn)
-		}
-		if !strings.Contains(conn, "cache:6380") {
-			t.Errorf("should contain host:port, got %q", conn)
+		if strings.Contains(conn, "cache:6380") {
+			t.Errorf("redacted connection string should not expose host:port, got %q", conn)
 		}
 	})
 }
@@ -204,10 +198,9 @@ func TestMongoDB_ConnectionString_Format(t *testing.T) {
 	creds := Credentials{Database: "mydb", User: "admin", Password: "secret"}
 	conn := e.ConnectionString("mongo-host", 27017, creds)
 
-	expected := []string{"mongodb://", "admin:secret@", "mongo-host:27017", "/mydb", "authSource=admin"}
-	for _, s := range expected {
-		if !strings.Contains(conn, s) {
-			t.Errorf("ConnectionString() = %q, missing %q", conn, s)
+	for _, secret := range []string{"admin", "secret", "mongo-host", "mydb"} {
+		if strings.Contains(conn, secret) {
+			t.Errorf("redacted connection string should not expose %q: %q", secret, conn)
 		}
 	}
 }

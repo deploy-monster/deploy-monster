@@ -118,7 +118,7 @@ func TestSQLiteExtra_App_UpdateStatus(t *testing.T) {
 
 	app := createApp(t, db, tenantID, projID, "status-app")
 
-	if err := db.UpdateAppStatus(ctx, app.ID, "deploying"); err != nil {
+	if err := db.UpdateAppStatus(ctx, app.ID, "deploying", tenantID); err != nil {
 		t.Fatalf("UpdateAppStatus: %v", err)
 	}
 
@@ -138,7 +138,7 @@ func TestSQLiteExtra_App_Delete(t *testing.T) {
 
 	app := createApp(t, db, tenantID, projID, "delete-me")
 
-	if err := db.DeleteApp(ctx, app.ID); err != nil {
+	if err := db.DeleteApp(ctx, app.ID, tenantID); err != nil {
 		t.Fatalf("DeleteApp: %v", err)
 	}
 
@@ -266,7 +266,7 @@ func TestSQLiteExtra_App_ListByProject(t *testing.T) {
 	createApp(t, db, tenantID, projID, "proj-app-1")
 	createApp(t, db, tenantID, projID, "proj-app-2")
 
-	apps, err := db.ListAppsByProject(ctx, projID)
+	apps, err := db.ListAppsByProject(ctx, projID, tenantID)
 	if err != nil {
 		t.Fatalf("ListAppsByProject: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestSQLiteExtra_Domain_ListByApp(t *testing.T) {
 		}
 	}
 
-	domains, err := db.ListDomainsByApp(ctx, app.ID)
+	domains, err := db.ListDomainsByApp(ctx, app.ID, tenantID)
 	if err != nil {
 		t.Fatalf("ListDomainsByApp: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestSQLiteExtra_Domain_Delete(t *testing.T) {
 	domain := &core.Domain{AppID: app.ID, FQDN: "delete-me.example.com", Type: "custom"}
 	db.CreateDomain(ctx, domain)
 
-	if err := db.DeleteDomain(ctx, domain.ID); err != nil {
+	if err := db.DeleteDomain(ctx, domain.ID, tenantID); err != nil {
 		t.Fatalf("DeleteDomain: %v", err)
 	}
 

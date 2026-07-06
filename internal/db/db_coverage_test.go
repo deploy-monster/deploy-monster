@@ -673,7 +673,7 @@ func TestSQLite_ListDomainsByApp_Empty(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
 
-	doms, err := db.ListDomainsByApp(ctx, "nonexistent-app")
+	doms, err := db.ListDomainsByApp(ctx, "nonexistent-app", "t1")
 	if err != nil {
 		t.Fatalf("ListDomainsByApp: %v", err)
 	}
@@ -908,7 +908,7 @@ func TestSQLite_ListDomainsByApp_Multiple(t *testing.T) {
 	db.CreateDomain(ctx, &core.Domain{AppID: app.ID, FQDN: "one.test.com", Type: "custom"})
 	db.CreateDomain(ctx, &core.Domain{AppID: app.ID, FQDN: "two.test.com", Type: "auto"})
 
-	doms, err := db.ListDomainsByApp(ctx, app.ID)
+	doms, err := db.ListDomainsByApp(ctx, app.ID, tenantID)
 	if err != nil {
 		t.Fatalf("ListDomainsByApp: %v", err)
 	}

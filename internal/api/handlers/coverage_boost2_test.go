@@ -1337,8 +1337,8 @@ func TestWebhookRotateHandler_Rotate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetWebhookSecret: %v", err)
 	}
-	if got != resp.NewSecret {
-		t.Fatalf("persisted secret = %q, want response secret", got)
+	if got != hashSecret(resp.NewSecret) {
+		t.Fatalf("persisted secret hash = %q, want hash of response secret", got)
 	}
 }
 

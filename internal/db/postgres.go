@@ -968,6 +968,9 @@ func (p *PostgresDB) ListDomainsByAppIDs(ctx context.Context, appIDs []string, t
 // Uses FNV-64a which has much better distribution than polynomial rolling hash,
 // avoiding collisions between different app IDs that would break distributed locking.
 func hashAppIDToLockID(appID string) int64 {
+	if appID == "" {
+		return 0
+	}
 	h := fnv.New64a()
 	h.Write([]byte(appID))
 	return int64(h.Sum64() & 0x7FFFFFFFFFFFFFFF) // Ensure positive
