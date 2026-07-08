@@ -40,6 +40,7 @@ jobs:
 
       - name: Copy UI to embed dir
         run: |
+          mkdir -p internal/api/static
           rm -rf internal/api/static/*
           cp -r web/dist/* internal/api/static/
 
