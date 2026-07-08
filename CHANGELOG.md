@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Grouped into **Breaking**, **Security**, **Features**, **Fixes**, and **Performance**
 at the request of the Phase 7 roadmap.
 
-## [Unreleased] — Tenant scoping, test fixes, documentation alignment
+## [0.1.9] — 2026-07-08 — Tenant scoping, test fixes, documentation alignment
 
 ### Security
 
