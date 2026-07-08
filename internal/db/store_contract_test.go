@@ -82,7 +82,7 @@ func runStoreContract(t *testing.T, s core.Store, opts storeContractOpts) {
 	if err := s.CreateTenant(ctx, tenant); err != nil {
 		t.Fatalf("[%s] CreateTenant: %v", opts.backend, err)
 	}
-	t.Cleanup(func() { _ = s.DeleteTenant(context.Background(), tenant.ID) })
+	t.Cleanup(func() { _ = s.DeleteTenant(context.Background(), tenant.ID, tenant.ID) })
 
 	got, err := s.GetTenant(ctx, tenant.ID)
 	if err != nil {
@@ -201,7 +201,7 @@ func runStoreContract(t *testing.T, s core.Store, opts storeContractOpts) {
 		t.Errorf("[%s] ListAppsByTenant: got total=%d len=%d, want 1/1", opts.backend, total, len(apps))
 	}
 
-	if err := s.UpdateAppStatus(ctx, app.ID, "running"); err != nil {
+	if err := s.UpdateAppStatus(ctx, app.ID, "running", app.TenantID); err != nil {
 		t.Fatalf("[%s] UpdateAppStatus: %v", opts.backend, err)
 	}
 	if got, _ := s.GetApp(ctx, app.ID); got.Status != "running" {
@@ -337,7 +337,7 @@ func runStoreContract(t *testing.T, s core.Store, opts storeContractOpts) {
 		t.Errorf("[%s] GetDomainByFQDN id: got %q, want %q", opts.backend, byFQDN.ID, domain.ID)
 	}
 
-	domains, err := s.ListDomainsByApp(ctx, app.ID)
+	domains, err := s.ListDomainsByApp(ctx, app.ID, app.TenantID)
 	if err != nil {
 		t.Fatalf("[%s] ListDomainsByApp: %v", opts.backend, err)
 	}
@@ -412,7 +412,7 @@ func runStoreContract(t *testing.T, s core.Store, opts storeContractOpts) {
 	if err != nil {
 		t.Fatalf("[%s] CreateTenantWithDefaults: %v", opts.backend, err)
 	}
-	t.Cleanup(func() { _ = s.DeleteTenant(context.Background(), txTenantID) })
+	t.Cleanup(func() { _ = s.DeleteTenant(context.Background(), txTenantID, txTenantID) })
 
 	if _, err := s.GetTenant(ctx, txTenantID); err != nil {
 		t.Errorf("[%s] GetTenant(tx): %v", opts.backend, err)
@@ -440,7 +440,7 @@ func runStoreContract(t *testing.T, s core.Store, opts storeContractOpts) {
 	})
 	if dupErr == nil {
 		t.Errorf("[%s] CreateTenant with duplicate slug: want error, got nil", opts.backend)
-		_ = s.DeleteTenant(ctx, "dup-"+suffix)
+		_ = s.DeleteTenant(ctx, "dup-"+suffix, "dup-"+suffix)
 	}
 	var dupCount int
 	if err := opts.rawDB.QueryRowContext(ctx,
@@ -460,14 +460,14 @@ func runStoreContract(t *testing.T, s core.Store, opts storeContractOpts) {
 	// runs against the same Postgres database do not accumulate orphans.
 	// For SQLite this is a no-op — the test DB is file-scoped and the
 	// t.TempDir wrapper deletes the whole file.
-	if _, err := s.DeleteDomainsByApp(ctx, app.ID); err != nil {
+	if _, err := s.DeleteDomainsByApp(ctx, app.ID, app.TenantID); err != nil {
 		t.Errorf("[%s] DeleteDomainsByApp: %v", opts.backend, err)
 	}
 	if _, err := opts.rawDB.ExecContext(ctx,
 		"DELETE FROM deployments WHERE app_id = "+opts.placeholder, app.ID); err != nil {
 		t.Errorf("[%s] DELETE deployments: %v", opts.backend, err)
 	}
-	if err := s.DeleteApp(ctx, app.ID); err != nil {
+	if err := s.DeleteApp(ctx, app.ID, app.TenantID); err != nil {
 		t.Errorf("[%s] DeleteApp: %v", opts.backend, err)
 	}
 	if err := s.DeleteProject(ctx, project.ID); err != nil {
