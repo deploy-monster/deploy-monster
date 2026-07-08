@@ -65,7 +65,7 @@ DeployMonster transforms any VPS with Docker into a multi-tenant deployment plat
 │                        Module System                              │
 ├──────────────────────────────────┬────────────────────────────────┤
 │  Docker SDK ←→ Docker Engine     │  VPS Providers (SSH + API)     │
-│  Local / Swarm / Compose         │  Hetzner│DO│Vultr│Linode│AWS   │
+│  Local / Swarm / Compose         │  Hetzner│DO│Vultr│Linode│Custom│
 ├──────────────────────────────────┴────────────────────────────────┤
 │          Embedded DB (SQLite + KV) + Event Bus                    │
 └───────────────────────────────────────────────────────────────────┘
@@ -82,9 +82,9 @@ DeployMonster transforms any VPS with Docker into a multi-tenant deployment plat
 | Auth | JWT + API Keys | Stateless, multi-tenant |
 | Container Runtime | Docker SDK (moby/moby) | Direct Docker API, no shelling out |
 | Orchestration | Docker Swarm Mode | Built-in, no K8s complexity |
-| SSL | Let's Encrypt (ACME) via lego library | Auto-cert with HTTP-01 / DNS-01 challenge |
+| SSL | Let's Encrypt (ACME) via Go autocert | Auto-cert with HTTP-01 challenge |
 | Ingress | Custom reverse proxy (net/http/httputil) | Label-based routing, no Traefik dependency |
-| DNS | Cloudflare API + Generic RFC2136 | Most common provider + standard fallback |
+| DNS | Cloudflare API + manual DNS | Cloudflare is the only automated DNS provider currently registered |
 
 ---
 

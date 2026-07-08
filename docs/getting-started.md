@@ -157,26 +157,22 @@ Your app is live at `https://<app-name>.<tenant>.deploy.example.com`
 ## Multi-Tenancy Example
 
 ```bash
-# As System Admin:
+# As System Admin, list/manage tenants through the admin API/UI.
+GET /api/v1/admin/tenants
 
-# 1. Create a tenant for your client
-POST /api/v1/tenants
-{
-  "name": "Acme Corp",
-  "slug": "acme",
-  "plan": "pro"
-}
-
-# 2. Create a Client Admin for the tenant
-POST /api/v1/tenants/acme/users
+# Invite a user into the current tenant through the team API/UI.
+POST /api/v1/team/invites
 {
   "email": "admin@acme.com",
-  "role": "admin"
+  "role_id": "role_admin"
 }
 
-# 3. Client Admin logs in and sees only their resources
-# They can create projects, deploy apps, invite team members
+# Client Admin logs in and sees only their tenant-scoped resources.
+# They can create projects, deploy apps, and invite team members subject to RBAC.
 ```
+
+The exact tenant-admin mutation payloads are defined in the generated OpenAPI
+spec (`docs/openapi.yaml` / `GET /api/v1/openapi.json`).
 
 ## Next Steps
 

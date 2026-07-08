@@ -141,7 +141,7 @@ The core engine manages module lifecycle in dependency order:
 | **billing** | `billing` | Stripe integration | `core.db` |
 | **enterprise** | `enterprise` | WHMCS, SSO, audit | `core.db` |
 | **swarm** | `swarm` | Multi-server cluster | `deploy` |
-| **marketplace** | `marketplace` | 91 app templates | `core.db`, `deploy` |
+| **marketplace** | `marketplace` | 91 app templates across 19 categories | `core.db`, `deploy` |
 | **mcp** | `mcp` | AI tool server | `core.db`, `deploy` |
 | **api** | `api` | 236 documented REST routes | `core.db`, `core.auth`, `marketplace`, `billing` |
 | **discovery** | `discovery` | Container discovery | `deploy`, `ingress` |
@@ -201,7 +201,7 @@ type AppStore interface {
 | Implementation | Package | Use Case |
 |----------------|---------|----------|
 | **SQLite** | `internal/db` | Default, embedded, zero-config |
-| **PostgreSQL** | Planned | Enterprise, horizontal scaling |
+| **PostgreSQL** | `internal/db/postgres.go` | Optional backend behind the same Store interface |
 
 ### Usage Pattern
 
@@ -315,7 +315,7 @@ type Services struct {
     Webhooks      OutboundWebhookSender // External webhook delivery
 
     // Provider registries (multiple implementations)
-    dnsProviders    map[string]DNSProvider     // "cloudflare", "route53"
+    dnsProviders    map[string]DNSProvider     // currently "cloudflare" when configured
     backupStorages  map[string]BackupStorage   // "local", "s3"
     vpsProvisioners map[string]VPSProvisioner  // "hetzner", "digitalocean"
     gitProviders    map[string]GitProvider     // "github", "gitlab"

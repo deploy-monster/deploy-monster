@@ -70,7 +70,7 @@ tenant checks at one layer.
 - **14 language detectors** — Node, Go, Python, Rust, PHP, Java,
   .NET, Ruby, Elixir, Deno, Bun, static, Docker, custom.
 - **Docker Compose** multi-service stacks from YAML.
-- **Marketplace** — 91 curated one-click templates across 16
+- **Marketplace** — 91 curated one-click templates across 19
   categories (WordPress, Ghost, n8n, Grafana, Ollama, …).
 
 ### Platform

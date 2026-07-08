@@ -1,12 +1,11 @@
 # DeployMonster — Production Readiness
 
 **Status:** CONDITIONAL GO
-**Release candidate:** latest `master` HEAD
-**Report date:** 2026-05-09
+**Release candidate:** `fix/verification-test-coverage` (post-test-fix verification branch)
+**Report date:** 2026-07-06
 **Owner:** Ersin / ECOSTACK TECHNOLOGY OÜ
 
-This file is the executive readiness pointer for the current release
-candidate.
+This file is the executive readiness pointer for the current release candidate.
 Detailed historical analysis remains in `docs/archive/`; current release
 evidence should be attached to the release issue.
 
@@ -14,9 +13,9 @@ evidence should be attached to the release issue.
 
 **Ship to self-hosted single-tenant production: GO.**
 
-**Ship to hosted multi-tenant SaaS: CONDITIONAL GO.** The code and CI
-state are merged to `master`, but hosted SaaS launch must wait for real
-staging proof:
+**Ship to hosted multi-tenant SaaS: CONDITIONAL GO.** The current branch has
+local build and grouped-test evidence, but hosted SaaS launch must wait for
+real staging proof:
 
 - staging install or upgrade from the release candidate
 - authenticated and public smoke checks
@@ -33,21 +32,26 @@ The required procedure is documented in
 
 ## Current Evidence
 
-PR #43 is merged. Post-merge `master` CI is green:
+The latest repository-local verification is documented in
+[`docs/verification-report-2026-07-06.md`](docs/verification-report-2026-07-06.md).
+It supports these statements:
 
 | Gate | Status |
 |---|---|
-| Go race / coverage test | Passing |
-| React typecheck, lint, Vitest, build, bundle budget | Passing |
-| Go vet, Go build, OpenAPI drift | Passing |
-| SQLite integration tests | Passing |
-| Postgres integration tests | Passing |
-| Secrets scan | Passing |
-| Playwright E2E | Passing |
-| Cross-platform release build matrix | Passing |
-| Docker image build, CLI smoke, server smoke | Passing |
+| Go production build (`go build ./...`) | Passing |
+| Go compile-only tests (`go test -run '^$' ./...`) | Passing |
+| Grouped Go package tests (`./cmd/...`, `./internal/...`, `./tests/...`) | Passing |
+| Previously failing DB/API/middleware/database-engine packages | Passing in targeted runs |
+| Web unit tests (`cd web && pnpm test`) | Passing — 44 files / 405 tests |
+| Web production build (`cd web && pnpm build`) | Passing |
+| OpenAPI drift (`go run ./cmd/openapi-gen`) | Passing — 236 routes in code and spec |
 
-Release artifact and image publication must still be verified on the
+Caveat: the exact monolithic `go test ./... -timeout 120s` command was
+attempted but did not complete before the agent tool timeout. The same package
+universe passed when split into groups, so do not claim that exact monolithic
+command is green until it completes in a local shell or CI job.
+
+Release artifact and image publication still need to be verified on the
 tag-driven release workflow path.
 
 ## What Changed Since The April Readiness Review
@@ -57,23 +61,24 @@ tag-driven release workflow path.
 - RBAC route permissions were expanded for non-app operator actions.
 - OpenAPI drift, README coverage drift, and project-status drift were
   corrected.
-- Frontend, backend, integration, E2E, secrets, build-matrix, and Docker
-  gates are green on GitHub.
-- `docs/staging-validation.md` now defines the required external proof
-  before a hosted SaaS launch.
+- The current verification branch repaired stale tests and DB/API runtime
+  failures left by tenant-scoped interface changes.
+- `docs/staging-validation.md` defines the required external proof before a
+  hosted SaaS launch.
 
 ## Remaining Blockers For Hosted SaaS
 
 1. Staging validation on real infrastructure.
 2. Backup/restore and rollback evidence attached to the release issue.
 3. Load and short-soak evidence attached to the release issue.
-4. Release artifacts and Docker images published from the release
-   workflow.
+4. Release artifacts and Docker images published from the release workflow.
+5. A direct local-shell or CI run of the monolithic Go suite, if that exact
+   command is required as release evidence.
 
 ## Known Risks
 
-- CI cannot prove real DNS, ACME, cloud storage, webhook-provider, or
-  Docker-host behavior.
+- CI and local verification cannot prove real DNS, ACME, cloud storage,
+  webhook-provider, or Docker-host behavior.
 - Docker socket access remains an intentionally powerful operational
   capability; follow `docs/docker-socket-hardening.md`.
 - The system is not a multi-master HA control plane. Recovery depends on
@@ -82,6 +87,7 @@ tag-driven release workflow path.
 ## References
 
 - **Current status:** `docs/PROJECT_STATUS.md`
+- **Latest verification:** `docs/verification-report-2026-07-06.md`
 - **Launch plan:** `docs/DEVELOPMENT_LAUNCH_PLAN.md`
 - **Staging validation:** `docs/staging-validation.md`
 - **Operator runbook:** `docs/runbook.md`
