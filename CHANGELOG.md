@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Grouped into **Breaking**, **Security**, **Features**, **Fixes**, and **Performance**
 at the request of the Phase 7 roadmap.
 
+## [Unreleased] — Tenant scoping, test fixes, documentation alignment
+
+### Security
+
+- **SecretResolver now takes `context.Context`** — both `Resolve(key, ctx)` and
+  `ResolveAll(ctx)` signatures updated. Fixes non-compiling test files left by
+  a prior refactor. Production code was already correct. (`internal/secrets/`)
+- **Health check HTTP client hardened** — scoped client with
+  `ResponseHeaderTimeout` prevents slow/bogus health targets from blocking
+  the health endpoint. (`internal/discovery/health.go`)
+- **EventBus retry loop no longer leaks goroutines** — replaced `time.After`
+  with `time.NewTimer` and explicit `Stop()` to prevent timer leaks on every
+  retry. (`internal/core/events.go`)
+
+### Fixes
+
+- **Store interface tenant-scoped** — all domain deletion, app deletion, and
+  status update operations now require `tenantID` parameter. Mock stores and
+  test call sites updated across `internal/backup`, `internal/db`,
+  `internal/api/handlers`, `internal/api/middleware`,
+  `internal/database/engines`. (7 files)
+- **Test deadlocks resolved** — JSON field mismatches fixed, runtime
+  reliability issues patched, notification handler tests restored after
+  signature drift.
+- **DB compile/runtime failures closed** — `db_coverage_final_test.go:872`
+  syntax error fixed, stale `UpdateBackupStatus`/`markFailed` call sites
+  repaired.
+- **Postgres test suite** — 10+ tests repaired for tenant-scoped interface
+  alignment, SQL execution flow corrected.
+
+### Documentation
+
+- **Full codebase alignment scan** — ARCHITECTURE.md, PRODUCTION-READY.md,
+  README.md, docs/api-reference.md, docs/architecture.md, docs/configuration.md,
+  docs/deployment-guide.md, docs/getting-started.md, docs/DEVELOPMENT_LAUNCH_PLAN.md,
+  docs/PROJECT_STATUS.md all updated to match current state.
+- **New endpoints documented** — clone, suspend, resume, snapshots, metrics,
+  resources, cron endpoints added to `docs/api-reference.md`.
+- **Configuration docs expanded** — 20+ missing env vars documented
+  (`MONSTER_DB_SSL_MODE`, `MONSTER_DOCKER_CPU_QUOTA`, `MONSTER_CLOUDFLARE_TOKEN`,
+  `MONSTER_ENCRYPTION_KEY`, `MONSTER_STRIPE_*`, notification/SMTP/S3/Alertmanager
+  overrides, etc.).
+- **Verification report** — `docs/verification-report-2026-07-06.md` captures
+  current build/test evidence: Go build, grouped test suites, web tests/build,
+  OpenAPI drift (236/236 routes).
+- **CHANGELOG** — This entry.
+
 ## [0.1.8] — 2026-04-30 — golangci-lint v1 upgrade, Vite security patches, security findings closed
 
 Session cleanup and hardening. golangci-lint upgraded from v2.11.4 to v1.64.8
