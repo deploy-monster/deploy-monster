@@ -300,10 +300,10 @@ func TestPostgresDB_UpdateTenant_Error(t *testing.T) {
 func TestPostgresDB_DeleteTenant_Success(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectExec("DELETE FROM tenants WHERE id = \\$1").
-		WithArgs("t1").
+		WithArgs("t1", "t1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	if err := pg.DeleteTenant(context.Background(), "t1"); err != nil {
+	if err := pg.DeleteTenant(context.Background(), "t1", "t1"); err != nil {
 		t.Fatalf("DeleteTenant() error = %v", err)
 	}
 }
@@ -311,10 +311,10 @@ func TestPostgresDB_DeleteTenant_Success(t *testing.T) {
 func TestPostgresDB_DeleteTenant_Error(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectExec("DELETE FROM tenants WHERE id = \\$1").
-		WithArgs("t1").
+		WithArgs("t1", "t1").
 		WillReturnError(errors.New("fk violation"))
 
-	if err := pg.DeleteTenant(context.Background(), "t1"); err == nil {
+	if err := pg.DeleteTenant(context.Background(), "t1", "t1"); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -876,10 +876,10 @@ func TestPostgresDB_ListAppsByProject_Success(t *testing.T) {
 	}).
 		AddRow("a1", "p1", "t1", "app1", "web", "git", "", "main", "running", 1, "", now, now)
 	mock.ExpectQuery("SELECT .+ FROM applications WHERE project_id = \\$1").
-		WithArgs("p1").
+		WithArgs("p1", "t1").
 		WillReturnRows(appRows)
 
-	apps, err := pg.ListAppsByProject(context.Background(), "p1")
+	apps, err := pg.ListAppsByProject(context.Background(), "p1", "t1")
 	if err != nil {
 		t.Fatalf("ListAppsByProject() error = %v", err)
 	}
@@ -891,10 +891,10 @@ func TestPostgresDB_ListAppsByProject_Success(t *testing.T) {
 func TestPostgresDB_ListAppsByProject_Error(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectQuery("SELECT .+ FROM applications WHERE project_id = \\$1").
-		WithArgs("p1").
+		WithArgs("p1", "t1").
 		WillReturnError(errors.New("query fail"))
 
-	_, err := pg.ListAppsByProject(context.Background(), "p1")
+	_, err := pg.ListAppsByProject(context.Background(), "p1", "t1")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -904,10 +904,10 @@ func TestPostgresDB_ListAppsByProject_ScanError(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	appRows := sqlmock.NewRows([]string{"id"}).AddRow("a1")
 	mock.ExpectQuery("SELECT .+ FROM applications WHERE project_id = \\$1").
-		WithArgs("p1").
+		WithArgs("p1", "t1").
 		WillReturnRows(appRows)
 
-	_, err := pg.ListAppsByProject(context.Background(), "p1")
+	_, err := pg.ListAppsByProject(context.Background(), "p1", "t1")
 	if err == nil {
 		t.Fatal("expected scan error")
 	}
@@ -916,10 +916,10 @@ func TestPostgresDB_ListAppsByProject_ScanError(t *testing.T) {
 func TestPostgresDB_UpdateAppStatus_Success(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectExec("UPDATE applications SET status").
-		WithArgs("running", "a1").
+		WithArgs("running", "a1", "t1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	if err := pg.UpdateAppStatus(context.Background(), "a1", "running"); err != nil {
+	if err := pg.UpdateAppStatus(context.Background(), "a1", "running", "t1"); err != nil {
 		t.Fatalf("UpdateAppStatus() error = %v", err)
 	}
 }
@@ -927,10 +927,10 @@ func TestPostgresDB_UpdateAppStatus_Success(t *testing.T) {
 func TestPostgresDB_UpdateAppStatus_Error(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectExec("UPDATE applications SET status").
-		WithArgs("running", "a1").
+		WithArgs("running", "a1", "t1").
 		WillReturnError(errors.New("fail"))
 
-	if err := pg.UpdateAppStatus(context.Background(), "a1", "running"); err == nil {
+	if err := pg.UpdateAppStatus(context.Background(), "a1", "running", "t1"); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -938,10 +938,10 @@ func TestPostgresDB_UpdateAppStatus_Error(t *testing.T) {
 func TestPostgresDB_DeleteApp_Success(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectExec("DELETE FROM applications WHERE id = \\$1").
-		WithArgs("a1").
+		WithArgs("a1", "t1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	if err := pg.DeleteApp(context.Background(), "a1"); err != nil {
+	if err := pg.DeleteApp(context.Background(), "a1", "t1"); err != nil {
 		t.Fatalf("DeleteApp() error = %v", err)
 	}
 }
@@ -949,10 +949,10 @@ func TestPostgresDB_DeleteApp_Success(t *testing.T) {
 func TestPostgresDB_DeleteApp_Error(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectExec("DELETE FROM applications WHERE id = \\$1").
-		WithArgs("a1").
+		WithArgs("a1", "t1").
 		WillReturnError(errors.New("delete fail"))
 
-	if err := pg.DeleteApp(context.Background(), "a1"); err == nil {
+	if err := pg.DeleteApp(context.Background(), "a1", "t1"); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -1253,11 +1253,11 @@ func TestPostgresDB_ListDomainsByApp_Success(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "app_id", "fqdn", "type", "dns_provider", "dns_synced", "verified", "created_at"}).
 		AddRow("d1", "a1", "example.com", "custom", "cloudflare", true, true, now).
 		AddRow("d2", "a1", "api.example.com", "custom", "", false, false, now)
-	mock.ExpectQuery("SELECT .+ FROM domains WHERE app_id = \\$1").
-		WithArgs("a1").
+	mock.ExpectQuery("FROM domains d").
+		WithArgs("a1", "t1").
 		WillReturnRows(rows)
 
-	domains, err := pg.ListDomainsByApp(context.Background(), "a1")
+	domains, err := pg.ListDomainsByApp(context.Background(), "a1", "t1")
 	if err != nil {
 		t.Fatalf("ListDomainsByApp() error = %v", err)
 	}
@@ -1268,11 +1268,11 @@ func TestPostgresDB_ListDomainsByApp_Success(t *testing.T) {
 
 func TestPostgresDB_ListDomainsByApp_Error(t *testing.T) {
 	pg, mock := newMockPostgres(t)
-	mock.ExpectQuery("SELECT .+ FROM domains WHERE app_id = \\$1").
-		WithArgs("a1").
+	mock.ExpectQuery("FROM domains d").
+		WithArgs("a1", "t1").
 		WillReturnError(errors.New("fail"))
 
-	_, err := pg.ListDomainsByApp(context.Background(), "a1")
+	_, err := pg.ListDomainsByApp(context.Background(), "a1", "t1")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1281,11 +1281,11 @@ func TestPostgresDB_ListDomainsByApp_Error(t *testing.T) {
 func TestPostgresDB_ListDomainsByApp_ScanError(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	rows := sqlmock.NewRows([]string{"id"}).AddRow("d1")
-	mock.ExpectQuery("SELECT .+ FROM domains WHERE app_id = \\$1").
-		WithArgs("a1").
+	mock.ExpectQuery("FROM domains d").
+		WithArgs("a1", "t1").
 		WillReturnRows(rows)
 
-	_, err := pg.ListDomainsByApp(context.Background(), "a1")
+	_, err := pg.ListDomainsByApp(context.Background(), "a1", "t1")
 	if err == nil {
 		t.Fatal("expected scan error")
 	}
@@ -1294,10 +1294,10 @@ func TestPostgresDB_ListDomainsByApp_ScanError(t *testing.T) {
 func TestPostgresDB_DeleteDomain_Success(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectExec("DELETE FROM domains WHERE id = \\$1").
-		WithArgs("d1").
+		WithArgs("d1", "t1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	if err := pg.DeleteDomain(context.Background(), "d1"); err != nil {
+	if err := pg.DeleteDomain(context.Background(), "d1", "t1"); err != nil {
 		t.Fatalf("DeleteDomain() error = %v", err)
 	}
 }
@@ -1305,10 +1305,10 @@ func TestPostgresDB_DeleteDomain_Success(t *testing.T) {
 func TestPostgresDB_DeleteDomain_Error(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	mock.ExpectExec("DELETE FROM domains WHERE id = \\$1").
-		WithArgs("d1").
+		WithArgs("d1", "t1").
 		WillReturnError(errors.New("delete fail"))
 
-	if err := pg.DeleteDomain(context.Background(), "d1"); err == nil {
+	if err := pg.DeleteDomain(context.Background(), "d1", "t1"); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -2207,10 +2207,10 @@ func TestPostgresDB_ListAppsByProject_Empty(t *testing.T) {
 		"status", "replicas", "created_at", "updated_at",
 	})
 	mock.ExpectQuery("SELECT .+ FROM applications WHERE project_id = \\$1").
-		WithArgs("p1").
+		WithArgs("p1", "t1").
 		WillReturnRows(appRows)
 
-	apps, err := pg.ListAppsByProject(context.Background(), "p1")
+	apps, err := pg.ListAppsByProject(context.Background(), "p1", "t1")
 	if err != nil {
 		t.Fatalf("ListAppsByProject() error = %v", err)
 	}
@@ -2242,11 +2242,11 @@ func TestPostgresDB_ListDeploymentsByApp_Empty(t *testing.T) {
 func TestPostgresDB_ListDomainsByApp_Empty(t *testing.T) {
 	pg, mock := newMockPostgres(t)
 	rows := sqlmock.NewRows([]string{"id", "app_id", "fqdn", "type", "dns_provider", "dns_synced", "verified", "created_at"})
-	mock.ExpectQuery("SELECT .+ FROM domains WHERE app_id = \\$1").
-		WithArgs("a1").
+	mock.ExpectQuery("FROM domains d").
+		WithArgs("a1", "t1").
 		WillReturnRows(rows)
 
-	domains, err := pg.ListDomainsByApp(context.Background(), "a1")
+	domains, err := pg.ListDomainsByApp(context.Background(), "a1", "t1")
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}

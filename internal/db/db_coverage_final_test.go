@@ -869,7 +869,7 @@ func TestSQLite_DeleteDomain(t *testing.T) {
 	dom := &core.Domain{AppID: app.ID, FQDN: "delete.example.com", Type: "custom", DNSProvider: "cf"}
 	db.CreateDomain(ctx, dom)
 
-	if err := db.DeleteDomain(ctx, dom.ID, dom.AppID; err != nil {
+	if err := db.DeleteDomain(ctx, dom.ID, tenantID); err != nil {
 		t.Fatalf("DeleteDomain: %v", err)
 	}
 
@@ -905,7 +905,7 @@ func TestSQLite_UpdateAppStatus(t *testing.T) {
 	tenantID, projectID := setupTenantAndProject(t, db)
 	app := createApp(t, db, tenantID, projectID, "status-app")
 
-	if err := db.UpdateAppStatus(ctx, app.ID, "stopped", app.TenantID; err != nil {
+	if err := db.UpdateAppStatus(ctx, app.ID, "stopped", app.TenantID); err != nil {
 		t.Fatalf("UpdateAppStatus: %v", err)
 	}
 

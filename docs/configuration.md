@@ -26,11 +26,14 @@ All environment variables use the `MONSTER_` prefix.
 | `MONSTER_ENABLE_PPROF` | `server.enable_pprof` | `false` | Enable `/debug/pprof/*` endpoints (auth-protected) |
 | `MONSTER_DB_PATH` | `database.path` | `deploymonster.db` | SQLite database file path |
 | `MONSTER_DB_URL` | `database.url` | _(empty)_ | PostgreSQL connection URL (switches driver to postgres) |
+| `MONSTER_DB_SSL_MODE` | `database.ssl_mode` | `require` | PostgreSQL SSL mode |
 | `MONSTER_DOCKER_HOST` | `docker.host` | `unix:///var/run/docker.sock` | Docker daemon socket/host |
 | `MONSTER_BUILD_IMAGE_REGISTRY` | `docker.build_image_registry` | _(empty)_ | Registry/repository prefix for git build images used by remote agent deploys |
 | `MONSTER_BUILD_IMAGE_PUSH` | `docker.build_image_push` | `false` | Push built git images after Docker build; requires `docker.build_image_registry` |
 | `MONSTER_BUILD_REGISTRY_USERNAME` | `docker.build_registry_username` | _(empty)_ | Optional registry username for build/push auth |
 | `MONSTER_BUILD_REGISTRY_PASSWORD` | `docker.build_registry_password` | _(empty)_ | Optional registry password/token for build/push auth |
+| `MONSTER_DOCKER_CPU_QUOTA` | `docker.default_cpu_quota` | `100000` | Default CPU quota per container |
+| `MONSTER_DOCKER_MEMORY_MB` | `docker.default_memory_mb` | `512` | Default memory limit per container |
 | `MONSTER_MASTER_URL` | Agent env | _(empty)_ | Master URL used by `serve --agent` |
 | `MONSTER_JOIN_TOKEN` | `swarm.join_token` / Agent env | _(empty)_ | Shared token accepted by master and presented by agents |
 | `MONSTER_SERVER_ID` | Agent env | hostname | Stable server ID announced by an agent |
@@ -42,12 +45,28 @@ All environment variables use the `MONSTER_` prefix.
 | `MONSTER_REGISTRATION_MODE` | `registration.mode` | `open` | User registration mode (see below) |
 | `MONSTER_LOG_LEVEL` | `server.log_level` | `info` | Log level (debug, info, warn, error) |
 | `MONSTER_LOG_FORMAT` | `server.log_format` | `text` | Log format: `text` (human-readable) or `json` (structured) |
+| `MONSTER_CLOUDFLARE_TOKEN` | `dns.cloudflare_token` | _(empty)_ | Cloudflare API token |
+| `MONSTER_GITHUB_CLIENT_SECRET` | `git_sources.github_client_secret` | _(empty)_ | GitHub OAuth client secret |
+| `MONSTER_GITLAB_CLIENT_SECRET` | `git_sources.gitlab_client_secret` | _(empty)_ | GitLab OAuth client secret |
+| `MONSTER_ENCRYPTION_KEY` | `secrets.encryption_key` | _(empty)_ | Secret-vault encryption key |
+| `MONSTER_STRIPE_SECRET_KEY` | `billing.stripe_secret_key` | _(empty)_ | Stripe API secret key |
+| `MONSTER_STRIPE_WEBHOOK_KEY` | `billing.stripe_webhook_key` | _(empty)_ | Stripe webhook signing key |
+| `MONSTER_LICENSE_KEY` | `enterprise.license_key` | _(empty)_ | Enterprise license key |
 | `MONSTER_HETZNER_TOKEN` | `vps_providers.hetzner_token` | _(empty)_ | Hetzner Cloud API token |
 | `MONSTER_DIGITALOCEAN_TOKEN` | `vps_providers.digitalocean_token` | _(empty)_ | DigitalOcean API token |
 | `MONSTER_VULTR_TOKEN` | `vps_providers.vultr_token` | _(empty)_ | Vultr API token |
 | `MONSTER_LINODE_TOKEN` | `vps_providers.linode_token` | _(empty)_ | Linode API token |
 | `MONSTER_ADMIN_EMAIL` | — | Auto-generated `admin-<random>@deploymonster.local` | Initial admin email (first-run setup only) |
 | `MONSTER_ADMIN_PASSWORD` | — | _(auto-generated and logged once)_ | Initial admin password (first-run setup only) |
+
+Additional supported overrides for operational secrets and integrations include
+`MONSTER_SLACK_WEBHOOK`, `MONSTER_DISCORD_WEBHOOK`, `MONSTER_TELEGRAM_TOKEN`,
+`MONSTER_SMTP_HOST`, `MONSTER_SMTP_PORT`, `MONSTER_SMTP_USERNAME`,
+`MONSTER_SMTP_PASSWORD`, `MONSTER_SMTP_FROM`, `MONSTER_SMTP_FROM_NAME`,
+`MONSTER_SMTP_USE_TLS`, `MONSTER_S3_ACCESS_KEY`, `MONSTER_S3_SECRET_KEY`,
+`MONSTER_BACKUP_ENCRYPTION_KEY`, `MONSTER_ALERTMANAGER_URL`, `MONSTER_LOKI_URL`,
+`MONSTER_TRACING_URL`, and `MONSTER_SERVICE_NAME`. See `applyEnvOverrides` in
+`internal/core/config.go` for the exact source of truth.
 
 ## YAML Configuration Sections
 
@@ -100,7 +119,7 @@ acme:
 
 ```yaml
 dns:
-  provider: ""               # DNS provider: "cloudflare", "route53", "manual"
+  provider: ""               # DNS provider: "cloudflare" or "manual"; "route53" is accepted by validation but no provider is registered yet
   cloudflare_token: ""       # Cloudflare API token
   auto_subdomain: ""         # Auto-subdomain base (e.g., "deploy.monster")
 ```

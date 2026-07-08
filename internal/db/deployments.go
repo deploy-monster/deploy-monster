@@ -160,29 +160,34 @@ func (s *SQLiteDB) GetNextDeployVersion(ctx context.Context, appID string) (int,
 // before either writes, and both allocate the same version. BEGIN IMMEDIATE acquires
 // an exclusive write lock *before* the SELECT runs, serializing all callers.
 func (s *SQLiteDB) AtomicNextDeployVersion(ctx context.Context, appID string) (int, error) {
-	var nextVersion int
-	err := s.Tx(ctx, func(tx *sql.Tx) error {
-		// Acquire exclusive lock immediately — blocks all other readers/writers.
-		if _, err := tx.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-			return fmt.Errorf("begin immediate: %w", err)
+	// Acquire the write lock before reading MAX(version). Do not wrap this in
+	// database/sql's BeginTx: BEGIN IMMEDIATE is itself the transaction start.
+	if _, err := s.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return 0, fmt.Errorf("begin immediate: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = s.ExecContext(context.Background(), "ROLLBACK")
 		}
-		var maxVersion sql.NullInt64
-		err := tx.QueryRowContext(ctx,
-			`SELECT MAX(version) FROM deployments WHERE app_id = ?`, appID,
-		).Scan(&maxVersion)
-		if err != nil {
-			return err
-		}
-		if !maxVersion.Valid {
-			nextVersion = 1
-		} else {
-			nextVersion = int(maxVersion.Int64) + 1
-		}
-		return nil
-	})
-	if err != nil {
+	}()
+
+	var maxVersion sql.NullInt64
+	if err := s.QueryRowContext(ctx,
+		`SELECT MAX(version) FROM deployments WHERE app_id = ?`, appID,
+	).Scan(&maxVersion); err != nil {
 		return 0, err
 	}
+
+	nextVersion := 1
+	if maxVersion.Valid {
+		nextVersion = int(maxVersion.Int64) + 1
+	}
+
+	if _, err := s.ExecContext(ctx, "COMMIT"); err != nil {
+		return 0, fmt.Errorf("commit immediate: %w", err)
+	}
+	committed = true
 	return nextVersion, nil
 }
 

@@ -17,7 +17,7 @@ type errStore struct {
 	mockStore
 }
 
-func (e *errStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+func (e *errStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
 	return errors.New("db down")
 }
 
@@ -33,7 +33,7 @@ func TestScheduler_markFailed_Error(t *testing.T) {
 
 	// Should not panic even when store returns error
 	ctx := context.Background()
-	s.markFailed(ctx, "backup-1", "test failure", errors.New("cause"))
+	s.markFailed(ctx, "backup-1", "t1", "test failure", errors.New("cause"))
 }
 
 func TestScheduler_markFailed_Success(t *testing.T) {
@@ -47,7 +47,7 @@ func TestScheduler_markFailed_Success(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	s.markFailed(ctx, "backup-1", "test failure", errors.New("cause"))
+	s.markFailed(ctx, "backup-1", "t1", "test failure", errors.New("cause"))
 	// No panic = success
 }
 

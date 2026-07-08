@@ -95,7 +95,7 @@ func (c *countingStore) ListAppsByTenant(_ context.Context, _ string, _, _ int) 
 	return nil, 0, nil
 }
 func (c *countingStore) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
-func (c *countingStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+func (c *countingStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
 	return nil
 }
 
@@ -279,7 +279,7 @@ func (s *storeWithOneApp) ListAppsByTenant(_ context.Context, _ string, _, _ int
 	return []core.Application{{ID: "a1", TenantID: "t1"}}, 1, nil
 }
 func (s *storeWithOneApp) CreateBackup(_ context.Context, _ *core.Backup) error { return nil }
-func (s *storeWithOneApp) UpdateBackupStatus(_ context.Context, _, _ string, _ int64) error {
+func (s *storeWithOneApp) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
 	return nil
 }
 

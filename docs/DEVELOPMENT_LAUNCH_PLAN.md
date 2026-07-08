@@ -1,6 +1,6 @@
 # DeployMonster Development and Launch Plan
 
-Last updated: 2026-05-09
+Last updated: 2026-07-06
 
 This plan is the working path for taking DeployMonster from the current
 repository state to a shippable self-hosted product. It is ordered by
@@ -8,11 +8,15 @@ dependency: do not add major features until the earlier gates are green.
 
 ## Current Status
 
-- PR #43 is merged to `master`, and post-merge GitHub CI is green as of
-  2026-05-09.
-- Sprint 0 through Sprint 7 in-repo readiness work is complete on `master`. The
-  remaining launch gate is external staging proof, not additional local code
-  cleanup.
+- The current verification branch is `fix/verification-test-coverage`.
+- Repository-local verification on 2026-07-06 passed `go build ./...`,
+  compile-only Go tests, grouped Go package tests, targeted DB/API/middleware
+  packages, web unit tests, web build, and OpenAPI drift.
+- The exact monolithic `go test ./... -timeout 120s` command did not complete
+  before the agent tool timeout; run it directly in CI/local shell if that exact
+  command is required as release evidence.
+- Sprint 0 through Sprint 7 in-repo readiness work is complete. The remaining
+  launch gate is external staging proof, not additional local code cleanup.
 - Critical mutating API routes now use permission-aware middleware,
   viewer-role regression coverage was added, and non-app resource operations
   now have dedicated permission names for network, volume, registry, backup,

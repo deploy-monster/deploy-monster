@@ -4,6 +4,12 @@ Base URL: `https://your-server:8443/api/v1`
 
 Authentication: `Authorization: Bearer <access_token>` or `X-API-Key: dm_xxxxx`
 
+The canonical API contract is `docs/openapi.yaml`, also served by a running
+instance at `GET /api/v1/openapi.json`. The OpenAPI drift check currently
+reports **236 routes in code and 236 routes in the spec** with an empty drift
+allowlist (`go run ./cmd/openapi-gen`). The tables below are a human-oriented
+summary of common endpoints, not a replacement for the generated spec.
+
 ## Authentication
 
 | Method | Endpoint | Auth | Description |
@@ -41,6 +47,16 @@ Authentication: `Authorization: Bearer <access_token>` or `X-API-Key: dm_xxxxx`
 | POST | `/apps/{id}/terminal` | JWT | Send terminal command |
 | GET | `/apps/{id}/deployments` | JWT | List deployments |
 | GET | `/apps/{id}/deployments/latest` | JWT | Latest deployment |
+| POST | `/apps/{id}/clone` | JWT | Clone app |
+| POST | `/apps/{id}/suspend` | JWT | Suspend app |
+| POST | `/apps/{id}/resume` | JWT | Resume app |
+| GET | `/apps/{id}/snapshots` | JWT | List snapshots |
+| POST | `/apps/{id}/snapshots` | JWT | Create snapshot |
+| GET | `/apps/{id}/metrics` | JWT | App metrics |
+| GET | `/apps/{id}/resources` | JWT | Resource limits |
+| PUT | `/apps/{id}/resources` | JWT | Update resource limits |
+| GET | `/apps/{id}/cron` | JWT | List cron jobs |
+| POST | `/apps/{id}/cron` | JWT | Create cron job |
 
 ## Projects
 
@@ -72,7 +88,7 @@ Authentication: `Authorization: Bearer <access_token>` or `X-API-Key: dm_xxxxx`
 |--------|----------|------|-------------|
 | GET | `/backups` | JWT | List backups |
 | POST | `/backups` | JWT | Create backup |
-| GET | `/backups/{key}/download` | JWT | Download backup |
+| GET | `/backups/download/{key...}` | JWT | Download backup |
 
 ## Compose Stacks
 

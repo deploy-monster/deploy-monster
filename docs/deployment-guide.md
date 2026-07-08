@@ -120,11 +120,10 @@ backup:
 
 ```yaml
 backup:
-  storage:
-    type: s3
-    endpoint: https://s3.amazonaws.com
+  s3:
     bucket: my-backups
     region: eu-central-1
+    endpoint: https://s3.amazonaws.com
     access_key: ${SECRET:aws_key}
     secret_key: ${SECRET:aws_secret}
 ```
