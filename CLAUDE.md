@@ -116,7 +116,7 @@ YAML file `monster.yaml` + environment variable overrides (`MONSTER_*` prefix). 
 - `docs/archive/TASKS.md` — Ordered task checklist (251 tasks, 15 phases, 100% complete — retired)
 - `docs/openapi.yaml` — OpenAPI 3.0.3 specification
 - `docs/examples/api-quickstart.md` — API usage examples with curl
-- `ARCHITECTURE.md` — Full architecture documentation (updated 2026-05-16)
+- `ARCHITECTURE.md` — Full architecture documentation (updated 2026-07-08)
 - `REFACTOR.md` — Refactoring report with code quality analysis
 
 <!-- rtk-instructions v2 -->
