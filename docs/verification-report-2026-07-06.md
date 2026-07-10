@@ -102,9 +102,9 @@ cd web && pnpm build
 # vite build completed successfully
 ```
 
-## Post-Report Update (2026-07-08)
+## Post-Report Updates
 
-### Monolithic `go test ./...` confirmed passing
+### 2026-07-08 — Monolithic `go test ./...` confirmed passing
 
 After the fix branches were merged into `master`, the full suite was re-run:
 
@@ -129,9 +129,30 @@ Additionally, `go vet ./...` passed clean and the OpenAPI drift check reports **
 This closes the primary caveat from the original report.
 
 ### Still open
-- **pnpm overrides warning** persists (cosmetic — does not block tests or builds).
-- **Release artifact/image publication** not yet verified on the tag-driven workflow.
+- **Release artifact/image publication** — verified for v0.1.9 (GitHub release + GHCR image published, Trivy-scanned).
 - **Staging validation** on real infrastructure remains the final pre-launch gate.
+
+### 2026-07-10 — Full investigation + remaining caveats closed
+
+A comprehensive project investigation was performed on the working tree:
+
+**Verified still passing (all re-run live):**
+- `go build ./...` ✅ | `go vet ./...` (all tag variants) ✅
+- `go test -count=1 ./... -timeout 240s` ✅ (44 packages, 0 FAIL)
+- OpenAPI drift: 236/236 routes, allowlist=0 ✅
+- Coverage: 85.1% filtered (≥85% gate) ✅
+- Web tests: 44 files / 405 tests ✅
+- Web build: 933ms ✅
+
+**Resolved caveats from this report:**
+- **pnpm overrides warning** ✅ — already fixed in commit `5e3459d` via `web/.npmrc` migration; verified clean (`pnpm install` emits no warning)
+- **VERSION file** ✅ — was `v0.1.8`, updated to `v0.1.9` to match the released tag
+
+**New deliverable:**
+- `PRODUCTION-STATUS.md` — comprehensive English production status document (345 lines, 10 sections) consolidating executive verdict + detailed evidence
+
+**Single remaining open item:**
+- Staging validation on real infrastructure (per `docs/staging-validation.md`) — requires a disposable staging host with Docker, DNS control, and a smoke-test account. Cannot be executed from this environment.
 
 ## Remaining Caveats / Issues
 
@@ -139,15 +160,12 @@ This closes the primary caveat from the original report.
 
 The monolithic suite was confirmed passing on 2026-07-08 — see update above.
 
-### 2. Web pnpm configuration warning remains
+### 2. ~~Web pnpm configuration warning~~ ✅ RESOLVED
 
-Earlier web commands passed, but pnpm emitted:
-
-```text
-[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides". See https://pnpm.io/settings for the new home of each setting.
-```
-
-This warning does not block tests/builds, but it means the intended overrides may not be active under the installed pnpm version.
+The `pnpm.overrides` warning was resolved by commit `5e3459d` which migrated overrides
+from `package.json` to `web/.npmrc` using pnpm 10+'s `override.*` directive syntax.
+Verified clean on 2026-07-10: `pnpm install` emits no warning and the overrides
+(esbuild, braces, vite@7, ws) are active.
 
 ## Conclusion
 
@@ -160,10 +178,10 @@ Current status is substantially improved:
 - **Frontend tests:** passed earlier.
 - **Monolithic suite:** `go test -count=1 ./... -timeout 240s` — **all 44 packages pass** (42 ok, 2 no-test-files, 0 FAIL). Previously this command could not be confirmed due to tool timeout; it is now verified green.
 
-As of 2026-07-08: production builds pass, compile-only verification passes, all 44 Go test packages pass the monolithic suite, the OpenAPI drift gate is clean (236/236 routes), go vet is clean, and frontend tests/build pass. The remaining open items are the pnpm overrides warning, release artifact/image publication, and staging validation on real infrastructure.
+As of 2026-07-10: production builds pass, go vet (all tag variants) is clean, all 44 Go test packages pass the monolithic suite, coverage is 85.1% (above the 85% CI gate), the OpenAPI drift gate is clean (236/236 routes), frontend tests/build pass, the pnpm overrides warning is resolved, the VERSION file is synced, and release v0.1.9 is published with Trivy-scanned Docker image. The single remaining open item is staging validation on real infrastructure.
 
-## Recommended Follow-up (2026-07-08)
+## Recommended Follow-up
 
 1. ~~Run `go test ./... -timeout 120s` directly in a local shell/CI environment~~ ✅ Done — confirmed passing with `go test -count=1 ./... -timeout 240s` on 2026-07-08.
-2. Move `web/package.json` `pnpm.overrides` into pnpm’s supported configuration location if those overrides are intended to be enforced.
+2. ~~Move `web/package.json` `pnpm.overrides` into pnpm’s supported configuration location~~ ✅ Done — already migrated in commit `5e3459d`, verified clean on 2026-07-10.
 3. Execute [`docs/staging-validation.md`](staging-validation.md) on a disposable staging host before declaring the release production-ready for hosted SaaS.
