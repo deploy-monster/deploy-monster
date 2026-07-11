@@ -1,8 +1,6 @@
 module github.com/deploy-monster/deploy-monster
 
-go 1.26.1
-
-toolchain go1.26.4
+go 1.26.5
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
