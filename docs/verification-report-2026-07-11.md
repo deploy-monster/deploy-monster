@@ -16,6 +16,8 @@ Verification of `master` (commit `9e4e02a`, tag `v0.2.0`) after comprehensive te
 | Filtered coverage | **91.4%** |
 | OpenAPI drift (236/236 routes) | ✅ clean |
 | `go mod tidy` | ✅ clean |
+| `govulncheck ./...` | ✅ 0 vulnerabilities |
+| Go version | upgraded 1.26.4 → **1.26.5** |
 
 ## Coverage
 
