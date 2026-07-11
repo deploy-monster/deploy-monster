@@ -351,6 +351,32 @@ func TestMarketplaceDeploy_WithDomain(t *testing.T) {
 	}
 }
 
+// TestMarketplaceDeploy_DomainCreateError covers the warning-only error
+// path when CreateDomain fails inside marketplaceDeploy (line 449-451).
+// The handler logs the warning but still returns a success response.
+func TestMarketplaceDeploy_DomainCreateError(t *testing.T) {
+	store := &mockStoreMarketplaceCreateApp{
+		domainErr: fmt.Errorf("domain already exists"),
+	}
+	h := NewHandler(store, nil, core.NewEventBus(discardLogger()), discardLogger())
+	input, _ := json.Marshal(map[string]string{
+		"template_slug": "nginx",
+		"name":          "my-nginx",
+		"tenant_id":     "t-1",
+		"domain":        "example.com",
+	})
+	resp, err := h.HandleToolCall(context.Background(), "marketplace_deploy", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.IsError {
+		t.Errorf("domain error should not fail the whole deployment: %v", resp.Content)
+	}
+	if !strings.Contains(resp.Content[0].Text, "example.com") {
+		t.Error("response should still include domain")
+	}
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // provisionServer error branches — covers handler.go:409 (82.4% → ~95%)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -459,5 +485,23 @@ func (m *mockStoreCreateDomainErr) GetApp(_ context.Context, _ string) (*core.Ap
 	return nil, fmt.Errorf("not found")
 }
 func (m *mockStoreCreateDomainErr) CreateDomain(_ context.Context, _ *core.Domain) error {
+	return m.domainErr
+}
+
+// mockStoreMarketplaceCreateApp supports marketplaceDeploy with a
+// configurable CreateDomain error. The domain error is logged as a
+// warning (non-fatal).
+type mockStoreMarketplaceCreateApp struct {
+	core.Store
+	domainErr error
+}
+
+func (m *mockStoreMarketplaceCreateApp) ListAllTenants(_ context.Context, _, _ int) ([]core.Tenant, int, error) {
+	return []core.Tenant{{ID: "t-1", Name: "Test"}}, 1, nil
+}
+func (m *mockStoreMarketplaceCreateApp) CreateApp(_ context.Context, _ *core.Application) error {
+	return nil
+}
+func (m *mockStoreMarketplaceCreateApp) CreateDomain(_ context.Context, _ *core.Domain) error {
 	return m.domainErr
 }

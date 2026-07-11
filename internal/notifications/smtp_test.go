@@ -834,6 +834,210 @@ func generateTestCert(host string) (tls.Certificate, error) {
 	)
 }
 
+func TestSMTPProvider_Deliver_BodyWriteError(t *testing.T) {
+	// Use a net.Pipe with a custom dialer to control exactly when writes fail.
+	// The "server" (the read end) disconnects during DATA transfer so the
+	// subsequent data write fails.
+	var closeOnce sync.Once
+	serverDone := make(chan struct{})
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host: "127.0.0.1",
+		From: "from@fake.local",
+	}, discardLogger())
+
+	p.dialer = func(ctx context.Context, addr string) (net.Conn, error) {
+		client, server := net.Pipe()
+		go func() {
+			defer server.Close()
+			defer closeOnce.Do(func() { close(serverDone) })
+			br := bufio.NewReader(server)
+			writeLine := func(s string) {
+				_, _ = io.WriteString(server, s+"\r\n")
+			}
+
+			writeLine("220 fake.local ESMTP")
+			for {
+				line, err := br.ReadString('\n')
+				if err != nil {
+					return
+				}
+				cmd := strings.ToUpper(strings.TrimRight(line, "\r\n"))
+				switch {
+				case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
+					writeLine("250-fake.local")
+					writeLine("250 PIPELINING")
+				case strings.HasPrefix(cmd, "MAIL FROM:"):
+					writeLine("250 OK")
+				case strings.HasPrefix(cmd, "RCPT TO:"):
+					writeLine("250 OK")
+				case cmd == "DATA":
+					writeLine("354 start")
+					// Close the pipe so the client's data write fails
+					return
+				case strings.HasPrefix(cmd, "QUIT"):
+					writeLine("221 bye")
+					return
+				default:
+					writeLine("500 unexpected")
+				}
+			}
+		}()
+		return client, nil
+	}
+
+	// The message needs to be large enough to overflow Go's smtp bufio buffer (4096 bytes)
+	// so the write goes to the connection and fails.
+	body := strings.Repeat("A", 5000)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := p.Send(ctx, "to@fake.local", "Hi", body, "text")
+	if err == nil {
+		t.Fatal("expected body write error")
+	}
+	// Should fail with a write error from the closed pipe.
+	if !strings.Contains(err.Error(), "body write") && !strings.Contains(err.Error(), "write") {
+		t.Logf("Got error: %v", err)
+	}
+	<-serverDone
+}
+
+func TestSMTPProvider_Deliver_BodyCloseError(t *testing.T) {
+	// Server that rejects data after receiving the body (returns 5xx after dots).
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	handle := func(conn net.Conn) {
+		defer conn.Close()
+		_, _ = io.WriteString(conn, "220 fake.local ESMTP\r\n")
+		br := bufio.NewReader(conn)
+		for {
+			line, err := br.ReadString('\n')
+			if err != nil {
+				return
+			}
+			cmd := strings.ToUpper(strings.TrimRight(line, "\r\n"))
+			switch {
+			case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
+				_, _ = io.WriteString(conn, "250-fake.local\r\n250 PIPELINING\r\n")
+			case strings.HasPrefix(cmd, "MAIL FROM:"):
+				_, _ = io.WriteString(conn, "250 OK\r\n")
+			case strings.HasPrefix(cmd, "RCPT TO:"):
+				_, _ = io.WriteString(conn, "250 OK\r\n")
+			case cmd == "DATA":
+				_, _ = io.WriteString(conn, "354 start\r\n")
+				// Read until ".\r\n" (end of data marker)
+				for {
+					l, err := br.ReadString('\n')
+					if err != nil {
+						return
+					}
+					if l == ".\r\n" || l == ".\n" {
+						break
+					}
+				}
+				// Return error after dots - this makes w.Close() fail
+				_, _ = io.WriteString(conn, "554 Transaction failed\r\n")
+			case strings.HasPrefix(cmd, "QUIT"):
+				_, _ = io.WriteString(conn, "221 bye\r\n")
+				return
+			default:
+				_, _ = io.WriteString(conn, "500 unexpected\r\n")
+			}
+		}
+	}
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go handle(conn)
+		}
+	}()
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host: "127.0.0.1",
+		Port: ln.Addr().(*net.TCPAddr).Port,
+		From: "from@fake.local",
+	}, discardLogger())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = p.Send(ctx, "to@fake.local", "Hi", "hello", "text")
+	if err == nil {
+		t.Fatal("expected body close error")
+	}
+	if !strings.Contains(err.Error(), "body close") && !strings.Contains(err.Error(), "close") {
+		t.Logf("Got error: %v", err)
+	}
+}
+
+func TestSMTPProvider_Deliver_DialError(t *testing.T) {
+	// Use a custom dialer that returns an error to trigger the dial error path in deliver().
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host: "mail.example.com",
+		From: "noreply@example.com",
+	}, discardLogger())
+
+	p.dialer = func(ctx context.Context, addr string) (net.Conn, error) {
+		return nil, errors.New("dial injection failed")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err := p.Send(ctx, "to@fake.local", "Hi", "hello", "text")
+	if err == nil {
+		t.Fatal("expected dial error")
+	}
+	if !strings.Contains(err.Error(), "dial") {
+		t.Errorf("expected 'dial' in error, got: %v", err)
+	}
+}
+
+func TestSMTPProvider_Deliver_NewClientError(t *testing.T) {
+	// Server that doesn't send a valid SMTP greeting.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	handle := func(conn net.Conn) {
+		defer conn.Close()
+		// Send garbage instead of a proper 220 greeting, then close.
+		_, _ = io.WriteString(conn, "garbage response\r\n")
+	}
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go handle(conn)
+		}
+	}()
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host: "127.0.0.1",
+		Port: ln.Addr().(*net.TCPAddr).Port,
+		From: "from@fake.local",
+	}, discardLogger())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = p.Send(ctx, "to@fake.local", "Hi", "hello", "text")
+	if err == nil {
+		t.Fatal("expected smtp client error")
+	}
+	if !strings.Contains(err.Error(), "smtp") {
+		t.Errorf("expected 'smtp' in error, got: %v", err)
+	}
+}
+
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }

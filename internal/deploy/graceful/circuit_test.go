@@ -193,6 +193,38 @@ func TestCircuitBreaker_SuccessResetsFailureCount(t *testing.T) {
 	}
 }
 
+// TestCircuitBreaker_AllowRequest_HalfOpen covers the CircuitHalfOpen
+// branch by placing the circuit in half-open state directly and calling
+// AllowRequest. The existing half-open tests transition Open→HalfOpen
+// inside AllowRequest itself, so they never hit the case directly.
+func TestCircuitBreaker_AllowRequest_HalfOpen(t *testing.T) {
+	cb := NewCircuitBreaker(CircuitConfig{
+		FailureThreshold: 3,
+		SuccessThreshold: 2,
+		Timeout:          100 * time.Millisecond,
+	})
+	cb.state = CircuitHalfOpen
+	if !cb.AllowRequest() {
+		t.Error("AllowRequest() should return true in half-open state")
+	}
+}
+
+// TestCircuitBreaker_AllowRequest_DefaultCase covers the switch default
+// branch by setting the circuit state to an invalid value. The method
+// must return false for any unrecognised state.
+func TestCircuitBreaker_AllowRequest_DefaultCase(t *testing.T) {
+	cb := NewCircuitBreaker(CircuitConfig{
+		FailureThreshold: 3,
+		SuccessThreshold: 2,
+		Timeout:          100 * time.Millisecond,
+	})
+	// Set state to an invalid value to trigger the default branch.
+	cb.state = CircuitState(99)
+	if cb.AllowRequest() {
+		t.Error("AllowRequest() should return false for unknown state")
+	}
+}
+
 func TestCircuitBreaker_Stats(t *testing.T) {
 	cb := NewCircuitBreaker(CircuitConfig{
 		FailureThreshold: 3,

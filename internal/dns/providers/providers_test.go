@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -393,6 +394,227 @@ func TestCloudflare_do_NetworkError(t *testing.T) {
 
 func TestCloudflare_ImplementsDNSProvider(t *testing.T) {
 	var _ core.DNSProvider = (*Cloudflare)(nil)
+}
+
+// ===========================================================================
+// isPublicIP tests (unexported function)
+// ===========================================================================
+
+func TestIsPublicIP_Nil(t *testing.T) {
+	if isPublicIP(nil) {
+		t.Error("isPublicIP(nil) should return false")
+	}
+}
+
+func TestIsPublicIP_Loopback(t *testing.T) {
+	ip := net.ParseIP("127.0.0.1")
+	if isPublicIP(ip) {
+		t.Error("isPublicIP(127.0.0.1) should return false")
+	}
+}
+
+func TestIsPublicIP_Private(t *testing.T) {
+	cases := []string{
+		"10.0.0.1",
+		"172.16.0.1",
+		"192.168.1.1",
+	}
+	for _, c := range cases {
+		ip := net.ParseIP(c)
+		if isPublicIP(ip) {
+			t.Errorf("isPublicIP(%s) should return false", c)
+		}
+	}
+}
+
+func TestIsPublicIP_LinkLocalUnicast(t *testing.T) {
+	// 169.254.x.x is link-local unicast but NOT metadata
+	ip := net.ParseIP("169.254.1.1")
+	if isPublicIP(ip) {
+		t.Error("isPublicIP(169.254.1.1) should return false (link-local)")
+	}
+}
+
+func TestIsPublicIP_MetadataRange(t *testing.T) {
+	cases := []string{
+		"169.254.169.254",
+		"169.254.169.253",
+	}
+	for _, c := range cases {
+		ip := net.ParseIP(c)
+		if isPublicIP(ip) {
+			t.Errorf("isPublicIP(%s) should return false (metadata)", c)
+		}
+	}
+}
+
+func TestIsPublicIP_Public(t *testing.T) {
+	cases := []string{
+		"8.8.8.8",
+		"1.1.1.1",
+	}
+	for _, c := range cases {
+		ip := net.ParseIP(c)
+		if !isPublicIP(ip) {
+			t.Errorf("isPublicIP(%s) should return true", c)
+		}
+	}
+}
+
+func TestIsPublicIP_PublicIPv6(t *testing.T) {
+	ip := net.ParseIP("2001:4860:4860::8888")
+	if !isPublicIP(ip) {
+		t.Error("isPublicIP(2001:4860:4860::8888) should return true")
+	}
+}
+
+// ===========================================================================
+// Additional Cloudflare branch coverage
+// ===========================================================================
+
+func TestCloudflare_UpdateRecord_APIError(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			// findZone — return a zone
+			json.NewEncoder(w).Encode(map[string]any{
+				"result": []map[string]any{
+					{"id": "zone-123", "name": "example.com"},
+				},
+			})
+			return
+		}
+		// UpdateRecord call — return 400 error
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"errors":[{"message":"invalid update"}]}`))
+	}))
+	defer srv.Close()
+
+	cf := NewCloudflare("test-token")
+	cf.client = srv.Client()
+	cf.client.Transport = &rewriteTransport{base: srv.URL}
+
+	err := cf.UpdateRecord(context.Background(), core.DNSRecord{
+		ID:    "rec-456",
+		Type:  "A",
+		Name:  "app.example.com",
+		Value: "1.2.3.4",
+		TTL:   300,
+	})
+	if err == nil {
+		t.Fatal("expected error for API failure")
+	}
+	if !strings.Contains(err.Error(), "HTTP 400") {
+		t.Errorf("expected HTTP 400 error, got: %v", err)
+	}
+}
+
+func TestCloudflare_DeleteRecord_APIError(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			// findZone — return a zone
+			json.NewEncoder(w).Encode(map[string]any{
+				"result": []map[string]any{
+					{"id": "zone-123", "name": "example.com"},
+				},
+			})
+			return
+		}
+		// DeleteRecord call — return 400 error
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"errors":[{"message":"delete failed"}]}`))
+	}))
+	defer srv.Close()
+
+	cf := NewCloudflare("test-token")
+	cf.client = srv.Client()
+	cf.client.Transport = &rewriteTransport{base: srv.URL}
+
+	err := cf.DeleteRecord(context.Background(), core.DNSRecord{
+		ID:   "rec-456",
+		Name: "app.example.com",
+	})
+	if err == nil {
+		t.Fatal("expected error for API failure")
+	}
+	if !strings.Contains(err.Error(), "HTTP 400") {
+		t.Errorf("expected HTTP 400 error, got: %v", err)
+	}
+}
+
+func TestCloudflare_findZone_UnmarshalError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return 200 with non-JSON body
+		w.Write([]byte(`not valid json`))
+	}))
+	defer srv.Close()
+
+	cf := NewCloudflare("test-token")
+	cf.client = srv.Client()
+	cf.client.Transport = &rewriteTransport{base: srv.URL}
+
+	_, err := cf.findZone(context.Background(), "app.example.com")
+	if err == nil {
+		t.Fatal("expected error for unmarshal failure")
+	}
+	if !strings.Contains(err.Error(), "cloudflare zone parse") {
+		t.Errorf("expected 'cloudflare zone parse' error, got: %v", err)
+	}
+}
+
+func TestCloudflare_do_RetryExhaustion(t *testing.T) {
+	// Server that returns 500 every time — retries exhaust after 3 attempts
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`server error`))
+	}))
+	defer srv.Close()
+
+	cf := NewCloudflare("test-token")
+	cf.client = srv.Client()
+	cf.client.Transport = &rewriteTransport{base: srv.URL}
+
+	_, err := cf.do(context.Background(), http.MethodGet, "/test", nil)
+	if err == nil {
+		t.Fatal("expected error after retry exhaustion")
+	}
+	if attempts != 3 {
+		t.Errorf("expected 3 attempts, got %d", attempts)
+	}
+	if !strings.Contains(err.Error(), "failed after 3 attempts") {
+		t.Errorf("expected retry exhaustion message, got: %v", err)
+	}
+}
+
+func TestCloudflare_do_InvalidURL(t *testing.T) {
+	// Passing a control character in the path makes url.Parse fail.
+	cf := NewCloudflare("test-token")
+
+	_, err := cf.do(context.Background(), http.MethodGet, "\x00", nil)
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+	if !strings.Contains(err.Error(), "build") {
+		t.Errorf("expected 'build' error prefix, got: %v", err)
+	}
+}
+
+func TestCloudflare_Verify_AllPrivateIPs(t *testing.T) {
+	// "localhost" typically resolves to loopback IPs (127.0.0.1, ::1).
+	// These are not public, so Verify should return (false, nil).
+	cf := NewCloudflare("test-token")
+	ok, err := cf.Verify(context.Background(), "localhost")
+	if err != nil {
+		t.Fatalf("Verify('localhost') error: %v", err)
+	}
+	if ok {
+		t.Error("Verify('localhost') should return false for loopback-only domain")
+	}
 }
 
 // ===========================================================================

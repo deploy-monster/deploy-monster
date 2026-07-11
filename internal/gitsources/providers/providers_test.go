@@ -1266,3 +1266,178 @@ func (rt *rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	}
 	return transport.RoundTrip(newReq)
 }
+
+// =========================================================================
+// JSON unmarshal error tests (all providers)
+// =========================================================================
+
+// Helper: returns a testTransport handler that returns 200 with non-JSON body
+func unmarshalErrorHandler(_ *http.Request) (*http.Response, error) {
+	rr := httptest.NewRecorder()
+	rr.WriteString(`not json at all`)
+	return rr.Result(), nil
+}
+
+// GitHub unmarshal errors
+func TestGitHub_ListRepos_UnmarshalError(t *testing.T) {
+	g := &GitHub{token: "tok", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.ListRepos(context.Background(), 1, 10)
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitHub_ListBranches_UnmarshalError(t *testing.T) {
+	g := &GitHub{token: "tok", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.ListBranches(context.Background(), "owner/repo")
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitHub_GetRepoInfo_UnmarshalError(t *testing.T) {
+	g := &GitHub{token: "tok", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.GetRepoInfo(context.Background(), "owner/repo")
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitHub_CreateWebhook_UnmarshalError(t *testing.T) {
+	g := &GitHub{token: "tok", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.CreateWebhook(context.Background(), "owner/repo", "https://example.com/hook", "secret", []string{"push"})
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitHub_do_NewRequestError(t *testing.T) {
+	g := &GitHub{token: "tok", client: &http.Client{Transport: http.DefaultTransport}}
+	_, err := g.do(context.Background(), http.MethodGet, "\x00", nil)
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+}
+
+// GitLab unmarshal errors
+func TestGitLab_ListRepos_UnmarshalError(t *testing.T) {
+	g := &GitLab{token: "tok", baseURL: "https://gitlab.com/api/v4", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.ListRepos(context.Background(), 1, 10)
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitLab_ListBranches_UnmarshalError(t *testing.T) {
+	g := &GitLab{token: "tok", baseURL: "https://gitlab.com/api/v4", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.ListBranches(context.Background(), "owner/repo")
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitLab_GetRepoInfo_UnmarshalError(t *testing.T) {
+	g := &GitLab{token: "tok", baseURL: "https://gitlab.com/api/v4", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.GetRepoInfo(context.Background(), "owner/repo")
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitLab_CreateWebhook_UnmarshalError(t *testing.T) {
+	g := &GitLab{token: "tok", baseURL: "https://gitlab.com/api/v4", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.CreateWebhook(context.Background(), "owner/repo", "https://example.com/hook", "secret", []string{"push"})
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitLab_do_NewRequestError(t *testing.T) {
+	g := &GitLab{token: "tok", baseURL: "https://gitlab.com/api/v4", client: &http.Client{Transport: http.DefaultTransport}}
+	_, err := g.do(context.Background(), http.MethodGet, "\x00", nil)
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+}
+
+// Gitea unmarshal errors
+func TestGitea_ListRepos_UnmarshalError(t *testing.T) {
+	g := &Gitea{token: "tok", baseURL: "https://gitea.com/api/v1", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.ListRepos(context.Background(), 1, 10)
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitea_ListBranches_UnmarshalError(t *testing.T) {
+	g := &Gitea{token: "tok", baseURL: "https://gitea.com/api/v1", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.ListBranches(context.Background(), "owner/repo")
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitea_GetRepoInfo_UnmarshalError(t *testing.T) {
+	g := &Gitea{token: "tok", baseURL: "https://gitea.com/api/v1", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.GetRepoInfo(context.Background(), "owner/repo")
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitea_CreateWebhook_UnmarshalError(t *testing.T) {
+	g := &Gitea{token: "tok", baseURL: "https://gitea.com/api/v1", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := g.CreateWebhook(context.Background(), "owner/repo", "https://example.com/hook", "secret", []string{"push"})
+	if err == nil || !strings.Contains(err.Error(), "invalid response") {
+		t.Errorf("expected 'invalid response' error, got: %v", err)
+	}
+}
+
+func TestGitea_do_NewRequestError(t *testing.T) {
+	g := &Gitea{token: "tok", baseURL: "https://gitea.com/api/v1", client: &http.Client{Transport: http.DefaultTransport}}
+	_, err := g.do(context.Background(), http.MethodGet, "\x00", nil)
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+}
+
+// Bitbucket unmarshal errors
+func TestBitbucket_ListRepos_UnmarshalError(t *testing.T) {
+	b := &Bitbucket{token: "tok", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := b.ListRepos(context.Background(), 1, 10)
+	if err == nil || !strings.Contains(err.Error(), "bitbucket repos parse") {
+		t.Errorf("expected 'repos parse' error, got: %v", err)
+	}
+}
+
+func TestBitbucket_ListBranches_UnmarshalError(t *testing.T) {
+	b := &Bitbucket{token: "tok", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := b.ListBranches(context.Background(), "owner/repo")
+	if err == nil || !strings.Contains(err.Error(), "branches parse") {
+		t.Errorf("expected 'branches parse' error, got: %v", err)
+	}
+}
+
+func TestBitbucket_GetRepoInfo_UnmarshalError(t *testing.T) {
+	b := &Bitbucket{token: "tok", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := b.GetRepoInfo(context.Background(), "owner/repo")
+	if err == nil || !strings.Contains(err.Error(), "repo parse") {
+		t.Errorf("expected 'repo parse' error, got: %v", err)
+	}
+}
+
+func TestBitbucket_CreateWebhook_UnmarshalError(t *testing.T) {
+	b := &Bitbucket{token: "tok", client: &http.Client{Transport: &testTransport{handler: unmarshalErrorHandler}}}
+	_, err := b.CreateWebhook(context.Background(), "owner/repo", "https://example.com/hook", "secret", []string{"push"})
+	if err == nil || !strings.Contains(err.Error(), "webhook parse") {
+		t.Errorf("expected 'webhook parse' error, got: %v", err)
+	}
+}
+
+func TestBitbucket_do_NewRequestError(t *testing.T) {
+	b := &Bitbucket{token: "tok", client: &http.Client{Transport: http.DefaultTransport}}
+	_, err := b.do(context.Background(), http.MethodGet, "\x00", nil)
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+}

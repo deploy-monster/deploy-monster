@@ -11,7 +11,9 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/ingress"
 )
 
-const watcherSyncInterval = 10 * time.Second
+// watcherSyncInterval is the delay between periodic route-table syncs.
+// Exported as a var rather than a const so tests can shorten it.
+var watcherSyncInterval = 10 * time.Second
 
 // Watcher monitors container changes and updates the route table.
 //

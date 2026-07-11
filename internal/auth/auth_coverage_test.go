@@ -43,6 +43,10 @@ func (m *mockStore) CreateUserWithMembership(_ context.Context, email, _, _, _, 
 	return m.createUserID, nil
 }
 
+func (m *mockStore) GetUser(_ context.Context, _ string) (*core.User, error) {
+	return &core.User{ID: "user1", TOTPEnabled: false}, nil
+}
+
 func (m *mockStore) UpdateTOTPEnabled(_ context.Context, _ string, _ bool, _ string) error {
 	return nil
 }

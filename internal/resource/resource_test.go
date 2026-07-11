@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1291,4 +1292,182 @@ func TestCollectOnce_ListError(t *testing.T) {
 
 	// Should not panic with list error
 	m.collectOnce()
+}
+
+// =====================================================
+// AlertmanagerClient error path tests
+// =====================================================
+
+func TestAlertmanagerClient_Send_EmptyURL(t *testing.T) {
+	c := NewAlertmanagerClient("", testLogger())
+	err := c.Send(context.Background(), nil)
+	if err != nil {
+		t.Errorf("Send with empty URL should return nil, got: %v", err)
+	}
+}
+
+func TestAlertmanagerClient_Send_RetriesExhausted(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := NewAlertmanagerClient(srv.URL, testLogger())
+	c.retries = 2
+	err := c.Send(context.Background(), []AlertmanagerAlert{
+		{Labels: map[string]string{"alertname": "test"}},
+	})
+	if err == nil {
+		t.Fatal("expected error after retries exhausted")
+	}
+	if !strings.Contains(err.Error(), "alertmanager send failed") {
+		t.Errorf("expected 'send failed' in error, got: %v", err)
+	}
+}
+
+func TestAlertmanagerClient_Send_HTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	c := NewAlertmanagerClient(srv.URL, testLogger())
+	c.retries = 1
+	err := c.Send(context.Background(), []AlertmanagerAlert{
+		{Labels: map[string]string{"alertname": "test"}},
+	})
+	if err == nil {
+		t.Fatal("expected error for HTTP 400")
+	}
+	if !strings.Contains(err.Error(), "HTTP 400") {
+		t.Errorf("expected 'HTTP 400' in error, got: %v", err)
+	}
+}
+
+func TestAlertmanagerClient_Send_NetworkError(t *testing.T) {
+	c := NewAlertmanagerClient("http://127.0.0.1:1/", testLogger())
+	c.retries = 2
+	err := c.Send(context.Background(), []AlertmanagerAlert{
+		{Labels: map[string]string{"alertname": "test"}},
+	})
+	if err == nil {
+		t.Fatal("expected error for connection refused")
+	}
+}
+
+// =====================================================
+// Host stats error path tests (synthetic proc)
+// =====================================================
+
+func TestHostStats_ReadCPUSample_EmptyFile(t *testing.T) {
+	withSyntheticProc(t, map[string]string{
+		"stat": "",
+	})
+	_, err := readCPUSample()
+	if err == nil {
+		t.Fatal("expected error for empty /proc/stat")
+	}
+}
+
+func TestHostStats_ReadCPUSample_BadPrefix(t *testing.T) {
+	withSyntheticProc(t, map[string]string{
+		"stat": "procs_running 2\n",
+	})
+	_, err := readCPUSample()
+	if err == nil {
+		t.Fatal("expected error for bad first line prefix")
+	}
+}
+
+func TestHostStats_MemoryMB_BadFile(t *testing.T) {
+	orig := procBase
+	procBase = "/nonexistent"
+	t.Cleanup(func() { procBase = orig })
+	_, _, err := newHostStats().MemoryMB()
+	if err == nil {
+		t.Fatal("expected error for missing /proc/meminfo")
+	}
+}
+
+func TestHostStats_DiskMB_BadRootFS(t *testing.T) {
+	orig := rootFS
+	rootFS = "/nonexistent-path-xyzzy"
+	t.Cleanup(func() { rootFS = orig })
+	_, _, err := newHostStats().DiskMB()
+	if err == nil {
+		t.Fatal("expected error for bad rootfs path")
+	}
+}
+
+func TestHostStats_NetworkMB_BadFile(t *testing.T) {
+	orig := procBase
+	procBase = "/nonexistent"
+	t.Cleanup(func() { procBase = orig })
+	_, _, err := newHostStats().NetworkMB()
+	if err == nil {
+		t.Fatal("expected error for missing /proc/net/dev")
+	}
+}
+
+// =====================================================
+// Collector CollectServer error path tests
+// =====================================================
+
+func TestCollector_CollectServer_NilHost(t *testing.T) {
+	c := NewCollector(nil, testLogger())
+	c.host = nil // force the nil-host branch
+	m := c.CollectServer(context.Background())
+	if m == nil {
+		t.Fatal("CollectServer returned nil")
+	}
+}
+
+// =====================================================
+// AlertEngine Evaluate additional coverage
+// =====================================================
+
+func TestAlertEngine_Evaluate_Resolved(t *testing.T) {
+	ae := NewAlertEngine(nil, testLogger())
+	ae.AddRule(&AlertRule{
+		Name:      "test",
+		Metric:    "cpu_percent",
+		Operator:  ">",
+		Threshold: 80,
+		Severity:  "warning",
+	})
+
+	// First: fire the alert
+	ae.Evaluate(context.Background(), &core.ServerMetrics{CPUPercent: 90})
+	if !ae.states["test"].Firing {
+		t.Fatal("expected alert to be firing")
+	}
+
+	// Second: resolve the alert
+	ae.Evaluate(context.Background(), &core.ServerMetrics{CPUPercent: 10})
+	if ae.states["test"].Firing {
+		t.Fatal("expected alert to be resolved")
+	}
+}
+
+func TestAlertEngine_Evaluate_AlertAlreadyFiring(t *testing.T) {
+	ae := NewAlertEngine(nil, testLogger())
+	ae.AddRule(&AlertRule{
+		Name:      "test",
+		Metric:    "cpu_percent",
+		Operator:  ">",
+		Threshold: 80,
+		Severity:  "warning",
+	})
+
+	// Fire the alert
+	ae.Evaluate(context.Background(), &core.ServerMetrics{CPUPercent: 90})
+	if !ae.states["test"].Firing {
+		t.Fatal("expected alert to be firing")
+	}
+
+	// Fire again — should not panic, should not error
+	ae.Evaluate(context.Background(), &core.ServerMetrics{CPUPercent: 95})
+	if !ae.states["test"].Firing {
+		t.Fatal("expected alert to remain firing")
+	}
 }

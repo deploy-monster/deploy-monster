@@ -1167,6 +1167,10 @@ func (m *mockContainerRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo,
 type mockBoltStore struct {
 	mu   sync.Mutex
 	data map[string]map[string][]byte // bucket -> key -> json bytes
+	// Error overrides — if non-nil the corresponding method returns this error.
+	errGet    error
+	errSet    error
+	errDelete error
 }
 
 func newMockBoltStore() *mockBoltStore {
@@ -1185,6 +1189,9 @@ func seedActiveDeployFreeze(bolt *mockBoltStore, tenantID string) error {
 }
 
 func (m *mockBoltStore) Set(bucket, key string, value any, _ int64) error {
+	if m.errSet != nil {
+		return m.errSet
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.data[bucket] == nil {
@@ -1238,6 +1245,9 @@ func (m *mockBoltStore) Mutate(bucket, key string, dest any, _ int64, mutate fun
 }
 
 func (m *mockBoltStore) Get(bucket, key string, dest any) error {
+	if m.errGet != nil {
+		return m.errGet
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	bkt, ok := m.data[bucket]
@@ -1252,6 +1262,9 @@ func (m *mockBoltStore) Get(bucket, key string, dest any) error {
 }
 
 func (m *mockBoltStore) Delete(bucket, key string) error {
+	if m.errDelete != nil {
+		return m.errDelete
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if bkt, ok := m.data[bucket]; ok {

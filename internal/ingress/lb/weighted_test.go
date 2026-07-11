@@ -133,6 +133,20 @@ func TestWeighted_NegativeWeightClampedToZero(t *testing.T) {
 	}
 }
 
+// TestWeighted_SetWeights_NegativeClampedToZero — guards against negative
+// weight values in SetWeights, analogous to the SetWeight test. The loop
+// inside SetWeights must clamp negative values to 0.
+func TestWeighted_SetWeights_NegativeClampedToZero(t *testing.T) {
+	w := NewWeighted()
+	w.SetWeights(map[string]int{"a": -5, "b": 3})
+	if got := w.Weight("a"); got != 0 {
+		t.Errorf("negative weight not clamped in SetWeights: got %d, want 0", got)
+	}
+	if got := w.Weight("b"); got != 3 {
+		t.Errorf("positive weight preserved: got %d, want 3", got)
+	}
+}
+
 // TestWeighted_SetWeightsReplacesAtomically — SetWeights replaces the
 // whole table rather than merging. Regression guard: an earlier draft
 // of this code merged, which meant a backend removed from config kept

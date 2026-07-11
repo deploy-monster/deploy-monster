@@ -155,6 +155,30 @@ func fakeDockerConfigOkUpFail(t *testing.T) func() {
 	return func() { os.Setenv("PATH", oldPath) }
 }
 
+// fakeDockerPullFail creates a docker that fails on "pull" but passes on
+// "config" and "up" — exercises the non-fatal pullImages warning path.
+func fakeDockerPullFail(t *testing.T) func() {
+	t.Helper()
+	tmpDir := t.TempDir()
+
+	var dockerPath string
+	if runtime.GOOS == "windows" {
+		dockerPath = filepath.Join(tmpDir, "docker.bat")
+		if err := os.WriteFile(dockerPath, []byte("@echo off\nif \"%4\"==\"pull\" exit /b 1\nexit /b 0\n"), 0755); err != nil {
+			t.Fatalf("write fake docker.bat: %v", err)
+		}
+	} else {
+		dockerPath = filepath.Join(tmpDir, "docker")
+		if err := os.WriteFile(dockerPath, []byte("#!/bin/sh\nif [ \"$4\" = \"pull\" ]; then exit 1; fi\nexit 0\n"), 0755); err != nil {
+			t.Fatalf("write fake docker: %v", err)
+		}
+	}
+
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", tmpDir+string(filepath.ListSeparator)+oldPath)
+	return func() { os.Setenv("PATH", oldPath) }
+}
+
 func TestDeployer_Deploy_Success(t *testing.T) {
 	cleanup := fakeDockerInPath(t)
 	defer cleanup()

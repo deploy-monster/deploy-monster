@@ -124,7 +124,10 @@ func isPublicIP(ip net.IP) bool {
 	ip4 := ip.To4()
 	if ip4 != nil {
 		for _, r := range metadataRanges {
-			_, cidr, _ := net.ParseCIDR(r)
+			_, cidr, err := net.ParseCIDR(r)
+			if err != nil || cidr == nil {
+				continue
+			}
 			if cidr.Contains(ip) {
 				return false
 			}

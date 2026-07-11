@@ -1,6 +1,7 @@
 package awsauth
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -149,4 +150,65 @@ func TestCanonicalQueryString(t *testing.T) {
 			t.Errorf("got %q, want %q", got, want)
 		}
 	})
+}
+
+// TestSignV4_HostFallback covers the branch where req.Host is empty and
+// the code falls back to req.URL.Host.
+func TestSignV4_HostFallback(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://example.com/", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Host = "" // Clear Host so the fallback fires.
+
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	SignV4(req, nil, "ak", "sk", "us-east-1", "service", now)
+
+	auth := req.Header.Get("Authorization")
+	if auth == "" {
+		t.Fatal("Authorization header should be set")
+	}
+	if !strings.Contains(auth, "SignedHeaders=host;x-amz-date") {
+		t.Errorf("auth missing expected signed headers: %s", auth)
+	}
+}
+
+// TestSignV4_GetBody_Called covers the req.GetBody closure body, which
+// is registered by SignV4 but only invoked by http.Client on retries.
+// We call it directly so the coverage tools see the closure body execute.
+func TestSignV4_GetBody_Called(t *testing.T) {
+	body := []byte("test-retry-body")
+	req, _ := http.NewRequest(http.MethodPost, "https://example.amazonaws.com/", nil)
+	SignV4(req, body, "ak", "sk", "us-east-1", "service", time.Now())
+
+	if req.GetBody == nil {
+		t.Fatal("GetBody should have been set")
+	}
+	rc, err := req.GetBody()
+	if err != nil {
+		t.Fatalf("GetBody: %v", err)
+	}
+	defer rc.Close()
+	data, _ := io.ReadAll(rc)
+	if string(data) != "test-retry-body" {
+		t.Errorf("GetBody returned %q, want %q", string(data), "test-retry-body")
+	}
+}
+
+// TestSignV4_EmptyPath covers the branch where canonicalURI is empty and
+// defaults to "/".
+func TestSignV4_EmptyPath(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	// req.URL for "https://example.com" has EscapedPath() == ""
+
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	SignV4(req, nil, "ak", "sk", "us-east-1", "service", now)
+
+	auth := req.Header.Get("Authorization")
+	if auth == "" {
+		t.Fatal("Authorization header should be set")
+	}
 }

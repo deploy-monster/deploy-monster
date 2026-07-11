@@ -67,6 +67,17 @@ func TestConnectionTracker_Decrement(t *testing.T) {
 	}
 }
 
+// TestConnectionTracker_Increment_NilMap covers the nil-map guard in
+// Increment by calling it on a zero-value (not NewConnectionTracker)
+// tracker where conns is nil.
+func TestConnectionTracker_Increment_NilMap(t *testing.T) {
+	var ct ConnectionTracker // zero value — conns is nil
+	ct.Increment("container-1")
+	if got := ct.Active("container-1"); got != 1 {
+		t.Errorf("Active(container-1) = %d, want 1 after increment on nil map", got)
+	}
+}
+
 func TestConnectionTracker_Active_NonExistent(t *testing.T) {
 	ct := NewConnectionTracker()
 

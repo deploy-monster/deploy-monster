@@ -5,9 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
 // =====================================================
@@ -407,5 +412,225 @@ func TestMockProvider_ReturnsError(t *testing.T) {
 	}
 	if err.Error() != "send failed" {
 		t.Errorf("error = %q, want %q", err.Error(), "send failed")
+	}
+}
+
+// =====================================================
+// validateWebhookURL additional coverage
+// =====================================================
+
+func TestValidateWebhookURL_MetadataIP(t *testing.T) {
+	err := validateWebhookURL("https://169.254.169.254/latest/meta-data/")
+	if err == nil {
+		t.Fatal("expected error for metadata IP")
+	}
+	// 169.254.169.254 is link-local, caught by IsLinkLocalUnicast
+	if !strings.Contains(err.Error(), "internal IP") {
+		t.Errorf("expected 'internal IP' in error, got: %v", err)
+	}
+}
+
+func TestValidateWebhookURL_InvalidURL(t *testing.T) {
+	err := validateWebhookURL("://invalid")
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+}
+
+func TestValidateWebhookURL_HTTPScheme(t *testing.T) {
+	err := validateWebhookURL("http://example.com/hook")
+	if err == nil {
+		t.Fatal("expected error for HTTP scheme")
+	}
+	if !strings.Contains(err.Error(), "HTTPS") {
+		t.Errorf("expected 'HTTPS' in error, got: %v", err)
+	}
+}
+
+func TestValidateWebhookURL_EmptyHost(t *testing.T) {
+	err := validateWebhookURL("https:///path")
+	if err == nil {
+		t.Fatal("expected error for URL with no hostname")
+	}
+	if !strings.Contains(err.Error(), "hostname") {
+		t.Errorf("expected 'hostname' in error, got: %v", err)
+	}
+}
+
+func TestValidateWebhookURL_LocalhostVariants(t *testing.T) {
+	variants := []string{
+		"https://localhost/webhook",
+		"https://127.0.0.1/webhook",
+		"https://0.0.0.0/webhook",
+	}
+	for _, u := range variants {
+		err := validateWebhookURL(u)
+		if err == nil {
+			t.Errorf("expected error for localhost URL %q", u)
+		}
+		if !strings.Contains(err.Error(), "localhost") {
+			t.Errorf("expected 'localhost' in error for %q, got: %v", u, err)
+		}
+	}
+}
+
+func TestValidateWebhookURL_PrivateIP(t *testing.T) {
+	ips := []string{
+		"https://10.0.0.1/webhook",
+		"https://192.168.1.1/webhook",
+		"https://172.16.0.1/webhook",
+	}
+	for _, u := range ips {
+		err := validateWebhookURL(u)
+		if err == nil {
+			t.Errorf("expected error for private IP URL %q", u)
+		}
+		if !strings.Contains(err.Error(), "internal IP") {
+			t.Errorf("expected 'internal IP' in error for %q, got: %v", u, err)
+		}
+	}
+}
+
+func TestValidateWebhookURL_InternalHostname(t *testing.T) {
+	urls := []string{
+		"https://metadata.google.internal/computeMetadata/v1/",
+		"https://metadata.ec2.internal/latest/meta-data/",
+	}
+	for _, u := range urls {
+		err := validateWebhookURL(u)
+		if err == nil {
+			t.Errorf("expected error for internal hostname %q", u)
+		}
+		if !strings.Contains(err.Error(), "internal hostname") {
+			t.Errorf("expected 'internal hostname' in error for %q, got: %v", u, err)
+		}
+	}
+}
+
+func TestValidateWebhookURL_ValidURL(t *testing.T) {
+	err := validateWebhookURL("https://hooks.example.com/services/T00/B00/xxx")
+	if err != nil {
+		t.Errorf("unexpected error for valid URL: %v", err)
+	}
+}
+
+// =====================================================
+// newWebhookHTTPClient tests - redirect coverage
+// =====================================================
+
+func TestNewWebhookHTTPClient_SafeRedirect(t *testing.T) {
+	// Server that redirects to a safe HTTPS URL that doesn't resolve.
+	// The redirect passes validateWebhookURL (HTTPS, non-localhost) but
+	// the subsequent DNS lookup fails with an error (not an unsafe redirect error).
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://nonexistent-domain-to-test-redirect-xyzzy.example/webhook", http.StatusFound)
+	}))
+	defer server.Close()
+
+	client := newWebhookHTTPClient(5 * time.Second)
+	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	_, err = client.Do(req)
+	// We expect some kind of error (DNS lookup failure, connection error),
+	// but NOT an "unsafe webhook redirect" error.
+	if err == nil {
+		t.Fatal("expected error when redirecting to non-existent domain")
+	}
+	if strings.Contains(err.Error(), "unsafe webhook redirect") {
+		t.Errorf("safe redirect should NOT be blocked, but got unsafe redirect error: %v", err)
+	}
+}
+
+func TestNewWebhookHTTPClient_BlockedRedirect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://127.0.0.1/internal", http.StatusFound)
+	}))
+	defer server.Close()
+
+	client := newWebhookHTTPClient(5 * time.Second)
+	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	_, err = client.Do(req)
+	if err == nil {
+		t.Fatal("expected error for blocked redirect")
+	}
+	if !strings.Contains(err.Error(), "unsafe webhook redirect") {
+		t.Errorf("expected 'unsafe webhook redirect' in error, got: %v", err)
+	}
+}
+
+// =====================================================
+// Validate SMTP InsecureSkipVerify coverage
+// =====================================================
+
+func TestSMTPValidate_InsecureSkipVerify_Localhost(t *testing.T) {
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host:               "localhost",
+		From:               "noreply@example.com",
+		InsecureSkipVerify: true,
+	}, discardLogger())
+	err := p.Validate()
+	if err != nil {
+		t.Errorf("Validate with InsecureSkipVerify on localhost should succeed, got: %v", err)
+	}
+}
+
+func TestSMTPValidate_InsecureSkipVerify_NonLocalhost(t *testing.T) {
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host:               "mail.example.com",
+		From:               "noreply@example.com",
+		InsecureSkipVerify: true,
+	}, discardLogger())
+	err := p.Validate()
+	if err == nil {
+		t.Fatal("expected error for InsecureSkipVerify on non-localhost")
+	}
+	if !strings.Contains(err.Error(), "InsecureSkipVerify") {
+		t.Errorf("expected 'InsecureSkipVerify' in error, got: %v", err)
+	}
+}
+
+func TestSMTPValidate_InsecureSkipVerify_LoggerWarning(t *testing.T) {
+	var buf strings.Builder
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host:               "localhost",
+		From:               "noreply@example.com",
+		InsecureSkipVerify: true,
+	}, logger)
+	_ = p.Validate()
+	if !strings.Contains(buf.String(), "InsecureSkipVerify") {
+		t.Error("expected logger warning about InsecureSkipVerify")
+	}
+}
+
+func TestSMTPValidate_InsecureSkipVerify_DotLocal(t *testing.T) {
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host:               "mail.internal.local",
+		From:               "noreply@example.com",
+		InsecureSkipVerify: true,
+	}, discardLogger())
+	err := p.Validate()
+	if err != nil {
+		t.Errorf("Validate with InsecureSkipVerify on .local host should succeed, got: %v", err)
+	}
+}
+
+func TestSMTPValidate_InvalidFromAddress(t *testing.T) {
+	p := NewSMTPProvider(core.SMTPConfig{
+		Host: "mail.example.com",
+		From: "noreply@example.com\r\nExtra: header",
+	}, discardLogger())
+	err := p.Validate()
+	if err == nil {
+		t.Fatal("expected error for invalid from address")
+	}
+	if !strings.Contains(err.Error(), "invalid") {
+		t.Errorf("expected 'invalid' in error, got: %v", err)
 	}
 }

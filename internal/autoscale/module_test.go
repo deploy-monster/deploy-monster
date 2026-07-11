@@ -19,6 +19,7 @@ type testBolt struct {
 	data    map[string]map[string][]byte
 	getErr  error
 	listErr error
+	setErr  error
 }
 
 func newTestBolt() *testBolt {
@@ -26,6 +27,9 @@ func newTestBolt() *testBolt {
 }
 
 func (b *testBolt) Set(bucket, key string, value any, _ int64) error {
+	if b.setErr != nil {
+		return b.setErr
+	}
 	if b.data[bucket] == nil {
 		b.data[bucket] = make(map[string][]byte)
 	}
