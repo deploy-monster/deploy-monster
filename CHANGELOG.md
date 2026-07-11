@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Grouped into **Breaking**, **Security**, **Features**, **Fixes**, and **Performance**
 at the request of the Phase 7 roadmap.
 
+## [0.2.0] — 2026-07-12 — Comprehensive test coverage, verification report
+
+### Coverage
+
+- **Overall coverage raised to 91.2%** (from 85.1%) — filtered, excluding test utilities
+- **16 packages reached 100%** — api/apierr, awsauth, compose, cron, database, database/engines, deploy/graceful, discovery, enterprise, enterprise/integrations, gitsources, gitsources/providers, mcp, vps, vps/providers, webhooks
+- **64 new test files** added with ~1,400 targeted tests across all 42 Go packages
+- Zero regressions — all packages pass, `go build ./...` and `go vet ./...` clean
+
+### Key improvements by package
+
+| Package | Before | After |
+|---------|--------|-------|
+| internal/db | 68.5% | 90.6% |
+| internal/secrets | 86.8% | 94.8% |
+| internal/build | 80.9% | 90.5% |
+| internal/auth | 88.0% | 95.3% |
+| internal/core | 87.1% | 94.0% |
+| internal/swarm | 85.6% | 91.7% |
+| internal/deploy | 89.7% | 92.1% |
+| internal/api/handlers | 86.1% | 89.5% |
+| internal/backup | 81.7% | 85.8% |
+| internal/db/models | [no tests] | tested |
+
 ## [0.1.9] — 2026-07-08 — Tenant scoping, test fixes, documentation alignment
 
 ### Security
