@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"strings"
 	"testing"
@@ -444,68 +443,12 @@ func TestValidateTOTP_InvalidCode(t *testing.T) {
 }
 
 // =============================================================================
-// crypto/rand.Read error paths — override rand.Reader to inject failures.
-// Go's crypto/rand.Read(b) reads from rand.Reader which is a public variable,
-// so we can replace it for testing and restore after.
+// Note: crypto/rand.Read error paths in GenerateAPIKey, generateTokenID,
+// GenerateTOTPSecret, and GenerateBackupCodes are untestable in Go 1.26+
+// because rand.Read fatally exits (os.Exit/panic) on reader failure rather
+// than returning an error. The error-handling code is dead in practice.
+// See: https://go.dev/issue/66821
 // =============================================================================
-
-type errorReader struct{}
-
-func (errorReader) Read([]byte) (int, error) {
-	return 0, errors.New("entropy exhausted")
-}
-
-func TestGenerateAPIKey_RandReadError(t *testing.T) {
-	// Save original and restore after test
-	orig := rand.Reader
-	t.Cleanup(func() { rand.Reader = orig })
-	rand.Reader = errorReader{}
-
-	_, err := GenerateAPIKey()
-	if err == nil || !strings.Contains(err.Error(), "generate api key") {
-		t.Fatalf("expected error from rand.Read, got: %v", err)
-	}
-}
-
-func TestGenerateTokenID_RandReadPanic(t *testing.T) {
-	orig := rand.Reader
-	t.Cleanup(func() { rand.Reader = orig })
-	rand.Reader = errorReader{}
-
-	defer func() {
-		r := recover()
-		if r == nil {
-			t.Fatal("expected panic from generateTokenID when rand.Read fails")
-		}
-		msg, ok := r.(string)
-		if !ok || !strings.Contains(msg, "failed to generate token ID") {
-			t.Fatalf("expected panic about token ID, got: %v", r)
-		}
-	}()
-	generateTokenID()
-}
-
-func TestGenerateTOTPSecret_RandReadError(t *testing.T) {
-	orig := rand.Reader
-	t.Cleanup(func() { rand.Reader = orig })
-	rand.Reader = errorReader{}
-
-	_, _, err := GenerateTOTPSecret("user1", "test@example.com")
-	if err == nil || !strings.Contains(err.Error(), "generate totp secret") {
-		t.Fatalf("expected error from rand.Read, got: %v", err)
-	}
-}
-
-func TestGenerateBackupCodes_RandReadError(t *testing.T) {
-	orig := rand.Reader
-	t.Cleanup(func() { rand.Reader = orig })
-	rand.Reader = errorReader{}
-
-	_, err := GenerateBackupCodes()
-	if err == nil || !strings.Contains(err.Error(), "generate backup code") {
-		t.Fatalf("expected error from rand.Read, got: %v", err)
-	}
-}
 
 func TestValidatePasswordStrength_AdminCommonPassword(t *testing.T) {
 	// "admin" is in the commonPasswords map
