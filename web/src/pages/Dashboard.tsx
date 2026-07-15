@@ -10,6 +10,7 @@ import {
   CircleDot,
 } from 'lucide-react';
 import { useApi } from '../hooks';
+import { useAuthStore } from '@/stores/auth';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,7 +46,7 @@ interface Announcement {
   type: string;
 }
 
-function WelcomeBanner({ greeting }: { greeting: string }) {
+function WelcomeBanner({ greeting, name }: { greeting: string; name?: string }) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearch = (e: React.FormEvent) => {
@@ -60,7 +61,7 @@ function WelcomeBanner({ greeting }: { greeting: string }) {
       <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
-            {greeting}, admin
+            {greeting}{name ? `, ${name}` : ''}
           </h1>
           <p className="text-muted-foreground mt-1.5 text-sm sm:text-base">
             Here is what is happening across your platform today.
@@ -306,6 +307,7 @@ function ActivityFeed({ activity }: { activity: ActivityEntry[] }) {
 }
 
 export function Dashboard() {
+  const user = useAuthStore((s) => s.user);
   const { data: stats, loading: statsLoading } = useApi<DashboardStats>('/dashboard/stats', { refreshInterval: 30000 });
   const { data: appsData } = useApi<App[] | { data: App[] }>('/apps?page=1&per_page=5');
   const { data: activityData } = useApi<ActivityEntry[] | { data: ActivityEntry[] }>('/activity?limit=10');
@@ -321,7 +323,7 @@ export function Dashboard() {
     <div className="space-y-8">
       <AnnouncementsBanner announcements={announcements} />
 
-      <WelcomeBanner greeting={greeting} />
+      <WelcomeBanner greeting={greeting} name={user?.name} />
 
       <StatCardsGrid stats={stats ?? null} statsLoading={statsLoading} />
 

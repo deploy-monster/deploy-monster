@@ -85,8 +85,8 @@ describe('Dashboard page', () => {
 
     renderDashboard();
 
-    // The greeting varies by hour — just assert on the suffix that is stable.
-    expect(screen.getByText(/, admin$/i)).toBeInTheDocument();
+    // The greeting varies by hour — just assert that the greeting renders.
+    expect(screen.getByText(/^(Good (morning|afternoon|evening))$/i)).toBeInTheDocument();
     expect(
       screen.getByText(/here is what is happening across your platform/i)
     ).toBeInTheDocument();

@@ -148,6 +148,12 @@ func (h *AppHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Re-read the app from the store so auto-populated fields (id, created_at,
+	// updated_at) are reflected in the response.
+	if saved, err := h.store.GetApp(r.Context(), app.ID); err == nil {
+		app = saved
+	}
+
 	// Auto-generate subdomain if configured
 	if h.core.Config.DNS.AutoSubdomain != "" {
 		go deploy.AutoDomain(r.Context(), h.store, h.core.Events, app, h.core.Config.DNS.AutoSubdomain)
