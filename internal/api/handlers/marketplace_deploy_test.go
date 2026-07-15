@@ -64,7 +64,7 @@ func newDeployHandler(store core.Store) *MarketplaceDeployHandler {
 	runtime := &mockContainerRuntime{}
 	events := core.NewEventBus(nil)
 	reg := newDeployTestRegistry()
-	return NewMarketplaceDeployHandler(reg, runtime, store, events)
+	return NewMarketplaceDeployHandler(context.Background(), reg, runtime, store, events)
 }
 
 // newDeployRequest builds an authed POST /api/v1/marketplace/deploy request

@@ -1195,7 +1195,7 @@ func TestFinal95_MCPHandler_CallTool_RejectsTrailingJSON(t *testing.T) {
 
 func TestFinal95_MarketplaceDeploy_NoClaims(t *testing.T) {
 	registry := marketplace.NewTemplateRegistry()
-	h := NewMarketplaceDeployHandler(registry, &mockContainerRuntime{}, newMockStore(), core.NewEventBus(slog.Default()))
+	h := NewMarketplaceDeployHandler(context.Background(), registry, &mockContainerRuntime{}, newMockStore(), core.NewEventBus(slog.Default()))
 
 	body := `{"slug":"wordpress"}`
 	req := httptest.NewRequest("POST", "/api/v1/marketplace/deploy", strings.NewReader(body))
@@ -1209,7 +1209,7 @@ func TestFinal95_MarketplaceDeploy_NoClaims(t *testing.T) {
 
 func TestFinal95_MarketplaceDeploy_InvalidBody(t *testing.T) {
 	registry := marketplace.NewTemplateRegistry()
-	h := NewMarketplaceDeployHandler(registry, &mockContainerRuntime{}, newMockStore(), core.NewEventBus(slog.Default()))
+	h := NewMarketplaceDeployHandler(context.Background(), registry, &mockContainerRuntime{}, newMockStore(), core.NewEventBus(slog.Default()))
 
 	req := httptest.NewRequest("POST", "/api/v1/marketplace/deploy", strings.NewReader("bad json"))
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
@@ -1223,7 +1223,7 @@ func TestFinal95_MarketplaceDeploy_InvalidBody(t *testing.T) {
 
 func TestFinal95_MarketplaceDeploy_EmptySlug(t *testing.T) {
 	registry := marketplace.NewTemplateRegistry()
-	h := NewMarketplaceDeployHandler(registry, &mockContainerRuntime{}, newMockStore(), core.NewEventBus(slog.Default()))
+	h := NewMarketplaceDeployHandler(context.Background(), registry, &mockContainerRuntime{}, newMockStore(), core.NewEventBus(slog.Default()))
 
 	body := `{"slug":""}`
 	req := httptest.NewRequest("POST", "/api/v1/marketplace/deploy", strings.NewReader(body))
@@ -1238,7 +1238,7 @@ func TestFinal95_MarketplaceDeploy_EmptySlug(t *testing.T) {
 
 func TestFinal95_MarketplaceDeploy_TemplateNotFound(t *testing.T) {
 	registry := marketplace.NewTemplateRegistry()
-	h := NewMarketplaceDeployHandler(registry, &mockContainerRuntime{}, newMockStore(), core.NewEventBus(slog.Default()))
+	h := NewMarketplaceDeployHandler(context.Background(), registry, &mockContainerRuntime{}, newMockStore(), core.NewEventBus(slog.Default()))
 
 	body := `{"slug":"nonexistent"}`
 	req := httptest.NewRequest("POST", "/api/v1/marketplace/deploy", strings.NewReader(body))
@@ -1262,7 +1262,7 @@ func TestFinal95_MarketplaceDeploy_InvalidComposeYAML(t *testing.T) {
 
 	events := core.NewEventBus(slog.Default())
 	store := newMockStore()
-	h := NewMarketplaceDeployHandler(registry, &mockContainerRuntime{}, store, events)
+	h := NewMarketplaceDeployHandler(context.Background(), registry, &mockContainerRuntime{}, store, events)
 
 	body := `{"slug":"broken","name":"my-broken"}`
 	req := httptest.NewRequest("POST", "/api/v1/marketplace/deploy", strings.NewReader(body))
@@ -1290,7 +1290,7 @@ func TestFinal95_MarketplaceDeploy_CreateAppError(t *testing.T) {
 	events := core.NewEventBus(slog.Default())
 	store := newMockStore()
 	store.errCreateApp = fmt.Errorf("db error")
-	h := NewMarketplaceDeployHandler(registry, &mockContainerRuntime{}, store, events)
+	h := NewMarketplaceDeployHandler(context.Background(), registry, &mockContainerRuntime{}, store, events)
 
 	body := `{"slug":"nginx"}`
 	req := httptest.NewRequest("POST", "/api/v1/marketplace/deploy", strings.NewReader(body))

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +25,7 @@ func TestDeployTrigger_ImageApp_Success(t *testing.T) {
 	store.nextDeployVersion["app1"] = 3
 
 	runtime := &mockContainerRuntime{}
-	handler := NewDeployTriggerHandler(store, runtime, testCore().Events)
+	handler := NewDeployTriggerHandler(context.Background(), store, runtime, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")
@@ -78,7 +79,7 @@ func TestDeployTrigger_ImageApp_NoRuntime(t *testing.T) {
 		Status:     "running",
 	})
 
-	handler := NewDeployTriggerHandler(store, nil, testCore().Events)
+	handler := NewDeployTriggerHandler(context.Background(), store, nil, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")
@@ -110,7 +111,7 @@ func TestDeployTrigger_BlockedDuringFreezeWindow(t *testing.T) {
 		t.Fatalf("seed freeze: %v", err)
 	}
 
-	handler := NewDeployTriggerHandler(store, &mockContainerRuntime{}, testCore().Events)
+	handler := NewDeployTriggerHandler(context.Background(), store, &mockContainerRuntime{}, testCore().Events)
 	handler.SetDeployFreezeStore(bolt)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
@@ -143,7 +144,7 @@ func TestDeployTrigger_GitApp_Accepted(t *testing.T) {
 	})
 
 	runtime := &mockContainerRuntime{}
-	handler := NewDeployTriggerHandler(store, runtime, testCore().Events)
+	handler := NewDeployTriggerHandler(context.Background(), store, runtime, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app2/deploy", nil)
 	req.SetPathValue("id", "app2")
@@ -171,7 +172,7 @@ func TestDeployTrigger_GitApp_Accepted(t *testing.T) {
 
 func TestDeployTrigger_AppNotFound(t *testing.T) {
 	store := newMockStore()
-	handler := NewDeployTriggerHandler(store, nil, testCore().Events)
+	handler := NewDeployTriggerHandler(context.Background(), store, nil, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/nonexistent/deploy", nil)
 	req.SetPathValue("id", "nonexistent")

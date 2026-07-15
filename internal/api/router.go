@@ -189,8 +189,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("POST /api/v1/apps/{id}/restart", protectedPerm(auth.PermAppRestart, appH.Restart))
 	r.mux.Handle("POST /api/v1/apps/{id}/stop", protectedPerm(auth.PermAppStop, appH.Stop))
 	r.mux.Handle("POST /api/v1/apps/{id}/start", protectedPerm(auth.PermAppRestart, appH.Start))
-	deployTriggerH := handlers.NewDeployTriggerHandler(r.store, r.core.Services.Container, r.core.Events)
-	deployTriggerH.SetServerContext(r.serverCtx)
+	deployTriggerH := handlers.NewDeployTriggerHandler(r.serverCtx, r.store, r.core.Services.Container, r.core.Events)
 	deployTriggerH.SetDeployFreezeStore(r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/apps/{id}/deploy", protectedPerm(auth.PermAppDeploy, deployTriggerH.TriggerDeploy))
 
@@ -581,8 +580,7 @@ func (r *Router) registerRoutes() {
 	r.mux.Handle("GET /api/v1/git/{provider}/repos/{repo}/branches", protected(http.HandlerFunc(gitH.ListBranches)))
 
 	// ── Compose Stacks ────────────────────────────────
-	composeH := handlers.NewComposeHandler(r.store, r.core.Services.Container, r.core.Events)
-	composeH.SetServerContext(r.serverCtx)
+	composeH := handlers.NewComposeHandler(r.serverCtx, r.store, r.core.Services.Container, r.core.Events)
 	composeH.SetDeployFreezeStore(r.core.DB.Bolt)
 	r.mux.Handle("POST /api/v1/stacks", protectedPerm(auth.PermAppCreate, composeH.Deploy))
 	r.mux.Handle("POST /api/v1/stacks/validate", protected(http.HandlerFunc(composeH.Validate)))
@@ -627,8 +625,7 @@ func (r *Router) registerRoutes() {
 		mpH := handlers.NewMarketplaceHandler(reg)
 		r.mux.HandleFunc("GET /api/v1/marketplace", middleware.ETag(mpH.List))
 		r.mux.HandleFunc("GET /api/v1/marketplace/{slug}", middleware.ETag(mpH.Get))
-		mpDeployH := handlers.NewMarketplaceDeployHandler(reg, r.core.Services.Container, r.store, r.core.Events)
-		mpDeployH.SetServerContext(r.serverCtx)
+		mpDeployH := handlers.NewMarketplaceDeployHandler(r.serverCtx, reg, r.core.Services.Container, r.store, r.core.Events)
 		mpDeployH.SetDeployFreezeStore(r.core.DB.Bolt)
 		r.mux.Handle("POST /api/v1/marketplace/deploy", protectedPerm(auth.PermMarketplaceDeploy, mpDeployH.Deploy))
 	}

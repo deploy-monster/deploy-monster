@@ -39,8 +39,8 @@ type networkEnsurer interface {
 	EnsureNetwork(ctx context.Context, name string) error
 }
 
-func NewDeployTriggerHandler(store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *DeployTriggerHandler {
-	h := &DeployTriggerHandler{store: store, runtime: runtime, events: events, serverCtx: context.Background()}
+func NewDeployTriggerHandler(ctx context.Context, store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *DeployTriggerHandler {
+	h := &DeployTriggerHandler{store: store, runtime: runtime, events: events, serverCtx: ctx}
 	h.buildGit = func(ctx context.Context, opts build.BuildOpts, logWriter io.Writer) (*build.BuildResult, error) {
 		builder := build.NewBuilder(h.runtime, h.events)
 		return builder.Build(ctx, opts, logWriter)

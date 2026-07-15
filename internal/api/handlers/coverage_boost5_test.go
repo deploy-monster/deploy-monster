@@ -1431,7 +1431,7 @@ func TestDeployTriggerHandler_ImageDeploy_AtomicVersionError(t *testing.T) {
 	})
 	store.errGetNextDeployVersion = core.ErrNotFound
 
-	h := NewDeployTriggerHandler(store, nil, core.NewEventBus(nil))
+	h := NewDeployTriggerHandler(context.Background(), store, nil, core.NewEventBus(nil))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
@@ -1451,7 +1451,7 @@ func TestDeployTriggerHandler_ImageDeploy_CreateDeploymentError(t *testing.T) {
 	store.nextDeployVersion["app1"] = 1
 	store.errCreateDeployment = core.ErrNotFound
 
-	h := NewDeployTriggerHandler(store, nil, core.NewEventBus(nil))
+	h := NewDeployTriggerHandler(context.Background(), store, nil, core.NewEventBus(nil))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")

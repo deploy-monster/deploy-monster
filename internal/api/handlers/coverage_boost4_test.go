@@ -1871,7 +1871,7 @@ func TestDeployTriggerHandler_ImageDeploy(t *testing.T) {
 
 	runtime := &mockContainerRuntime{}
 	events := core.NewEventBus(slog.Default())
-	h := NewDeployTriggerHandler(store, runtime, events)
+	h := NewDeployTriggerHandler(context.Background(), store, runtime, events)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/deploy", nil)
 	req.SetPathValue("id", "app-1")
@@ -1886,7 +1886,7 @@ func TestDeployTriggerHandler_ImageDeploy(t *testing.T) {
 
 func TestDeployTriggerHandler_AppNotFound(t *testing.T) {
 	store := newMockStore()
-	h := NewDeployTriggerHandler(store, nil, core.NewEventBus(slog.Default()))
+	h := NewDeployTriggerHandler(context.Background(), store, nil, core.NewEventBus(slog.Default()))
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/nope/deploy", nil)
 	req.SetPathValue("id", "nope")
@@ -1908,7 +1908,7 @@ func TestDeployTriggerHandler_GitDeploy(t *testing.T) {
 
 	runtime := &mockContainerRuntime{}
 	events := core.NewEventBus(slog.Default())
-	h := NewDeployTriggerHandler(store, runtime, events)
+	h := NewDeployTriggerHandler(context.Background(), store, runtime, events)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-2/deploy", nil)
 	req.SetPathValue("id", "app-2")
@@ -2273,7 +2273,7 @@ func TestDeployTriggerHandler_ImageDeploy_RuntimeError(t *testing.T) {
 	})
 
 	runtime := &mockContainerRuntime{listErr: io.EOF}
-	h := NewDeployTriggerHandler(store, runtime, core.NewEventBus(slog.Default()))
+	h := NewDeployTriggerHandler(context.Background(), store, runtime, core.NewEventBus(slog.Default()))
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-err/deploy", nil)
 	req.SetPathValue("id", "app-err")
@@ -2295,7 +2295,7 @@ func TestDeployTriggerHandler_ImageDeploy_NilRuntime(t *testing.T) {
 		SourceURL: "nginx:latest", TenantID: "t1",
 	})
 
-	h := NewDeployTriggerHandler(store, nil, core.NewEventBus(slog.Default()))
+	h := NewDeployTriggerHandler(context.Background(), store, nil, core.NewEventBus(slog.Default()))
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-nil/deploy", nil)
 	req.SetPathValue("id", "app-nil")
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")

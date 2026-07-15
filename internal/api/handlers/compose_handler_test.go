@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +30,7 @@ func TestComposeDeploy_Success(t *testing.T) {
 	events := testCore().Events
 	// runtime is nil — Deploy fires a goroutine that uses runtime,
 	// but the handler returns 202 Accepted immediately so it doesn't block.
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 
 	body, _ := json.Marshal(map[string]string{
 		"name": "my-stack",
@@ -66,7 +67,7 @@ func TestComposeDeploy_Success(t *testing.T) {
 func TestComposeDeploy_AutoGeneratesName(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 
 	body, _ := json.Marshal(map[string]string{
 		"yaml": validComposeYAML,
@@ -101,7 +102,7 @@ func TestComposeDeploy_BlockedDuringFreezeWindow(t *testing.T) {
 	if err := seedActiveDeployFreeze(bolt, "tenant1"); err != nil {
 		t.Fatalf("seed freeze: %v", err)
 	}
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 	handler.SetDeployFreezeStore(bolt)
 
 	body, _ := json.Marshal(map[string]string{
@@ -125,7 +126,7 @@ func TestComposeDeploy_BlockedDuringFreezeWindow(t *testing.T) {
 func TestComposeDeploy_NoClaims(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 
 	body, _ := json.Marshal(map[string]string{"yaml": validComposeYAML})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/stacks", bytes.NewReader(body))
@@ -141,7 +142,7 @@ func TestComposeDeploy_NoClaims(t *testing.T) {
 func TestComposeDeploy_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/stacks", bytes.NewReader([]byte("bad json")))
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
@@ -158,7 +159,7 @@ func TestComposeDeploy_InvalidJSON(t *testing.T) {
 func TestComposeDeploy_EmptyYAML(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 
 	body, _ := json.Marshal(map[string]string{"name": "stack", "yaml": ""})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/stacks", bytes.NewReader(body))
@@ -176,7 +177,7 @@ func TestComposeDeploy_EmptyYAML(t *testing.T) {
 func TestComposeDeploy_InvalidYAML(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 
 	body, _ := json.Marshal(map[string]string{
 		"name": "bad-stack",
@@ -198,7 +199,7 @@ func TestComposeDeploy_InvalidYAML(t *testing.T) {
 func TestComposeValidate_ValidYAML(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 
 	body, _ := json.Marshal(map[string]string{"yaml": validComposeYAML})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/stacks/validate", bytes.NewReader(body))
@@ -225,7 +226,7 @@ func TestComposeValidate_ValidYAML(t *testing.T) {
 func TestComposeValidate_InvalidYAML(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 
 	body, _ := json.Marshal(map[string]string{"yaml": invalidComposeYAML})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/stacks/validate", bytes.NewReader(body))
@@ -251,7 +252,7 @@ func TestComposeValidate_InvalidYAML(t *testing.T) {
 func TestComposeValidate_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/stacks/validate", bytes.NewReader([]byte("bad")))
 	rr := httptest.NewRecorder()
@@ -269,7 +270,7 @@ func TestComposeValidate_InvalidJSON(t *testing.T) {
 func TestComposeDeploy_YAMLContentType(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	handler := NewComposeHandler(store, nil, events)
+	handler := NewComposeHandler(context.Background(), store, nil, events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/stacks?name=yaml-stack", bytes.NewReader([]byte(validComposeYAML)))
 	req.Header.Set("Content-Type", "application/x-yaml")

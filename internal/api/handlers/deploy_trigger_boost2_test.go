@@ -26,7 +26,7 @@ func TestDeployTrigger_ImageApp_RuntimeError_Boost(t *testing.T) {
 	// But mockContainerRuntime doesn't support this. Create a custom one.
 	errRuntime := &errCreateRuntime{err: errors.New("docker error")}
 
-	handler := NewDeployTriggerHandler(store, errRuntime, testCore().Events)
+	handler := NewDeployTriggerHandler(context.Background(), store, errRuntime, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")
@@ -87,7 +87,7 @@ func TestDeployTrigger_ImageApp_AtomicVersionError_Boost(t *testing.T) {
 	})
 	store.errGetNextDeployVersion = errors.New("version fail")
 
-	handler := NewDeployTriggerHandler(store, nil, testCore().Events)
+	handler := NewDeployTriggerHandler(context.Background(), store, nil, testCore().Events)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
@@ -111,7 +111,7 @@ func TestDeployTrigger_ImageApp_CreateDeploymentError_Boost(t *testing.T) {
 	store.nextDeployVersion["app1"] = 3
 	store.errCreateDeployment = errors.New("db fail")
 
-	handler := NewDeployTriggerHandler(store, nil, testCore().Events)
+	handler := NewDeployTriggerHandler(context.Background(), store, nil, testCore().Events)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")
 	req = withClaims(req, "user1", "tenant1", "role_owner", "user@example.com")
@@ -136,7 +136,7 @@ func TestDeployTrigger_ImageApp_UpdateStatusError_Boost(t *testing.T) {
 	store.errUpdateAppStatus = errors.New("status fail")
 
 	runtime := &mockContainerRuntime{}
-	handler := NewDeployTriggerHandler(store, runtime, testCore().Events)
+	handler := NewDeployTriggerHandler(context.Background(), store, runtime, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")

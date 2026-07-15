@@ -25,7 +25,7 @@ func TestDeployTriggerHandler_buildDeployLabels(t *testing.T) {
 		FQDN:  "myapp.example.com",
 	})
 
-	h := NewDeployTriggerHandler(store, nil, testCore().Events)
+	h := NewDeployTriggerHandler(context.Background(), store, nil, testCore().Events)
 	labels := h.buildDeployLabels(context.Background(), store.apps["app-1"], 3)
 
 	if labels["monster.app.id"] != "app-1" {
@@ -57,7 +57,7 @@ func TestDeployTriggerHandler_buildDeployLabels_DefaultPort(t *testing.T) {
 		FQDN:  "myapp.example.com",
 	})
 
-	h := NewDeployTriggerHandler(store, nil, testCore().Events)
+	h := NewDeployTriggerHandler(context.Background(), store, nil, testCore().Events)
 	labels := h.buildDeployLabels(context.Background(), store.apps["app-1"], 1)
 
 	if labels["monster.http.services.my-app-0.loadbalancer.server.port"] != "80" {
@@ -74,7 +74,7 @@ func TestDeployTriggerHandler_buildDeployLabels_NoDomains(t *testing.T) {
 		Name:      "my-app",
 	})
 
-	h := NewDeployTriggerHandler(store, nil, testCore().Events)
+	h := NewDeployTriggerHandler(context.Background(), store, nil, testCore().Events)
 	labels := h.buildDeployLabels(context.Background(), store.apps["app-1"], 1)
 
 	if labels["monster.app.id"] != "app-1" {
@@ -96,7 +96,7 @@ func TestDeployTriggerHandler_buildDeployLabels_ListDomainsError(t *testing.T) {
 	})
 	store.errListDomainsByApp = context.Canceled
 
-	h := NewDeployTriggerHandler(store, nil, testCore().Events)
+	h := NewDeployTriggerHandler(context.Background(), store, nil, testCore().Events)
 	labels := h.buildDeployLabels(context.Background(), store.apps["app-1"], 1)
 
 	// Should still return base labels even when domain list fails
@@ -107,7 +107,7 @@ func TestDeployTriggerHandler_buildDeployLabels_ListDomainsError(t *testing.T) {
 
 func TestDeployTriggerHandler_RuntimeSelection(t *testing.T) {
 	localRuntime := &mockContainerRuntime{}
-	h := NewDeployTriggerHandler(newMockStore(), localRuntime, nil)
+	h := NewDeployTriggerHandler(context.Background(), newMockStore(), localRuntime, nil)
 
 	rt, err := h.deployRuntimeForApp(&core.Application{ID: "app-1"})
 	if err != nil {
@@ -125,7 +125,7 @@ func TestDeployTriggerHandler_RuntimeSelection(t *testing.T) {
 		t.Fatal("expected local runtime for serverID=local")
 	}
 
-	if _, err := NewDeployTriggerHandler(newMockStore(), nil, nil).deployRuntimeForApp(&core.Application{}); err == nil {
+	if _, err := NewDeployTriggerHandler(context.Background(), newMockStore(), nil, nil).deployRuntimeForApp(&core.Application{}); err == nil {
 		t.Fatal("expected nil local runtime to fail")
 	}
 	if _, err := h.deployRuntimeForApp(&core.Application{ID: "app-1", ServerID: "remote-1"}); err == nil {
@@ -174,7 +174,7 @@ func TestDeployTriggerCleanupPreviousContainers(t *testing.T) {
 	runtime := &recordingDeployRuntime{
 		containers: []core.ContainerInfo{{ID: "keep"}, {ID: "old-1"}, {ID: "old-2"}, {ID: ""}},
 	}
-	NewDeployTriggerHandler(newMockStore(), nil, nil).cleanupPreviousAppContainers(context.Background(), runtime, "app-1", "keep")
+	NewDeployTriggerHandler(context.Background(), newMockStore(), nil, nil).cleanupPreviousAppContainers(context.Background(), runtime, "app-1", "keep")
 
 	if len(runtime.stopped) != 2 || len(runtime.removed) != 2 {
 		t.Fatalf("stopped=%v removed=%v", runtime.stopped, runtime.removed)
@@ -184,7 +184,7 @@ func TestDeployTriggerCleanupPreviousContainers(t *testing.T) {
 	}
 
 	errRuntime := &recordingDeployRuntime{listErr: errors.New("list failed")}
-	NewDeployTriggerHandler(newMockStore(), nil, nil).cleanupPreviousAppContainers(context.Background(), errRuntime, "app-1", "")
+	NewDeployTriggerHandler(context.Background(), newMockStore(), nil, nil).cleanupPreviousAppContainers(context.Background(), errRuntime, "app-1", "")
 	if len(errRuntime.stopped) != 0 || len(errRuntime.removed) != 0 {
 		t.Fatalf("cleanup should not continue after list error: %+v", errRuntime)
 	}
@@ -208,13 +208,13 @@ func TestEnsureDeployNetwork(t *testing.T) {
 }
 
 func TestDeployTriggerHandler_SubscribeWebhookDeploysBranches(t *testing.T) {
-	NewDeployTriggerHandler(newMockStore(), nil, nil).SubscribeWebhookDeploys()
+	NewDeployTriggerHandler(context.Background(), newMockStore(), nil, nil).SubscribeWebhookDeploys()
 
 	events := core.NewEventBus(nil)
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "image-app", TenantID: "t1", SourceType: "image"})
 	store.addApp(&core.Application{ID: "git-app", TenantID: "t1", SourceType: "git", Branch: "main"})
-	h := NewDeployTriggerHandler(store, nil, events)
+	h := NewDeployTriggerHandler(context.Background(), store, nil, events)
 	h.SubscribeWebhookDeploys()
 
 	ctx := context.Background()
@@ -239,7 +239,7 @@ func TestDeployTriggerHandler_SubscribeWebhookDeploysHonorsFreeze(t *testing.T) 
 	if err := seedActiveDeployFreeze(bolt, "t1"); err != nil {
 		t.Fatalf("seed freeze: %v", err)
 	}
-	h := NewDeployTriggerHandler(store, nil, events)
+	h := NewDeployTriggerHandler(context.Background(), store, nil, events)
 	h.SetDeployFreezeStore(bolt)
 	h.SubscribeWebhookDeploys()
 

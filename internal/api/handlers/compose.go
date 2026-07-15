@@ -20,8 +20,8 @@ type ComposeHandler struct {
 	serverCtx context.Context
 }
 
-func NewComposeHandler(store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *ComposeHandler {
-	return &ComposeHandler{store: store, runtime: runtime, events: events, serverCtx: context.Background()}
+func NewComposeHandler(ctx context.Context, store core.Store, runtime core.ContainerRuntime, events *core.EventBus) *ComposeHandler {
+	return &ComposeHandler{store: store, runtime: runtime, events: events, serverCtx: ctx}
 }
 
 // SetServerContext sets the server-lifetime context used by background goroutines.

@@ -21,8 +21,8 @@ type MarketplaceDeployHandler struct {
 	serverCtx context.Context
 }
 
-func NewMarketplaceDeployHandler(registry *marketplace.TemplateRegistry, runtime core.ContainerRuntime, store core.Store, events *core.EventBus) *MarketplaceDeployHandler {
-	return &MarketplaceDeployHandler{registry: registry, runtime: runtime, store: store, events: events, serverCtx: context.Background()}
+func NewMarketplaceDeployHandler(ctx context.Context, registry *marketplace.TemplateRegistry, runtime core.ContainerRuntime, store core.Store, events *core.EventBus) *MarketplaceDeployHandler {
+	return &MarketplaceDeployHandler{registry: registry, runtime: runtime, store: store, events: events, serverCtx: ctx}
 }
 
 // SetServerContext sets the server-lifetime context used by background goroutines.

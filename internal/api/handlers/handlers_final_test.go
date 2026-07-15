@@ -346,7 +346,7 @@ func TestFinal_Compose_Deploy_YAMLContentType(t *testing.T) {
 	store.projects = map[string][]core.Project{"t1": {{ID: "p1", TenantID: "t1"}}}
 	events := core.NewEventBus(slog.Default())
 	// Use nil runtime so the async goroutine's deployer returns early without crashing
-	h := NewComposeHandler(store, nil, events)
+	h := NewComposeHandler(context.Background(), store, nil, events)
 
 	yamlBody := `version: "3"
 services:
@@ -398,7 +398,7 @@ func TestFinal_DeployTrigger_ImageDeploy(t *testing.T) {
 	store.nextDeployVersion = map[string]int{"app-1": 2}
 	rt := &mockContainerRuntime{}
 	events := core.NewEventBus(slog.Default())
-	h := NewDeployTriggerHandler(store, rt, events)
+	h := NewDeployTriggerHandler(context.Background(), store, rt, events)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/deploy", nil)
 	req.SetPathValue("id", "app-1")
@@ -426,7 +426,7 @@ func TestFinal_DeployTrigger_GitDeploy(t *testing.T) {
 		Branch:     "main",
 	})
 	events := core.NewEventBus(slog.Default())
-	h := NewDeployTriggerHandler(store, &mockContainerRuntime{}, events)
+	h := NewDeployTriggerHandler(context.Background(), store, &mockContainerRuntime{}, events)
 
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-2/deploy", nil)
 	req.SetPathValue("id", "app-2")
@@ -655,7 +655,7 @@ func TestFinal_Marketplace_List_NilRegistry(t *testing.T) {
 
 func TestFinal_MarketplaceDeploy_TemplateNotFound(t *testing.T) {
 	registry := marketplace.NewTemplateRegistry()
-	h := NewMarketplaceDeployHandler(registry, nil, newMockStore(), core.NewEventBus(slog.Default()))
+	h := NewMarketplaceDeployHandler(context.Background(), registry, nil, newMockStore(), core.NewEventBus(slog.Default()))
 
 	body := `{"slug":"nonexistent"}`
 	req := httptest.NewRequest("POST", "/api/v1/marketplace/deploy", strings.NewReader(body))
@@ -682,7 +682,7 @@ func TestFinal_MarketplaceDeploy_CreateAppError(t *testing.T) {
 
 	store := newMockStore()
 	store.errCreateApp = fmt.Errorf("db error")
-	h := NewMarketplaceDeployHandler(registry, nil, store, core.NewEventBus(slog.Default()))
+	h := NewMarketplaceDeployHandler(context.Background(), registry, nil, store, core.NewEventBus(slog.Default()))
 
 	body := `{"slug":"test-app","name":"myapp"}`
 	req := httptest.NewRequest("POST", "/api/v1/marketplace/deploy", strings.NewReader(body))

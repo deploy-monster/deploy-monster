@@ -155,7 +155,7 @@ func TestDeployTriggerHandler_failReservedDeployment_StoreError(t *testing.T) {
 }
 
 func TestDeployTriggerHandler_deployRuntimeForApp_NodeGetError(t *testing.T) {
-	h := NewDeployTriggerHandler(newMockStore(), nil, nil)
+	h := NewDeployTriggerHandler(context.Background(), newMockStore(), nil, nil)
 	nm := &fakeNodeManager{nodes: map[string]core.NodeExecutor{}}
 	h.SetNodeManager(nm)
 
@@ -169,7 +169,7 @@ func TestDeployTriggerHandler_deployRuntimeForApp_NodeGetError(t *testing.T) {
 }
 
 func TestDeployTriggerHandler_deployRuntimeForApp_NilRuntime(t *testing.T) {
-	h := NewDeployTriggerHandler(newMockStore(), nil, nil)
+	h := NewDeployTriggerHandler(context.Background(), newMockStore(), nil, nil)
 
 	_, err := h.deployRuntimeForApp(&core.Application{ID: "app1"})
 	if err == nil {
@@ -193,7 +193,7 @@ func TestDeployTriggerHandler_cleanupPreviousAppContainers_StopError(t *testing.
 		},
 		stopErr: errors.New("stop failed"),
 	}
-	NewDeployTriggerHandler(newMockStore(), nil, nil).cleanupPreviousAppContainers(context.Background(), rt, "app1", "keep")
+	NewDeployTriggerHandler(context.Background(), newMockStore(), nil, nil).cleanupPreviousAppContainers(context.Background(), rt, "app1", "keep")
 	// Should continue even after stop error — remove should still be called
 	if len(rt.removed) != 1 {
 		t.Errorf("expected 1 remove call despite stop error, got %d", len(rt.removed))
@@ -207,7 +207,7 @@ func TestDeployTriggerHandler_cleanupPreviousAppContainers_RemoveError(t *testin
 		},
 		removeErr: errors.New("remove failed"),
 	}
-	NewDeployTriggerHandler(newMockStore(), nil, nil).cleanupPreviousAppContainers(context.Background(), rt, "app1", "")
+	NewDeployTriggerHandler(context.Background(), newMockStore(), nil, nil).cleanupPreviousAppContainers(context.Background(), rt, "app1", "")
 }
 
 func TestBuildImageTagForRegistry_EmptyCommitSHA(t *testing.T) {

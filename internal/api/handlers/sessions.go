@@ -330,7 +330,7 @@ func (h *SessionHandler) GetTOTPStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	enabled, err := h.authMod.TOTP().Status(claims.UserID)
+	enabled, err := h.authMod.TOTP().StatusContext(r.Context(), claims.UserID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get TOTP status")
 		return

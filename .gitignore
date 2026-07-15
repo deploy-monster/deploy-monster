@@ -25,7 +25,7 @@ backups/
 
 # Test coverage
 *.out
-coverage.html
+coverage*.html
 coverage/
 gosec-results.json
 

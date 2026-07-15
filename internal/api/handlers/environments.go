@@ -38,7 +38,10 @@ var defaultPresets = []EnvironmentPreset{
 	},
 	{
 		Name: "development", Description: "Development and testing",
-		Variables:  map[string]string{"NODE_ENV": "development", "LOG_LEVEL": "debug", "DEBUG": "true"},
+		// DEBUG deliberately omitted: enabling debug mode globally can leak
+		// sensitive data (stack traces, env dump, query details) into logs and
+		// HTTP responses. Users who need it can add DEBUG=true via env vars UI.
+		Variables:  map[string]string{"NODE_ENV": "development", "LOG_LEVEL": "debug"},
 		AutoDeploy: true, Branch: "develop",
 	},
 }

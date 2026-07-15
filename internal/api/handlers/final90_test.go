@@ -28,7 +28,7 @@ func TestDeployTrigger_ImageApp_RuntimeError(t *testing.T) {
 	})
 
 	runtime := &failRuntime{err: fmt.Errorf("container start failed")}
-	handler := NewDeployTriggerHandler(store, runtime, testCore().Events)
+	handler := NewDeployTriggerHandler(context.Background(), store, runtime, testCore().Events)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app-err/deploy", nil)
 	req.SetPathValue("id", "app-err")
@@ -521,7 +521,7 @@ func TestSSHTestHandler_UnreachableHost(t *testing.T) {
 // =============================================================================
 
 func TestMarketplaceDeployHandler_New(t *testing.T) {
-	h := NewMarketplaceDeployHandler(nil, nil, newMockStore(), testCore().Events)
+	h := NewMarketplaceDeployHandler(context.Background(), nil, nil, newMockStore(), testCore().Events)
 	if h == nil {
 		t.Fatal("NewMarketplaceDeployHandler returned nil")
 	}

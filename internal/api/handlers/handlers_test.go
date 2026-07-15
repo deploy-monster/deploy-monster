@@ -331,7 +331,7 @@ func TestInviteRequest_Parse(t *testing.T) {
 }
 
 func TestSetServerContext_DeployTrigger(t *testing.T) {
-	h := NewDeployTriggerHandler(nil, nil, nil)
+	h := NewDeployTriggerHandler(context.Background(), nil, nil, nil)
 	// Default should be non-nil (context.Background)
 	if h.serverCtx == nil {
 		t.Fatal("expected non-nil default serverCtx")
@@ -356,7 +356,7 @@ func TestSetServerContext_DeployTrigger(t *testing.T) {
 }
 
 func TestSetServerContext_Compose(t *testing.T) {
-	h := NewComposeHandler(nil, nil, nil)
+	h := NewComposeHandler(context.Background(), nil, nil, nil)
 	if h.serverCtx == nil {
 		t.Fatal("expected non-nil default serverCtx")
 	}
@@ -374,7 +374,7 @@ func TestSetServerContext_Compose(t *testing.T) {
 }
 
 func TestSetServerContext_MarketplaceDeploy(t *testing.T) {
-	h := NewMarketplaceDeployHandler(nil, nil, nil, nil)
+	h := NewMarketplaceDeployHandler(context.Background(), nil, nil, nil, nil)
 	if h.serverCtx == nil {
 		t.Fatal("expected non-nil default serverCtx")
 	}
