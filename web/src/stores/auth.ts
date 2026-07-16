@@ -36,6 +36,17 @@ interface MeResponse {
   tenant_id: string;
 }
 
+/** Map /auth/me response shape to internal User type. */
+function mapUser(resp: MeResponse): User {
+  return {
+    id: resp.user.id,
+    email: resp.user.email,
+    name: resp.user.name,
+    role: resp.role_id || resp.membership?.role_id || '',
+    tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
+  };
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
@@ -47,14 +58,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Use /auth/me to get verified user info instead of decoding JWT client-side
       const resp = await api.get<MeResponse>('/auth/me');
       if (resp?.user?.id) {
-        const user: User = {
-          id: resp.user.id,
-          email: resp.user.email,
-          name: resp.user.name,
-          role: resp.role_id || resp.membership?.role_id || '',
-          tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
-        };
-        set({ user, isAuthenticated: true });
+        set({ user: mapUser(resp), isAuthenticated: true });
       }
     } catch (e) {
       set({ isLoading: false });
@@ -68,14 +72,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Use /auth/me to get verified user info instead of decoding JWT client-side
       const resp = await api.get<MeResponse>('/auth/me');
       if (resp?.user?.id) {
-        const user: User = {
-          id: resp.user.id,
-          email: resp.user.email,
-          name: resp.user.name,
-          role: resp.role_id || resp.membership?.role_id || '',
-          tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
-        };
-        set({ user, isAuthenticated: true });
+        set({ user: mapUser(resp), isAuthenticated: true });
       }
     } catch (e) {
       set({ isLoading: false });
@@ -106,14 +103,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         // Backend /me returns { user, membership, role_id, tenant_id }
         const resp = await api.get<MeResponse>('/auth/me');
         if (resp?.user?.id) {
-          const user: User = {
-            id: resp.user.id,
-            email: resp.user.email,
-            name: resp.user.name,
-            role: resp.role_id || resp.membership?.role_id || '',
-            tenant_id: resp.tenant_id || resp.membership?.tenant_id || '',
-          };
-          set({ user, isAuthenticated: true, isLoading: false });
+          set({ user: mapUser(resp), isAuthenticated: true, isLoading: false });
           return;
         }
       } catch {
