@@ -2,12 +2,12 @@
 # DeployMonster installer — curl-pipe entry point (GitHub-first)
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- --version=v0.1.8
-#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- --force
-#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | MONSTER_JOIN_TOKEN=join-token bash -s -- --version=v0.1.8
-#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- --agent --master=http://master:8443 --token=join-token
-#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- uninstall
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.2.0/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.2.0/scripts/install.sh | bash -s -- --version=v0.2.0
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.2.0/scripts/install.sh | bash -s -- --force
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.2.0/scripts/install.sh | MONSTER_JOIN_TOKEN=join-token bash -s -- --version=v0.2.0
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.2.0/scripts/install.sh | bash -s -- --agent --master=http://master:8443 --token=join-token
+#   curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.2.0/scripts/install.sh | bash -s -- uninstall
 #
 # Design notes:
 # - Downloads a goreleaser archive from a tagged GitHub release, verifies
@@ -716,7 +716,7 @@ OUTRO
 
     cat <<OUTRO
   Uninstall:
-    curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.8/scripts/install.sh | bash -s -- uninstall
+    curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.2.0/scripts/install.sh | bash -s -- uninstall
 
 OUTRO
 

@@ -9,13 +9,13 @@ Turn any VPS with Docker into a multi-tenant deployment platform.
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/v0.1.9-release-brightgreen)](./)
+[![Version](https://img.shields.io/badge/v0.2.0-release-brightgreen)](./)
 
 [📚 Docs](docs/) · [🏗 ADRs](docs/adr/) · [🛣 Roadmap](docs/archive/ROADMAP.md)
 
 </div>
 
-> **Status: v0.1.9 (conditional-go).** Self-hosted single-tenant: ready.
+> **Status: v0.2.0 (conditional-go).** Self-hosted single-tenant: ready.
 > Multi-tenant SaaS: requires the staging validation, backup/restore,
 > rollback, load, and soak evidence in
 > [`docs/staging-validation.md`](docs/staging-validation.md). See
@@ -27,8 +27,8 @@ Turn any VPS with Docker into a multi-tenant deployment platform.
 
 ```bash
 # One-line install (systemd)
-curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.1.9/scripts/install.sh \
-  | bash -s -- --version=v0.1.9
+curl -fsSL https://raw.githubusercontent.com/deploy-monster/deploy-monster/v0.2.0/scripts/install.sh \
+  | bash -s -- --version=v0.2.0
 
 deploymonster setup             # interactive: domain, SSL, admin account
 sudo systemctl restart deploymonster
@@ -38,7 +38,7 @@ docker run -d --name deploymonster \
   -p 8443:8443 -p 80:80 -p 443:443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v dm-data:/var/lib/deploymonster \
-  ghcr.io/deploy-monster/deploy-monster:v0.1.9
+  ghcr.io/deploy-monster/deploy-monster:v0.2.0
 ```
 
 Open `http://<host>:8443`. First-run admin credentials are printed to
@@ -210,12 +210,13 @@ bundle-size budget).
 - **17** fuzz targets (input parsing, webhook HMAC, JWT validate, secret resolver, cross-tenant router)
 - **44** benchmarks
 - **~24 MB** single binary with embedded UI
-- **Coverage:** statement-weighted **85.3 %** after stripping the
+- **Coverage:** statement-weighted **91.2 %** after stripping the
   `tests/loadtest` and `tests/soak` harness packages from the
-  profile. Raw coverage including those harnesses is 83.9 %. The CI
+  profile. Raw coverage including those harnesses is ~89 %. The CI
   gate enforces the filtered-85 % threshold (see
-  `.github/workflows/ci.yml`). Current validation also runs Vitest,
-  Playwright E2E, OpenAPI drift, bundle-size, and govulncheck gates.
+  `.github/workflows/ci.yml`). 16 packages at 100 %. Current validation
+  also runs Vitest (405 tests), Playwright E2E (13 specs), OpenAPI drift
+  (236/236 match), bundle-size, and govulncheck gates.
 
 ---
 
