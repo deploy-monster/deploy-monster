@@ -134,7 +134,7 @@ All CI gates are **green on master**:
 - **pnpm audit** — clean; no known vulnerabilities in frontend dependencies
 - **Go CVE remediation** — 9 HIGH-severity CVEs in `golang.org/x/crypto` fixed in v0.1.9; GO-2026-5856 (TLS ECH privacy leak) fixed in v0.2.0 via Go 1.26.5 upgrade
 - **Trivy** — Docker image scanned clean on release
-- **Security audit report** — comprehensive 40-file report in `security-report/` directory
+- **Security audit report** — run via CI with `govulncheck`
 
 ### Key security features implemented
 
@@ -348,14 +348,14 @@ Open `http://<host>:8443`. First-run admin credentials are printed to the consol
 ## References
 
 - **README:** [`README.md`](README.md)
-- **Architecture:** [`docs/architecture.md`](docs/architecture.md)
+- **Architecture:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - **Architecture decisions:** [`docs/adr/`](docs/adr/)
 - **Changelog:** [`CHANGELOG.md`](CHANGELOG.md)
-- **Verification report:** [`docs/verification-report-2026-07-06.md`](docs/verification-report-2026-07-06.md)
-- **Production readiness:** [`PRODUCTION-READY.md`](PRODUCTION-READY.md)
-- **Project status:** [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
-- **Security report:** [`security-report/SECURITY-REPORT.md`](security-report/SECURITY-REPORT.md)
-- **Full project analysis:** [`deploy-monster-analysis.md`](deploy-monster-analysis.md)
+- **Verification report:** [`docs/staging-validation.md`](docs/staging-validation.md)
+- **Staging validation:** [`docs/staging-validation.md`](docs/staging-validation.md)
+- **Operator runbook:** [`docs/runbook.md`](docs/runbook.md)
+- **Upgrade guide:** [`docs/upgrade-guide.md`](docs/upgrade-guide.md)
+- **Security audit:** [`docs/security-audit.md`](docs/security-audit.md)
 - **License:** [`LICENSE`](LICENSE) (AGPL-3.0)
 
 ---

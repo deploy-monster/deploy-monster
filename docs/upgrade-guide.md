@@ -269,15 +269,12 @@ docker run -d \
   ghcr.io/deploy-monster/deploy-monster:vX.Y.Z
 ```
 
-Or with `docker-compose.prod.yml`:
+Or with Docker Compose:
 
 ```bash
-# Pin the new version
-sed -i 's|ghcr.io/deploy-monster/deploy-monster:.*|ghcr.io/deploy-monster/deploy-monster:vX.Y.Z|' \
-  docker-compose.prod.yml
-
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+# Pin the new version in docker-compose.yml if needed
+docker compose pull
+docker compose up -d
 ```
 
 ## Rollback procedure

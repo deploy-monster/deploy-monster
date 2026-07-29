@@ -88,3 +88,6 @@ screenshots/
 
 .dfmt/
 .wrongstack/
+!/.wrongstack/
+/.wrongstack/*
+!/.wrongstack/project.json

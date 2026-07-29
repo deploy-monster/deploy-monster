@@ -1,7 +1,9 @@
+# Development overrides — automatically merged with docker-compose.yml by `docker compose up`.
+# Use `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up` for Postgres.
 services:
   deploymonster:
     build:
-      context: ..
+      context: .
       dockerfile: deployments/Dockerfile
     ports:
       - "8443:8443"
@@ -9,7 +11,6 @@ services:
       - "443:443"
     volumes:
       - dm-data:/var/lib/deploymonster
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - MONSTER_HOST=0.0.0.0
       - MONSTER_PORT=8443

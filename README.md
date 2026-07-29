@@ -11,7 +11,7 @@ Turn any VPS with Docker into a multi-tenant deployment platform.
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/v0.2.0-release-brightgreen)](./)
 
-[📚 Docs](docs/) · [🏗 ADRs](docs/adr/) · [🛣 Roadmap](docs/archive/ROADMAP.md)
+[📚 Docs](docs/) · [🏗 ADRs](docs/adr/) · [📋 Refactor Backlog](REFACTOR.md)
 
 </div>
 
@@ -19,7 +19,7 @@ Turn any VPS with Docker into a multi-tenant deployment platform.
 > Multi-tenant SaaS: requires the staging validation, backup/restore,
 > rollback, load, and soak evidence in
 > [`docs/staging-validation.md`](docs/staging-validation.md). See
-> [`PRODUCTION-READY.md`](PRODUCTION-READY.md) for the current verdict.
+> [`PRODUCTION-STATUS.md`](PRODUCTION-STATUS.md) for the current verdict.
 
 ---
 

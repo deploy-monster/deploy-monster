@@ -161,23 +161,19 @@ for traceability.
 4. `make lint` — must pass or the lint-report diff must be explained
    in the PR body.
 5. PR body: what changed, why, and what you tested manually.
-6. For security-adjacent changes, cite the finding being fixed or
-   open a new one in `security-report/`.
 
 ## Architecture pointers
 
-- **`docs/archive/`** — historical product-direction artefacts (frozen, kept for context):
-  - `ANALYSIS.md` — honest feature/security/quality snapshot
-  - `ROADMAP.md` — sprint plan, closed/open items
-  - `SPECIFICATION.md` — product spec
-  - `IMPLEMENTATION.md` — patterns and code examples
-  - `PRODUCTIONREADY.md` — go/no-go verdict
+- **`ARCHITECTURE.md`** (root) — comprehensive architecture reference
+  covering all 22 modules, the module system, store interface, event bus,
+  API layer, database design, configuration, and frontend.
 - **`docs/adr/`** — 11 Nygard-template ADRs covering the load-bearing
   decisions (start here if you're asking "why is it like this?").
 - **`docs/openapi.yaml`** — API contract; regenerate with
   `make openapi-check` and update if you add a route.
 - **`CLAUDE.md`** — agent-facing conventions; humans should read it
   too since it summarises the non-obvious project rules.
+- **`REFACTOR.md`** — open refactoring backlog and code-level audit notes.
 
 ## Reporting bugs / proposing features
 

@@ -42,17 +42,15 @@ of v0.1.x — leave those disabled.
 
 ## Example compose
 
-A ready-to-run version of this configuration is committed at
-[`deployments/docker-compose.hardened.yaml`](../deployments/docker-compose.hardened.yaml).
-Start it with:
+The default [`docker-compose.yml`](../docker-compose.yml) at the repo root
+already ships with the socket-proxy pattern. Start it with:
 
 ```bash
-docker compose -f deployments/docker-compose.hardened.yaml up -d
+docker compose up -d
 ```
 
-The file below is the same config inlined for reference — it replaces
-the direct socket mount with a private bridge network on which only
-the proxy can reach the real socket.
+The root compose file replaces the direct socket mount with a private
+bridge network on which only the proxy can reach the real socket.
 
 ```yaml
 services:
