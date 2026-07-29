@@ -11,12 +11,12 @@ import (
 // When enabled, the ingress adds a Basic Auth challenge before proxying.
 type BasicAuthHandler struct {
 	store  core.Store
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 	events *core.EventBus
 }
 
-func NewBasicAuthHandler(store core.Store, bolt core.BoltStorer) *BasicAuthHandler {
-	return &BasicAuthHandler{store: store, bolt: bolt}
+func NewBasicAuthHandler(store core.Store, kv core.KVStorer) *BasicAuthHandler {
+	return &BasicAuthHandler{store: store, kv: kv}
 }
 
 // SetEvents sets the event bus for audit event emission.
@@ -37,7 +37,7 @@ func (h *BasicAuthHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cfg BasicAuthConfig
-	if err := h.bolt.Get("basic_auth", app.ID, &cfg); err != nil {
+	if err := h.kv.Get("basic_auth", app.ID, &cfg); err != nil {
 		writeJSON(w, http.StatusOK, BasicAuthConfig{Enabled: false, Realm: "Restricted"})
 		return
 	}
@@ -76,7 +76,7 @@ func (h *BasicAuthHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.bolt.Set("basic_auth", appID, cfg, 0); err != nil {
+	if err := h.kv.Set("basic_auth", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save basic auth config")
 		return
 	}

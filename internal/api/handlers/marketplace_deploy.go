@@ -17,7 +17,7 @@ type MarketplaceDeployHandler struct {
 	runtime   core.ContainerRuntime
 	store     core.Store
 	events    *core.EventBus
-	freeze    core.BoltStorer
+	freeze    core.KVStorer
 	serverCtx context.Context
 }
 
@@ -29,7 +29,7 @@ func NewMarketplaceDeployHandler(ctx context.Context, registry *marketplace.Temp
 func (h *MarketplaceDeployHandler) SetServerContext(ctx context.Context) { h.serverCtx = ctx }
 
 // SetDeployFreezeStore enables deploy-freeze enforcement for marketplace deploys.
-func (h *MarketplaceDeployHandler) SetDeployFreezeStore(bolt core.BoltStorer) { h.freeze = bolt }
+func (h *MarketplaceDeployHandler) SetDeployFreezeStore(kv core.KVStorer) { h.freeze = kv }
 
 type deployTemplateRequest struct {
 	Slug   string            `json:"slug"`

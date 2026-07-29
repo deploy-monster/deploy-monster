@@ -10,11 +10,11 @@ import (
 
 // WildcardSSLHandler manages wildcard SSL certificates via DNS-01 challenge.
 type WildcardSSLHandler struct {
-	bolt core.BoltStorer
+	kv core.KVStorer
 }
 
-func NewWildcardSSLHandler(bolt core.BoltStorer) *WildcardSSLHandler {
-	return &WildcardSSLHandler{bolt: bolt}
+func NewWildcardSSLHandler(kv core.KVStorer) *WildcardSSLHandler {
+	return &WildcardSSLHandler{kv: kv}
 }
 
 // WildcardCertConfig defines a wildcard SSL request.
@@ -59,13 +59,13 @@ func (h *WildcardSSLHandler) Request(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store the wildcard cert request
-	if err := h.bolt.Set("wildcard_ssl", claims.TenantID+":"+certID, cfg, 0); err != nil {
+	if err := h.kv.Set("wildcard_ssl", claims.TenantID+":"+certID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save wildcard certificate request")
 		return
 	}
 
 	// Also index by domain for lookups
-	if err := h.bolt.Set("wildcard_ssl_domain", claims.TenantID+":"+req.Domain, cfg, 0); err != nil {
+	if err := h.kv.Set("wildcard_ssl_domain", claims.TenantID+":"+req.Domain, cfg, 0); err != nil {
 		slog.Error("failed to index wildcard cert by domain", "domain", req.Domain, "error", err)
 	}
 

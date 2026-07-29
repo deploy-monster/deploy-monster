@@ -20,7 +20,7 @@ type Module struct {
 	core     *core.Core
 	sqlite   *SQLiteDB
 	postgres *PostgresDB
-	bolt     *BoltStore
+	kv     *KVStore
 	driver   string
 	logger   *slog.Logger
 }
@@ -66,7 +66,7 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 		if err != nil {
 			return fmt.Errorf("sqlite kv: %w", err)
 		}
-		m.bolt = kvStore
+		m.kv = kvStore
 		m.logger.Info("sqlite kv initialized", "path", c.Config.Database.Path, "shared_connection", true)
 
 	case "postgres", "postgresql":
@@ -83,7 +83,7 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 		if err != nil {
 			return fmt.Errorf("sqlite kv: %w", err)
 		}
-		m.bolt = kvStore
+		m.kv = kvStore
 		m.logger.Info("sqlite kv initialized", "path", kvPath, "shared_connection", false)
 
 	default:
@@ -92,7 +92,7 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 
 	// Set the shared database reference on core
 	c.DB = &core.Database{
-		Bolt: m.bolt,
+		KV: m.kv,
 	}
 	if m.sqlite != nil {
 		c.DB.SQL = m.sqlite.DB()
@@ -125,8 +125,8 @@ func (m *Module) Stop(_ context.Context) error {
 			firstErr = fmt.Errorf("postgres close: %w", err)
 		}
 	}
-	if m.bolt != nil {
-		if err := m.bolt.Close(); err != nil && firstErr == nil {
+	if m.kv != nil {
+		if err := m.kv.Close(); err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("sqlite kv close: %w", err)
 		}
 	}
@@ -134,7 +134,7 @@ func (m *Module) Stop(_ context.Context) error {
 }
 
 func (m *Module) Health() core.HealthStatus {
-	if m.bolt == nil {
+	if m.kv == nil {
 		return core.HealthDown
 	}
 
@@ -171,8 +171,8 @@ func (m *Module) SQLite() *SQLiteDB {
 	return m.sqlite
 }
 
-// Bolt returns the underlying KV store. The method name is retained for
+// KV returns the underlying KV store. The method returns for
 // compatibility with older handler code.
-func (m *Module) Bolt() *BoltStore {
-	return m.bolt
+func (m *Module) KV() *KVStore {
+	return m.kv
 }

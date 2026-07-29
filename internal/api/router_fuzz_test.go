@@ -165,7 +165,7 @@ func fuzzSetupRouter(tb testing.TB) (*Router, string) {
 		Build:    core.BuildInfo{Version: "0.1.0-test"},
 		Config:   &core.Config{Server: core.ServerConfig{SecretKey: "test-secret-key-32chars-for-jwt!"}},
 		Services: core.NewServices(),
-		DB:       &core.Database{Bolt: &testBoltStore{}},
+		DB:       &core.Database{KV: &testKVStore{}},
 	}
 
 	tb.Setenv("MONSTER_ADMIN_EMAIL", "admin@example.com")

@@ -10,11 +10,11 @@ import (
 // BuildCacheHandler manages Docker build cache.
 type BuildCacheHandler struct {
 	runtime core.ContainerRuntime
-	bolt    core.BoltStorer
+	kv    core.KVStorer
 }
 
-func NewBuildCacheHandler(runtime core.ContainerRuntime, bolt core.BoltStorer) *BuildCacheHandler {
-	return &BuildCacheHandler{runtime: runtime, bolt: bolt}
+func NewBuildCacheHandler(runtime core.ContainerRuntime, kv core.KVStorer) *BuildCacheHandler {
+	return &BuildCacheHandler{runtime: runtime, kv: kv}
 }
 
 // buildCacheStats is the persisted build cache statistics.
@@ -45,7 +45,7 @@ func (h *BuildCacheHandler) Stats(w http.ResponseWriter, r *http.Request) {
 
 	// Load persisted build cache stats
 	var stats buildCacheStats
-	_ = h.bolt.Get("buildcache", "stats", &stats)
+	_ = h.kv.Get("buildcache", "stats", &stats)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"layers":          layerCount,
@@ -83,7 +83,7 @@ func (h *BuildCacheHandler) Clear(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reset persisted stats
-	if err := h.bolt.Set("buildcache", "stats", buildCacheStats{}, 0); err != nil {
+	if err := h.kv.Set("buildcache", "stats", buildCacheStats{}, 0); err != nil {
 		slog.Error("failed to reset build cache stats", "error", err)
 	}
 

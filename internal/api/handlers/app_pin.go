@@ -10,11 +10,11 @@ import (
 // PinHandler manages app pinning (pin to dashboard for quick access).
 type PinHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewPinHandler(store core.Store, bolt core.BoltStorer) *PinHandler {
-	return &PinHandler{store: store, bolt: bolt}
+func NewPinHandler(store core.Store, kv core.KVStorer) *PinHandler {
+	return &PinHandler{store: store, kv: kv}
 }
 
 // pinnedApps is the persisted set of pinned app IDs for a user.
@@ -33,7 +33,7 @@ func (h *PinHandler) Pin(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
 
 	var pins pinnedApps
-	_ = h.bolt.Get("app_pins", claims.UserID, &pins)
+	_ = h.kv.Get("app_pins", claims.UserID, &pins)
 
 	// Check if already pinned
 	for _, id := range pins.AppIDs {
@@ -45,7 +45,7 @@ func (h *PinHandler) Pin(w http.ResponseWriter, r *http.Request) {
 
 	pins.AppIDs = append(pins.AppIDs, appID)
 
-	if err := h.bolt.Set("app_pins", claims.UserID, pins, 0); err != nil {
+	if err := h.kv.Set("app_pins", claims.UserID, pins, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to pin app")
 		return
 	}
@@ -64,7 +64,7 @@ func (h *PinHandler) Unpin(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
 
 	var pins pinnedApps
-	if err := h.bolt.Get("app_pins", claims.UserID, &pins); err != nil {
+	if err := h.kv.Get("app_pins", claims.UserID, &pins); err != nil {
 		writeJSON(w, http.StatusOK, map[string]string{"app_id": appID, "pinned": "false"})
 		return
 	}
@@ -77,7 +77,7 @@ func (h *PinHandler) Unpin(w http.ResponseWriter, r *http.Request) {
 	}
 	pins.AppIDs = filtered
 
-	if err := h.bolt.Set("app_pins", claims.UserID, pins, 0); err != nil {
+	if err := h.kv.Set("app_pins", claims.UserID, pins, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to unpin app")
 		return
 	}

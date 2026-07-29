@@ -9,7 +9,7 @@ import (
 )
 
 // =============================================================================
-// BoltStore.GetAPIKeyByPrefix tests
+// KVStore.GetAPIKeyByPrefix tests
 // =============================================================================
 
 func TestBoltKV_GetAPIKeyByPrefix_Found(t *testing.T) {
@@ -88,14 +88,14 @@ func TestBoltKV_GetAPIKeyByPrefix_MultipleKeys(t *testing.T) {
 }
 
 // =============================================================================
-// BoltStore.GetWebhookSecret tests
+// KVStore.GetWebhookSecret tests
 // =============================================================================
 
 func TestBoltKV_GetWebhookSecret_Found(t *testing.T) {
 	store := testBolt(t)
 
 	// Insert raw JSON directly. GetWebhookSecret also supports normal
-	// BoltStore.Set records.
+	// KVStore.Set records.
 	rawJSON := `{"id":"wh-123","app_id":"app-1","secret_hash":"super-secret-hash-abc","events_json":"[\"push\"]","branch_filter":"main","auto_deploy":true,"status":"active","created_at":"2024-01-01T00:00:00Z"}`
 	insertKVRaw(t, store, "webhooks", "wh-123", rawJSON, 0)
 
@@ -156,7 +156,7 @@ func TestBoltKV_GetWebhookSecret_CorruptJSON(t *testing.T) {
 	}
 }
 
-func insertKVRaw(t *testing.T, store *BoltStore, bucket, key, raw string, expiresAt int64) {
+func insertKVRaw(t *testing.T, store *KVStore, bucket, key, raw string, expiresAt int64) {
 	t.Helper()
 	if _, err := store.db.Exec(`INSERT OR IGNORE INTO kv_buckets(name) VALUES (?)`, bucket); err != nil {
 		t.Fatalf("insert raw kv bucket %s: %v", bucket, err)

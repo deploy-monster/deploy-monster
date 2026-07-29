@@ -37,7 +37,7 @@ type stripeRateLimitEntry struct {
 // package so the business logic stays out of the HTTP layer.
 type StripeWebhookHandler struct {
 	events *billing.StripeEventHandler
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 	logger *slog.Logger
 	// In-memory rate limit state — independent per process (ephemeral, but
 	// Stripe itself rate-limits at the source so this is a second layer).
@@ -48,13 +48,13 @@ type StripeWebhookHandler struct {
 // NewStripeWebhookHandler constructs a webhook handler. `events` must be
 // non-nil for the handler to actually process events; when it is nil, every
 // request is rejected with 503 so operators notice the misconfiguration.
-func NewStripeWebhookHandler(events *billing.StripeEventHandler, bolt core.BoltStorer, logger *slog.Logger) *StripeWebhookHandler {
+func NewStripeWebhookHandler(events *billing.StripeEventHandler, kv core.KVStorer, logger *slog.Logger) *StripeWebhookHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &StripeWebhookHandler{
 		events:   events,
-		bolt:     bolt,
+		kv:     kv,
 		logger:   logger,
 		ipLimits: make(map[string]*stripeRateLimitEntry),
 	}

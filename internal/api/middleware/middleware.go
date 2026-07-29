@@ -163,14 +163,14 @@ func originAllowed(origin string, allowlist []string) bool {
 // and on success attaches the claims to the context and calls next. It always
 // fully handles the request (serves it or writes a 401), so the caller returns
 // immediately after. Shared by the Authorization-header and cookie paths.
-func validateJWTAndServe(w http.ResponseWriter, r *http.Request, next http.Handler, jwtSvc *auth.JWTService, bolt core.BoltStorer, tokenStr string) {
+func validateJWTAndServe(w http.ResponseWriter, r *http.Request, next http.Handler, jwtSvc *auth.JWTService, kv core.KVStorer, tokenStr string) {
 	claims, err := jwtSvc.ValidateAccessToken(tokenStr)
 	if err != nil {
 		writeErrorJSON(w, http.StatusUnauthorized, "invalid token")
 		return
 	}
 	// SECURITY FIX: Check if access token is revoked
-	if jwtSvc.IsAccessTokenRevoked(bolt, claims.ID) {
+	if jwtSvc.IsAccessTokenRevoked(kv, claims.ID) {
 		writeErrorJSON(w, http.StatusUnauthorized, "token has been revoked")
 		return
 	}
@@ -180,19 +180,19 @@ func validateJWTAndServe(w http.ResponseWriter, r *http.Request, next http.Handl
 
 // RequireAuth returns middleware that validates JWT from the Authorization header,
 // dm_access cookie, or X-API-Key header (in that priority order).
-func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer, store core.Store) func(http.Handler) http.Handler {
+func RequireAuth(jwtSvc *auth.JWTService, kv core.KVStorer, store core.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Try JWT from Authorization header
 			header := r.Header.Get("Authorization")
 			if strings.HasPrefix(header, "Bearer ") {
-				validateJWTAndServe(w, r, next, jwtSvc, bolt, strings.TrimPrefix(header, "Bearer "))
+				validateJWTAndServe(w, r, next, jwtSvc, kv, strings.TrimPrefix(header, "Bearer "))
 				return
 			}
 
 			// Try JWT from httpOnly cookie
 			if c, err := r.Cookie("dm_access"); err == nil && c.Value != "" {
-				validateJWTAndServe(w, r, next, jwtSvc, bolt, c.Value)
+				validateJWTAndServe(w, r, next, jwtSvc, kv, c.Value)
 				return
 			}
 
@@ -211,16 +211,16 @@ func RequireAuth(jwtSvc *auth.JWTService, bolt core.BoltStorer, store core.Store
 					return
 				}
 
-				// Check if bolt store is available for API key lookup
-				if bolt == nil {
+				// Check if kv store is available for API key lookup
+				if kv == nil {
 					writeErrorJSON(w, http.StatusUnauthorized, "api key authentication not available")
 					return
 				}
 
 				keyPrefix := apiKey[:auth.APIKeyPrefixLength]
 
-				// Lookup API key by prefix using BoltStorer
-				storedKey, err := bolt.GetAPIKeyByPrefix(r.Context(), keyPrefix)
+				// Lookup API key by prefix using KVStorer
+				storedKey, err := kv.GetAPIKeyByPrefix(r.Context(), keyPrefix)
 				if err != nil {
 					writeErrorJSON(w, http.StatusUnauthorized, "invalid api key")
 					return

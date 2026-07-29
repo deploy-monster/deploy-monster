@@ -13,17 +13,17 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
-// rlBoltStore is a BoltStorer that actually persists data in memory for rate limit tests.
-// We can't use mockBoltStore (auth_test.go) because its Get/Set are no-ops.
-type rlBoltStore struct {
+// rlKVStore is a KVStorer that actually persists data in memory for rate limit tests.
+// We can't use mockKVStore (auth_test.go) because its Get/Set are no-ops.
+type rlKVStore struct {
 	data map[string][]byte
 }
 
-func newRLBoltStore() *rlBoltStore {
-	return &rlBoltStore{data: make(map[string][]byte)}
+func newRLKVStore() *rlKVStore {
+	return &rlKVStore{data: make(map[string][]byte)}
 }
 
-func (m *rlBoltStore) Get(bucket, key string, out any) error {
+func (m *rlKVStore) Get(bucket, key string, out any) error {
 	k := bucket + ":" + key
 	raw, ok := m.data[k]
 	if !ok {
@@ -32,7 +32,7 @@ func (m *rlBoltStore) Get(bucket, key string, out any) error {
 	return json.Unmarshal(raw, out)
 }
 
-func (m *rlBoltStore) Set(bucket, key string, value any, _ int64) error {
+func (m *rlKVStore) Set(bucket, key string, value any, _ int64) error {
 	k := bucket + ":" + key
 	raw, err := json.Marshal(value)
 	if err != nil {
@@ -42,19 +42,19 @@ func (m *rlBoltStore) Set(bucket, key string, value any, _ int64) error {
 	return nil
 }
 
-func (m *rlBoltStore) BatchSet(_ []core.BoltBatchItem) error     { return nil }
-func (m *rlBoltStore) Delete(_, _ string) error                  { return nil }
-func (m *rlBoltStore) List(_ string) ([]string, error)           { return nil, nil }
-func (m *rlBoltStore) Close() error                              { return nil }
-func (m *rlBoltStore) GetWebhookSecret(_ string) (string, error) { return "", nil }
-func (m *rlBoltStore) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
+func (m *rlKVStore) BatchSet(_ []core.KVBatchItem) error     { return nil }
+func (m *rlKVStore) Delete(_, _ string) error                  { return nil }
+func (m *rlKVStore) List(_ string) ([]string, error)           { return nil, nil }
+func (m *rlKVStore) Close() error                              { return nil }
+func (m *rlKVStore) GetWebhookSecret(_ string) (string, error) { return "", nil }
+func (m *rlKVStore) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
 	return nil, fmt.Errorf("not found")
 }
 
-var _ core.BoltStorer = (*rlBoltStore)(nil)
+var _ core.KVStorer = (*rlKVStore)(nil)
 
 func TestAuthRateLimiter_AllowsWithinLimit(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	rl := NewAuthRateLimiter(store, 5, time.Minute, "login")
 
 	handler := rl.Wrap(func(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func TestAuthRateLimiter_AllowsWithinLimit(t *testing.T) {
 }
 
 func TestAuthRateLimiter_BlocksOverLimit(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	rl := NewAuthRateLimiter(store, 3, time.Minute, "login")
 
 	handler := rl.Wrap(func(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +109,7 @@ func TestAuthRateLimiter_BlocksOverLimit(t *testing.T) {
 }
 
 func TestAuthRateLimiter_DifferentIPs_Independent(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	rl := NewAuthRateLimiter(store, 1, time.Minute, "login")
 
 	handler := rl.Wrap(func(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +149,7 @@ func TestAuthRateLimiter_NilBolt_PassesThrough(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	if !called {
-		t.Error("handler should be called when bolt is nil")
+		t.Error("handler should be called when kv is nil")
 	}
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rec.Code)
@@ -157,7 +157,7 @@ func TestAuthRateLimiter_NilBolt_PassesThrough(t *testing.T) {
 }
 
 func TestAuthRateLimiter_DifferentPrefixes_Independent(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	loginRL := NewAuthRateLimiter(store, 1, time.Minute, "login")
 	registerRL := NewAuthRateLimiter(store, 1, time.Minute, "register")
 

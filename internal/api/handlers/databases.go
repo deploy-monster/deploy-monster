@@ -7,7 +7,7 @@ import (
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
-	"github.com/deploy-monster/deploy-monster/internal/database/engines"
+	"github.com/deploy-monster/deploy-monster/internal/managedb/engines"
 )
 
 // DatabaseHandler manages managed database instances.

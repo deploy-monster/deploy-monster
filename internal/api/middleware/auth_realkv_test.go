@@ -11,11 +11,11 @@ import (
 )
 
 func TestRequireAuth_RealBoltAdminAPIKeyRecord(t *testing.T) {
-	bolt, err := db.NewBoltStore(t.TempDir() + "/api-keys.bolt")
+	kv, err := db.NewKVStore(t.TempDir() + "/api-keys.kv")
 	if err != nil {
-		t.Fatalf("NewBoltStore: %v", err)
+		t.Fatalf("NewKVStore: %v", err)
 	}
-	t.Cleanup(func() { _ = bolt.Close() })
+	t.Cleanup(func() { _ = kv.Close() })
 
 	pair, err := auth.GenerateAPIKey()
 	if err != nil {
@@ -34,12 +34,12 @@ func TestRequireAuth_RealBoltAdminAPIKeyRecord(t *testing.T) {
 		CreatedBy: "user-1",
 		CreatedAt: time.Now(),
 	}
-	if err := bolt.Set("api_keys", pair.Prefix, rec, 0); err != nil {
+	if err := kv.Set("api_keys", pair.Prefix, rec, 0); err != nil {
 		t.Fatalf("Set api key: %v", err)
 	}
 
 	jwtSvc := testJWT()
-	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, kv, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := auth.ClaimsFromContext(r.Context())
 		if claims == nil {
 			t.Fatal("expected claims in context")

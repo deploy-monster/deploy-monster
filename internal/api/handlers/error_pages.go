@@ -9,11 +9,11 @@ import (
 // ErrorPageHandler manages custom error pages per app.
 type ErrorPageHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewErrorPageHandler(store core.Store, bolt core.BoltStorer) *ErrorPageHandler {
-	return &ErrorPageHandler{store: store, bolt: bolt}
+func NewErrorPageHandler(store core.Store, kv core.KVStorer) *ErrorPageHandler {
+	return &ErrorPageHandler{store: store, kv: kv}
 }
 
 // ErrorPageConfig holds custom error page HTML per status code.
@@ -32,7 +32,7 @@ func (h *ErrorPageHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cfg ErrorPageConfig
-	if err := h.bolt.Get("error_pages", app.ID, &cfg); err != nil {
+	if err := h.kv.Get("error_pages", app.ID, &cfg); err != nil {
 		// No custom pages — return empty config
 		writeJSON(w, http.StatusOK, ErrorPageConfig{})
 		return
@@ -68,7 +68,7 @@ func (h *ErrorPageHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.bolt.Set("error_pages", appID, cfg, 0); err != nil {
+	if err := h.kv.Set("error_pages", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save error pages")
 		return
 	}

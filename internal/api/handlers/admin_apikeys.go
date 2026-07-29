@@ -12,11 +12,11 @@ import (
 // AdminAPIKeyHandler manages platform-level API keys.
 type AdminAPIKeyHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewAdminAPIKeyHandler(store core.Store, bolt core.BoltStorer) *AdminAPIKeyHandler {
-	return &AdminAPIKeyHandler{store: store, bolt: bolt}
+func NewAdminAPIKeyHandler(store core.Store, kv core.KVStorer) *AdminAPIKeyHandler {
+	return &AdminAPIKeyHandler{store: store, kv: kv}
 }
 
 func requireSuperAdminClaims(w http.ResponseWriter, r *http.Request) (*auth.Claims, bool) {
@@ -62,7 +62,7 @@ func (h *AdminAPIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var idx apiKeyIndex
-	if err := h.bolt.Get("api_keys", "_index", &idx); err != nil {
+	if err := h.kv.Get("api_keys", "_index", &idx); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 		return
 	}
@@ -70,7 +70,7 @@ func (h *AdminAPIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 	keys := make([]apiKeyListItem, 0, len(idx.Prefixes))
 	for _, prefix := range idx.Prefixes {
 		var rec apiKeyRecord
-		if err := h.bolt.Get("api_keys", prefix, &rec); err == nil {
+		if err := h.kv.Get("api_keys", prefix, &rec); err == nil {
 			keys = append(keys, apiKeyListItem{
 				Prefix:    rec.Prefix,
 				Type:      rec.Type,
@@ -106,16 +106,16 @@ func (h *AdminAPIKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store the key record
-	if err := h.bolt.Set("api_keys", pair.Prefix, rec, 0); err != nil {
+	if err := h.kv.Set("api_keys", pair.Prefix, rec, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to store api key")
 		return
 	}
 
 	// Update the index
 	var idx apiKeyIndex
-	_ = h.bolt.Get("api_keys", "_index", &idx)
+	_ = h.kv.Get("api_keys", "_index", &idx)
 	idx.Prefixes = append(idx.Prefixes, pair.Prefix)
-	if err := h.bolt.Set("api_keys", "_index", idx, 0); err != nil {
+	if err := h.kv.Set("api_keys", "_index", idx, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update key index")
 		return
 	}
@@ -132,7 +132,7 @@ func (h *AdminAPIKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
 // Safe to call periodically from a background scheduler.
 func (h *AdminAPIKeyHandler) CleanupExpiredKeys() int {
 	var idx apiKeyIndex
-	if err := h.bolt.Get("api_keys", "_index", &idx); err != nil {
+	if err := h.kv.Get("api_keys", "_index", &idx); err != nil {
 		return 0
 	}
 
@@ -141,11 +141,11 @@ func (h *AdminAPIKeyHandler) CleanupExpiredKeys() int {
 	active := make([]string, 0, len(idx.Prefixes))
 	for _, prefix := range idx.Prefixes {
 		var rec apiKeyRecord
-		if err := h.bolt.Get("api_keys", prefix, &rec); err != nil {
+		if err := h.kv.Get("api_keys", prefix, &rec); err != nil {
 			continue // key gone, skip
 		}
 		if rec.ExpiresAt != nil && now.After(*rec.ExpiresAt) {
-			if err := h.bolt.Delete("api_keys", prefix); err != nil {
+			if err := h.kv.Delete("api_keys", prefix); err != nil {
 				slog.Error("failed to delete expired API key", "prefix", prefix, "error", err)
 			}
 			removed++
@@ -156,7 +156,7 @@ func (h *AdminAPIKeyHandler) CleanupExpiredKeys() int {
 
 	if removed > 0 {
 		idx.Prefixes = active
-		if err := h.bolt.Set("api_keys", "_index", idx, 0); err != nil {
+		if err := h.kv.Set("api_keys", "_index", idx, 0); err != nil {
 			slog.Error("failed to update API key index after cleanup", "error", err)
 		}
 	}
@@ -175,11 +175,11 @@ func (h *AdminAPIKeyHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete the key record
-	_ = h.bolt.Delete("api_keys", prefix)
+	_ = h.kv.Delete("api_keys", prefix)
 
 	// Update the index
 	var idx apiKeyIndex
-	if err := h.bolt.Get("api_keys", "_index", &idx); err == nil {
+	if err := h.kv.Get("api_keys", "_index", &idx); err == nil {
 		filtered := make([]string, 0, len(idx.Prefixes))
 		for _, p := range idx.Prefixes {
 			if p != prefix {
@@ -187,7 +187,7 @@ func (h *AdminAPIKeyHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		idx.Prefixes = filtered
-		_ = h.bolt.Set("api_keys", "_index", idx, 0)
+		_ = h.kv.Set("api_keys", "_index", idx, 0)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

@@ -89,12 +89,12 @@ type jobList struct {
 // "appcron:" namespaces these entries so they don't collide with other
 // schedule sources (backup engine etc.).
 func (m *Module) refresh() {
-	if m.core == nil || m.core.Scheduler == nil || m.core.DB == nil || m.core.DB.Bolt == nil {
+	if m.core == nil || m.core.Scheduler == nil || m.core.DB == nil || m.core.DB.KV == nil {
 		return
 	}
 
-	bolt := m.core.DB.Bolt
-	keys, err := bolt.List("cronjobs")
+	kv := m.core.DB.KV
+	keys, err := kv.List("cronjobs")
 	if err != nil {
 		if errors.Is(err, core.ErrKVNotFound) {
 			return
@@ -106,7 +106,7 @@ func (m *Module) refresh() {
 	desired := map[string]jobConfig{}
 	for _, appID := range keys {
 		var list jobList
-		if err := bolt.Get("cronjobs", appID, &list); err != nil {
+		if err := kv.Get("cronjobs", appID, &list); err != nil {
 			if !errors.Is(err, core.ErrKVNotFound) {
 				m.logger.Warn("cron: get cronjobs entry failed", "app_id", appID, "error", err)
 			}
@@ -121,7 +121,7 @@ func (m *Module) refresh() {
 		}
 	}
 
-	// Drop schedules that no longer exist in bolt (user deleted them
+	// Drop schedules that no longer exist in kv (user deleted them
 	// or the app was removed). The scheduler exposes Jobs() so we can
 	// diff without re-walking handlers state.
 	for _, existing := range m.core.Scheduler.Jobs() {
@@ -185,7 +185,7 @@ func (m *Module) handlerFor(appID string, cfg jobConfig) func(ctx context.Contex
 			entry["error"] = execErr.Error()
 		}
 		if raw, err := json.Marshal(entry); err == nil {
-			if err := m.core.DB.Bolt.Set("app_commands", appID+":"+entryID, json.RawMessage(raw), 30*24*3600); err != nil {
+			if err := m.core.DB.KV.Set("app_commands", appID+":"+entryID, json.RawMessage(raw), 30*24*3600); err != nil {
 				slog.Warn("failed to store cron command history", "app_id", appID, "job_id", cfg.ID, "error", err)
 			}
 		}

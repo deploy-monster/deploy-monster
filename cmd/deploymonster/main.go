@@ -29,7 +29,7 @@ import (
 	_ "github.com/deploy-monster/deploy-monster/internal/billing"
 	_ "github.com/deploy-monster/deploy-monster/internal/build"
 	_ "github.com/deploy-monster/deploy-monster/internal/cron"
-	_ "github.com/deploy-monster/deploy-monster/internal/database"
+	_ "github.com/deploy-monster/deploy-monster/internal/managedb"
 	_ "github.com/deploy-monster/deploy-monster/internal/db"
 	_ "github.com/deploy-monster/deploy-monster/internal/discovery"
 	_ "github.com/deploy-monster/deploy-monster/internal/dns"

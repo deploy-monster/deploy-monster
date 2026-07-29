@@ -9,11 +9,11 @@ import (
 // AppMiddlewareHandler configures per-app ingress middleware.
 type AppMiddlewareHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewAppMiddlewareHandler(store core.Store, bolt core.BoltStorer) *AppMiddlewareHandler {
-	return &AppMiddlewareHandler{store: store, bolt: bolt}
+func NewAppMiddlewareHandler(store core.Store, kv core.KVStorer) *AppMiddlewareHandler {
+	return &AppMiddlewareHandler{store: store, kv: kv}
 }
 
 // MiddlewareConfig defines which middleware are active for an app.
@@ -49,7 +49,7 @@ func (h *AppMiddlewareHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cfg MiddlewareConfig
-	if err := h.bolt.Get("app_middleware", app.ID, &cfg); err != nil {
+	if err := h.kv.Get("app_middleware", app.ID, &cfg); err != nil {
 		// Return default config
 		writeJSON(w, http.StatusOK, MiddlewareConfig{Compress: true})
 		return
@@ -71,7 +71,7 @@ func (h *AppMiddlewareHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.bolt.Set("app_middleware", appID, cfg, 0); err != nil {
+	if err := h.kv.Set("app_middleware", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save middleware config")
 		return
 	}

@@ -12,7 +12,7 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
 
-// Bolt bucket + key used to persist the per-deployment Argon2id salt
+// KV bucket + key used to persist the per-deployment Argon2id salt
 // for the vault KDF. Exported constants so tests and ops tooling can
 // inspect the stored value without guessing layout.
 const (
@@ -33,7 +33,7 @@ type Module struct {
 	core   *core.Core
 	vault  *Vault
 	store  core.Store
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 	logger *slog.Logger
 
 	// keyStore is the optional external KMS (AWS KMS, SoftHSM, etc).
@@ -59,7 +59,7 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	m.store = c.Store
 	m.logger = c.Logger.With("module", m.ID())
 	if c.DB != nil {
-		m.bolt = c.DB.Bolt
+		m.kv = c.DB.KV
 	}
 	m.keyStore = c.Services.KeyStore
 	if m.keyStore != nil {
@@ -74,7 +74,7 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	m.masterSecret = secret
 
 	// Resolve the per-deployment salt. The returned usedLegacy flag is
-	// true when the bolt store had no persisted salt AND existing
+	// true when the kv store had no persisted salt AND existing
 	// secret versions decrypt under the legacy salt — in that case we
 	// start up with a legacy-keyed vault and rekey on Start() so the
 	// first boot after upgrade migrates transparently.
@@ -97,7 +97,7 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	return nil
 }
 
-// resolveVaultSalt loads the per-deployment salt from bolt, generates
+// resolveVaultSalt loads the per-deployment salt from kv, generates
 // a new one if the store is empty and no legacy secrets exist, or
 // signals "use legacy salt and migrate" when existing encrypted data
 // predates per-deployment salts.
@@ -105,14 +105,14 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 // Returns (salt, usedLegacy, err). When usedLegacy is true, salt is
 // the freshly generated salt that the migration should end up with.
 func (m *Module) resolveVaultSalt(ctx context.Context) ([]byte, bool, error) {
-	// Bolt may be absent in some test fixtures — fall back to the
+	// KV may be absent in some test fixtures — fall back to the
 	// legacy salt so tests that construct a minimal Core still work.
-	if m.bolt == nil {
+	if m.kv == nil {
 		return LegacyVaultSalt(), false, nil
 	}
 
 	var stored string
-	if err := m.bolt.Get(VaultBucket, VaultSaltKey, &stored); err == nil && stored != "" {
+	if err := m.kv.Get(VaultBucket, VaultSaltKey, &stored); err == nil && stored != "" {
 		decoded, derr := base64.StdEncoding.DecodeString(stored)
 		if derr != nil {
 			return nil, false, fmt.Errorf("decode stored salt: %w", derr)
@@ -155,10 +155,10 @@ func (m *Module) resolveVaultSalt(ctx context.Context) ([]byte, bool, error) {
 }
 
 func (m *Module) persistSalt(salt []byte) error {
-	if m.bolt == nil {
+	if m.kv == nil {
 		return nil
 	}
-	return m.bolt.Set(VaultBucket, VaultSaltKey, base64.StdEncoding.EncodeToString(salt), 0)
+	return m.kv.Set(VaultBucket, VaultSaltKey, base64.StdEncoding.EncodeToString(salt), 0)
 }
 
 func (m *Module) Start(ctx context.Context) error {
@@ -167,9 +167,9 @@ func (m *Module) Start(ctx context.Context) error {
 	// If Init detected a legacy-salt upgrade, perform the re-encrypt
 	// migration now. This runs after the DB module has finished its
 	// own Start, so the store is definitely ready.
-	if m.bolt != nil {
+	if m.kv != nil {
 		var stored string
-		if err := m.bolt.Get(VaultBucket, VaultSaltKey, &stored); err != nil || stored == "" {
+		if err := m.kv.Get(VaultBucket, VaultSaltKey, &stored); err != nil || stored == "" {
 			// Still no persisted salt — we're in the legacy branch.
 			if err := m.migrateLegacyVault(ctx); err != nil {
 				return fmt.Errorf("vault migration: %w", err)

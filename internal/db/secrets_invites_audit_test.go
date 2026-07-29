@@ -632,7 +632,7 @@ func TestSQLite_ListAuditLogs_FieldValues(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// BoltStore.List coverage
+// KVStore.List coverage
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestBolt_List_Empty(t *testing.T) {

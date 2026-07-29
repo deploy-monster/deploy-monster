@@ -152,13 +152,13 @@ func TestMarketplaceDeploy_Success(t *testing.T) {
 func TestMarketplaceDeploy_BlockedDuringFreezeWindow(t *testing.T) {
 	store := newMockStore()
 	store.addProject("tenant-1", core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "default"})
-	bolt := newMockBoltStore()
-	if err := seedActiveDeployFreeze(bolt, "tenant-1"); err != nil {
+	kv := newMockKVStore()
+	if err := seedActiveDeployFreeze(kv, "tenant-1"); err != nil {
 		t.Fatalf("seed freeze: %v", err)
 	}
 
 	h := newDeployHandler(store)
-	h.SetDeployFreezeStore(bolt)
+	h.SetDeployFreezeStore(kv)
 
 	req := newDeployRequest(t, map[string]any{
 		"slug": "wordpress",

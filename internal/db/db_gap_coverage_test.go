@@ -442,14 +442,14 @@ func TestSQLite_SnapshotBackup_ClosedDB(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// bolt.go — BatchSet
+// kv.go — BatchSet
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestBolt_BatchSet_Success(t *testing.T) {
 	bs := testBolt(t)
 
-	// Pick buckets that exist (see bolt.go initialization)
-	items := []core.BoltBatchItem{
+	// Pick buckets that exist (see kv.go initialization)
+	items := []core.KVBatchItem{
 		{Bucket: "sessions", Key: "s1", Value: "session-1-data", TTL: 0},
 		{Bucket: "sessions", Key: "s2", Value: map[string]string{"k": "v"}, TTL: 0},
 		{Bucket: "buildcache", Key: "c1", Value: 42, TTL: 60},
@@ -474,14 +474,14 @@ func TestBolt_BatchSet_Empty(t *testing.T) {
 	if err := bs.BatchSet(nil); err != nil {
 		t.Errorf("BatchSet(nil) = %v, want nil", err)
 	}
-	if err := bs.BatchSet([]core.BoltBatchItem{}); err != nil {
+	if err := bs.BatchSet([]core.KVBatchItem{}); err != nil {
 		t.Errorf("BatchSet([]) = %v, want nil", err)
 	}
 }
 
 func TestBolt_BatchSet_UnknownBucket(t *testing.T) {
 	bs := testBolt(t)
-	items := []core.BoltBatchItem{
+	items := []core.KVBatchItem{
 		{Bucket: "nonexistent_bucket", Key: "k", Value: "v"},
 	}
 	// Mirrors Set's auto-create behaviour: handlers persist into buckets

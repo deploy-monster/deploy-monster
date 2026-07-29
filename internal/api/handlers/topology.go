@@ -188,7 +188,7 @@ func (h *TopologyHandler) Save(w http.ResponseWriter, r *http.Request) {
 	key := fmt.Sprintf("topology:%s:%s:%s", claims.TenantID, req.ProjectID, req.Environment)
 
 	// Store the entire request as JSON
-	if err := h.core.DB.Bolt.Set("topologies", key, req, 0); err != nil {
+	if err := h.core.DB.KV.Set("topologies", key, req, 0); err != nil {
 		h.logger.Error("Failed to save topology", "error", err, "key", key)
 		writeError(w, http.StatusInternalServerError, "failed to save topology")
 		return
@@ -235,7 +235,7 @@ func (h *TopologyHandler) Load(w http.ResponseWriter, r *http.Request) {
 	key := fmt.Sprintf("topology:%s:%s:%s", claims.TenantID, projectID, environment)
 
 	var req TopologyDeployRequest
-	if err := h.core.DB.Bolt.Get("topologies", key, &req); err != nil {
+	if err := h.core.DB.KV.Get("topologies", key, &req); err != nil {
 		// No saved topology found - return empty state
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success": true,
@@ -357,7 +357,7 @@ func (h *TopologyHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !req.DryRun && h.core != nil && h.core.DB != nil && activeDeployFreeze(h.core.DB.Bolt, claims.TenantID) {
+	if !req.DryRun && h.core != nil && h.core.DB != nil && activeDeployFreeze(h.core.DB.KV, claims.TenantID) {
 		writeError(w, http.StatusLocked, "deployments are currently frozen")
 		return
 	}

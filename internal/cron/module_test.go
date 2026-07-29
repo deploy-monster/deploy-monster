@@ -41,7 +41,7 @@ func (b *testBolt) Set(bucket, key string, value any, _ int64) error {
 	return nil
 }
 
-func (b *testBolt) BatchSet(items []core.BoltBatchItem) error {
+func (b *testBolt) BatchSet(items []core.KVBatchItem) error {
 	for _, item := range items {
 		if err := b.Set(item.Bucket, item.Key, item.Value, item.TTL); err != nil {
 			return err
@@ -106,10 +106,10 @@ func (r *cronRuntime) Exec(_ context.Context, _ string, cmd []string) (string, e
 	return r.output, r.execErr
 }
 
-func testCore(bolt core.BoltStorer, runtime core.ContainerRuntime) *core.Core {
+func testCore(kv core.KVStorer, runtime core.ContainerRuntime) *core.Core {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return &core.Core{
-		DB:        &core.Database{Bolt: bolt},
+		DB:        &core.Database{KV: kv},
 		Scheduler: core.NewScheduler(logger),
 		Services:  &core.Services{Container: runtime},
 		Events:    core.NewEventBus(logger),
@@ -118,15 +118,15 @@ func testCore(bolt core.BoltStorer, runtime core.ContainerRuntime) *core.Core {
 }
 
 func TestModuleLifecycleAndRefresh(t *testing.T) {
-	bolt := newTestBolt()
-	if err := bolt.Set("cronjobs", "app-1", jobList{Jobs: []jobConfig{
+	kv := newTestBolt()
+	if err := kv.Set("cronjobs", "app-1", jobList{Jobs: []jobConfig{
 		{ID: "enabled", Name: "Enabled", Schedule: "@every 1m", Command: "echo ok", Enabled: true},
 		{ID: "disabled", Name: "Disabled", Schedule: "@every 1m", Command: "echo no", Enabled: false},
 		{ID: "missing-command", Name: "Missing", Schedule: "@every 1m", Enabled: true},
 	}}, 0); err != nil {
 		t.Fatalf("seed cronjobs: %v", err)
 	}
-	c := testCore(bolt, &cronRuntime{})
+	c := testCore(kv, &cronRuntime{})
 	c.Scheduler.Add(&core.CronJob{ID: "appcron:app-2:old", Name: "old", Schedule: "@every 1m", Handler: func(context.Context) error { return nil }})
 
 	m := New()
@@ -161,11 +161,11 @@ func TestModuleLifecycleAndRefresh(t *testing.T) {
 func TestRefreshTreatsMissingCronBucketAsEmpty(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
-	bolt := &testBolt{
+	kv := &testBolt{
 		data:    make(map[string]map[string][]byte),
 		listErr: fmt.Errorf("bucket %q: %w", "cronjobs", core.ErrKVNotFound),
 	}
-	c := testCore(bolt, &cronRuntime{})
+	c := testCore(kv, &cronRuntime{})
 	c.Logger = logger
 	m := &Module{core: c, logger: logger}
 
@@ -179,12 +179,12 @@ func TestRefreshTreatsMissingCronBucketAsEmpty(t *testing.T) {
 func TestRefreshLogsCronJobReadError(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
-	bolt := newTestBolt()
-	if err := bolt.Set("cronjobs", "app-1", jobList{}, 0); err != nil {
+	kv := newTestBolt()
+	if err := kv.Set("cronjobs", "app-1", jobList{}, 0); err != nil {
 		t.Fatalf("seed cronjobs: %v", err)
 	}
-	bolt.getErr = errors.New("decode failed")
-	c := testCore(bolt, &cronRuntime{})
+	kv.getErr = errors.New("decode failed")
+	c := testCore(kv, &cronRuntime{})
 	c.Logger = logger
 	m := &Module{core: c, logger: logger}
 
@@ -196,13 +196,13 @@ func TestRefreshLogsCronJobReadError(t *testing.T) {
 }
 
 func TestHandlerForExecutesAndStoresHistory(t *testing.T) {
-	bolt := newTestBolt()
+	kv := newTestBolt()
 	runtime := &cronRuntime{
 		containers: []core.ContainerInfo{{ID: "container-1234567890"}},
 		output:     strings.Repeat("x", 70*1024),
 	}
 	m := &Module{
-		core:   testCore(bolt, runtime),
+		core:   testCore(kv, runtime),
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -213,7 +213,7 @@ func TestHandlerForExecutesAndStoresHistory(t *testing.T) {
 	if got := strings.Join(runtime.cmd, " "); got != "echo ok" {
 		t.Fatalf("exec cmd = %q", got)
 	}
-	keys, err := bolt.List("app_commands")
+	keys, err := kv.List("app_commands")
 	if err != nil {
 		t.Fatalf("list command history: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestHandlerForExecutesAndStoresHistory(t *testing.T) {
 		t.Fatalf("history keys = %v, want one", keys)
 	}
 	var entry map[string]any
-	if err := bolt.Get("app_commands", keys[0], &entry); err != nil {
+	if err := kv.Get("app_commands", keys[0], &entry); err != nil {
 		t.Fatalf("get command history: %v", err)
 	}
 	if entry["success"] != true {
@@ -236,12 +236,12 @@ func TestHandlerForExecutesAndStoresHistory(t *testing.T) {
 }
 
 func TestHandlerForNilEventBusStillStoresHistory(t *testing.T) {
-	bolt := newTestBolt()
+	kv := newTestBolt()
 	runtime := &cronRuntime{
 		containers: []core.ContainerInfo{{ID: "container-1234567890"}},
 		output:     "ok",
 	}
-	c := testCore(bolt, runtime)
+	c := testCore(kv, runtime)
 	c.Events = nil
 	m := &Module{
 		core:   c,
@@ -252,7 +252,7 @@ func TestHandlerForNilEventBusStillStoresHistory(t *testing.T) {
 		t.Fatalf("handler error: %v", err)
 	}
 
-	keys, err := bolt.List("app_commands")
+	keys, err := kv.List("app_commands")
 	if err != nil {
 		t.Fatalf("list command history: %v", err)
 	}

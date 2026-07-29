@@ -23,7 +23,7 @@ import (
 
 func TestCertificateList_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/certificates", nil)
 	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
@@ -59,7 +59,7 @@ func TestCertificateList_Success(t *testing.T) {
 
 func TestCertificateUpload_InvalidCertKeyPair(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(uploadCertRequest{
 		DomainID: "domain1",
@@ -83,7 +83,7 @@ func TestCertificateUpload_InvalidCertKeyPair(t *testing.T) {
 
 func TestCertificateUpload_InvalidJSON(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader([]byte("bad")))
 	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{
@@ -102,7 +102,7 @@ func TestCertificateUpload_InvalidJSON(t *testing.T) {
 
 func TestCertificateUpload_MissingDomainID(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(uploadCertRequest{
 		CertPEM: "cert",
@@ -125,7 +125,7 @@ func TestCertificateUpload_MissingDomainID(t *testing.T) {
 
 func TestCertificateUpload_MissingCertPEM(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(uploadCertRequest{
 		DomainID: "domain1",
@@ -148,7 +148,7 @@ func TestCertificateUpload_MissingCertPEM(t *testing.T) {
 
 func TestCertificateUpload_MissingKeyPEM(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(uploadCertRequest{
 		DomainID: "domain1",
@@ -171,7 +171,7 @@ func TestCertificateUpload_MissingKeyPEM(t *testing.T) {
 
 func TestCertificateUpload_AllFieldsMissing(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(uploadCertRequest{})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/certificates", bytes.NewReader(body))
@@ -211,7 +211,7 @@ func TestCertificateUpload_DomainMismatch(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "test-tenant"})
 	store.addDomain(&core.Domain{ID: "domain-evil", AppID: "app1", FQDN: "evil.com", Type: "custom"})
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	body := map[string]string{
 		"domain_id": "domain-evil",
@@ -239,7 +239,7 @@ func TestCertificateUpload_WildcardCertMatchesSubdomain(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "test-tenant"})
 	store.addDomain(&core.Domain{ID: "domain-app", AppID: "app1", FQDN: "app.example.com", Type: "custom"})
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	template := &x509.Certificate{
@@ -279,7 +279,7 @@ func TestCertificateUpload_CrossTenantDomainForbidden(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app2", TenantID: "other-tenant"})
 	store.addDomain(&core.Domain{ID: "domain-app", AppID: "app2", FQDN: "app.example.com", Type: "custom"})
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	body := map[string]string{
 		"domain_id": "domain-app",

@@ -15,7 +15,7 @@ func TestContainerHistory_DefaultPeriod(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(store, runtime, newMockBoltStore())
+	handler := NewContainerHistoryHandler(store, runtime, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history", nil)
 	req.SetPathValue("id", "app1")
@@ -54,7 +54,7 @@ func TestContainerHistory_24hPeriod(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(store, runtime, newMockBoltStore())
+	handler := NewContainerHistoryHandler(store, runtime, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history?period=24h", nil)
 	req.SetPathValue("id", "app1")
@@ -87,7 +87,7 @@ func TestContainerHistory_7dPeriod(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(store, runtime, newMockBoltStore())
+	handler := NewContainerHistoryHandler(store, runtime, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history?period=7d", nil)
 	req.SetPathValue("id", "app1")
@@ -120,7 +120,7 @@ func TestContainerHistory_UnknownPeriodDefaultsTo1h(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(store, runtime, newMockBoltStore())
+	handler := NewContainerHistoryHandler(store, runtime, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history?period=30d", nil)
 	req.SetPathValue("id", "app1")
@@ -146,7 +146,7 @@ func TestContainerHistory_PointStructure(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1", Name: "Test", Status: "running"})
 	runtime := &mockContainerRuntime{}
-	handler := NewContainerHistoryHandler(store, runtime, newMockBoltStore())
+	handler := NewContainerHistoryHandler(store, runtime, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/containers/history", nil)
 	req.SetPathValue("id", "app1")

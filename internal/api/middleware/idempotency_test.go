@@ -18,17 +18,17 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
-// idempBoltStore is a BoltStorer that persists data in memory for idempotency tests.
-type idempBoltStore struct {
+// idempKVStore is a KVStorer that persists data in memory for idempotency tests.
+type idempKVStore struct {
 	mu   sync.Mutex
 	data map[string]map[string][]byte
 }
 
-func newIdempBoltStore() *idempBoltStore {
-	return &idempBoltStore{data: make(map[string]map[string][]byte)}
+func newIdempKVStore() *idempKVStore {
+	return &idempKVStore{data: make(map[string]map[string][]byte)}
 }
 
-func (m *idempBoltStore) Set(bucket, key string, value any, _ int64) error {
+func (m *idempKVStore) Set(bucket, key string, value any, _ int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.data[bucket] == nil {
@@ -42,7 +42,7 @@ func (m *idempBoltStore) Set(bucket, key string, value any, _ int64) error {
 	return nil
 }
 
-func (m *idempBoltStore) Get(bucket, key string, dest any) error {
+func (m *idempKVStore) Get(bucket, key string, dest any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.data[bucket] == nil {
@@ -55,21 +55,21 @@ func (m *idempBoltStore) Get(bucket, key string, dest any) error {
 	return json.Unmarshal(b, dest)
 }
 
-func (m *idempBoltStore) BatchSet(_ []core.BoltBatchItem) error     { return nil }
-func (m *idempBoltStore) Delete(_, _ string) error                  { return nil }
-func (m *idempBoltStore) List(_ string) ([]string, error)           { return nil, nil }
-func (m *idempBoltStore) Close() error                              { return nil }
-func (m *idempBoltStore) GetWebhookSecret(_ string) (string, error) { return "", nil }
-func (m *idempBoltStore) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
+func (m *idempKVStore) BatchSet(_ []core.KVBatchItem) error     { return nil }
+func (m *idempKVStore) Delete(_, _ string) error                  { return nil }
+func (m *idempKVStore) List(_ string) ([]string, error)           { return nil, nil }
+func (m *idempKVStore) Close() error                              { return nil }
+func (m *idempKVStore) GetWebhookSecret(_ string) (string, error) { return "", nil }
+func (m *idempKVStore) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
 	return nil, errors.New("not found")
 }
 
-var _ core.BoltStorer = (*idempBoltStore)(nil)
+var _ core.KVStorer = (*idempKVStore)(nil)
 
 func TestIdempotency_NoHeader_PassesThrough(t *testing.T) {
-	bolt := newIdempBoltStore()
+	kv := newIdempKVStore()
 	callCount := 0
-	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := IdempotencyMiddleware(kv)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte(`{"id":"123"}`))
@@ -88,8 +88,8 @@ func TestIdempotency_NoHeader_PassesThrough(t *testing.T) {
 }
 
 func TestIdempotency_FirstRequest_CachesResponse(t *testing.T) {
-	bolt := newIdempBoltStore()
-	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	kv := newIdempKVStore()
+	handler := IdempotencyMiddleware(kv)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte(`{"id":"abc"}`))
@@ -104,10 +104,10 @@ func TestIdempotency_FirstRequest_CachesResponse(t *testing.T) {
 		t.Fatalf("expected 201, got %d", rr.Code)
 	}
 
-	// Verify cached in bolt.
+	// Verify cached in kv.
 	scopedKey := scopedIdempotencyKey(req, "key-1", nil)
 	var entry idempotencyEntry
-	if err := bolt.Get(idempotencyBucket, scopedKey, &entry); err != nil {
+	if err := kv.Get(idempotencyBucket, scopedKey, &entry); err != nil {
 		t.Fatalf("expected cached entry, got error: %v", err)
 	}
 	if entry.StatusCode != http.StatusCreated {
@@ -116,9 +116,9 @@ func TestIdempotency_FirstRequest_CachesResponse(t *testing.T) {
 }
 
 func TestIdempotency_DuplicateRequest_ReplaysResponse(t *testing.T) {
-	bolt := newIdempBoltStore()
+	kv := newIdempKVStore()
 	callCount := 0
-	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := IdempotencyMiddleware(kv)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -152,9 +152,9 @@ func TestIdempotency_DuplicateRequest_ReplaysResponse(t *testing.T) {
 }
 
 func TestIdempotency_GET_SkipsMiddleware(t *testing.T) {
-	bolt := newIdempBoltStore()
+	kv := newIdempKVStore()
 	callCount := 0
-	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := IdempotencyMiddleware(kv)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -170,9 +170,9 @@ func TestIdempotency_GET_SkipsMiddleware(t *testing.T) {
 }
 
 func TestIdempotency_ErrorResponse_NotCached(t *testing.T) {
-	bolt := newIdempBoltStore()
+	kv := newIdempKVStore()
 	callCount := 0
-	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := IdempotencyMiddleware(kv)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(`{"error":"bad"}`))
@@ -213,9 +213,9 @@ func TestIdempotency_NilBolt_PassesThrough(t *testing.T) {
 }
 
 func TestIdempotency_DifferentPaths_DifferentKeys(t *testing.T) {
-	bolt := newIdempBoltStore()
+	kv := newIdempKVStore()
 	callCount := 0
-	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := IdempotencyMiddleware(kv)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -240,9 +240,9 @@ func TestIdempotency_DifferentPaths_DifferentKeys(t *testing.T) {
 }
 
 func TestIdempotency_AuthRoutesSkipCaching(t *testing.T) {
-	bolt := newIdempBoltStore()
+	kv := newIdempKVStore()
 	callCount := 0
-	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := IdempotencyMiddleware(kv)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -271,9 +271,9 @@ func TestIdempotency_AuthRoutesSkipCaching(t *testing.T) {
 }
 
 func TestIdempotency_DifferentBodiesDoNotReplay(t *testing.T) {
-	bolt := newIdempBoltStore()
+	kv := newIdempKVStore()
 	callCount := 0
-	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := IdempotencyMiddleware(kv)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		body, _ := io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
@@ -299,9 +299,9 @@ func TestIdempotency_DifferentBodiesDoNotReplay(t *testing.T) {
 }
 
 func TestIdempotency_DifferentAuthScopesDoNotReplay(t *testing.T) {
-	bolt := newIdempBoltStore()
+	kv := newIdempKVStore()
 	callCount := 0
-	handler := IdempotencyMiddleware(bolt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := IdempotencyMiddleware(kv)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -342,15 +342,15 @@ func TestIdempotency_DifferentAuthScopesDoNotReplay(t *testing.T) {
 
 // idempCorruptedStore returns a non-NotFound error from Get to provoke
 // the new sentinel-aware Warn branch in IdempotencyMiddleware.
-type idempCorruptedStore struct{ idempBoltStore }
+type idempCorruptedStore struct{ idempKVStore }
 
 func (s *idempCorruptedStore) Get(_, _ string, _ any) error {
-	return errors.New("idempotency: bolt unmarshal failed (corrupted entry)")
+	return errors.New("idempotency: kv unmarshal failed (corrupted entry)")
 }
 
 // idempNotFoundStore returns a wrapped NotFound — the expected first-
 // request path. Mirrors the pattern in ratelimit_observability_test.
-type idempNotFoundStore struct{ idempBoltStore }
+type idempNotFoundStore struct{ idempKVStore }
 
 func (s *idempNotFoundStore) Get(bucket, key string, _ any) error {
 	return fmt.Errorf("key %q in bucket %q: %w", key, bucket, core.ErrKVNotFound)
@@ -362,7 +362,7 @@ func TestIdempotency_CorruptedReadEmitsWarn(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	t.Cleanup(func() { slog.SetDefault(original) })
 
-	store := &idempCorruptedStore{idempBoltStore: idempBoltStore{data: make(map[string]map[string][]byte)}}
+	store := &idempCorruptedStore{idempKVStore: idempKVStore{data: make(map[string]map[string][]byte)}}
 	called := 0
 	handler := IdempotencyMiddleware(store)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called++
@@ -391,7 +391,7 @@ func TestIdempotency_NotFoundDoesNotWarn(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	t.Cleanup(func() { slog.SetDefault(original) })
 
-	store := &idempNotFoundStore{idempBoltStore: idempBoltStore{data: make(map[string]map[string][]byte)}}
+	store := &idempNotFoundStore{idempKVStore: idempKVStore{data: make(map[string]map[string][]byte)}}
 	handler := IdempotencyMiddleware(store)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	}))

@@ -20,20 +20,20 @@ type DeliveryLog struct {
 
 // DeliveryTracker subscribes to webhook events and persists delivery logs to KV storage.
 type DeliveryTracker struct {
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 	events *core.EventBus
 }
 
 const deliveryLogBucket = "webhook_delivery_log"
 
 // NewDeliveryTracker creates a tracker that logs webhook deliveries to KV storage.
-func NewDeliveryTracker(bolt core.BoltStorer, events *core.EventBus) *DeliveryTracker {
-	return &DeliveryTracker{bolt: bolt, events: events}
+func NewDeliveryTracker(kv core.KVStorer, events *core.EventBus) *DeliveryTracker {
+	return &DeliveryTracker{kv: kv, events: events}
 }
 
 // Start subscribes to webhook delivery events.
 func (t *DeliveryTracker) Start() {
-	if t.events == nil || t.bolt == nil {
+	if t.events == nil || t.kv == nil {
 		return
 	}
 
@@ -70,8 +70,8 @@ func (t *DeliveryTracker) Start() {
 }
 
 func (t *DeliveryTracker) record(log DeliveryLog) error {
-	if t.bolt == nil {
+	if t.kv == nil {
 		return nil
 	}
-	return t.bolt.Set(deliveryLogBucket, log.ID, log, 0)
+	return t.kv.Set(deliveryLogBucket, log.ID, log, 0)
 }

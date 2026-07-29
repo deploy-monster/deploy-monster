@@ -9,12 +9,12 @@ import (
 // CronJobHandler manages per-app scheduled tasks.
 type CronJobHandler struct {
 	store  core.Store
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 	events *core.EventBus
 }
 
-func NewCronJobHandler(store core.Store, bolt core.BoltStorer) *CronJobHandler {
-	return &CronJobHandler{store: store, bolt: bolt}
+func NewCronJobHandler(store core.Store, kv core.KVStorer) *CronJobHandler {
+	return &CronJobHandler{store: store, kv: kv}
 }
 
 // SetEvents sets the event bus for audit event emission.
@@ -43,7 +43,7 @@ func (h *CronJobHandler) List(w http.ResponseWriter, r *http.Request) {
 	appID := app.ID
 
 	var list cronJobList
-	if err := h.bolt.Get("cronjobs", appID, &list); err != nil {
+	if err := h.kv.Get("cronjobs", appID, &list); err != nil {
 		// No cron jobs yet — return empty
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 		return
@@ -75,7 +75,7 @@ func (h *CronJobHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Load existing jobs
 	var list cronJobList
-	_ = h.bolt.Get("cronjobs", appID, &list)
+	_ = h.kv.Get("cronjobs", appID, &list)
 
 	if len(list.Jobs) >= 50 {
 		writeError(w, http.StatusConflict, "cron job limit reached (50 per app)")
@@ -83,7 +83,7 @@ func (h *CronJobHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	list.Jobs = append(list.Jobs, req)
 
-	if err := h.bolt.Set("cronjobs", appID, list, 0); err != nil {
+	if err := h.kv.Set("cronjobs", appID, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save cron job")
 		return
 	}
@@ -112,7 +112,7 @@ func (h *CronJobHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var list cronJobList
-	if err := h.bolt.Get("cronjobs", appID, &list); err != nil {
+	if err := h.kv.Get("cronjobs", appID, &list); err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -125,7 +125,7 @@ func (h *CronJobHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	list.Jobs = filtered
 
-	if err := h.bolt.Set("cronjobs", appID, list, 0); err != nil {
+	if err := h.kv.Set("cronjobs", appID, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update cron jobs")
 		return
 	}

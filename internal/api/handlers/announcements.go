@@ -9,11 +9,11 @@ import (
 
 // AnnouncementHandler manages platform-wide announcements.
 type AnnouncementHandler struct {
-	bolt core.BoltStorer
+	kv core.KVStorer
 }
 
-func NewAnnouncementHandler(bolt core.BoltStorer) *AnnouncementHandler {
-	return &AnnouncementHandler{bolt: bolt}
+func NewAnnouncementHandler(kv core.KVStorer) *AnnouncementHandler {
+	return &AnnouncementHandler{kv: kv}
 }
 
 // Announcement is a platform-wide broadcast message.
@@ -36,7 +36,7 @@ type announcementList struct {
 // Returns active announcements for the dashboard banner.
 func (h *AnnouncementHandler) List(w http.ResponseWriter, _ *http.Request) {
 	var list announcementList
-	_ = h.bolt.Get("announcements", "all", &list)
+	_ = h.kv.Get("announcements", "all", &list)
 
 	active := make([]Announcement, 0)
 	now := time.Now()
@@ -79,7 +79,7 @@ func (h *AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {
 	a.CreatedAt = time.Now()
 
 	var list announcementList
-	_ = h.bolt.Get("announcements", "all", &list)
+	_ = h.kv.Get("announcements", "all", &list)
 
 	if len(list.Items) >= 100 {
 		writeError(w, http.StatusConflict, "announcement limit reached (100)")
@@ -87,7 +87,7 @@ func (h *AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	list.Items = append(list.Items, a)
 
-	if err := h.bolt.Set("announcements", "all", list, 0); err != nil {
+	if err := h.kv.Set("announcements", "all", list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save announcement")
 		return
 	}
@@ -103,7 +103,7 @@ func (h *AnnouncementHandler) Dismiss(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var list announcementList
-	if err := h.bolt.Get("announcements", "all", &list); err != nil {
+	if err := h.kv.Get("announcements", "all", &list); err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -115,7 +115,7 @@ func (h *AnnouncementHandler) Dismiss(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.bolt.Set("announcements", "all", list, 0); err != nil {
+	if err := h.kv.Set("announcements", "all", list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update announcement")
 		return
 	}

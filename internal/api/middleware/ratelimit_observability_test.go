@@ -29,7 +29,7 @@ func (s *rlBoltStub) Set(bucket, key string, value any, _ int64) error {
 	s.setCalls++
 	return nil
 }
-func (s *rlBoltStub) BatchSet(_ []core.BoltBatchItem) error { return nil }
+func (s *rlBoltStub) BatchSet(_ []core.KVBatchItem) error { return nil }
 func (s *rlBoltStub) Get(bucket, key string, dest any) error {
 	return s.getErr
 }
@@ -43,17 +43,17 @@ func (s *rlBoltStub) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*mod
 }
 func (s *rlBoltStub) GetWebhookSecret(string) (string, error) { return "", nil }
 
-var _ core.BoltStorer = (*rlBoltStub)(nil)
+var _ core.KVStorer = (*rlBoltStub)(nil)
 
 func TestAuthRateLimiter_New_DefaultsLogger(t *testing.T) {
 	rl := NewAuthRateLimiter(&rlBoltStub{}, 5, time.Minute, "login")
 	if rl.logger == nil {
-		t.Fatal("NewAuthRateLimiter must default the logger; the previously-zero field was making bolt.Set error logs dead code")
+		t.Fatal("NewAuthRateLimiter must default the logger; the previously-zero field was making kv.Set error logs dead code")
 	}
 }
 
 func TestAuthRateLimiter_CorruptedReadEmitsWarn(t *testing.T) {
-	stub := &rlBoltStub{getErr: errors.New("bolt: corrupted entry")}
+	stub := &rlBoltStub{getErr: errors.New("kv: corrupted entry")}
 	rl := NewAuthRateLimiter(stub, 5, time.Minute, "login")
 
 	var buf bytes.Buffer
@@ -91,7 +91,7 @@ func TestTenantRateLimiter_New_DefaultsLogger(t *testing.T) {
 }
 
 func TestTenantRateLimiter_CorruptedReadEmitsWarn(t *testing.T) {
-	stub := &rlBoltStub{getErr: errors.New("bolt: corrupted entry")}
+	stub := &rlBoltStub{getErr: errors.New("kv: corrupted entry")}
 	trl := NewTenantRateLimiter(stub, 5, time.Minute)
 
 	var buf bytes.Buffer

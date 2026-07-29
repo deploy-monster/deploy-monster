@@ -16,18 +16,18 @@ type CommandHandler struct {
 	runtime core.ContainerRuntime
 	store   core.Store
 	events  *core.EventBus
-	bolt    core.BoltStorer
+	kv    core.KVStorer
 }
 
 func NewCommandHandler(runtime core.ContainerRuntime, store core.Store, events *core.EventBus) *CommandHandler {
 	return &CommandHandler{runtime: runtime, store: store, events: events}
 }
 
-// SetBolt wires the KV store used to persist command history.
-// Called by the router after the handler is constructed so the bolt
+// SetKV wires the KV store used to persist command history.
+// Called by the router after the handler is constructed so the kv
 // dependency is opt-in (some unit tests construct the handler without
 // a backing store).
-func (h *CommandHandler) SetBolt(b core.BoltStorer) { h.bolt = b }
+func (h *CommandHandler) SetKV(b core.KVStorer) { h.kv = b }
 
 type runCommandRequest struct {
 	Command string `json:"command"`
@@ -49,7 +49,7 @@ type commandHistoryEntry struct {
 }
 
 const commandHistoryBucket = "app_commands"
-const commandOutputCap = 64 * 1024 // truncate output beyond 64 KB so a runaway command can't fill bolt
+const commandOutputCap = 64 * 1024 // truncate output beyond 64 KB so a runaway command can't fill kv
 
 // Run handles POST /api/v1/apps/{id}/commands.
 // Runs `command` inside the app's container synchronously via the
@@ -130,8 +130,8 @@ func (h *CommandHandler) Run(w http.ResponseWriter, r *http.Request) {
 	if execErr != nil {
 		entry.Error = execErr.Error()
 	}
-	if h.bolt != nil {
-		_ = h.bolt.Set(commandHistoryBucket, appID+":"+entry.ID, entry, 30*24*3600)
+	if h.kv != nil {
+		_ = h.kv.Set(commandHistoryBucket, appID+":"+entry.ID, entry, 30*24*3600)
 	}
 
 	publishEventAsync(r.Context(), h.events, core.NewEvent("app.command", "api",
@@ -165,11 +165,11 @@ func (h *CommandHandler) History(w http.ResponseWriter, r *http.Request) {
 	if app == nil {
 		return
 	}
-	if h.bolt == nil {
+	if h.kv == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 		return
 	}
-	keys, err := h.bolt.List(commandHistoryBucket)
+	keys, err := h.kv.List(commandHistoryBucket)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 		return
@@ -181,7 +181,7 @@ func (h *CommandHandler) History(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		var e commandHistoryEntry
-		if h.bolt.Get(commandHistoryBucket, k, &e) == nil {
+		if h.kv.Get(commandHistoryBucket, k, &e) == nil {
 			entries = append(entries, e)
 		}
 	}

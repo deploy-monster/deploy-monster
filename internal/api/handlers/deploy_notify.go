@@ -9,11 +9,11 @@ import (
 // DeployNotifyHandler configures per-app deployment notifications.
 type DeployNotifyHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewDeployNotifyHandler(store core.Store, bolt core.BoltStorer) *DeployNotifyHandler {
-	return &DeployNotifyHandler{store: store, bolt: bolt}
+func NewDeployNotifyHandler(store core.Store, kv core.KVStorer) *DeployNotifyHandler {
+	return &DeployNotifyHandler{store: store, kv: kv}
 }
 
 // DeployNotifyConfig defines what notifications to send on deployment events.
@@ -37,7 +37,7 @@ func (h *DeployNotifyHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cfg DeployNotifyConfig
-	if err := h.bolt.Get("deploy_notify", app.ID, &cfg); err != nil {
+	if err := h.kv.Get("deploy_notify", app.ID, &cfg); err != nil {
 		writeJSON(w, http.StatusOK, DeployNotifyConfig{})
 		return
 	}
@@ -57,7 +57,7 @@ func (h *DeployNotifyHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.bolt.Set("deploy_notify", app.ID, cfg, 0); err != nil {
+	if err := h.kv.Set("deploy_notify", app.ID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save notification config")
 		return
 	}

@@ -11,11 +11,11 @@ import (
 type MaintenanceHandler struct {
 	store  core.Store
 	events *core.EventBus
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 }
 
-func NewMaintenanceHandler(store core.Store, events *core.EventBus, bolt core.BoltStorer) *MaintenanceHandler {
-	return &MaintenanceHandler{store: store, events: events, bolt: bolt}
+func NewMaintenanceHandler(store core.Store, events *core.EventBus, kv core.KVStorer) *MaintenanceHandler {
+	return &MaintenanceHandler{store: store, events: events, kv: kv}
 }
 
 // MaintenanceConfig holds maintenance mode settings.
@@ -33,7 +33,7 @@ func (h *MaintenanceHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cfg MaintenanceConfig
-	if err := h.bolt.Get("maintenance", app.ID, &cfg); err != nil {
+	if err := h.kv.Get("maintenance", app.ID, &cfg); err != nil {
 		writeJSON(w, http.StatusOK, MaintenanceConfig{Enabled: false})
 		return
 	}
@@ -54,7 +54,7 @@ func (h *MaintenanceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.bolt.Set("maintenance", appID, cfg, 0); err != nil {
+	if err := h.kv.Set("maintenance", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save maintenance config")
 		return
 	}

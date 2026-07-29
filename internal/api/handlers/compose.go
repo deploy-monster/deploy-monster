@@ -16,7 +16,7 @@ type ComposeHandler struct {
 	store     core.Store
 	runtime   core.ContainerRuntime
 	events    *core.EventBus
-	freeze    core.BoltStorer
+	freeze    core.KVStorer
 	serverCtx context.Context
 }
 
@@ -28,7 +28,7 @@ func NewComposeHandler(ctx context.Context, store core.Store, runtime core.Conta
 func (h *ComposeHandler) SetServerContext(ctx context.Context) { h.serverCtx = ctx }
 
 // SetDeployFreezeStore enables deploy-freeze enforcement for stack deploys.
-func (h *ComposeHandler) SetDeployFreezeStore(bolt core.BoltStorer) { h.freeze = bolt }
+func (h *ComposeHandler) SetDeployFreezeStore(kv core.KVStorer) { h.freeze = kv }
 
 // Deploy handles POST /api/v1/stacks
 // Accepts compose YAML in the request body and deploys all services.

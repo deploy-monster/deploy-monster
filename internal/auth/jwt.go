@@ -248,7 +248,7 @@ type AccessTokenRevocation struct {
 // RevokeAccessToken marks an access token as revoked by storing its JTI.
 // The revocation entry has the same TTL as the token's remaining lifetime.
 // This is typically called during logout to immediately invalidate the access token.
-func (j *JWTService) RevokeAccessToken(boltStorer interface {
+func (j *JWTService) RevokeAccessToken(kvStorer interface {
 	Set(bucket, key string, value any, ttlSeconds int64) error
 }, jti, userID string, expiresAt time.Time) error {
 	revocation := AccessTokenRevocation{
@@ -261,19 +261,19 @@ func (j *JWTService) RevokeAccessToken(boltStorer interface {
 	if remaining <= 0 {
 		return nil // Token already expired, no need to revoke
 	}
-	return boltStorer.Set("revoked_access_tokens", jti, revocation, int64(remaining.Seconds()))
+	return kvStorer.Set("revoked_access_tokens", jti, revocation, int64(remaining.Seconds()))
 }
 
 // IsAccessTokenRevoked checks if an access token JTI is in the revocation list.
-func (j *JWTService) IsAccessTokenRevoked(boltStorer interface {
+func (j *JWTService) IsAccessTokenRevoked(kvStorer interface {
 	Get(bucket, key string, dest any) error
 }, jti string) bool {
 	// If no revocation store provided, assume token is not revoked
-	if boltStorer == nil {
+	if kvStorer == nil {
 		return false
 	}
 	var revocation AccessTokenRevocation
-	err := boltStorer.Get("revoked_access_tokens", jti, &revocation)
+	err := kvStorer.Get("revoked_access_tokens", jti, &revocation)
 	return err == nil // If no error, token is revoked
 }
 

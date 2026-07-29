@@ -19,14 +19,14 @@ import (
 // It verifies signatures, parses payloads, and dispatches build events.
 type Receiver struct {
 	store  core.Store
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 	events *core.EventBus
 	logger *slog.Logger
 }
 
 // NewReceiver creates a new webhook receiver.
-func NewReceiver(store core.Store, bolt core.BoltStorer, events *core.EventBus, logger *slog.Logger) *Receiver {
-	return &Receiver{store: store, bolt: bolt, events: events, logger: logger}
+func NewReceiver(store core.Store, kv core.KVStorer, events *core.EventBus, logger *slog.Logger) *Receiver {
+	return &Receiver{store: store, kv: kv, events: events, logger: logger}
 }
 
 const (
@@ -92,8 +92,8 @@ func (recv *Receiver) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	provider := detectProvider(r)
 
 	// Security: Verify webhook signature before processing
-	if recv.bolt != nil {
-		secret, err := recv.bolt.GetWebhookSecret(webhookID)
+	if recv.kv != nil {
+		secret, err := recv.kv.GetWebhookSecret(webhookID)
 		if err != nil {
 			recv.logger.Warn("webhook secret lookup failed",
 				"webhook_id", webhookID,
@@ -121,7 +121,7 @@ func (recv *Receiver) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		// duplicate provider retries.
 		if key := deliveryDedupKey(webhookID, body, r); key != "" {
 			var seen bool
-			if err := recv.bolt.Get(webhookDedupBucket, key, &seen); err == nil && seen {
+			if err := recv.kv.Get(webhookDedupBucket, key, &seen); err == nil && seen {
 				recv.logger.Info("dropping duplicate webhook delivery",
 					"webhook_id", webhookID, "provider", provider)
 				w.Header().Set("Content-Type", "application/json")
@@ -129,7 +129,7 @@ func (recv *Receiver) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 				_ = json.NewEncoder(w).Encode(map[string]string{"status": "duplicate"})
 				return
 			}
-			if err := recv.bolt.Set(webhookDedupBucket, key, true, webhookDedupTTLSeconds); err != nil {
+			if err := recv.kv.Set(webhookDedupBucket, key, true, webhookDedupTTLSeconds); err != nil {
 				recv.logger.Warn("failed to record webhook delivery for dedup",
 					"webhook_id", webhookID, "error", err)
 			}

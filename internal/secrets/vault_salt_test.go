@@ -91,18 +91,18 @@ func TestNewVaultWithSalt_EmptySaltFallsBackToLegacy(t *testing.T) {
 // Module resolveVaultSalt / migrateLegacyVault
 // ---------------------------------------------------------------------------
 
-// fakeBolt is the minimum BoltStorer surface resolveVaultSalt touches.
-type fakeBolt struct {
+// fakeKV is the minimum KVStorer surface resolveVaultSalt touches.
+type fakeKV struct {
 	mu  sync.Mutex
 	kv  map[string]string
 	err error // injected error for Get/Set
 }
 
-func newFakeBolt() *fakeBolt { return &fakeBolt{kv: map[string]string{}} }
+func newFakeKV() *fakeKV { return &fakeKV{kv: map[string]string{}} }
 
-func (b *fakeBolt) key(bucket, key string) string { return bucket + "/" + key }
+func (b *fakeKV) key(bucket, key string) string { return bucket + "/" + key }
 
-func (b *fakeBolt) Set(bucket, key string, value any, _ int64) error {
+func (b *fakeKV) Set(bucket, key string, value any, _ int64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.err != nil {
@@ -110,15 +110,15 @@ func (b *fakeBolt) Set(bucket, key string, value any, _ int64) error {
 	}
 	s, ok := value.(string)
 	if !ok {
-		return fmt.Errorf("fakeBolt.Set: non-string value")
+		return fmt.Errorf("fakeKV.Set: non-string value")
 	}
 	b.kv[b.key(bucket, key)] = s
 	return nil
 }
 
-func (b *fakeBolt) BatchSet([]core.BoltBatchItem) error { return nil }
+func (b *fakeKV) BatchSet([]core.KVBatchItem) error { return nil }
 
-func (b *fakeBolt) Get(bucket, key string, dest any) error {
+func (b *fakeKV) Get(bucket, key string, dest any) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.err != nil {
@@ -130,19 +130,19 @@ func (b *fakeBolt) Get(bucket, key string, dest any) error {
 	}
 	sp, ok := dest.(*string)
 	if !ok {
-		return fmt.Errorf("fakeBolt.Get: dest must be *string")
+		return fmt.Errorf("fakeKV.Get: dest must be *string")
 	}
 	*sp = v
 	return nil
 }
 
-func (b *fakeBolt) Delete(string, string) error   { return nil }
-func (b *fakeBolt) List(string) ([]string, error) { return nil, nil }
-func (b *fakeBolt) Close() error                  { return nil }
-func (b *fakeBolt) GetAPIKeyByPrefix(context.Context, string) (*models.APIKey, error) {
+func (b *fakeKV) Delete(string, string) error   { return nil }
+func (b *fakeKV) List(string) ([]string, error) { return nil, nil }
+func (b *fakeKV) Close() error                  { return nil }
+func (b *fakeKV) GetAPIKeyByPrefix(context.Context, string) (*models.APIKey, error) {
 	return nil, nil
 }
-func (b *fakeBolt) GetWebhookSecret(string) (string, error) { return "", nil }
+func (b *fakeKV) GetWebhookSecret(string) (string, error) { return "", nil }
 
 // fakeStore is a minimal core.Store stub covering only the secret
 // methods resolveVaultSalt and migrateLegacyVault use.
@@ -181,9 +181,9 @@ func (s *fakeStore) UpdateSecretVersionValue(_ context.Context, id, enc string) 
 
 // ---------------------------------------------------------------------------
 
-func newTestModule(bolt core.BoltStorer, store core.Store) *Module {
+func newTestModule(kv core.KVStorer, store core.Store) *Module {
 	return &Module{
-		bolt:         bolt,
+		kv:         kv,
 		store:        store,
 		logger:       slog.Default(),
 		masterSecret: "test-master-secret",
@@ -191,8 +191,8 @@ func newTestModule(bolt core.BoltStorer, store core.Store) *Module {
 }
 
 func TestResolveVaultSalt_FreshInstall_GeneratesAndPersists(t *testing.T) {
-	bolt := newFakeBolt()
-	m := newTestModule(bolt, &fakeStore{})
+	kv := newFakeKV()
+	m := newTestModule(kv, &fakeStore{})
 
 	salt, usedLegacy, err := m.resolveVaultSalt(context.Background())
 	if err != nil {
@@ -206,9 +206,9 @@ func TestResolveVaultSalt_FreshInstall_GeneratesAndPersists(t *testing.T) {
 	}
 
 	// Salt must have been persisted so the next boot skips generation.
-	stored, ok := bolt.kv["vault/salt"]
+	stored, ok := kv.kv["vault/salt"]
 	if !ok {
-		t.Fatal("fresh-install path did not persist salt to bolt")
+		t.Fatal("fresh-install path did not persist salt to kv")
 	}
 	decoded, _ := base64.StdEncoding.DecodeString(stored)
 	if !bytes.Equal(decoded, salt) {
@@ -217,11 +217,11 @@ func TestResolveVaultSalt_FreshInstall_GeneratesAndPersists(t *testing.T) {
 }
 
 func TestResolveVaultSalt_SubsequentBoot_ReusesPersisted(t *testing.T) {
-	bolt := newFakeBolt()
+	kv := newFakeKV()
 	expected, _ := GenerateVaultSalt()
-	bolt.kv["vault/salt"] = base64.StdEncoding.EncodeToString(expected)
+	kv.kv["vault/salt"] = base64.StdEncoding.EncodeToString(expected)
 
-	m := newTestModule(bolt, &fakeStore{})
+	m := newTestModule(kv, &fakeStore{})
 	salt, usedLegacy, err := m.resolveVaultSalt(context.Background())
 	if err != nil {
 		t.Fatalf("resolveVaultSalt: %v", err)
@@ -235,13 +235,13 @@ func TestResolveVaultSalt_SubsequentBoot_ReusesPersisted(t *testing.T) {
 }
 
 func TestResolveVaultSalt_LegacyUpgrade_FlagsMigration(t *testing.T) {
-	bolt := newFakeBolt() // no vault/salt key
+	kv := newFakeKV() // no vault/salt key
 	store := &fakeStore{
 		versions: []core.SecretVersion{
 			{ID: "v1", SecretID: "s1", ValueEnc: "placeholder"},
 		},
 	}
-	m := newTestModule(bolt, store)
+	m := newTestModule(kv, store)
 
 	salt, usedLegacy, err := m.resolveVaultSalt(context.Background())
 	if err != nil {
@@ -254,7 +254,7 @@ func TestResolveVaultSalt_LegacyUpgrade_FlagsMigration(t *testing.T) {
 		t.Errorf("salt length %d, want %d", len(salt), VaultSaltLen)
 	}
 	// Must NOT persist the new salt yet — migration runs in Start().
-	if _, ok := bolt.kv["vault/salt"]; ok {
+	if _, ok := kv.kv["vault/salt"]; ok {
 		t.Error("legacy upgrade path must not persist salt until migration completes")
 	}
 }
@@ -268,14 +268,14 @@ func TestMigrateLegacyVault_ReEncryptsAllVersions(t *testing.T) {
 		t.Fatalf("legacy encrypt: %v", err)
 	}
 
-	bolt := newFakeBolt()
+	kv := newFakeKV()
 	store := &fakeStore{
 		versions: []core.SecretVersion{
 			{ID: "v1", SecretID: "s1", ValueEnc: ct, Version: 1},
 		},
 	}
 	m := &Module{
-		bolt:         bolt,
+		kv:         kv,
 		store:        store,
 		logger:       slog.Default(),
 		masterSecret: master,
@@ -287,7 +287,7 @@ func TestMigrateLegacyVault_ReEncryptsAllVersions(t *testing.T) {
 	}
 
 	// Salt must now be persisted.
-	storedSaltB64, ok := bolt.kv["vault/salt"]
+	storedSaltB64, ok := kv.kv["vault/salt"]
 	if !ok {
 		t.Fatal("migration did not persist salt")
 	}
@@ -319,14 +319,14 @@ func TestMigrateLegacyVault_IdempotentOnRestart(t *testing.T) {
 	legacy := NewVaultWithSalt(master, LegacyVaultSalt())
 	ct, _ := legacy.Encrypt("payload")
 
-	bolt := newFakeBolt()
+	kv := newFakeKV()
 	store := &fakeStore{
 		versions: []core.SecretVersion{
 			{ID: "v1", SecretID: "s1", ValueEnc: ct, Version: 1},
 		},
 	}
 	m := &Module{
-		bolt:         bolt,
+		kv:         kv,
 		store:        store,
 		logger:       slog.Default(),
 		masterSecret: master,
@@ -348,9 +348,9 @@ func TestMigrateLegacyVault_IdempotentOnRestart(t *testing.T) {
 }
 
 func TestMigrateLegacyVault_ListError(t *testing.T) {
-	bolt := newFakeBolt()
+	kv := newFakeKV()
 	store := &fakeStore{listErr: errors.New("db down")}
-	m := newTestModule(bolt, store)
+	m := newTestModule(kv, store)
 
 	err := m.migrateLegacyVault(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "list versions") {
@@ -359,7 +359,7 @@ func TestMigrateLegacyVault_ListError(t *testing.T) {
 }
 
 func TestMigrateLegacyVault_UpdateError(t *testing.T) {
-	bolt := newFakeBolt()
+	kv := newFakeKV()
 	// Create a version encrypted with legacy vault
 	legacy := NewVaultWithSalt("test-master-secret", LegacyVaultSalt())
 	enc, _ := legacy.Encrypt("my-secret")
@@ -367,7 +367,7 @@ func TestMigrateLegacyVault_UpdateError(t *testing.T) {
 		versions: []core.SecretVersion{{ID: "v1", ValueEnc: enc}},
 		updErr:   errors.New("db write failed"),
 	}
-	m := newTestModule(bolt, store)
+	m := newTestModule(kv, store)
 
 	err := m.migrateLegacyVault(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "update version") {
@@ -376,15 +376,15 @@ func TestMigrateLegacyVault_UpdateError(t *testing.T) {
 }
 
 func TestMigrateLegacyVault_PersistSaltError(t *testing.T) {
-	bolt := newFakeBolt()
-	bolt.err = errors.New("bolt write failed")
+	kv := newFakeKV()
+	kv.err = errors.New("kv write failed")
 
 	legacy := NewVaultWithSalt("test-master-secret", LegacyVaultSalt())
 	enc, _ := legacy.Encrypt("my-secret")
 	store := &fakeStore{
 		versions: []core.SecretVersion{{ID: "v1", ValueEnc: enc}},
 	}
-	m := newTestModule(bolt, store)
+	m := newTestModule(kv, store)
 
 	err := m.migrateLegacyVault(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "persist salt") {

@@ -378,7 +378,7 @@ type GitRepo struct {
 // Database wraps the SQL and JSON KV stores as a unified data access layer.
 type Database struct {
 	SQL         *sql.DB
-	Bolt        BoltStorer    // legacy field name for the KV store
+	KV          KVStorer    // JSON key-value store (SQLite-backed)
 	Snapshotter DBSnapshotter // optional, set when the DB supports snapshot backup
 }
 
@@ -388,20 +388,20 @@ type DBSnapshotter interface {
 	SnapshotBackup(ctx context.Context, destPath string) error
 }
 
-// BoltBatchItem represents a single write in a batch operation.
-type BoltBatchItem struct {
+// KVBatchItem represents a single write in a batch operation.
+type KVBatchItem struct {
 	Bucket string
 	Key    string
 	Value  any
 	TTL    int64 // seconds, 0 = no expiry
 }
 
-// BoltStorer is the legacy interface name for the JSON key-value store.
+// KVStorer is the legacy interface name for the JSON key-value store.
 // Renaming to KVStorer is planned but deferred due to the large handler
 // surface that consumes this type. The production implementation is SQLite-backed.
-type BoltStorer interface {
+type KVStorer interface {
 	Set(bucket, key string, value any, ttlSeconds int64) error
-	BatchSet(items []BoltBatchItem) error // write multiple keys in one transaction
+	BatchSet(items []KVBatchItem) error // write multiple keys in one transaction
 	Get(bucket, key string, dest any) error
 	Delete(bucket, key string) error
 	List(bucket string) ([]string, error)

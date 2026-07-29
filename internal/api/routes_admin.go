@@ -12,7 +12,7 @@ import (
 // adminOnly must already stack RequireSuperAdmin on top of protected(auth+tenantRL).
 func registerAdminRoutes(r *Router, adminOnly func(http.Handler) http.Handler) {
 	// ── Announcements ─────────────────────────────────
-	announcH := handlers.NewAnnouncementHandler(r.core.DB.Bolt)
+	announcH := handlers.NewAnnouncementHandler(r.core.DB.KV)
 	r.mux.HandleFunc("GET /api/v1/announcements", announcH.List) // public
 	r.mux.Handle("POST /api/v1/admin/announcements", adminOnly(http.HandlerFunc(announcH.Create)))
 	r.mux.Handle("DELETE /api/v1/admin/announcements/{id}", adminOnly(http.HandlerFunc(announcH.Dismiss)))
@@ -22,7 +22,7 @@ func registerAdminRoutes(r *Router, adminOnly func(http.Handler) http.Handler) {
 	r.mux.Handle("GET /api/v1/admin/disk", adminOnly(http.HandlerFunc(diskH.SystemDisk)))
 
 	// ── Tenant Rate Limits (super admin) ──────────────
-	trlH := handlers.NewTenantRateLimitHandler(r.core.DB.Bolt)
+	trlH := handlers.NewTenantRateLimitHandler(r.core.DB.KV)
 	r.mux.Handle("GET /api/v1/admin/tenants/{id}/ratelimit", adminOnly(http.HandlerFunc(trlH.Get)))
 	r.mux.Handle("PUT /api/v1/admin/tenants/{id}/ratelimit", adminOnly(http.HandlerFunc(trlH.Update)))
 
@@ -31,7 +31,7 @@ func registerAdminRoutes(r *Router, adminOnly func(http.Handler) http.Handler) {
 	r.mux.Handle("GET /api/v1/admin/stats", adminOnly(http.HandlerFunc(platH.Overview)))
 
 	// ── License ──────────────────────────────────────
-	licH := handlers.NewLicenseHandler(r.core.DB.Bolt)
+	licH := handlers.NewLicenseHandler(r.core.DB.KV)
 	r.mux.Handle("GET /api/v1/admin/license", adminOnly(http.HandlerFunc(licH.Get)))
 	r.mux.Handle("POST /api/v1/admin/license", adminOnly(http.HandlerFunc(licH.Activate)))
 
@@ -41,7 +41,7 @@ func registerAdminRoutes(r *Router, adminOnly func(http.Handler) http.Handler) {
 	r.mux.Handle("GET /api/v1/admin/db/status", adminOnly(http.HandlerFunc(dbBackupH.Status)))
 
 	// ── Admin API Keys ────────────────────────────────
-	adminKeyH := handlers.NewAdminAPIKeyHandler(r.store, r.core.DB.Bolt)
+	adminKeyH := handlers.NewAdminAPIKeyHandler(r.store, r.core.DB.KV)
 	r.mux.Handle("GET /api/v1/admin/api-keys", adminOnly(http.HandlerFunc(adminKeyH.List)))
 	r.mux.Handle("POST /api/v1/admin/api-keys", adminOnly(http.HandlerFunc(adminKeyH.Generate)))
 	r.mux.Handle("DELETE /api/v1/admin/api-keys/{prefix}", adminOnly(http.HandlerFunc(adminKeyH.Revoke)))

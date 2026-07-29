@@ -30,17 +30,17 @@ import (
 // =============================================================================
 
 func TestCleanupExpiredKeys_IndexSetError(t *testing.T) {
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 	past := time.Now().Add(-2 * time.Hour)
 
 	// Seed data before setting error
-	_ = bolt.Set("api_keys", "_index", apiKeyIndex{Prefixes: []string{"exp1"}}, 0)
-	_ = bolt.Set("api_keys", "exp1", apiKeyRecord{Prefix: "exp1", Hash: "h1", ExpiresAt: &past}, 0)
+	_ = kv.Set("api_keys", "_index", apiKeyIndex{Prefixes: []string{"exp1"}}, 0)
+	_ = kv.Set("api_keys", "exp1", apiKeyRecord{Prefix: "exp1", Hash: "h1", ExpiresAt: &past}, 0)
 
 	// Set error on the index update after deletion
-	bolt.errSet = fmt.Errorf("index write error")
+	kv.errSet = fmt.Errorf("index write error")
 
-	h := NewAdminAPIKeyHandler(nil, bolt)
+	h := NewAdminAPIKeyHandler(nil, kv)
 	removed := h.CleanupExpiredKeys()
 	if removed != 1 {
 		t.Errorf("expected 1 removed, got %d", removed)
@@ -48,13 +48,13 @@ func TestCleanupExpiredKeys_IndexSetError(t *testing.T) {
 }
 
 func TestCleanupExpiredKeys_KeyGetErrorSkips(t *testing.T) {
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 	past := time.Now().Add(-2 * time.Hour)
 
-	_ = bolt.Set("api_keys", "_index", apiKeyIndex{Prefixes: []string{"exp1", "missing_key"}}, 0)
-	_ = bolt.Set("api_keys", "exp1", apiKeyRecord{Prefix: "exp1", Hash: "h1", ExpiresAt: &past}, 0)
+	_ = kv.Set("api_keys", "_index", apiKeyIndex{Prefixes: []string{"exp1", "missing_key"}}, 0)
+	_ = kv.Set("api_keys", "exp1", apiKeyRecord{Prefix: "exp1", Hash: "h1", ExpiresAt: &past}, 0)
 
-	h := NewAdminAPIKeyHandler(nil, bolt)
+	h := NewAdminAPIKeyHandler(nil, kv)
 	removed := h.CleanupExpiredKeys()
 	if removed != 1 {
 		t.Errorf("expected 1 removed, got %d", removed)
@@ -66,7 +66,7 @@ func TestCleanupExpiredKeys_KeyGetErrorSkips(t *testing.T) {
 // =============================================================================
 
 func TestAdminAPIKey_Revoke_NonSuperAdmin(t *testing.T) {
-	h := NewAdminAPIKeyHandler(newMockStore(), newMockBoltStore())
+	h := NewAdminAPIKeyHandler(newMockStore(), newMockKVStore())
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/api-keys/pfx", nil)
 	req.SetPathValue("prefix", "pfx")
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
@@ -551,7 +551,7 @@ func TestNewAuthHandler_WithTOTPService(t *testing.T) {
 	store := newMockStore()
 	totpSvc := internalAuth.NewTOTPService(nil)
 	authMod := &testAuthServicesWithTOTP{jwt: testJWT(), totp: totpSvc}
-	h := NewAuthHandler(authMod, store, newMockBoltStore())
+	h := NewAuthHandler(authMod, store, newMockKVStore())
 	if h.totpValidator == nil {
 		t.Error("expected totpValidator to be set")
 	}
@@ -560,7 +560,7 @@ func TestNewAuthHandler_WithTOTPService(t *testing.T) {
 func TestNewAuthHandler_TOTPNotCalledWhenNil(t *testing.T) {
 	store := newMockStore()
 	authMod := &testAuthServices{jwt: testJWT()}
-	h := NewAuthHandler(authMod, store, newMockBoltStore())
+	h := NewAuthHandler(authMod, store, newMockKVStore())
 	if h.validateTOTP("user1", "123456") {
 		t.Error("expected validateTOTP to return false when no TOTP configured")
 	}
@@ -712,8 +712,8 @@ func TestRefresh_RevokedToken(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 	authMod := testAuthModule(store)
-	bolt := newMockBoltStore()
-	handler := NewAuthHandler(authMod, store, bolt)
+	kv := newMockKVStore()
+	handler := NewAuthHandler(authMod, store, kv)
 
 	refreshToken := generateTestRefreshToken("user1", "tenant1", "role_owner", "user@example.com")
 
@@ -722,7 +722,7 @@ func TestRefresh_RevokedToken(t *testing.T) {
 		t.Fatalf("failed to validate refresh token: %v", err)
 	}
 
-	_ = bolt.Set("revoked_tokens", rtClaims.JTI, true, 3600)
+	_ = kv.Set("revoked_tokens", rtClaims.JTI, true, 3600)
 
 	body, _ := json.Marshal(refreshRequest{RefreshToken: refreshToken})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewReader(body))
@@ -762,8 +762,8 @@ func TestRefresh_UserNotFoundEdge(t *testing.T) {
 func TestLogout_NoRefreshToken_OnlyAccessTokenRevoke(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	bolt := newMockBoltStore()
-	handler := NewAuthHandler(authMod, store, bolt)
+	kv := newMockKVStore()
+	handler := NewAuthHandler(authMod, store, kv)
 
 	// Empty body, no cookie — should clear cookies and return OK
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewReader([]byte("{}")))
@@ -796,8 +796,8 @@ func TestLogout_SuccessWithRevocation(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 	authMod := testAuthModule(store)
-	bolt := newMockBoltStore()
-	handler := NewAuthHandler(authMod, store, bolt)
+	kv := newMockKVStore()
+	handler := NewAuthHandler(authMod, store, kv)
 
 	refreshToken := generateTestRefreshToken("user1", "tenant1", "role_owner", "user@example.com")
 
@@ -822,15 +822,15 @@ func TestRevokeAccessTokenFromRequest_NoBolt(t *testing.T) {
 	handler := NewAuthHandler(authMod, store, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	// Should return early without panic when bolt is nil
+	// Should return early without panic when kv is nil
 	handler.revokeAccessTokenFromRequest(req)
 }
 
 func TestRevokeAccessTokenFromRequest_NoToken(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	bolt := newMockBoltStore()
-	handler := NewAuthHandler(authMod, store, bolt)
+	kv := newMockKVStore()
+	handler := NewAuthHandler(authMod, store, kv)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	handler.revokeAccessTokenFromRequest(req)
@@ -840,8 +840,8 @@ func TestRevokeAccessTokenFromRequest_NoToken(t *testing.T) {
 func TestRevokeAccessTokenFromRequest_InvalidToken(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	bolt := newMockBoltStore()
-	handler := NewAuthHandler(authMod, store, bolt)
+	kv := newMockKVStore()
+	handler := NewAuthHandler(authMod, store, kv)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	req.Header.Set("Authorization", "Bearer invalid-token")
@@ -852,8 +852,8 @@ func TestRevokeAccessTokenFromRequest_InvalidToken(t *testing.T) {
 func TestRevokeAccessTokenFromRequest_CookiePath(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	bolt := newMockBoltStore()
-	handler := NewAuthHandler(authMod, store, bolt)
+	kv := newMockKVStore()
+	handler := NewAuthHandler(authMod, store, kv)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	req.AddCookie(&http.Cookie{Name: cookieAccess, Value: "invalid-cookie-token"})
@@ -862,7 +862,7 @@ func TestRevokeAccessTokenFromRequest_CookiePath(t *testing.T) {
 }
 
 // =============================================================================
-// auth.go — trackSession: errors paths (bolt nil, token parse failure, set error)
+// auth.go — trackSession: errors paths (kv nil, token parse failure, set error)
 // =============================================================================
 
 func TestTrackSession_NilBolt(t *testing.T) {
@@ -877,8 +877,8 @@ func TestTrackSession_NilBolt(t *testing.T) {
 func TestTrackSession_InvalidRefreshToken(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
-	bolt := newMockBoltStore()
-	handler := NewAuthHandler(authMod, store, bolt)
+	kv := newMockKVStore()
+	handler := NewAuthHandler(authMod, store, kv)
 
 	// Invalid token — should return early
 	handler.trackSession(httptest.NewRequest(http.MethodPost, "/", nil), "user1", "invalid-token")
@@ -996,7 +996,7 @@ func TestBackupDownload_NoClaims(t *testing.T) {
 
 func TestCertificateList_NoClaims(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/certificates", nil)
 	rr := httptest.NewRecorder()
@@ -1009,12 +1009,12 @@ func TestCertificateList_NoClaims(t *testing.T) {
 }
 
 // =============================================================================
-// certificates.go — Upload: no claims, bolt set errors
+// certificates.go — Upload: no claims, kv set errors
 // =============================================================================
 
 func TestCertificateUpload_NoClaims(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(uploadCertRequest{
 		DomainID: "domain1",
@@ -1185,7 +1185,7 @@ func TestCertMatchesDomain_WildcardSANSubdomain(t *testing.T) {
 
 func TestCertificateUpload_DomainNotFound(t *testing.T) {
 	store := newMockStore()
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	// Generate a valid cert first since Upload validates the cert/key pair
 	certPEM, keyPEM := testCertForDomain("example.com")
@@ -1217,7 +1217,7 @@ func TestCertificateUpload_DomainNotFound(t *testing.T) {
 func TestRequireTenantCertificateDomain_StoreError(t *testing.T) {
 	store := newMockStore()
 	store.errGetDomain = fmt.Errorf("db error")
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -1237,7 +1237,7 @@ func TestRequireTenantCertificateDomain_FQDNLookupError(t *testing.T) {
 	store := newMockStore()
 	store.errGetDomain = core.ErrNotFound
 	store.errGetDomainByFQDN = fmt.Errorf("fqdn error")
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -1257,7 +1257,7 @@ func TestRequireTenantCertificateDomain_AppLookupError(t *testing.T) {
 	store := newMockStore()
 	store.addDomain(&core.Domain{ID: "domain1", AppID: "app1", FQDN: "example.com"})
 	store.errGetApp = fmt.Errorf("app lookup error")
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -1277,7 +1277,7 @@ func TestRequireTenantCertificateDomain_TenantMismatch(t *testing.T) {
 	store := newMockStore()
 	store.addDomain(&core.Domain{ID: "domain1", AppID: "app1", FQDN: "example.com"})
 	store.addApp(&core.Application{ID: "app1", TenantID: "other-tenant"})
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -1297,7 +1297,7 @@ func TestRequireTenantCertificateDomain_Success(t *testing.T) {
 	store := newMockStore()
 	store.addDomain(&core.Domain{ID: "domain1", AppID: "app1", FQDN: "example.com"})
 	store.addApp(&core.Application{ID: "app1", TenantID: "tenant1"})
-	handler := NewCertificateHandler(store, newMockBoltStore())
+	handler := NewCertificateHandler(store, newMockKVStore())
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -1314,14 +1314,14 @@ func TestRequireTenantCertificateDomain_Success(t *testing.T) {
 }
 
 // =============================================================================
-// certificates.go — Upload: bolt set errors
+// certificates.go — Upload: kv set errors
 // =============================================================================
 
 func TestCertificateUpload_BoltCertDataError(t *testing.T) {
 	store := newMockStore()
-	bolt := newMockBoltStore()
-	bolt.errSet = fmt.Errorf("bolt write error")
-	handler := NewCertificateHandler(store, bolt)
+	kv := newMockKVStore()
+	kv.errSet = fmt.Errorf("kv write error")
+	handler := NewCertificateHandler(store, kv)
 
 	// domain not found — but first it tries to parse cert/key pair
 	// We need a valid cert pair AND a domain in the store that matches
@@ -1521,7 +1521,7 @@ func TestAdminHandler_RevokeAllKeys_NilAuthMod(t *testing.T) {
 }
 
 // =============================================================================
-// auth.go — enforceSessionLimit: nil bolt returns early
+// auth.go — enforceSessionLimit: nil kv returns early
 // =============================================================================
 
 func TestEnforceSessionLimit_NilBolt(t *testing.T) {
@@ -1531,14 +1531,14 @@ func TestEnforceSessionLimit_NilBolt(t *testing.T) {
 }
 
 // =============================================================================
-// auth.go — checkPerAccountRateLimit: nil bolt returns early
+// auth.go — checkPerAccountRateLimit: nil kv returns early
 // =============================================================================
 
 func TestCheckPerAccountRateLimit_NilBolt(t *testing.T) {
 	handler := &AuthHandler{}
 	locked, until := handler.checkPerAccountRateLimit("user@test.com")
 	if locked {
-		t.Error("expected not locked when bolt is nil")
+		t.Error("expected not locked when kv is nil")
 	}
 	if until != 0 {
 		t.Errorf("expected until=0, got %d", until)
@@ -1546,7 +1546,7 @@ func TestCheckPerAccountRateLimit_NilBolt(t *testing.T) {
 }
 
 // =============================================================================
-// auth.go — incrementPerAccountRateLimit: nil bolt returns early
+// auth.go — incrementPerAccountRateLimit: nil kv returns early
 // =============================================================================
 
 func TestIncrementPerAccountRateLimit_NilBolt(t *testing.T) {
@@ -1556,7 +1556,7 @@ func TestIncrementPerAccountRateLimit_NilBolt(t *testing.T) {
 }
 
 // =============================================================================
-// auth.go — loginRateLimitCheck: nil bolt returns early
+// auth.go — loginRateLimitCheck: nil kv returns early
 // =============================================================================
 
 func TestLoginRateLimitCheck_NilBoltEdge(t *testing.T) {

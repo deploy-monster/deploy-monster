@@ -12,12 +12,12 @@ import (
 type GPUHandler struct {
 	store   core.Store
 	runtime core.ContainerRuntime
-	bolt    core.BoltStorer
+	kv    core.KVStorer
 	events  *core.EventBus
 }
 
-func NewGPUHandler(store core.Store, runtime core.ContainerRuntime, bolt core.BoltStorer) *GPUHandler {
-	return &GPUHandler{store: store, runtime: runtime, bolt: bolt}
+func NewGPUHandler(store core.Store, runtime core.ContainerRuntime, kv core.KVStorer) *GPUHandler {
+	return &GPUHandler{store: store, runtime: runtime, kv: kv}
 }
 
 // SetEvents sets the event bus for audit event emission.
@@ -47,7 +47,7 @@ func (h *GPUHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	// Try to load stored GPU config for this app
 	var cfg GPUConfig
-	if err := h.bolt.Get("gpu_config", app.ID, &cfg); err != nil {
+	if err := h.kv.Get("gpu_config", app.ID, &cfg); err != nil {
 		cfg = GPUConfig{
 			Enabled:      false,
 			Capabilities: []string{"compute", "utility"},
@@ -84,7 +84,7 @@ func (h *GPUHandler) Update(w http.ResponseWriter, r *http.Request) {
 		cfg.Driver = "nvidia"
 	}
 
-	if err := h.bolt.Set("gpu_config", appID, cfg, 0); err != nil {
+	if err := h.kv.Set("gpu_config", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save GPU config")
 		return
 	}

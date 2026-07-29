@@ -14,18 +14,18 @@ import (
 type RestartHistoryHandler struct {
 	store   core.Store
 	runtime core.ContainerRuntime
-	bolt    core.BoltStorer
+	kv    core.KVStorer
 }
 
 func NewRestartHistoryHandler(store core.Store, runtime core.ContainerRuntime) *RestartHistoryHandler {
 	return &RestartHistoryHandler{store: store, runtime: runtime}
 }
 
-// SetBolt wires the persistence backend used to store events.
-// Called by the router after construction so the bolt dependency is
+// SetKV wires the persistence backend used to store events.
+// Called by the router after construction so the kv dependency is
 // opt-in (some unit tests construct the handler without a backing
 // store).
-func (h *RestartHistoryHandler) SetBolt(b core.BoltStorer) { h.bolt = b }
+func (h *RestartHistoryHandler) SetKV(b core.KVStorer) { h.kv = b }
 
 // RestartEvent records when and why a container restarted. The persisted
 // shape is intentionally compact so a high-churn app doesn't bloat the
@@ -42,7 +42,7 @@ type RestartEvent struct {
 
 // RestartHistoryBucket is the KV bucket used by the event subscriber
 // in api/router.go to persist restart records. Reads route through the
-// bolt auto-create path so the bucket appears on first write.
+// kv auto-create path so the bucket appears on first write.
 const RestartHistoryBucket = "restart_history"
 
 // RestartHistoryRetentionSeconds caps how long a single record lives in
@@ -50,13 +50,13 @@ const RestartHistoryBucket = "restart_history"
 // crash this week?") and disk pressure on a chatty app.
 const RestartHistoryRetentionSeconds = 30 * 24 * 3600
 
-// SubscribeRestartHistory wires bolt persistence to the relevant lifecycle
+// SubscribeRestartHistory wires kv persistence to the relevant lifecycle
 // events. Returns the subscription IDs so the caller can Unsubscribe on
 // shutdown if desired (the router pattern doesn't, since the bus and
-// bolt outlive the request loop). Lives in this file so the contract
+// kv outlive the request loop). Lives in this file so the contract
 // between the persisted shape and the read path stays in one place.
-func SubscribeRestartHistory(events *core.EventBus, bolt core.BoltStorer) {
-	if events == nil || bolt == nil {
+func SubscribeRestartHistory(events *core.EventBus, kv core.KVStorer) {
+	if events == nil || kv == nil {
 		return
 	}
 
@@ -69,7 +69,7 @@ func SubscribeRestartHistory(events *core.EventBus, bolt core.BoltStorer) {
 			Source:      source,
 			Timestamp:   time.Now().UTC(),
 		}
-		_ = bolt.Set(RestartHistoryBucket, appID+":"+ev.ID, ev, RestartHistoryRetentionSeconds)
+		_ = kv.Set(RestartHistoryBucket, appID+":"+ev.ID, ev, RestartHistoryRetentionSeconds)
 	}
 
 	events.SubscribeAsync(core.EventContainerDied, func(_ context.Context, e core.Event) error {
@@ -138,12 +138,12 @@ func (h *RestartHistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if h.bolt == nil {
+	if h.kv == nil {
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 
-	keys, err := h.bolt.List(RestartHistoryBucket)
+	keys, err := h.kv.List(RestartHistoryBucket)
 	if err != nil {
 		writeJSON(w, http.StatusOK, resp)
 		return
@@ -156,7 +156,7 @@ func (h *RestartHistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		var ev RestartEvent
-		if h.bolt.Get(RestartHistoryBucket, k, &ev) == nil {
+		if h.kv.Get(RestartHistoryBucket, k, &ev) == nil {
 			events = append(events, ev)
 		}
 	}

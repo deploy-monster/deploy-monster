@@ -13,7 +13,7 @@ import (
 )
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// mockBolt implements core.BoltStorer for testing batchStoreMetrics/appendPoint
+// mockBolt implements core.KVStorer for testing batchStoreMetrics/appendPoint
 // ═══════════════════════════════════════════════════════════════════════════════
 
 type mockBolt struct {
@@ -35,7 +35,7 @@ func (b *mockBolt) Set(bucket, key string, value any, _ int64) error {
 	return nil
 }
 
-func (b *mockBolt) BatchSet(items []core.BoltBatchItem) error {
+func (b *mockBolt) BatchSet(items []core.KVBatchItem) error {
 	if b.batchErr != nil {
 		return b.batchErr
 	}
@@ -72,9 +72,9 @@ func (b *mockBolt) GetWebhookSecret(_ string) (string, error) { return "", nil }
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestBatchStoreMetrics_ServerAndContainers(t *testing.T) {
-	bolt := newMockBolt()
+	kv := newMockBolt()
 	m := &Module{
-		bolt:   bolt,
+		kv:   kv,
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -105,15 +105,15 @@ func TestBatchStoreMetrics_ServerAndContainers(t *testing.T) {
 	m.batchStoreMetrics(server, containers)
 
 	// Should have 3 batch items (1 server + 2 containers)
-	if len(bolt.batchKeys) != 3 {
-		t.Errorf("expected 3 batch keys, got %d: %v", len(bolt.batchKeys), bolt.batchKeys)
+	if len(kv.batchKeys) != 3 {
+		t.Errorf("expected 3 batch keys, got %d: %v", len(kv.batchKeys), kv.batchKeys)
 	}
 }
 
 func TestBatchStoreMetrics_ServerOnly(t *testing.T) {
-	bolt := newMockBolt()
+	kv := newMockBolt()
 	m := &Module{
-		bolt:   bolt,
+		kv:   kv,
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -126,15 +126,15 @@ func TestBatchStoreMetrics_ServerOnly(t *testing.T) {
 
 	m.batchStoreMetrics(server, nil)
 
-	if len(bolt.batchKeys) != 1 {
-		t.Errorf("expected 1 batch key, got %d", len(bolt.batchKeys))
+	if len(kv.batchKeys) != 1 {
+		t.Errorf("expected 1 batch key, got %d", len(kv.batchKeys))
 	}
 }
 
 func TestBatchStoreMetrics_ContainersOnly(t *testing.T) {
-	bolt := newMockBolt()
+	kv := newMockBolt()
 	m := &Module{
-		bolt:   bolt,
+		kv:   kv,
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -144,14 +144,14 @@ func TestBatchStoreMetrics_ContainersOnly(t *testing.T) {
 
 	m.batchStoreMetrics(nil, containers)
 
-	if len(bolt.batchKeys) != 1 {
-		t.Errorf("expected 1 batch key, got %d", len(bolt.batchKeys))
+	if len(kv.batchKeys) != 1 {
+		t.Errorf("expected 1 batch key, got %d", len(kv.batchKeys))
 	}
 }
 
 func TestBatchStoreMetrics_NilBolt(t *testing.T) {
 	m := &Module{
-		bolt:   nil,
+		kv:   nil,
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -160,9 +160,9 @@ func TestBatchStoreMetrics_NilBolt(t *testing.T) {
 }
 
 func TestBatchStoreMetrics_EmptyContainerAppID(t *testing.T) {
-	bolt := newMockBolt()
+	kv := newMockBolt()
 	m := &Module{
-		bolt:   bolt,
+		kv:   kv,
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -173,31 +173,31 @@ func TestBatchStoreMetrics_EmptyContainerAppID(t *testing.T) {
 
 	m.batchStoreMetrics(nil, containers)
 
-	if len(bolt.batchKeys) != 1 {
-		t.Errorf("expected 1 batch key (empty AppID skipped), got %d", len(bolt.batchKeys))
+	if len(kv.batchKeys) != 1 {
+		t.Errorf("expected 1 batch key (empty AppID skipped), got %d", len(kv.batchKeys))
 	}
 }
 
 func TestBatchStoreMetrics_NothingToStore(t *testing.T) {
-	bolt := newMockBolt()
+	kv := newMockBolt()
 	m := &Module{
-		bolt:   bolt,
+		kv:   kv,
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	// nil server, empty containers
 	m.batchStoreMetrics(nil, nil)
 
-	if len(bolt.batchKeys) != 0 {
-		t.Errorf("expected 0 batch keys, got %d", len(bolt.batchKeys))
+	if len(kv.batchKeys) != 0 {
+		t.Errorf("expected 0 batch keys, got %d", len(kv.batchKeys))
 	}
 }
 
 func TestBatchStoreMetrics_BatchSetError(t *testing.T) {
-	bolt := newMockBolt()
-	bolt.batchErr = core.ErrNotFound // simulate error
+	kv := newMockBolt()
+	kv.batchErr = core.ErrNotFound // simulate error
 	m := &Module{
-		bolt:   bolt,
+		kv:   kv,
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -210,8 +210,8 @@ func TestBatchStoreMetrics_BatchSetError(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestAppendPoint_NewKey(t *testing.T) {
-	bolt := newMockBolt()
-	m := &Module{bolt: bolt}
+	kv := newMockBolt()
+	m := &Module{kv: kv}
 
 	point := metricsPoint{
 		Timestamp:  time.Now(),
@@ -230,8 +230,8 @@ func TestAppendPoint_NewKey(t *testing.T) {
 }
 
 func TestAppendPoint_ExistingRing(t *testing.T) {
-	bolt := newMockBolt()
-	m := &Module{bolt: bolt}
+	kv := newMockBolt()
+	m := &Module{kv: kv}
 
 	// Pre-populate with 2 points
 	existingRing := metricsRing{
@@ -240,7 +240,7 @@ func TestAppendPoint_ExistingRing(t *testing.T) {
 			{Timestamp: time.Now().Add(-1 * time.Minute), CPUPercent: 20.0},
 		},
 	}
-	bolt.Set("metrics_ring", "test:key", existingRing, 0)
+	kv.Set("metrics_ring", "test:key", existingRing, 0)
 
 	ring := m.appendPoint("test:key", metricsPoint{
 		Timestamp:  time.Now(),
@@ -253,8 +253,8 @@ func TestAppendPoint_ExistingRing(t *testing.T) {
 }
 
 func TestAppendPoint_TrimToMax(t *testing.T) {
-	bolt := newMockBolt()
-	m := &Module{bolt: bolt}
+	kv := newMockBolt()
+	m := &Module{kv: kv}
 
 	// Pre-populate with maxRingPoints points
 	existing := metricsRing{Points: make([]metricsPoint, maxRingPoints)}
@@ -264,7 +264,7 @@ func TestAppendPoint_TrimToMax(t *testing.T) {
 			CPUPercent: float64(i),
 		}
 	}
-	bolt.Set("metrics_ring", "full:key", existing, 0)
+	kv.Set("metrics_ring", "full:key", existing, 0)
 
 	ring := m.appendPoint("full:key", metricsPoint{
 		Timestamp:  time.Now(),
@@ -287,7 +287,7 @@ func TestAppendPoint_TrimToMax(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 func TestCollectOnce_WithBolt(t *testing.T) {
-	bolt := newMockBolt()
+	kv := newMockBolt()
 
 	rt := &mockContainerRuntime{
 		containers: []core.ContainerInfo{
@@ -300,14 +300,14 @@ func TestCollectOnce_WithBolt(t *testing.T) {
 	m := &Module{
 		collector: NewCollector(rt, logger),
 		alerter:   NewAlertEngine(core.NewEventBus(logger), logger),
-		bolt:      bolt,
+		kv:      kv,
 		logger:    logger,
 	}
 
 	m.collectOnce()
 
 	// Should have stored at least server metrics
-	if len(bolt.batchKeys) == 0 {
+	if len(kv.batchKeys) == 0 {
 		t.Error("expected at least 1 batch key from collectOnce")
 	}
 }

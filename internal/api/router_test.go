@@ -1308,21 +1308,21 @@ func (s *testStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core
 	return nil, 0, nil
 }
 
-// testBoltStore is a minimal BoltStorer for router construction tests.
-type testBoltStore struct{}
+// testKVStore is a minimal KVStorer for router construction tests.
+type testKVStore struct{}
 
-func (b *testBoltStore) Set(_, _ string, _ any, _ int64) error { return nil }
-func (b *testBoltStore) BatchSet(_ []core.BoltBatchItem) error { return nil }
-func (b *testBoltStore) Get(_, key string, _ any) error {
+func (b *testKVStore) Set(_, _ string, _ any, _ int64) error { return nil }
+func (b *testKVStore) BatchSet(_ []core.KVBatchItem) error { return nil }
+func (b *testKVStore) Get(_, key string, _ any) error {
 	return fmt.Errorf("key %q: %w", key, core.ErrKVNotFound)
 }
-func (b *testBoltStore) Delete(_, _ string) error        { return nil }
-func (b *testBoltStore) List(_ string) ([]string, error) { return nil, nil }
-func (b *testBoltStore) Close() error                    { return nil }
-func (b *testBoltStore) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
+func (b *testKVStore) Delete(_, _ string) error        { return nil }
+func (b *testKVStore) List(_ string) ([]string, error) { return nil, nil }
+func (b *testKVStore) Close() error                    { return nil }
+func (b *testKVStore) GetAPIKeyByPrefix(_ context.Context, _ string) (*models.APIKey, error) {
 	return nil, fmt.Errorf("not found")
 }
-func (b *testBoltStore) GetWebhookSecret(_ string) (string, error) {
+func (b *testKVStore) GetWebhookSecret(_ string) (string, error) {
 	return "", fmt.Errorf("not found")
 }
 
@@ -1341,7 +1341,7 @@ func testCoreSetup(t *testing.T) (*core.Core, *auth.Module) {
 		Build:    core.BuildInfo{Version: "0.1.0-test"},
 		Config:   &core.Config{Server: core.ServerConfig{SecretKey: "test-secret-key-32chars-for-jwt!"}},
 		Services: core.NewServices(),
-		DB:       &core.Database{Bolt: &testBoltStore{}},
+		DB:       &core.Database{KV: &testKVStore{}},
 	}
 
 	t.Setenv("MONSTER_ADMIN_EMAIL", "admin@example.com")

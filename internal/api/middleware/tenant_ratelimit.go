@@ -23,10 +23,10 @@ type tenantRateLimitConfig struct {
 // and enforces them with an in-memory sliding window per tenant.
 // SECURITY FIX (RACE-002): Uses sync.Map for thread-safe tenant tracking.
 type TenantRateLimiter struct {
-	bolt          core.BoltStorer
+	kv          core.KVStorer
 	defaultRate   int
 	defaultWindow time.Duration
-	mu            sync.Mutex // protects bolt operations for same key
+	mu            sync.Mutex // protects kv operations for same key
 	logger        *slog.Logger
 }
 
@@ -37,9 +37,9 @@ type tenantRateLimitEntry struct {
 
 // NewTenantRateLimiter creates a tenant-aware rate limiter.
 // defaultRate is used when no per-tenant config exists in KV storage.
-func NewTenantRateLimiter(bolt core.BoltStorer, defaultRate int, window time.Duration) *TenantRateLimiter {
+func NewTenantRateLimiter(kv core.KVStorer, defaultRate int, window time.Duration) *TenantRateLimiter {
 	return &TenantRateLimiter{
-		bolt:          bolt,
+		kv:          kv,
 		defaultRate:   defaultRate,
 		defaultWindow: window,
 		logger:        slog.Default(),
@@ -64,7 +64,7 @@ func (trl *TenantRateLimiter) log() *slog.Logger {
 // Must be applied AFTER RequireAuth so claims are present in context.
 // SECURITY FIX (RACE-002): Uses mutex for thread-safe operations.
 func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
-	if trl.bolt == nil {
+	if trl.kv == nil {
 		return next
 	}
 
@@ -81,7 +81,7 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 		// Read tenant-specific config from KV storage (fast lookup)
 		rate := trl.defaultRate
 		var cfg tenantRateLimitConfig
-		if err := trl.bolt.Get("tenant_ratelimit", tenantID, &cfg); err == nil && cfg.RequestsPerMinute > 0 {
+		if err := trl.kv.Get("tenant_ratelimit", tenantID, &cfg); err == nil && cfg.RequestsPerMinute > 0 {
 			rate = cfg.RequestsPerMinute
 		} else if err != nil && !errors.Is(err, core.ErrKVNotFound) {
 			// Corrupted config falls through to the default rate; surface
@@ -104,7 +104,7 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 		defer trl.mu.Unlock()
 
 		var entry tenantRateLimitEntry
-		err := trl.bolt.Get("ratelimit", key, &entry)
+		err := trl.kv.Get("ratelimit", key, &entry)
 		if err != nil && !errors.Is(err, core.ErrKVNotFound) {
 			// Same fresh-window reset as a real miss; surface so a
 			// corrupted entry doesn't quietly let an attacker reset.
@@ -117,7 +117,7 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 				Count:   1,
 				ResetAt: now + windowSec,
 			}
-			_ = trl.bolt.Set("ratelimit", key, entry, windowSec)
+			_ = trl.kv.Set("ratelimit", key, entry, windowSec)
 			setTenantRateLimitHeaders(w, rate, rate-1, time.Unix(entry.ResetAt, 0))
 			next.ServeHTTP(w, r)
 			return
@@ -133,7 +133,7 @@ func (trl *TenantRateLimiter) Middleware(next http.Handler) http.Handler {
 
 		entry.Count++
 		remaining := rate - entry.Count
-		_ = trl.bolt.Set("ratelimit", key, entry, windowSec)
+		_ = trl.kv.Set("ratelimit", key, entry, windowSec)
 
 		setTenantRateLimitHeaders(w, rate, remaining, time.Unix(entry.ResetAt, 0))
 		next.ServeHTTP(w, r)

@@ -12,11 +12,11 @@ import (
 
 // SSLStatusHandler checks SSL certificate status for domains.
 type SSLStatusHandler struct {
-	bolt core.BoltStorer
+	kv core.KVStorer
 }
 
-func NewSSLStatusHandler(bolt core.BoltStorer) *SSLStatusHandler {
-	return &SSLStatusHandler{bolt: bolt}
+func NewSSLStatusHandler(kv core.KVStorer) *SSLStatusHandler {
+	return &SSLStatusHandler{kv: kv}
 }
 
 // SSLCheckResult holds SSL verification details.
@@ -41,7 +41,7 @@ func (h *SSLStatusHandler) Check(w http.ResponseWriter, r *http.Request) {
 
 	// Check cache first (cache for 5 minutes)
 	var cached SSLCheckResult
-	if err := h.bolt.Get("certificates", "ssl_check:"+fqdn, &cached); err == nil {
+	if err := h.kv.Get("certificates", "ssl_check:"+fqdn, &cached); err == nil {
 		writeJSON(w, http.StatusOK, cached)
 		return
 	}
@@ -49,7 +49,7 @@ func (h *SSLStatusHandler) Check(w http.ResponseWriter, r *http.Request) {
 	result := checkSSL(fqdn)
 
 	// Cache the result for 5 minutes
-	if err := h.bolt.Set("certificates", "ssl_check:"+fqdn, result, 300); err != nil {
+	if err := h.kv.Set("certificates", "ssl_check:"+fqdn, result, 300); err != nil {
 		slog.Error("failed to cache SSL check result", "fqdn", fqdn, "error", err)
 	}
 

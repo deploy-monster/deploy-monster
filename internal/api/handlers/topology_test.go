@@ -14,8 +14,8 @@ import (
 func TestTopologyHandler_Save(t *testing.T) {
 	store := newMockStore()
 	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"})
-	bolt := newMockBoltStore()
-	c := &core.Core{DB: &core.Database{Bolt: bolt}}
+	kv := newMockKVStore()
+	c := &core.Core{DB: &core.Database{KV: kv}}
 	h := NewTopologyHandler(store, c)
 
 	// Create valid request
@@ -71,8 +71,8 @@ func TestTopologyHandler_Save(t *testing.T) {
 func TestTopologyHandler_Deploy(t *testing.T) {
 	store := newMockStore()
 	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"})
-	bolt := newMockBoltStore()
-	c := &core.Core{DB: &core.Database{Bolt: bolt}}
+	kv := newMockKVStore()
+	c := &core.Core{DB: &core.Database{KV: kv}}
 	h := NewTopologyHandler(store, c)
 
 	// Create deploy request with multiple node types
@@ -171,11 +171,11 @@ func TestTopologyHandler_Deploy(t *testing.T) {
 func TestTopologyHandler_DeployBlockedDuringFreezeWindow(t *testing.T) {
 	store := newMockStore()
 	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"})
-	bolt := newMockBoltStore()
-	if err := seedActiveDeployFreeze(bolt, "tenant-1"); err != nil {
+	kv := newMockKVStore()
+	if err := seedActiveDeployFreeze(kv, "tenant-1"); err != nil {
 		t.Fatalf("seed freeze: %v", err)
 	}
-	c := &core.Core{DB: &core.Database{Bolt: bolt}}
+	c := &core.Core{DB: &core.Database{KV: kv}}
 	h := NewTopologyHandler(store, c)
 
 	req := TopologyDeployRequest{
@@ -208,8 +208,8 @@ func TestTopologyHandler_DeployBlockedDuringFreezeWindow(t *testing.T) {
 
 func TestTopologyHandler_DeployEmptyNodes(t *testing.T) {
 	store := newMockStore()
-	bolt := newMockBoltStore()
-	c := &core.Core{DB: &core.Database{Bolt: bolt}}
+	kv := newMockKVStore()
+	c := &core.Core{DB: &core.Database{KV: kv}}
 	h := NewTopologyHandler(store, c)
 
 	req := TopologyDeployRequest{
@@ -242,8 +242,8 @@ func TestTopologyHandler_DeployEmptyNodes(t *testing.T) {
 func TestTopologyHandler_DeployWorkerNode(t *testing.T) {
 	store := newMockStore()
 	store.addProjectByID(&core.Project{ID: "proj-1", TenantID: "tenant-1", Name: "Test Project"})
-	bolt := newMockBoltStore()
-	c := &core.Core{DB: &core.Database{Bolt: bolt}}
+	kv := newMockKVStore()
+	c := &core.Core{DB: &core.Database{KV: kv}}
 	h := NewTopologyHandler(store, c)
 
 	req := TopologyDeployRequest{

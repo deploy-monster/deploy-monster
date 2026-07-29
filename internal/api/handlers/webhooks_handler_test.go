@@ -14,7 +14,7 @@ import (
 func TestWebhookLogList_Success(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewWebhookLogHandler(store, newMockBoltStore())
+	handler := NewWebhookLogHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/webhooks/logs", nil)
 	req.SetPathValue("id", "app1")
@@ -46,7 +46,7 @@ func TestWebhookLogList_Success(t *testing.T) {
 func TestWebhookLogList_EmptyAppID(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "", TenantID: "t1", Name: "App"})
-	handler := NewWebhookLogHandler(store, newMockBoltStore())
+	handler := NewWebhookLogHandler(store, newMockKVStore())
 
 	// Empty app ID should be rejected with 400 (path param validation).
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps//webhooks/logs", nil)
@@ -63,7 +63,7 @@ func TestWebhookLogList_EmptyAppID(t *testing.T) {
 func TestWebhookLogList_ResponseFormat(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewWebhookLogHandler(store, newMockBoltStore())
+	handler := NewWebhookLogHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/webhooks/logs", nil)
 	req.SetPathValue("id", "app1")
@@ -81,17 +81,17 @@ func TestWebhookLogList_ResponseFormat(t *testing.T) {
 func TestWebhookLogList_TenantScoped(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	bolt := newMockBoltStore()
-	bolt.Set(deliveryLogBucket, "log-t1", WebhookDeliveryLog{
+	kv := newMockKVStore()
+	kv.Set(deliveryLogBucket, "log-t1", WebhookDeliveryLog{
 		ID: "log-t1", URL: "https://tenant1.example/hook", Status: "sent", Timestamp: 2, TenantID: "t1",
 	}, 0)
-	bolt.Set(deliveryLogBucket, "log-t2", WebhookDeliveryLog{
+	kv.Set(deliveryLogBucket, "log-t2", WebhookDeliveryLog{
 		ID: "log-t2", URL: "https://tenant2.example/hook", Status: "sent", Timestamp: 1, TenantID: "t2",
 	}, 0)
-	bolt.Set(deliveryLogBucket, "legacy", WebhookDeliveryLog{
+	kv.Set(deliveryLogBucket, "legacy", WebhookDeliveryLog{
 		ID: "legacy", URL: "https://legacy.example/hook", Status: "sent", Timestamp: 3,
 	}, 0)
-	handler := NewWebhookLogHandler(store, bolt)
+	handler := NewWebhookLogHandler(store, kv)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/webhooks/logs", nil)
 	req.SetPathValue("id", "app1")

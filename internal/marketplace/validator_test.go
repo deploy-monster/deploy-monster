@@ -328,7 +328,7 @@ func TestRegistry_ValidateAll_Empty(t *testing.T) {
 func TestRegistry_ValidateAll_AllBuiltinsPass(t *testing.T) {
 	r := NewTemplateRegistry()
 	r.LoadBuiltins()
-	for _, tt := range GetMoreTemplates100() {
+	for _, tt := range builtinTemplates {
 		r.Add(tt)
 	}
 	for _, res := range r.ValidateAll() {

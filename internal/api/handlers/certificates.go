@@ -16,11 +16,11 @@ import (
 // CertificateHandler manages SSL/TLS certificates.
 type CertificateHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewCertificateHandler(store core.Store, bolt core.BoltStorer) *CertificateHandler {
-	return &CertificateHandler{store: store, bolt: bolt}
+func NewCertificateHandler(store core.Store, kv core.KVStorer) *CertificateHandler {
+	return &CertificateHandler{store: store, kv: kv}
 }
 
 // CertInfo represents certificate information returned by the API.
@@ -48,7 +48,7 @@ func (h *CertificateHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cs certStore
-	if err := h.bolt.Get("certificates", "all", &cs); err != nil {
+	if err := h.kv.Get("certificates", "all", &cs); err != nil {
 		// No certs stored yet — return empty list
 		cs.Certs = []CertInfo{}
 	}
@@ -146,16 +146,16 @@ func (h *CertificateHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		"cert_pem": req.CertPEM,
 		"key_pem":  req.KeyPEM,
 	}
-	if err := h.bolt.Set("certificates", "data:"+info.ID, certData, 0); err != nil {
+	if err := h.kv.Set("certificates", "data:"+info.ID, certData, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to store certificate")
 		return
 	}
 
 	// Add to cert list
 	var cs certStore
-	_ = h.bolt.Get("certificates", "all", &cs)
+	_ = h.kv.Get("certificates", "all", &cs)
 	cs.Certs = append(cs.Certs, info)
-	if err := h.bolt.Set("certificates", "all", cs, 0); err != nil {
+	if err := h.kv.Set("certificates", "all", cs, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update certificate list")
 		return
 	}

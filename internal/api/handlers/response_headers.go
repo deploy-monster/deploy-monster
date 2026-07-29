@@ -16,11 +16,11 @@ var httpTokenPattern = regexp.MustCompile(`^[!#$%&'*+\-.^_` + "`" + `|~0-9A-Za-z
 // ResponseHeadersHandler manages per-app security and custom response headers.
 type ResponseHeadersHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewResponseHeadersHandler(store core.Store, bolt core.BoltStorer) *ResponseHeadersHandler {
-	return &ResponseHeadersHandler{store: store, bolt: bolt}
+func NewResponseHeadersHandler(store core.Store, kv core.KVStorer) *ResponseHeadersHandler {
+	return &ResponseHeadersHandler{store: store, kv: kv}
 }
 
 // ResponseHeadersConfig defines custom response headers for the ingress.
@@ -51,7 +51,7 @@ func (h *ResponseHeadersHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cfg ResponseHeadersConfig
-	if err := h.bolt.Get("response_headers", app.ID, &cfg); err != nil {
+	if err := h.kv.Get("response_headers", app.ID, &cfg); err != nil {
 		writeJSON(w, http.StatusOK, defaultResponseHeaders())
 		return
 	}
@@ -95,7 +95,7 @@ func (h *ResponseHeadersHandler) Update(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	if err := h.bolt.Set("response_headers", appID, cfg, 0); err != nil {
+	if err := h.kv.Set("response_headers", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save response headers")
 		return
 	}

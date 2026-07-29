@@ -15,7 +15,7 @@ import (
 func TestCronJobs_List_Success(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewCronJobHandler(store, newMockBoltStore())
+	handler := NewCronJobHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/cron", nil)
 	req.SetPathValue("id", "app1")
@@ -48,7 +48,7 @@ func TestCronJobs_List_Success(t *testing.T) {
 func TestCronJobs_Create_Success(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewCronJobHandler(store, newMockBoltStore())
+	handler := NewCronJobHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(CronJobConfig{
 		Name:     "db-backup",
@@ -91,7 +91,7 @@ func TestCronJobs_Create_Success(t *testing.T) {
 func TestCronJobs_Create_MissingSchedule(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewCronJobHandler(store, newMockBoltStore())
+	handler := NewCronJobHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(CronJobConfig{
 		Command: "echo hello",
@@ -112,7 +112,7 @@ func TestCronJobs_Create_MissingSchedule(t *testing.T) {
 func TestCronJobs_Create_MissingCommand(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewCronJobHandler(store, newMockBoltStore())
+	handler := NewCronJobHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(CronJobConfig{
 		Schedule: "0 * * * *",
@@ -133,7 +133,7 @@ func TestCronJobs_Create_MissingCommand(t *testing.T) {
 func TestCronJobs_Create_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewCronJobHandler(store, newMockBoltStore())
+	handler := NewCronJobHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/cron", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")
@@ -153,7 +153,7 @@ func TestCronJobs_Create_InvalidJSON(t *testing.T) {
 func TestCronJobs_Delete_Success(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewCronJobHandler(store, newMockBoltStore())
+	handler := NewCronJobHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/app1/cron/job1", nil)
 	req.SetPathValue("id", "app1")

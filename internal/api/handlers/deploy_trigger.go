@@ -19,7 +19,7 @@ type DeployTriggerHandler struct {
 	runtime   core.ContainerRuntime
 	nodes     core.NodeManager
 	events    *core.EventBus
-	freeze    core.BoltStorer
+	freeze    core.KVStorer
 	buildGit  func(ctx context.Context, opts build.BuildOpts, logWriter io.Writer) (*build.BuildResult, error)
 	buildRepo string
 	buildPush bool
@@ -69,7 +69,7 @@ func (h *DeployTriggerHandler) SetBuildRegistryAuth(username, password string) {
 }
 
 // SetDeployFreezeStore enables deploy-freeze enforcement for manual deploys.
-func (h *DeployTriggerHandler) SetDeployFreezeStore(bolt core.BoltStorer) { h.freeze = bolt }
+func (h *DeployTriggerHandler) SetDeployFreezeStore(kv core.KVStorer) { h.freeze = kv }
 
 // buildDeployLabels creates container labels including HTTP routing labels from domains.
 func (h *DeployTriggerHandler) buildDeployLabels(ctx context.Context, app *core.Application, version int) map[string]string {

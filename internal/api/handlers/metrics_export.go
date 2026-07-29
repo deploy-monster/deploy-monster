@@ -13,12 +13,12 @@ import (
 // MetricsExportHandler exports metrics data as CSV or JSON.
 type MetricsExportHandler struct {
 	store   core.Store
-	bolt    core.BoltStorer
+	kv    core.KVStorer
 	runtime core.ContainerRuntime
 }
 
-func NewMetricsExportHandler(store core.Store, bolt core.BoltStorer, runtime core.ContainerRuntime) *MetricsExportHandler {
-	return &MetricsExportHandler{store: store, bolt: bolt, runtime: runtime}
+func NewMetricsExportHandler(store core.Store, kv core.KVStorer, runtime core.ContainerRuntime) *MetricsExportHandler {
+	return &MetricsExportHandler{store: store, kv: kv, runtime: runtime}
 }
 
 // metricsPoint is a single metrics data point stored in KV storage.
@@ -43,7 +43,7 @@ func (h *MetricsExportHandler) Export(w http.ResponseWriter, r *http.Request) {
 
 	// Try to load real metrics from KV storage.
 	var storedPoints []metricsPoint
-	_ = h.bolt.Get("metrics_export", appID, &storedPoints)
+	_ = h.kv.Get("metrics_export", appID, &storedPoints)
 
 	// If no stored metrics, get current stats from runtime and generate points
 	now := time.Now()

@@ -11,11 +11,11 @@ import (
 type MetricsHistoryHandler struct {
 	store   core.Store
 	runtime core.ContainerRuntime
-	bolt    core.BoltStorer
+	kv    core.KVStorer
 }
 
-func NewMetricsHistoryHandler(store core.Store, runtime core.ContainerRuntime, bolt core.BoltStorer) *MetricsHistoryHandler {
-	return &MetricsHistoryHandler{store: store, runtime: runtime, bolt: bolt}
+func NewMetricsHistoryHandler(store core.Store, runtime core.ContainerRuntime, kv core.KVStorer) *MetricsHistoryHandler {
+	return &MetricsHistoryHandler{store: store, runtime: runtime, kv: kv}
 }
 
 // MetricsPoint represents a single data point in a time series.
@@ -47,7 +47,7 @@ func (h *MetricsHistoryHandler) AppMetrics(w http.ResponseWriter, r *http.Reques
 	// Try to read stored metrics from KV storage.
 	bucketKey := appID + ":" + period
 	var ring metricsRing
-	if err := h.bolt.Get("metrics_ring", bucketKey, &ring); err == nil && len(ring.Points) > 0 {
+	if err := h.kv.Get("metrics_ring", bucketKey, &ring); err == nil && len(ring.Points) > 0 {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"app_id": appID,
 			"period": period,
@@ -101,7 +101,7 @@ func (h *MetricsHistoryHandler) ServerMetrics(w http.ResponseWriter, r *http.Req
 	// Read stored server metrics from KV storage.
 	bucketKey := "server:" + serverID + ":" + period
 	var ring metricsRing
-	if err := h.bolt.Get("metrics_ring", bucketKey, &ring); err == nil && len(ring.Points) > 0 {
+	if err := h.kv.Get("metrics_ring", bucketKey, &ring); err == nil && len(ring.Points) > 0 {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"server_id": serverID,
 			"period":    period,

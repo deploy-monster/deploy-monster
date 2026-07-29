@@ -6,14 +6,14 @@ import (
 	"time"
 )
 
-func testBolt(t *testing.T) *BoltStore {
+func testBolt(t *testing.T) *KVStore {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test-kv.db")
 
-	store, err := NewBoltStore(path)
+	store, err := NewKVStore(path)
 	if err != nil {
-		t.Fatalf("NewBoltStore: %v", err)
+		t.Fatalf("NewKVStore: %v", err)
 	}
 	t.Cleanup(func() { store.Close() })
 	return store

@@ -10,11 +10,11 @@ import (
 
 // UsageHistoryHandler serves resource usage over time for billing and charts.
 type UsageHistoryHandler struct {
-	bolt core.BoltStorer
+	kv core.KVStorer
 }
 
-func NewUsageHistoryHandler(bolt core.BoltStorer) *UsageHistoryHandler {
-	return &UsageHistoryHandler{bolt: bolt}
+func NewUsageHistoryHandler(kv core.KVStorer) *UsageHistoryHandler {
+	return &UsageHistoryHandler{kv: kv}
 }
 
 // UsageBucket represents aggregated usage for a time period.
@@ -57,7 +57,7 @@ func (h *UsageHistoryHandler) Hourly(w http.ResponseWriter, r *http.Request) {
 	// Try to load real usage data from KV storage.
 	bucketKey := claims.TenantID + ":" + period
 	var stored usageHistory
-	if err := h.bolt.Get("usage_history", bucketKey, &stored); err == nil && len(stored.Buckets) > 0 {
+	if err := h.kv.Get("usage_history", bucketKey, &stored); err == nil && len(stored.Buckets) > 0 {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"tenant_id": claims.TenantID,
 			"period":    period,

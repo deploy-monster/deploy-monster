@@ -9,12 +9,12 @@ import (
 // AutoscaleHandler manages autoscaling rules per app.
 type AutoscaleHandler struct {
 	store  core.Store
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 	events *core.EventBus
 }
 
-func NewAutoscaleHandler(store core.Store, bolt core.BoltStorer) *AutoscaleHandler {
-	return &AutoscaleHandler{store: store, bolt: bolt}
+func NewAutoscaleHandler(store core.Store, kv core.KVStorer) *AutoscaleHandler {
+	return &AutoscaleHandler{store: store, kv: kv}
 }
 
 // SetEvents sets the event bus for audit event emission.
@@ -62,16 +62,16 @@ func (h *AutoscaleHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	cfg := defaultAutoscaleConfig()
 	stored := AutoscaleConfig{}
-	if err := h.bolt.Get("autoscale", app.ID, &stored); err == nil {
+	if err := h.kv.Get("autoscale", app.ID, &stored); err == nil {
 		cfg = stored
 		if cfg.MinReplicas == 0 && cfg.MaxReplicas == 0 && cfg.CPUTarget == 0 {
-			// Empty struct round-trip on a fresh bolt entry — keep defaults.
+			// Empty struct round-trip on a fresh kv entry — keep defaults.
 			cfg = defaultAutoscaleConfig()
 		}
 	}
 
 	var lastDecision map[string]any
-	if err := h.bolt.Get("autoscale_decisions", app.ID, &lastDecision); err == nil && lastDecision != nil {
+	if err := h.kv.Get("autoscale_decisions", app.ID, &lastDecision); err == nil && lastDecision != nil {
 		cfg.LastDecision = lastDecision
 	}
 
@@ -98,7 +98,7 @@ func (h *AutoscaleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		cfg.MaxReplicas = cfg.MinReplicas
 	}
 
-	if err := h.bolt.Set("autoscale", appID, cfg, 0); err != nil {
+	if err := h.kv.Set("autoscale", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save autoscale config")
 		return
 	}

@@ -11,11 +11,11 @@ import (
 type ContainerHistoryHandler struct {
 	store   core.Store
 	runtime core.ContainerRuntime
-	bolt    core.BoltStorer
+	kv    core.KVStorer
 }
 
-func NewContainerHistoryHandler(store core.Store, runtime core.ContainerRuntime, bolt core.BoltStorer) *ContainerHistoryHandler {
-	return &ContainerHistoryHandler{store: store, runtime: runtime, bolt: bolt}
+func NewContainerHistoryHandler(store core.Store, runtime core.ContainerRuntime, kv core.KVStorer) *ContainerHistoryHandler {
+	return &ContainerHistoryHandler{store: store, runtime: runtime, kv: kv}
 }
 
 // ContainerResourcePoint represents a data point in container history.
@@ -48,8 +48,8 @@ func (h *ContainerHistoryHandler) History(w http.ResponseWriter, r *http.Request
 
 	// Try to load real metrics from KV storage.
 	var ring metricsRingData
-	if h.bolt != nil {
-		_ = h.bolt.Get("metrics_ring", appID, &ring)
+	if h.kv != nil {
+		_ = h.kv.Get("metrics_ring", appID, &ring)
 	}
 
 	if len(ring.Points) > 0 {

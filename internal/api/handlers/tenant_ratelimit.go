@@ -8,11 +8,11 @@ import (
 
 // TenantRateLimitHandler manages per-tenant API rate limits.
 type TenantRateLimitHandler struct {
-	bolt core.BoltStorer
+	kv core.KVStorer
 }
 
-func NewTenantRateLimitHandler(bolt core.BoltStorer) *TenantRateLimitHandler {
-	return &TenantRateLimitHandler{bolt: bolt}
+func NewTenantRateLimitHandler(kv core.KVStorer) *TenantRateLimitHandler {
+	return &TenantRateLimitHandler{kv: kv}
 }
 
 // RateLimitConfig defines API rate limits for a tenant.
@@ -42,7 +42,7 @@ func (h *TenantRateLimitHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cfg RateLimitConfig
-	if err := h.bolt.Get("tenant_ratelimit", tenantID, &cfg); err != nil {
+	if err := h.kv.Get("tenant_ratelimit", tenantID, &cfg); err != nil {
 		writeJSON(w, http.StatusOK, defaultRateLimits())
 		return
 	}
@@ -70,7 +70,7 @@ func (h *TenantRateLimitHandler) Update(w http.ResponseWriter, r *http.Request) 
 		cfg.BurstSize = 20
 	}
 
-	if err := h.bolt.Set("tenant_ratelimit", tenantID, cfg, 0); err != nil {
+	if err := h.kv.Set("tenant_ratelimit", tenantID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save rate limit config")
 		return
 	}

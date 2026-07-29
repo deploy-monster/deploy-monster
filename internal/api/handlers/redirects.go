@@ -13,12 +13,12 @@ import (
 // RedirectHandler manages per-app URL redirect/rewrite rules.
 type RedirectHandler struct {
 	store  core.Store
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 	events *core.EventBus
 }
 
-func NewRedirectHandler(store core.Store, bolt core.BoltStorer) *RedirectHandler {
-	return &RedirectHandler{store: store, bolt: bolt}
+func NewRedirectHandler(store core.Store, kv core.KVStorer) *RedirectHandler {
+	return &RedirectHandler{store: store, kv: kv}
 }
 
 // SetEvents sets the event bus for audit event emission.
@@ -101,7 +101,7 @@ func (h *RedirectHandler) List(w http.ResponseWriter, r *http.Request) {
 	appID := app.ID
 
 	var list redirectList
-	if err := h.bolt.Get("redirects", appID, &list); err != nil {
+	if err := h.kv.Get("redirects", appID, &list); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 		return
 	}
@@ -143,7 +143,7 @@ func (h *RedirectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	rule.Enabled = true
 
 	var list redirectList
-	err := mutateBoltValue(h.bolt, "redirects", appID, &list, 0, func(_ bool) error {
+	err := mutateKVValue(h.kv, "redirects", appID, &list, 0, func(_ bool) error {
 		if len(list.Rules) >= 200 {
 			return errRedirectLimitReached
 		}
@@ -183,7 +183,7 @@ func (h *RedirectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var list redirectList
-	err := mutateBoltValue(h.bolt, "redirects", appID, &list, 0, func(exists bool) error {
+	err := mutateKVValue(h.kv, "redirects", appID, &list, 0, func(exists bool) error {
 		if !exists {
 			return errRedirectListMissing
 		}

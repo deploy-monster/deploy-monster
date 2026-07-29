@@ -25,7 +25,7 @@ type TOTPService struct {
 	}
 	// replay persists the last accepted TOTP step per user for anti-replay.
 	// Optional: when nil, validation still works but offers no replay defense.
-	replay core.BoltStorer
+	replay core.KVStorer
 	logger *slog.Logger
 }
 
@@ -50,7 +50,7 @@ func (s *TOTPService) SetVault(vault interface {
 // SetReplayStore wires the KV store used to track the last accepted TOTP step
 // per user (anti-replay). Called during module init; when unset, codes are
 // validated but not protected against replay within their window.
-func (s *TOTPService) SetReplayStore(store core.BoltStorer) {
+func (s *TOTPService) SetReplayStore(store core.KVStorer) {
 	s.replay = store
 }
 

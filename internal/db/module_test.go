@@ -54,7 +54,7 @@ func TestModule_Events(t *testing.T) {
 
 func TestModule_Health_Uninitialized(t *testing.T) {
 	m := New()
-	// With no sqlite or bolt initialized, Health should return HealthDown
+	// With no sqlite or kv initialized, Health should return HealthDown
 	if m.Health() != core.HealthDown {
 		t.Errorf("expected HealthDown for uninitialized module, got %v", m.Health())
 	}
@@ -65,10 +65,10 @@ func TestModule_Health_WithStores(t *testing.T) {
 
 	// Initialize both stores to get HealthOK
 	db := testDB(t)
-	bolt := testBolt(t)
+	kv := testBolt(t)
 
 	m.sqlite = db
-	m.bolt = bolt
+	m.kv = kv
 
 	if m.Health() != core.HealthOK {
 		t.Errorf("expected HealthOK with both stores, got %v", m.Health())
@@ -78,7 +78,7 @@ func TestModule_Health_WithStores(t *testing.T) {
 func TestModule_Health_MissingSQLite(t *testing.T) {
 	m := New()
 	m.driver = "sqlite"
-	m.bolt = testBolt(t)
+	m.kv = testBolt(t)
 
 	if m.Health() != core.HealthDown {
 		t.Errorf("expected HealthDown without sqlite, got %v", m.Health())
@@ -90,7 +90,7 @@ func TestModule_Health_MissingBolt(t *testing.T) {
 	m.sqlite = testDB(t)
 
 	if m.Health() != core.HealthDown {
-		t.Errorf("expected HealthDown without bolt, got %v", m.Health())
+		t.Errorf("expected HealthDown without kv, got %v", m.Health())
 	}
 }
 
@@ -122,11 +122,11 @@ func TestModule_SQLite_ReturnsInstance(t *testing.T) {
 
 func TestModule_Bolt_ReturnsInstance(t *testing.T) {
 	m := New()
-	bolt := testBolt(t)
-	m.bolt = bolt
+	kv := testBolt(t)
+	m.kv = kv
 
-	if m.Bolt() != bolt {
-		t.Error("Bolt() should return the set BoltStore instance")
+	if m.KV() != kv {
+		t.Error("Bolt() should return the set KVStore instance")
 	}
 }
 
@@ -146,14 +146,14 @@ func TestModule_StopClosesStores(t *testing.T) {
 		t.Fatalf("NewSQLite: %v", err)
 	}
 
-	boltStore, err := NewBoltStore(dir + "/module-stop.bolt")
+	kvStore, err := NewKVStore(dir + "/module-stop.kv")
 	if err != nil {
-		t.Fatalf("NewBoltStore: %v", err)
+		t.Fatalf("NewKVStore: %v", err)
 	}
 
 	m := New()
 	m.sqlite = sqliteDB
-	m.bolt = boltStore
+	m.kv = kvStore
 
 	if err := m.Stop(context.TODO()); err != nil {
 		t.Fatalf("Stop: %v", err)

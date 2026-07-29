@@ -19,11 +19,11 @@ import (
 type EventWebhookHandler struct {
 	store  core.Store
 	events *core.EventBus
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 }
 
-func NewEventWebhookHandler(store core.Store, events *core.EventBus, bolt core.BoltStorer) *EventWebhookHandler {
-	return &EventWebhookHandler{store: store, events: events, bolt: bolt}
+func NewEventWebhookHandler(store core.Store, events *core.EventBus, kv core.KVStorer) *EventWebhookHandler {
+	return &EventWebhookHandler{store: store, events: events, kv: kv}
 }
 
 // EventWebhookConfig represents an outbound event webhook.
@@ -119,17 +119,17 @@ var (
 	errWebhookListMissing  = errors.New("webhook list missing")
 )
 
-type boltValueMutator interface {
+type kvValueMutator interface {
 	Mutate(bucket, key string, dest any, ttlSeconds int64, mutate func(exists bool) error) error
 }
 
-func mutateBoltValue(bolt core.BoltStorer, bucket, key string, dest any, ttlSeconds int64, mutate func(exists bool) error) error {
-	if mutator, ok := bolt.(boltValueMutator); ok {
+func mutateKVValue(kv core.KVStorer, bucket, key string, dest any, ttlSeconds int64, mutate func(exists bool) error) error {
+	if mutator, ok := kv.(kvValueMutator); ok {
 		return mutator.Mutate(bucket, key, dest, ttlSeconds, mutate)
 	}
 
 	exists := true
-	if err := bolt.Get(bucket, key, dest); err != nil {
+	if err := kv.Get(bucket, key, dest); err != nil {
 		if !errors.Is(err, core.ErrKVNotFound) {
 			return err
 		}
@@ -138,7 +138,7 @@ func mutateBoltValue(bolt core.BoltStorer, bucket, key string, dest any, ttlSeco
 	if err := mutate(exists); err != nil {
 		return err
 	}
-	return bolt.Set(bucket, key, dest, ttlSeconds)
+	return kv.Set(bucket, key, dest, ttlSeconds)
 }
 
 // List handles GET /api/v1/webhooks/outbound
@@ -153,7 +153,7 @@ func (h *EventWebhookHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	var list eventWebhookList
 	key := webhookListKey(claims.TenantID)
-	_ = h.bolt.Get("event_webhooks", key, &list)
+	_ = h.kv.Get("event_webhooks", key, &list)
 
 	// Don't return secret hash to clients — webhooks are write-only
 	safe := make([]EventWebhookConfig, len(list.Webhooks))
@@ -222,7 +222,7 @@ func (h *EventWebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Per-tenant limit: max 20 webhooks per tenant (prevents one tenant exhausting global limit)
 	const maxWebhooksPerTenant = 20
-	err := mutateBoltValue(h.bolt, "event_webhooks", key, &list, 0, func(_ bool) error {
+	err := mutateKVValue(h.kv, "event_webhooks", key, &list, 0, func(_ bool) error {
 		if len(list.Webhooks) >= maxWebhooksPerTenant {
 			return errWebhookLimitReached
 		}
@@ -265,7 +265,7 @@ func (h *EventWebhookHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	key := webhookListKey(claims.TenantID)
 	var list eventWebhookList
-	err := mutateBoltValue(h.bolt, "event_webhooks", key, &list, 0, func(exists bool) error {
+	err := mutateKVValue(h.kv, "event_webhooks", key, &list, 0, func(exists bool) error {
 		if !exists {
 			return errWebhookListMissing
 		}

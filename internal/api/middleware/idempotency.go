@@ -34,7 +34,7 @@ var inFlightMu sync.Mutex
 // IdempotencyMiddleware replays cached responses for duplicate requests
 // identified by the Idempotency-Key header. Only applies to POST/PUT/PATCH methods.
 // Keys are stored in BoltDB with a 24-hour TTL.
-func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler {
+func IdempotencyMiddleware(kv core.KVStorer) func(http.Handler) http.Handler {
 	// Previously declared as `var logger *slog.Logger` and never
 	// assigned, which made the cache-write Error log on line 102 dead
 	// code. Default to slog.Default() so production sees write
@@ -48,7 +48,7 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 			}
 
 			key := r.Header.Get(idempotencyHeader)
-			if key == "" || bolt == nil {
+			if key == "" || kv == nil {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -83,7 +83,7 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 
 			// Check for cached response
 			var cached idempotencyEntry
-			err = bolt.Get(idempotencyBucket, scopedKey, &cached)
+			err = kv.Get(idempotencyBucket, scopedKey, &cached)
 			if err == nil {
 				// Replay cached response
 				for k, v := range cached.Headers {
@@ -123,7 +123,7 @@ func IdempotencyMiddleware(bolt core.BoltStorer) func(http.Handler) http.Handler
 					Headers:    headers,
 					Body:       rec.body.Bytes(),
 				}
-				if err := bolt.Set(idempotencyBucket, scopedKey, entry, idempotencyTTLSecs); err != nil {
+				if err := kv.Set(idempotencyBucket, scopedKey, entry, idempotencyTTLSecs); err != nil {
 					logger.Error("idempotency cache write failed", "key", scopedKey, "error", err)
 				}
 			}

@@ -133,11 +133,11 @@ const (
 )
 
 func (m *Module) evaluateAll() {
-	if m.core == nil || m.core.DB == nil || m.core.DB.Bolt == nil {
+	if m.core == nil || m.core.DB == nil || m.core.DB.KV == nil {
 		return
 	}
-	bolt := m.core.DB.Bolt
-	keys, err := bolt.List("autoscale")
+	kv := m.core.DB.KV
+	keys, err := kv.List("autoscale")
 	if err != nil {
 		if !errors.Is(err, core.ErrKVNotFound) {
 			m.logger.Warn("autoscale: list config bucket failed", "error", err)
@@ -146,7 +146,7 @@ func (m *Module) evaluateAll() {
 	}
 	for _, appID := range keys {
 		var cfg autoscaleConfig
-		if err := bolt.Get("autoscale", appID, &cfg); err != nil {
+		if err := kv.Get("autoscale", appID, &cfg); err != nil {
 			if !errors.Is(err, core.ErrKVNotFound) {
 				m.logger.Warn("autoscale: get config entry failed", "app_id", appID, "error", err)
 			}
@@ -273,11 +273,11 @@ func (m *Module) evaluate(appID string, cfg autoscaleConfig) {
 }
 
 func (m *Module) persist(d decision) {
-	if m.core == nil || m.core.DB == nil || m.core.DB.Bolt == nil {
+	if m.core == nil || m.core.DB == nil || m.core.DB.KV == nil {
 		return
 	}
 	if raw, err := json.Marshal(d); err == nil {
-		_ = m.core.DB.Bolt.Set(decisionBucket, d.AppID, json.RawMessage(raw), decisionTTL)
+		_ = m.core.DB.KV.Set(decisionBucket, d.AppID, json.RawMessage(raw), decisionTTL)
 	}
 	m.logger.Info("autoscale decision",
 		"app_id", d.AppID,
@@ -292,10 +292,10 @@ func (m *Module) persist(d decision) {
 
 func (m *Module) lastDecision(appID string) (decision, bool) {
 	var d decision
-	if m.core == nil || m.core.DB == nil || m.core.DB.Bolt == nil {
+	if m.core == nil || m.core.DB == nil || m.core.DB.KV == nil {
 		return d, false
 	}
-	if err := m.core.DB.Bolt.Get(decisionBucket, appID, &d); err != nil {
+	if err := m.core.DB.KV.Get(decisionBucket, appID, &d); err != nil {
 		return d, false
 	}
 	return d, true

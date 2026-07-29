@@ -11,8 +11,8 @@ import (
 
 func TestBuildCache_Stats_Success(t *testing.T) {
 	runtime := &mockContainerRuntime{}
-	bolt := newMockBoltStore()
-	handler := NewBuildCacheHandler(runtime, bolt)
+	kv := newMockKVStore()
+	handler := NewBuildCacheHandler(runtime, kv)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/build/cache", nil)
 	rr := httptest.NewRecorder()
@@ -38,8 +38,8 @@ func TestBuildCache_Stats_Success(t *testing.T) {
 }
 
 func TestBuildCache_Stats_NilRuntime(t *testing.T) {
-	bolt := newMockBoltStore()
-	handler := NewBuildCacheHandler(nil, bolt)
+	kv := newMockKVStore()
+	handler := NewBuildCacheHandler(nil, kv)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/build/cache", nil)
 	rr := httptest.NewRecorder()
@@ -54,8 +54,8 @@ func TestBuildCache_Stats_NilRuntime(t *testing.T) {
 
 func TestBuildCache_Clear_Success(t *testing.T) {
 	runtime := &mockContainerRuntime{}
-	bolt := newMockBoltStore()
-	handler := NewBuildCacheHandler(runtime, bolt)
+	kv := newMockKVStore()
+	handler := NewBuildCacheHandler(runtime, kv)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/build/cache", nil)
 	rr := httptest.NewRecorder()
@@ -75,8 +75,8 @@ func TestBuildCache_Clear_Success(t *testing.T) {
 }
 
 func TestBuildCache_Clear_NilRuntime(t *testing.T) {
-	bolt := newMockBoltStore()
-	handler := NewBuildCacheHandler(nil, bolt)
+	kv := newMockKVStore()
+	handler := NewBuildCacheHandler(nil, kv)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/build/cache", nil)
 	rr := httptest.NewRecorder()

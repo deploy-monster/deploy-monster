@@ -15,7 +15,7 @@ import (
 func TestDeployNotify_Get_Success(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewDeployNotifyHandler(store, newMockBoltStore())
+	handler := NewDeployNotifyHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/deploy-notifications", nil)
 	req.SetPathValue("id", "app1")
@@ -45,7 +45,7 @@ func TestDeployNotify_Get_Success(t *testing.T) {
 func TestDeployNotify_Update_Success(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewDeployNotifyHandler(store, newMockBoltStore())
+	handler := NewDeployNotifyHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(DeployNotifyConfig{
 		OnSuccess: []NotifyTarget{
@@ -107,7 +107,7 @@ func TestDeployNotify_Update_Success(t *testing.T) {
 func TestDeployNotify_Update_EmptyConfig(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewDeployNotifyHandler(store, newMockBoltStore())
+	handler := NewDeployNotifyHandler(store, newMockKVStore())
 
 	body, _ := json.Marshal(DeployNotifyConfig{})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/deploy-notifications", bytes.NewReader(body))
@@ -132,7 +132,7 @@ func TestDeployNotify_Update_EmptyConfig(t *testing.T) {
 func TestDeployNotify_Update_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewDeployNotifyHandler(store, newMockBoltStore())
+	handler := NewDeployNotifyHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/app1/deploy-notifications", bytes.NewReader([]byte("{")))
 	req.SetPathValue("id", "app1")

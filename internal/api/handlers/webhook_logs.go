@@ -10,11 +10,11 @@ import (
 // WebhookLogHandler serves outbound webhook delivery history.
 type WebhookLogHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewWebhookLogHandler(store core.Store, bolt core.BoltStorer) *WebhookLogHandler {
-	return &WebhookLogHandler{store: store, bolt: bolt}
+func NewWebhookLogHandler(store core.Store, kv core.KVStorer) *WebhookLogHandler {
+	return &WebhookLogHandler{store: store, kv: kv}
 }
 
 // WebhookDeliveryLog represents a single webhook delivery attempt.
@@ -44,12 +44,12 @@ func (h *WebhookLogHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.bolt == nil {
+	if h.kv == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 		return
 	}
 
-	keys, err := h.bolt.List(deliveryLogBucket)
+	keys, err := h.kv.List(deliveryLogBucket)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 		return
@@ -58,7 +58,7 @@ func (h *WebhookLogHandler) List(w http.ResponseWriter, r *http.Request) {
 	logs := make([]WebhookDeliveryLog, 0, len(keys))
 	for _, k := range keys {
 		var entry WebhookDeliveryLog
-		if h.bolt.Get(deliveryLogBucket, k, &entry) == nil {
+		if h.kv.Get(deliveryLogBucket, k, &entry) == nil {
 			if entry.TenantID == app.TenantID {
 				logs = append(logs, entry)
 			}

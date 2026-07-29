@@ -17,14 +17,14 @@ import (
 // SessionHandler handles session management endpoints.
 type SessionHandler struct {
 	store   core.Store
-	bolt    core.BoltStorer
+	kv    core.KVStorer
 	authMod AuthServices
 }
 
-func NewSessionHandler(store core.Store, bolt core.BoltStorer, authMod AuthServices) *SessionHandler {
+func NewSessionHandler(store core.Store, kv core.KVStorer, authMod AuthServices) *SessionHandler {
 	return &SessionHandler{
 		store:   store,
-		bolt:    bolt,
+		kv:    kv,
 		authMod: authMod,
 	}
 }
@@ -164,7 +164,7 @@ func (h *SessionHandler) ChangePassword(w http.ResponseWriter, r *http.Request) 
 	// SECURITY FIX (SESS-004): Invalidate all refresh tokens for this user
 	// This ensures that after a password change, all existing sessions are terminated
 	// and the user must re-authenticate with the new password
-	if h.bolt != nil {
+	if h.kv != nil {
 		if err := h.revokeAllUserSessions(r.Context(), claims.UserID); err != nil {
 			// Log the error but don't fail the password change
 			slog.Warn("failed to revoke user sessions after password change",
@@ -174,7 +174,7 @@ func (h *SessionHandler) ChangePassword(w http.ResponseWriter, r *http.Request) 
 
 		// Also revoke the current access token
 		if claims.ID != "" {
-			if err := h.authMod.JWT().RevokeAccessToken(h.bolt, claims.ID, claims.UserID, claims.ExpiresAt.Time); err != nil {
+			if err := h.authMod.JWT().RevokeAccessToken(h.kv, claims.ID, claims.UserID, claims.ExpiresAt.Time); err != nil {
 				slog.Warn("failed to revoke access token after password change",
 					"user_id", claims.UserID,
 					"jti", claims.ID,
@@ -200,11 +200,11 @@ const maxConcurrentSessions = 10 // SESS-003: Limit concurrent sessions per user
 
 // GetUserSessions returns all active sessions for a user
 func (h *SessionHandler) GetUserSessions(userID string) ([]SessionTrackingInfo, error) {
-	if h.bolt == nil {
+	if h.kv == nil {
 		return nil, nil
 	}
 
-	keys, err := h.bolt.List(userSessionsBucket)
+	keys, err := h.kv.List(userSessionsBucket)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (h *SessionHandler) GetUserSessions(userID string) ([]SessionTrackingInfo, 
 		}
 
 		var session SessionTrackingInfo
-		if err := h.bolt.Get(userSessionsBucket, key, &session); err == nil {
+		if err := h.kv.Get(userSessionsBucket, key, &session); err == nil {
 			sessions = append(sessions, session)
 		}
 	}
@@ -240,7 +240,7 @@ func (h *SessionHandler) revokeAllUserSessions(ctx context.Context, userID strin
 
 	for _, session := range sessions {
 		// Revoke the refresh token
-		if err := h.bolt.Set("revoked_tokens", session.JTI, true, auth.RefreshTokenTTLSeconds); err != nil {
+		if err := h.kv.Set("revoked_tokens", session.JTI, true, auth.RefreshTokenTTLSeconds); err != nil {
 			slog.Warn("failed to revoke refresh token during logout all",
 				"user_id", userID,
 				"jti", session.JTI,
@@ -249,7 +249,7 @@ func (h *SessionHandler) revokeAllUserSessions(ctx context.Context, userID strin
 
 		// Remove from user sessions tracking
 		sessionKey := fmt.Sprintf("%s:%s", userID, session.JTI)
-		if err := h.bolt.Delete(userSessionsBucket, sessionKey); err != nil {
+		if err := h.kv.Delete(userSessionsBucket, sessionKey); err != nil {
 			slog.Warn("failed to delete session tracking entry",
 				"user_id", userID,
 				"jti", session.JTI,
@@ -430,8 +430,8 @@ func (h *SessionHandler) LogoutAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Also revoke current access token
-	if h.bolt != nil && claims.ID != "" {
-		if err := h.authMod.JWT().RevokeAccessToken(h.bolt, claims.ID, claims.UserID, claims.ExpiresAt.Time); err != nil {
+	if h.kv != nil && claims.ID != "" {
+		if err := h.authMod.JWT().RevokeAccessToken(h.kv, claims.ID, claims.UserID, claims.ExpiresAt.Time); err != nil {
 			slog.Warn("failed to revoke current access token",
 				"user_id", claims.UserID,
 				"jti", claims.ID,

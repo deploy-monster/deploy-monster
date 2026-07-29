@@ -27,16 +27,16 @@ type ExecHandler struct {
 	runtime core.ContainerRuntime
 	store   core.Store
 	logger  *slog.Logger
-	bolt    core.BoltStorer
+	kv    core.KVStorer
 }
 
 // NewExecHandler creates a new exec handler.
-func NewExecHandler(runtime core.ContainerRuntime, store core.Store, logger *slog.Logger, bolt core.BoltStorer) *ExecHandler {
+func NewExecHandler(runtime core.ContainerRuntime, store core.Store, logger *slog.Logger, kv core.KVStorer) *ExecHandler {
 	return &ExecHandler{
 		runtime: runtime,
 		store:   store,
 		logger:  logger,
-		bolt:    bolt,
+		kv:    kv,
 	}
 }
 

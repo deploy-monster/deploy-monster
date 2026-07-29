@@ -13,11 +13,11 @@ import (
 type DeployFreezeHandler struct {
 	store  core.Store
 	events *core.EventBus
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 }
 
-func NewDeployFreezeHandler(store core.Store, events *core.EventBus, bolt core.BoltStorer) *DeployFreezeHandler {
-	return &DeployFreezeHandler{store: store, events: events, bolt: bolt}
+func NewDeployFreezeHandler(store core.Store, events *core.EventBus, kv core.KVStorer) *DeployFreezeHandler {
+	return &DeployFreezeHandler{store: store, events: events, kv: kv}
 }
 
 // FreezeWindow defines a time range where deployments are blocked.
@@ -34,12 +34,12 @@ type freezeWindowList struct {
 	Windows []FreezeWindow `json:"windows"`
 }
 
-func activeDeployFreeze(bolt core.BoltStorer, tenantID string) bool {
-	if bolt == nil || tenantID == "" {
+func activeDeployFreeze(kv core.KVStorer, tenantID string) bool {
+	if kv == nil || tenantID == "" {
 		return false
 	}
 	var list freezeWindowList
-	if err := bolt.Get("deploy_freeze", tenantID, &list); err != nil {
+	if err := kv.Get("deploy_freeze", tenantID, &list); err != nil {
 		return false
 	}
 	now := time.Now()
@@ -60,7 +60,7 @@ func (h *DeployFreezeHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var list freezeWindowList
-	if err := h.bolt.Get("deploy_freeze", claims.TenantID, &list); err != nil {
+	if err := h.kv.Get("deploy_freeze", claims.TenantID, &list); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "frozen": false})
 		return
 	}
@@ -117,7 +117,7 @@ func (h *DeployFreezeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var list freezeWindowList
-	_ = h.bolt.Get("deploy_freeze", claims.TenantID, &list)
+	_ = h.kv.Get("deploy_freeze", claims.TenantID, &list)
 
 	if len(list.Windows) >= 50 {
 		writeError(w, http.StatusConflict, "freeze window limit reached (50)")
@@ -125,7 +125,7 @@ func (h *DeployFreezeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	list.Windows = append(list.Windows, freeze)
 
-	if err := h.bolt.Set("deploy_freeze", claims.TenantID, list, 0); err != nil {
+	if err := h.kv.Set("deploy_freeze", claims.TenantID, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save freeze window")
 		return
 	}
@@ -150,7 +150,7 @@ func (h *DeployFreezeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var list freezeWindowList
-	if err := h.bolt.Get("deploy_freeze", claims.TenantID, &list); err != nil {
+	if err := h.kv.Get("deploy_freeze", claims.TenantID, &list); err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -162,7 +162,7 @@ func (h *DeployFreezeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.bolt.Set("deploy_freeze", claims.TenantID, list, 0); err != nil {
+	if err := h.kv.Set("deploy_freeze", claims.TenantID, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update freeze window")
 		return
 	}

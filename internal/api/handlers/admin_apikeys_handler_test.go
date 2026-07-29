@@ -11,7 +11,7 @@ import (
 
 func TestAdminAPIKeys_List_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewAdminAPIKeyHandler(store, newMockBoltStore())
+	handler := NewAdminAPIKeyHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/api-keys", nil)
 	req = withClaims(req, "user1", "tenant1", "role_super_admin", "admin@test.com")
@@ -42,7 +42,7 @@ func TestAdminAPIKeys_List_Success(t *testing.T) {
 
 func TestAdminAPIKeys_Generate_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewAdminAPIKeyHandler(store, newMockBoltStore())
+	handler := NewAdminAPIKeyHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys", nil)
 	req = withClaims(req, "user1", "tenant1", "role_super_admin", "admin@test.com")
@@ -74,8 +74,8 @@ func TestAdminAPIKeys_Generate_Success(t *testing.T) {
 }
 
 func TestAdminAPIKeys_List_DoesNotExposeHashes(t *testing.T) {
-	bolt := newMockBoltStore()
-	handler := NewAdminAPIKeyHandler(newMockStore(), bolt)
+	kv := newMockKVStore()
+	handler := NewAdminAPIKeyHandler(newMockStore(), kv)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys", nil)
 	req = withClaims(req, "user1", "tenant1", "role_super_admin", "admin@test.com")
@@ -117,7 +117,7 @@ func TestAdminAPIKeys_List_DoesNotExposeHashes(t *testing.T) {
 
 func TestAdminAPIKeys_Revoke_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewAdminAPIKeyHandler(store, newMockBoltStore())
+	handler := NewAdminAPIKeyHandler(store, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/api-keys/dm_abc12345", nil)
 	req.SetPathValue("prefix", "dm_abc12345")
@@ -132,7 +132,7 @@ func TestAdminAPIKeys_Revoke_Success(t *testing.T) {
 }
 
 func TestAdminAPIKeys_RequireSuperAdminInHandler(t *testing.T) {
-	handler := NewAdminAPIKeyHandler(newMockStore(), newMockBoltStore())
+	handler := NewAdminAPIKeyHandler(newMockStore(), newMockKVStore())
 
 	tests := []struct {
 		name   string

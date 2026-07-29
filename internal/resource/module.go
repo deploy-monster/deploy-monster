@@ -35,7 +35,7 @@ func init() {
 //     could race with KV shutdown. wg now tracks the loop.
 //   - collectionLoop had no defer/recover. A panic inside
 //     collectOnce (e.g. nil pointer through a half-initialized
-//     bolt store) would crash the whole process instead of the
+//     kv store) would crash the whole process instead of the
 //     goroutine. The loop now recovers and logs.
 //   - collectOnce used a fresh context.Background for every tick,
 //     which meant neither Stop nor a parent deadline could unblock
@@ -49,7 +49,7 @@ type Module struct {
 	core      *core.Core
 	collector *Collector
 	alerter   *AlertEngine
-	bolt      core.BoltStorer
+	kv      core.KVStorer
 	logger    *slog.Logger
 	stopCh    chan struct{}
 
@@ -84,7 +84,7 @@ func (m *Module) Init(_ context.Context, c *core.Core) error {
 	m.alerter = NewAlertEngine(c.Events, m.logger)
 
 	if c.DB != nil {
-		m.bolt = c.DB.Bolt
+		m.kv = c.DB.KV
 	}
 
 	return nil
@@ -159,11 +159,11 @@ func (m *Module) collectOnce() {
 
 // batchStoreMetrics persists all collected metrics to KV storage in a single transaction.
 func (m *Module) batchStoreMetrics(server *core.ServerMetrics, containers []core.ContainerMetrics) {
-	if m.bolt == nil {
+	if m.kv == nil {
 		return
 	}
 
-	var items []core.BoltBatchItem
+	var items []core.KVBatchItem
 
 	// Server metrics
 	if server != nil {
@@ -173,7 +173,7 @@ func (m *Module) batchStoreMetrics(server *core.ServerMetrics, containers []core
 			CPUPercent: server.CPUPercent,
 			MemoryMB:   server.RAMUsedMB,
 		})
-		items = append(items, core.BoltBatchItem{Bucket: "metrics_ring", Key: key, Value: ring})
+		items = append(items, core.KVBatchItem{Bucket: "metrics_ring", Key: key, Value: ring})
 	}
 
 	// Container metrics
@@ -189,14 +189,14 @@ func (m *Module) batchStoreMetrics(server *core.ServerMetrics, containers []core
 			NetworkRx:  cm.NetworkRxMB,
 			NetworkTx:  cm.NetworkTxMB,
 		})
-		items = append(items, core.BoltBatchItem{Bucket: "metrics_ring", Key: key, Value: ring})
+		items = append(items, core.KVBatchItem{Bucket: "metrics_ring", Key: key, Value: ring})
 	}
 
 	if len(items) == 0 {
 		return
 	}
 
-	if err := m.bolt.BatchSet(items); err != nil {
+	if err := m.kv.BatchSet(items); err != nil {
 		m.logger.Debug("failed to batch-persist metrics", "count", len(items), "error", err)
 	}
 }
@@ -204,7 +204,7 @@ func (m *Module) batchStoreMetrics(server *core.ServerMetrics, containers []core
 // appendPoint reads the existing ring, appends a point, trims to max, and returns the updated ring.
 func (m *Module) appendPoint(key string, point metricsPoint) metricsRing {
 	var ring metricsRing
-	_ = m.bolt.Get("metrics_ring", key, &ring) // ignore error if not found
+	_ = m.kv.Get("metrics_ring", key, &ring) // ignore error if not found
 
 	ring.Points = append(ring.Points, point)
 	if len(ring.Points) > maxRingPoints {

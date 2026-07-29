@@ -47,7 +47,7 @@ func TestVerifySignature_Generic_OptInHMAC(t *testing.T) {
 	}
 }
 
-// statefulBolt is an in-memory core.BoltStorer for the replay-dedup test.
+// statefulBolt is an in-memory core.KVStorer for the replay-dedup test.
 type statefulBolt struct {
 	secret string
 	data   map[string][]byte
@@ -73,7 +73,7 @@ func (m *statefulBolt) Get(bucket, key string, dest any) error {
 	return json.Unmarshal(b, dest)
 }
 
-func (m *statefulBolt) BatchSet(_ []core.BoltBatchItem) error { return nil }
+func (m *statefulBolt) BatchSet(_ []core.KVBatchItem) error { return nil }
 func (m *statefulBolt) Delete(_, _ string) error              { return nil }
 func (m *statefulBolt) List(_ string) ([]string, error)       { return nil, nil }
 func (m *statefulBolt) Close() error                          { return nil }
@@ -94,8 +94,8 @@ func TestHandleWebhook_RejectsReplayedDelivery(t *testing.T) {
 		return nil
 	})
 
-	bolt := &statefulBolt{secret: "s"}
-	recv := NewReceiver(nil, bolt, events, logger)
+	kv := &statefulBolt{secret: "s"}
+	recv := NewReceiver(nil, kv, events, logger)
 
 	send := func() *httptest.ResponseRecorder {
 		body := `{"ref":"refs/heads/main"}`

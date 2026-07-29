@@ -10,11 +10,11 @@ import (
 
 // RegistryHandler manages Docker registry connections.
 type RegistryHandler struct {
-	bolt core.BoltStorer
+	kv core.KVStorer
 }
 
-func NewRegistryHandler(bolt core.BoltStorer) *RegistryHandler {
-	return &RegistryHandler{bolt: bolt}
+func NewRegistryHandler(kv core.KVStorer) *RegistryHandler {
+	return &RegistryHandler{kv: kv}
 }
 
 func registryListKey(tenantID string) string {
@@ -60,7 +60,7 @@ func (h *RegistryHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Load custom registries from KV storage.
 	var list registryList
-	if err := h.bolt.Get("registries", registryListKey(claims.TenantID), &list); err == nil {
+	if err := h.kv.Get("registries", registryListKey(claims.TenantID), &list); err == nil {
 		all = append(all, list.Registries...)
 	}
 
@@ -102,7 +102,7 @@ func (h *RegistryHandler) Add(w http.ResponseWriter, r *http.Request) {
 
 	// Load existing custom registries
 	var list registryList
-	_ = h.bolt.Get("registries", registryListKey(claims.TenantID), &list)
+	_ = h.kv.Get("registries", registryListKey(claims.TenantID), &list)
 
 	if len(list.Registries) >= 20 {
 		writeError(w, http.StatusConflict, "registry limit reached (20)")
@@ -110,14 +110,14 @@ func (h *RegistryHandler) Add(w http.ResponseWriter, r *http.Request) {
 	}
 	list.Registries = append(list.Registries, newReg)
 
-	if err := h.bolt.Set("registries", registryListKey(claims.TenantID), list, 0); err != nil {
+	if err := h.kv.Set("registries", registryListKey(claims.TenantID), list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save registry")
 		return
 	}
 
 	// Store credentials separately (password never in the list response)
 	if req.Password != "" {
-		if err := h.bolt.Set("registry_creds", registryCredKey(claims.TenantID, newReg.ID), map[string]string{
+		if err := h.kv.Set("registry_creds", registryCredKey(claims.TenantID, newReg.ID), map[string]string{
 			"username": req.Username,
 			"password": req.Password,
 		}, 0); err != nil {

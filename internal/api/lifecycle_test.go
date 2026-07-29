@@ -22,7 +22,7 @@ func TestFullAPILifecycle(t *testing.T) {
 	// Setup: real SQLite + KV store in temp dir
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
-	boltPath := filepath.Join(tmpDir, "test.bolt")
+	kvPath := filepath.Join(tmpDir, "test.kv")
 
 	sqlite, err := db.NewSQLite(dbPath)
 	if err != nil {
@@ -30,11 +30,11 @@ func TestFullAPILifecycle(t *testing.T) {
 	}
 	defer sqlite.Close()
 
-	bolt, err := db.NewBoltStore(boltPath)
+	kv, err := db.NewKVStore(kvPath)
 	if err != nil {
-		t.Fatalf("bolt init: %v", err)
+		t.Fatalf("kv init: %v", err)
 	}
-	defer bolt.Close()
+	defer kv.Close()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	events := core.NewEventBus(logger)
@@ -56,7 +56,7 @@ func TestFullAPILifecycle(t *testing.T) {
 		Logger:   logger,
 		Registry: registry,
 		Services: services,
-		DB:       &core.Database{Bolt: bolt},
+		DB:       &core.Database{KV: kv},
 	}
 
 	// Register modules

@@ -112,8 +112,8 @@ func TestGitSourceListProviders_Empty(t *testing.T) {
 func TestGitSourceConnectAndDisconnect(t *testing.T) {
 	services := core.NewServices()
 	services.RegisterGitProvider("github", &mockGitProvider{})
-	bolt := newMockBoltStore()
-	handler := NewGitSourceHandler(services, bolt, gitSourceTestVault{})
+	kv := newMockKVStore()
+	handler := NewGitSourceHandler(services, kv, gitSourceTestVault{})
 
 	body := []byte(`{"type":"github","token":"ghp_test","url":"https://github.com"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/git/providers", bytes.NewReader(body))

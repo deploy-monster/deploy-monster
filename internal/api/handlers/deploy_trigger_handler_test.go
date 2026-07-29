@@ -106,13 +106,13 @@ func TestDeployTrigger_BlockedDuringFreezeWindow(t *testing.T) {
 	})
 	store.nextDeployVersion["app1"] = 3
 
-	bolt := newMockBoltStore()
-	if err := seedActiveDeployFreeze(bolt, "tenant1"); err != nil {
+	kv := newMockKVStore()
+	if err := seedActiveDeployFreeze(kv, "tenant1"); err != nil {
 		t.Fatalf("seed freeze: %v", err)
 	}
 
 	handler := NewDeployTriggerHandler(context.Background(), store, &mockContainerRuntime{}, testCore().Events)
-	handler.SetDeployFreezeStore(bolt)
+	handler.SetDeployFreezeStore(kv)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/app1/deploy", nil)
 	req.SetPathValue("id", "app1")

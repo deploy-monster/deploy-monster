@@ -9,11 +9,11 @@ import (
 // LogRetentionHandler manages per-app log retention settings.
 type LogRetentionHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewLogRetentionHandler(store core.Store, bolt core.BoltStorer) *LogRetentionHandler {
-	return &LogRetentionHandler{store: store, bolt: bolt}
+func NewLogRetentionHandler(store core.Store, kv core.KVStorer) *LogRetentionHandler {
+	return &LogRetentionHandler{store: store, kv: kv}
 }
 
 // LogRetentionConfig defines how long to keep container logs.
@@ -40,7 +40,7 @@ func (h *LogRetentionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cfg LogRetentionConfig
-	if err := h.bolt.Get("log_retention", app.ID, &cfg); err != nil {
+	if err := h.kv.Get("log_retention", app.ID, &cfg); err != nil {
 		// Return defaults if not configured
 		writeJSON(w, http.StatusOK, defaultLogRetention())
 		return
@@ -88,7 +88,7 @@ func (h *LogRetentionHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.bolt.Set("log_retention", appID, cfg, 0); err != nil {
+	if err := h.kv.Set("log_retention", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save log retention config")
 		return
 	}

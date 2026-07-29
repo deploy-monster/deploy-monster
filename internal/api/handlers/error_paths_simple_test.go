@@ -37,7 +37,7 @@ func TestAgentStatus_GetAgent_Returns404ForUnknown(t *testing.T) {
 // ─── admin_apikeys.go ───────────────────────────────────────
 
 func TestAdminAPIKey_Revoke_MissingPrefix(t *testing.T) {
-	h := NewAdminAPIKeyHandler(newMockStore(), newMockBoltStore())
+	h := NewAdminAPIKeyHandler(newMockStore(), newMockKVStore())
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/api-keys/", nil)
 	req = withClaims(req, "u1", "t1", "role_super_admin", "a@b.com")
 	req.SetPathValue("prefix", "")
@@ -49,12 +49,12 @@ func TestAdminAPIKey_Revoke_MissingPrefix(t *testing.T) {
 }
 
 func TestAdminAPIKey_CleanupExpiredKeys_DeleteError(t *testing.T) {
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 	exp := time.Now().Add(-time.Hour)
-	_ = bolt.Set("api_keys", "_index", apiKeyIndex{Prefixes: []string{"p1"}}, 0)
-	_ = bolt.Set("api_keys", "p1", apiKeyRecord{Prefix: "p1", Hash: "h1", Type: "platform", CreatedAt: time.Now().Add(-48 * time.Hour), ExpiresAt: &exp}, 0)
-	bolt.errDelete = fmt.Errorf("delete error")
-	h := NewAdminAPIKeyHandler(newMockStore(), bolt)
+	_ = kv.Set("api_keys", "_index", apiKeyIndex{Prefixes: []string{"p1"}}, 0)
+	_ = kv.Set("api_keys", "p1", apiKeyRecord{Prefix: "p1", Hash: "h1", Type: "platform", CreatedAt: time.Now().Add(-48 * time.Hour), ExpiresAt: &exp}, 0)
+	kv.errDelete = fmt.Errorf("delete error")
+	h := NewAdminAPIKeyHandler(newMockStore(), kv)
 	removed := h.CleanupExpiredKeys()
 	if removed != 1 {
 		t.Errorf("expected 1 removal, got %d", removed)
@@ -62,12 +62,12 @@ func TestAdminAPIKey_CleanupExpiredKeys_DeleteError(t *testing.T) {
 }
 
 func TestAdminAPIKey_CleanupExpiredKeys_SetError(t *testing.T) {
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 	exp := time.Now().Add(-time.Hour)
-	_ = bolt.Set("api_keys", "_index", apiKeyIndex{Prefixes: []string{"p1"}}, 0)
-	_ = bolt.Set("api_keys", "p1", apiKeyRecord{Prefix: "p1", Hash: "h1", Type: "platform", CreatedAt: time.Now().Add(-48 * time.Hour), ExpiresAt: &exp}, 0)
-	bolt.errSet = fmt.Errorf("index set error")
-	h := NewAdminAPIKeyHandler(newMockStore(), bolt)
+	_ = kv.Set("api_keys", "_index", apiKeyIndex{Prefixes: []string{"p1"}}, 0)
+	_ = kv.Set("api_keys", "p1", apiKeyRecord{Prefix: "p1", Hash: "h1", Type: "platform", CreatedAt: time.Now().Add(-48 * time.Hour), ExpiresAt: &exp}, 0)
+	kv.errSet = fmt.Errorf("index set error")
+	h := NewAdminAPIKeyHandler(newMockStore(), kv)
 	removed := h.CleanupExpiredKeys()
 	if removed != 1 {
 		t.Errorf("expected 1 removal, got %d", removed)
@@ -77,7 +77,7 @@ func TestAdminAPIKey_CleanupExpiredKeys_SetError(t *testing.T) {
 // ─── announcements.go ──────────────────────────────────────
 
 func TestAnnouncement_Dismiss_MissingID(t *testing.T) {
-	h := NewAnnouncementHandler(newMockBoltStore())
+	h := NewAnnouncementHandler(newMockKVStore())
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/announcements/", nil)
 	req.SetPathValue("id", "")
 	rr := httptest.NewRecorder()
@@ -88,12 +88,12 @@ func TestAnnouncement_Dismiss_MissingID(t *testing.T) {
 }
 
 func TestAnnouncement_Dismiss_BoltSetError(t *testing.T) {
-	bolt := newMockBoltStore()
-	_ = bolt.Set("announcements", "all", announcementList{
+	kv := newMockKVStore()
+	_ = kv.Set("announcements", "all", announcementList{
 		Items: []Announcement{{ID: "a1", Title: "t", Active: true}},
 	}, 0)
-	bolt.errSet = fmt.Errorf("bolt set error")
-	h := NewAnnouncementHandler(bolt)
+	kv.errSet = fmt.Errorf("kv set error")
+	h := NewAnnouncementHandler(kv)
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/announcements/a1", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -108,7 +108,7 @@ func TestAnnouncement_Dismiss_BoltSetError(t *testing.T) {
 func TestAppMiddleware_Get_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewAppMiddlewareHandler(store, newMockBoltStore())
+	h := NewAppMiddlewareHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/middleware", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -121,7 +121,7 @@ func TestAppMiddleware_Get_NoClaims(t *testing.T) {
 func TestAppMiddleware_Update_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewAppMiddlewareHandler(store, newMockBoltStore())
+	h := NewAppMiddlewareHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/a1/middleware", strings.NewReader(`{"compress":true}`))
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -134,9 +134,9 @@ func TestAppMiddleware_Update_NoClaims(t *testing.T) {
 func TestAppMiddleware_Update_BoltSetError(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	bolt := newMockBoltStore()
-	bolt.errSet = fmt.Errorf("bolt set error")
-	h := NewAppMiddlewareHandler(store, bolt)
+	kv := newMockKVStore()
+	kv.errSet = fmt.Errorf("kv set error")
+	h := NewAppMiddlewareHandler(store, kv)
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/a1/middleware", strings.NewReader(`{"compress":true}`))
 	req.SetPathValue("id", "a1")
 	req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
@@ -180,7 +180,7 @@ func TestBuildLog_Download_NoClaims(t *testing.T) {
 func TestAutoscale_Get_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewAutoscaleHandler(store, newMockBoltStore())
+	h := NewAutoscaleHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/autoscale", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -193,7 +193,7 @@ func TestAutoscale_Get_NoClaims(t *testing.T) {
 func TestAutoscale_Update_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewAutoscaleHandler(store, newMockBoltStore())
+	h := NewAutoscaleHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/a1/autoscale", strings.NewReader(`{"enabled":true}`))
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -208,7 +208,7 @@ func TestAutoscale_Update_NoClaims(t *testing.T) {
 func TestBasicAuth_Get_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewBasicAuthHandler(store, newMockBoltStore())
+	h := NewBasicAuthHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/basic-auth", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -221,7 +221,7 @@ func TestBasicAuth_Get_NoClaims(t *testing.T) {
 func TestBasicAuth_Update_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewBasicAuthHandler(store, newMockBoltStore())
+	h := NewBasicAuthHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/a1/basic-auth", strings.NewReader(`{"enabled":true}`))
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -236,7 +236,7 @@ func TestBasicAuth_Update_NoClaims(t *testing.T) {
 func TestCronJobs_List_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewCronJobHandler(store, newMockBoltStore())
+	h := NewCronJobHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/cronjobs", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -249,7 +249,7 @@ func TestCronJobs_List_NoClaims(t *testing.T) {
 func TestCronJobs_Create_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewCronJobHandler(store, newMockBoltStore())
+	h := NewCronJobHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/a1/cronjobs", strings.NewReader(`{"schedule":"* * * * *","command":"echo hi"}`))
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -262,7 +262,7 @@ func TestCronJobs_Create_NoClaims(t *testing.T) {
 func TestCronJobs_Delete_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewCronJobHandler(store, newMockBoltStore())
+	h := NewCronJobHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/a1/cronjobs/j1", nil)
 	req.SetPathValue("id", "a1")
 	req.SetPathValue("cronjob_id", "j1")
@@ -307,7 +307,7 @@ func TestDeployDiff_Diff_NoClaims(t *testing.T) {
 func TestDeployNotify_Get_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewDeployNotifyHandler(store, newMockBoltStore())
+	h := NewDeployNotifyHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/deploy-notify", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -320,7 +320,7 @@ func TestDeployNotify_Get_NoClaims(t *testing.T) {
 func TestDeployNotify_Update_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewDeployNotifyHandler(store, newMockBoltStore())
+	h := NewDeployNotifyHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/a1/deploy-notify", strings.NewReader(`{"slack_webhook":"https://hooks.slack.com/test"}`))
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -335,7 +335,7 @@ func TestDeployNotify_Update_NoClaims(t *testing.T) {
 func TestErrorPages_Get_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewErrorPageHandler(store, newMockBoltStore())
+	h := NewErrorPageHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/error-pages", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -348,7 +348,7 @@ func TestErrorPages_Get_NoClaims(t *testing.T) {
 func TestErrorPages_Update_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewErrorPageHandler(store, newMockBoltStore())
+	h := NewErrorPageHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/a1/error-pages", strings.NewReader(`{"error_404":"/404.html"}`))
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -363,7 +363,7 @@ func TestErrorPages_Update_NoClaims(t *testing.T) {
 func TestLogRetention_Get_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewLogRetentionHandler(store, newMockBoltStore())
+	h := NewLogRetentionHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/log-retention", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -376,7 +376,7 @@ func TestLogRetention_Get_NoClaims(t *testing.T) {
 func TestLogRetention_Update_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewLogRetentionHandler(store, newMockBoltStore())
+	h := NewLogRetentionHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/a1/log-retention", strings.NewReader(`{"max_days":30}`))
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -391,7 +391,7 @@ func TestLogRetention_Update_NoClaims(t *testing.T) {
 func TestRedirects_List_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewRedirectHandler(store, newMockBoltStore())
+	h := NewRedirectHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/redirects", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -406,7 +406,7 @@ func TestRedirects_List_NoClaims(t *testing.T) {
 func TestStickySessions_Get_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewStickySessionHandler(store, newMockBoltStore())
+	h := NewStickySessionHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/sticky-sessions", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -419,7 +419,7 @@ func TestStickySessions_Get_NoClaims(t *testing.T) {
 func TestStickySessions_Update_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewStickySessionHandler(store, newMockBoltStore())
+	h := NewStickySessionHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/apps/a1/sticky-sessions", strings.NewReader(`{"enabled":true,"cookie_name":"test"}`))
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -434,7 +434,7 @@ func TestStickySessions_Update_NoClaims(t *testing.T) {
 func TestTenantRateLimit_Get_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewTenantRateLimitHandler(newMockBoltStore())
+	h := NewTenantRateLimitHandler(newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/rate-limit", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -484,7 +484,7 @@ func TestBilling_GetUsage_NoClaims(t *testing.T) {
 func TestCertificates_List_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewCertificateHandler(store, newMockBoltStore())
+	h := NewCertificateHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/certificates", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -497,7 +497,7 @@ func TestCertificates_List_NoClaims(t *testing.T) {
 func TestCertificates_Upload_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewCertificateHandler(store, newMockBoltStore())
+	h := NewCertificateHandler(store, newMockKVStore())
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/a1/certificates", strings.NewReader(`{"certificate":"c","private_key":"k"}`))
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()
@@ -566,7 +566,7 @@ func TestContainerTop_Top_NoClaims(t *testing.T) {
 func TestContainerHistory_History_NoClaims(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "a1", TenantID: "t1", Name: "test"})
-	h := NewContainerHistoryHandler(store, nil, newMockBoltStore())
+	h := NewContainerHistoryHandler(store, nil, newMockKVStore())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/a1/containers", nil)
 	req.SetPathValue("id", "a1")
 	rr := httptest.NewRecorder()

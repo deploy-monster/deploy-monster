@@ -43,10 +43,10 @@ func sess001JTI(t *testing.T, accessToken string) string {
 func TestAuthHandler_Logout_RevokesAccessToken_BearerHeader(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store, bolt)
+	handler := NewAuthHandler(authMod, store, kv)
 
 	pair := sess001Pair(t, store)
 	jti := sess001JTI(t, pair.AccessToken)
@@ -62,7 +62,7 @@ func TestAuthHandler_Logout_RevokesAccessToken_BearerHeader(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	if !testJWT().IsAccessTokenRevoked(bolt, jti) {
+	if !testJWT().IsAccessTokenRevoked(kv, jti) {
 		t.Fatalf("expected access token JTI %q to be revoked, but lookup returned false", jti)
 	}
 }
@@ -70,10 +70,10 @@ func TestAuthHandler_Logout_RevokesAccessToken_BearerHeader(t *testing.T) {
 func TestAuthHandler_Logout_RevokesAccessToken_Cookie(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store, bolt)
+	handler := NewAuthHandler(authMod, store, kv)
 
 	pair := sess001Pair(t, store)
 	jti := sess001JTI(t, pair.AccessToken)
@@ -89,17 +89,17 @@ func TestAuthHandler_Logout_RevokesAccessToken_Cookie(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	if !testJWT().IsAccessTokenRevoked(bolt, jti) {
+	if !testJWT().IsAccessTokenRevoked(kv, jti) {
 		t.Fatalf("expected access token JTI %q from cookie to be revoked", jti)
 	}
 }
 
 func TestAuthHandler_Logout_NoAccessToken_NoOp(t *testing.T) {
 	store := newMockStore()
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store, bolt)
+	handler := NewAuthHandler(authMod, store, kv)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
 	rr := httptest.NewRecorder()
@@ -113,9 +113,9 @@ func TestAuthHandler_Logout_NoAccessToken_NoOp(t *testing.T) {
 	// No access token presented, so the denylist must stay empty — a
 	// regression that began writing empty-JTI entries would show up as a
 	// populated bucket here.
-	bolt.mu.Lock()
-	defer bolt.mu.Unlock()
-	if bkt := bolt.data["revoked_access_tokens"]; len(bkt) != 0 {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	if bkt := kv.data["revoked_access_tokens"]; len(bkt) != 0 {
 		t.Fatalf("expected empty revoked_access_tokens bucket, got %d entries", len(bkt))
 	}
 }
@@ -125,7 +125,7 @@ func TestAuthHandler_Logout_NilBolt_DoesNotPanic(t *testing.T) {
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
 
 	authMod := testAuthModule(store)
-	// Intentionally pass nil bolt — handler must degrade gracefully.
+	// Intentionally pass nil kv — handler must degrade gracefully.
 	handler := NewAuthHandler(authMod, store, nil)
 
 	pair := sess001Pair(t, store)
@@ -144,10 +144,10 @@ func TestAuthHandler_Logout_NilBolt_DoesNotPanic(t *testing.T) {
 func TestAuthHandler_Refresh_RevokesOldAccessToken(t *testing.T) {
 	store := newMockStore()
 	seedTestUser(store, "user1", "user@example.com", "Password1", "tenant1", "role_owner")
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 
 	authMod := testAuthModule(store)
-	handler := NewAuthHandler(authMod, store, bolt)
+	handler := NewAuthHandler(authMod, store, kv)
 
 	pair := sess001Pair(t, store)
 	oldJTI := sess001JTI(t, pair.AccessToken)
@@ -166,7 +166,7 @@ func TestAuthHandler_Refresh_RevokesOldAccessToken(t *testing.T) {
 	// The *old* access token paired with the rotated refresh must be on
 	// the denylist — otherwise a token theft right before rotation would
 	// keep working silently.
-	if !testJWT().IsAccessTokenRevoked(bolt, oldJTI) {
+	if !testJWT().IsAccessTokenRevoked(kv, oldJTI) {
 		t.Fatalf("expected old access token JTI %q to be revoked after refresh", oldJTI)
 	}
 
@@ -179,7 +179,7 @@ func TestAuthHandler_Refresh_RevokesOldAccessToken(t *testing.T) {
 	if newJTI == oldJTI {
 		t.Fatalf("new access token JTI must differ from old (got %q for both)", newJTI)
 	}
-	if testJWT().IsAccessTokenRevoked(bolt, newJTI) {
+	if testJWT().IsAccessTokenRevoked(kv, newJTI) {
 		t.Fatalf("new access token JTI %q must not be on the denylist", newJTI)
 	}
 }

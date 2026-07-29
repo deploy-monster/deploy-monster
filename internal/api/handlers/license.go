@@ -11,11 +11,11 @@ import (
 
 // LicenseHandler manages platform license validation.
 type LicenseHandler struct {
-	bolt core.BoltStorer
+	kv core.KVStorer
 }
 
-func NewLicenseHandler(bolt core.BoltStorer) *LicenseHandler {
-	return &LicenseHandler{bolt: bolt}
+func NewLicenseHandler(kv core.KVStorer) *LicenseHandler {
+	return &LicenseHandler{kv: kv}
 }
 
 // LicenseInfo represents the current license state.
@@ -31,7 +31,7 @@ type LicenseInfo struct {
 // Get handles GET /api/v1/admin/license
 func (h *LicenseHandler) Get(w http.ResponseWriter, _ *http.Request) {
 	var info LicenseInfo
-	if err := h.bolt.Get("license", "current", &info); err != nil {
+	if err := h.kv.Get("license", "current", &info); err != nil {
 		// No license stored — return community defaults
 		writeJSON(w, http.StatusOK, LicenseInfo{
 			Type:     "community",
@@ -84,7 +84,7 @@ func (h *LicenseHandler) Activate(w http.ResponseWriter, r *http.Request) {
 		Status:     "active",
 	}
 
-	if err := h.bolt.Set("license", "current", info, 0); err != nil {
+	if err := h.kv.Set("license", "current", info, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save license")
 		return
 	}

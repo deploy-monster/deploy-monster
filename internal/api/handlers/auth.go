@@ -24,7 +24,7 @@ const (
 type AuthHandler struct {
 	authMod       AuthServices
 	store         core.Store
-	bolt          core.BoltStorer
+	kv          core.KVStorer
 	totpValidator func(userID, code string) bool // TOTP validator function
 	logger        *slog.Logger
 }
@@ -109,11 +109,11 @@ func clearTokenCookies(w http.ResponseWriter, r *http.Request) {
 }
 
 // NewAuthHandler creates a new auth handler.
-func NewAuthHandler(authMod AuthServices, store core.Store, bolt core.BoltStorer) *AuthHandler {
+func NewAuthHandler(authMod AuthServices, store core.Store, kv core.KVStorer) *AuthHandler {
 	h := &AuthHandler{
 		authMod: authMod,
 		store:   store,
-		bolt:    bolt,
+		kv:    kv,
 		// Default to package-level slog so the handler always has a
 		// usable logger even if the caller never invokes SetLogger.
 		logger: slog.Default(),
@@ -377,9 +377,9 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if token has been revoked
-	if h.bolt != nil && rtClaims.JTI != "" {
+	if h.kv != nil && rtClaims.JTI != "" {
 		var revoked bool
-		if err := h.bolt.Get("revoked_tokens", rtClaims.JTI, &revoked); err == nil && revoked {
+		if err := h.kv.Get("revoked_tokens", rtClaims.JTI, &revoked); err == nil && revoked {
 			writeError(w, http.StatusUnauthorized, "token has been revoked")
 			return
 		}
@@ -400,8 +400,8 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Revoke the old refresh token (rotation)
-	if h.bolt != nil && rtClaims.JTI != "" {
-		if err := h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
+	if h.kv != nil && rtClaims.JTI != "" {
+		if err := h.kv.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
 			h.log().Error("failed to revoke refresh token", "jti", rtClaims.JTI, "error", err)
 		}
 	}
@@ -471,8 +471,8 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Revoke the refresh token
-	if h.bolt != nil && rtClaims.JTI != "" {
-		if err := h.bolt.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
+	if h.kv != nil && rtClaims.JTI != "" {
+		if err := h.kv.Set("revoked_tokens", rtClaims.JTI, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
 			h.log().Error("failed to revoke refresh token on logout", "jti", rtClaims.JTI, "error", err)
 		}
 	}
@@ -486,7 +486,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 // the access-token denylist. No-op on any parse failure — a missing or
 // malformed access token is not a reason to fail logout.
 func (h *AuthHandler) revokeAccessTokenFromRequest(r *http.Request) {
-	if h.bolt == nil {
+	if h.kv == nil {
 		return
 	}
 	tokenStr := ""
@@ -502,7 +502,7 @@ func (h *AuthHandler) revokeAccessTokenFromRequest(r *http.Request) {
 	if err != nil || claims == nil || claims.ID == "" || claims.ExpiresAt == nil {
 		return
 	}
-	if err := h.authMod.JWT().RevokeAccessToken(h.bolt, claims.ID, claims.UserID, claims.ExpiresAt.Time); err != nil {
+	if err := h.authMod.JWT().RevokeAccessToken(h.kv, claims.ID, claims.UserID, claims.ExpiresAt.Time); err != nil {
 		h.log().Warn("failed to revoke access token on logout", "jti", claims.ID, "error", err)
 	}
 }
@@ -510,7 +510,7 @@ func (h *AuthHandler) revokeAccessTokenFromRequest(r *http.Request) {
 // trackSession extracts the JTI from a refresh token and stores session info.
 // Used for SESS-003 concurrent session limiting.
 func (h *AuthHandler) trackSession(r *http.Request, userID, refreshToken string) {
-	if h.bolt == nil {
+	if h.kv == nil {
 		return
 	}
 
@@ -534,7 +534,7 @@ func (h *AuthHandler) trackSession(r *http.Request, userID, refreshToken string)
 		"created_at": time.Now(),
 	}
 
-	if err := h.bolt.Set("user_sessions", sessionKey, session, internalAuth.RefreshTokenTTLSeconds); err != nil {
+	if err := h.kv.Set("user_sessions", sessionKey, session, internalAuth.RefreshTokenTTLSeconds); err != nil {
 		h.log().Warn("failed to track session", "user_id", userID, "error", err)
 		return
 	}
@@ -545,11 +545,11 @@ func (h *AuthHandler) trackSession(r *http.Request, userID, refreshToken string)
 
 // enforceSessionLimit revokes oldest sessions if user exceeds maxConcurrentSessions
 func (h *AuthHandler) enforceSessionLimit(userID string) {
-	if h.bolt == nil {
+	if h.kv == nil {
 		return
 	}
 
-	keys, err := h.bolt.List("user_sessions")
+	keys, err := h.kv.List("user_sessions")
 	if err != nil {
 		return
 	}
@@ -571,7 +571,7 @@ func (h *AuthHandler) enforceSessionLimit(userID string) {
 			JTI       string    `json:"jti"`
 			CreatedAt time.Time `json:"created_at"`
 		}
-		if err := h.bolt.Get("user_sessions", key, &session); err == nil {
+		if err := h.kv.Get("user_sessions", key, &session); err == nil {
 			sessions = append(sessions, sessionInfo{
 				key:       key,
 				jti:       session.JTI,
@@ -595,10 +595,10 @@ func (h *AuthHandler) enforceSessionLimit(userID string) {
 		toRevoke := len(sessions) - maxConcurrentSessions
 		for i := 0; i < toRevoke && i < len(sessions); i++ {
 			s := sessions[i]
-			if err := h.bolt.Set("revoked_tokens", s.jti, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
+			if err := h.kv.Set("revoked_tokens", s.jti, true, internalAuth.RefreshTokenTTLSeconds); err != nil {
 				h.log().Warn("failed to revoke old session", "user_id", userID, "jti", s.jti, "error", err)
 			}
-			if err := h.bolt.Delete("user_sessions", s.key); err != nil {
+			if err := h.kv.Delete("user_sessions", s.key); err != nil {
 				h.log().Warn("failed to delete old session tracking", "user_id", userID, "key", s.key, "error", err)
 			}
 		}
@@ -644,14 +644,14 @@ type accountRateLimitEntry struct {
 }
 
 func (h *AuthHandler) checkPerAccountRateLimit(email string) (bool, int64) {
-	if h.bolt == nil {
+	if h.kv == nil {
 		return false, 0
 	}
 	var entry accountRateLimitEntry
-	err := h.bolt.Get("account_rl", email, &entry)
+	err := h.kv.Get("account_rl", email, &entry)
 	if err != nil {
 		if !errors.Is(err, core.ErrKVNotFound) {
-			// Corrupted entry or unexpected bolt failure: fail open
+			// Corrupted entry or unexpected kv failure: fail open
 			// (treat as not locked) to avoid wedging legitimate
 			// logins, but surface it so operators notice.
 			h.log().Warn("account rate-limit read failed", "email", email, "error", err)
@@ -669,19 +669,19 @@ func (h *AuthHandler) checkPerAccountRateLimit(email string) (bool, int64) {
 }
 
 func (h *AuthHandler) incrementPerAccountRateLimit(ctx context.Context, email string) {
-	if h.bolt == nil {
+	if h.kv == nil {
 		return
 	}
 	var entry accountRateLimitEntry
 	// A "key/bucket not found" Get is the expected path for the first
 	// failed attempt against a fresh account — fall through with the
 	// zero-value entry so the lockout counter actually starts. Any
-	// other Get error (corrupted JSON, unexpected bolt failure) means
+	// other Get error (corrupted JSON, unexpected kv failure) means
 	// we cannot trust `entry`, so skip the write rather than reset a
 	// possibly-already-counted state to FailedCount=1.
-	err := h.bolt.Get("account_rl", email, &entry)
+	err := h.kv.Get("account_rl", email, &entry)
 	if err != nil && !errors.Is(err, core.ErrKVNotFound) {
-		// Corrupted entry or unexpected bolt failure: skip the write
+		// Corrupted entry or unexpected kv failure: skip the write
 		// rather than reset a possibly-already-counted state, but
 		// surface it so the entry doesn't silently stop counting
 		// until its 15-minute TTL elapses.
@@ -702,13 +702,13 @@ func (h *AuthHandler) incrementPerAccountRateLimit(ctx context.Context, email st
 	}
 
 	ttl := int64(accountLockoutWindow.Seconds())
-	_ = h.bolt.Set("account_rl", email, entry, ttl)
+	_ = h.kv.Set("account_rl", email, entry, ttl)
 }
 
 // loginRateLimitCheck returns the locked-until timestamp if the account is locked,
 // or 0 if not locked. Call this after email lookup but before password verification.
 func (h *AuthHandler) loginRateLimitCheck(w http.ResponseWriter, r *http.Request, email string) int64 {
-	if h.bolt == nil {
+	if h.kv == nil {
 		return 0
 	}
 	locked, until := h.checkPerAccountRateLimit(email)

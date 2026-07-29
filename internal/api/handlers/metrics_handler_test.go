@@ -15,7 +15,7 @@ import (
 func TestAppMetrics_DefaultPeriod(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
+	handler := NewMetricsHistoryHandler(store, nil, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics", nil)
 	req.SetPathValue("id", "app1")
@@ -42,7 +42,7 @@ func TestAppMetrics_DefaultPeriod(t *testing.T) {
 func TestAppMetrics_1hPeriod(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
+	handler := NewMetricsHistoryHandler(store, nil, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics?period=1h", nil)
 	req.SetPathValue("id", "app1")
@@ -66,7 +66,7 @@ func TestAppMetrics_1hPeriod(t *testing.T) {
 func TestAppMetrics_7dPeriod(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
+	handler := NewMetricsHistoryHandler(store, nil, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics?period=7d", nil)
 	req.SetPathValue("id", "app1")
@@ -90,7 +90,7 @@ func TestAppMetrics_7dPeriod(t *testing.T) {
 func TestAppMetrics_30dPeriod(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "App"})
-	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
+	handler := NewMetricsHistoryHandler(store, nil, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app1/metrics?period=30d", nil)
 	req.SetPathValue("id", "app1")
@@ -115,7 +115,7 @@ func TestAppMetrics_30dPeriod(t *testing.T) {
 
 func TestServerMetrics_Success(t *testing.T) {
 	store := newMockStore()
-	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
+	handler := NewMetricsHistoryHandler(store, nil, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers/srv1/metrics", nil)
 	req.SetPathValue("id", "srv1")
@@ -140,7 +140,7 @@ func TestServerMetrics_Success(t *testing.T) {
 
 func TestServerMetrics_CustomPeriod(t *testing.T) {
 	store := newMockStore()
-	handler := NewMetricsHistoryHandler(store, nil, newMockBoltStore())
+	handler := NewMetricsHistoryHandler(store, nil, newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers/srv1/metrics?period=7d", nil)
 	req.SetPathValue("id", "srv1")
@@ -165,7 +165,7 @@ func TestServerMetrics_CustomPeriod(t *testing.T) {
 func TestMetricsExport_JSONFormat(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app12345", TenantID: "t1", Name: "App"})
-	handler := NewMetricsExportHandler(store, newMockBoltStore(), nil)
+	handler := NewMetricsExportHandler(store, newMockKVStore(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/metrics/export?format=json", nil)
 	req.SetPathValue("id", "app12345")
@@ -202,7 +202,7 @@ func TestMetricsExport_JSONFormat(t *testing.T) {
 func TestMetricsExport_CSVFormat(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app12345", TenantID: "t1", Name: "App"})
-	handler := NewMetricsExportHandler(store, newMockBoltStore(), nil)
+	handler := NewMetricsExportHandler(store, newMockKVStore(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/metrics/export?format=csv", nil)
 	req.SetPathValue("id", "app12345")
@@ -240,7 +240,7 @@ func TestMetricsExport_CSVFormat(t *testing.T) {
 func TestMetricsExport_DefaultFormat(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app12345", TenantID: "t1", Name: "App"})
-	handler := NewMetricsExportHandler(store, newMockBoltStore(), nil)
+	handler := NewMetricsExportHandler(store, newMockKVStore(), nil)
 
 	// No format param — defaults to JSON
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps/app12345/metrics/export", nil)

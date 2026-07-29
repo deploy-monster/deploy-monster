@@ -10,7 +10,7 @@ import (
 )
 
 func TestTenantRateLimiter_AllowsWithinLimit(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	trl := NewTenantRateLimiter(store, 5, time.Minute)
 
 	handler := trl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +29,7 @@ func TestTenantRateLimiter_AllowsWithinLimit(t *testing.T) {
 }
 
 func TestTenantRateLimiter_BlocksOverLimit(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	trl := NewTenantRateLimiter(store, 3, time.Minute)
 
 	handler := trl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +61,7 @@ func TestTenantRateLimiter_BlocksOverLimit(t *testing.T) {
 }
 
 func TestTenantRateLimiter_DifferentTenants_Independent(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	trl := NewTenantRateLimiter(store, 1, time.Minute)
 
 	handler := trl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +88,7 @@ func TestTenantRateLimiter_DifferentTenants_Independent(t *testing.T) {
 }
 
 func TestTenantRateLimiter_RespectsPerTenantConfig(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	// Set a custom limit for tenant "custom" — 2 req/min instead of default 100
 	store.Set("tenant_ratelimit", "custom", tenantRateLimitConfig{
 		RequestsPerMinute: 2,
@@ -125,7 +125,7 @@ func TestTenantRateLimiter_RespectsPerTenantConfig(t *testing.T) {
 }
 
 func TestTenantRateLimiter_NoClaims_PassesThrough(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	trl := NewTenantRateLimiter(store, 1, time.Minute)
 
 	called := false
@@ -158,12 +158,12 @@ func TestTenantRateLimiter_NilBolt_PassesThrough(t *testing.T) {
 	handler.ServeHTTP(rec, req.WithContext(ctx))
 
 	if !called {
-		t.Error("handler should pass through when bolt is nil")
+		t.Error("handler should pass through when kv is nil")
 	}
 }
 
 func TestTenantRateLimiter_DefaultZeroDisablesWithoutTenantConfig(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	trl := NewTenantRateLimiter(store, 0, time.Minute)
 
 	calls := 0
@@ -191,7 +191,7 @@ func TestTenantRateLimiter_DefaultZeroDisablesWithoutTenantConfig(t *testing.T) 
 }
 
 func TestTenantRateLimiter_DefaultZeroStillHonorsTenantConfig(t *testing.T) {
-	store := newRLBoltStore()
+	store := newRLKVStore()
 	store.Set("tenant_ratelimit", "configured", tenantRateLimitConfig{
 		RequestsPerMinute: 1,
 		BurstSize:         1,

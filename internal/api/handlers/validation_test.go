@@ -140,7 +140,7 @@ func TestHealthCheckHandler_Update_PortOutOfRange(t *testing.T) {
 func TestStickySessionHandler_Update_CookieHeaderInjection(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-	h := NewStickySessionHandler(store, newMockBoltStore())
+	h := NewStickySessionHandler(store, newMockKVStore())
 
 	body := `{"enabled":true,"cookie":"foo; Path=/","max_age":3600}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/sticky-sessions", strings.NewReader(body))
@@ -156,7 +156,7 @@ func TestStickySessionHandler_Update_CookieHeaderInjection(t *testing.T) {
 func TestStickySessionHandler_Update_InvalidSameSite(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-	h := NewStickySessionHandler(store, newMockBoltStore())
+	h := NewStickySessionHandler(store, newMockKVStore())
 
 	body := `{"enabled":true,"cookie":"AFFINITY","max_age":3600,"same_site":"banana"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/sticky-sessions", strings.NewReader(body))
@@ -172,7 +172,7 @@ func TestStickySessionHandler_Update_InvalidSameSite(t *testing.T) {
 func TestStickySessionHandler_Update_MaxAgeNegative(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-	h := NewStickySessionHandler(store, newMockBoltStore())
+	h := NewStickySessionHandler(store, newMockKVStore())
 
 	body := `{"enabled":true,"cookie":"AFFINITY","max_age":-1}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/sticky-sessions", strings.NewReader(body))
@@ -188,7 +188,7 @@ func TestStickySessionHandler_Update_MaxAgeNegative(t *testing.T) {
 func TestStickySessionHandler_Update_MaxAgeTooLarge(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-	h := NewStickySessionHandler(store, newMockBoltStore())
+	h := NewStickySessionHandler(store, newMockKVStore())
 
 	body := `{"enabled":true,"cookie":"AFFINITY","max_age":99999999999}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/sticky-sessions", strings.NewReader(body))
@@ -208,7 +208,7 @@ func TestStickySessionHandler_Update_MaxAgeTooLarge(t *testing.T) {
 func TestRedirectHandler_Create_UnknownStatusCode(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-	h := NewRedirectHandler(store, newMockBoltStore())
+	h := NewRedirectHandler(store, newMockKVStore())
 
 	body := `{"source":"/old","destination":"/new","type":"redirect","status_code":418}`
 	req := httptest.NewRequest("POST", "/api/v1/apps/app-1/redirects", strings.NewReader(body))
@@ -226,7 +226,7 @@ func TestRedirectHandler_Create_ValidStatusCodes(t *testing.T) {
 		t.Run(fmt.Sprintf("code_%d", code), func(t *testing.T) {
 			store := newMockStore()
 			store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-			h := NewRedirectHandler(store, newMockBoltStore())
+			h := NewRedirectHandler(store, newMockKVStore())
 			body := fmt.Sprintf(`{"source":"/old","destination":"/new","type":"redirect","status_code":%d}`, code)
 			req := httptest.NewRequest("POST", "/api/v1/apps/app-1/redirects", strings.NewReader(body))
 			req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
@@ -257,7 +257,7 @@ func TestRedirectHandler_Create_RejectsUnsafeRuleShape(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			store := newMockStore()
 			store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-			h := NewRedirectHandler(store, newMockBoltStore())
+			h := NewRedirectHandler(store, newMockKVStore())
 			req := httptest.NewRequest("POST", "/api/v1/apps/app-1/redirects", strings.NewReader(tt.body))
 			req = withClaims(req, "u1", "t1", "role_admin", "a@b.com")
 			req.SetPathValue("id", "app-1")
@@ -303,7 +303,7 @@ func TestAppManifestValidate_ReusesGitURLPolicy(t *testing.T) {
 func TestResponseHeadersHandler_Update_HeaderNameInjection(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-	h := NewResponseHeadersHandler(store, newMockBoltStore())
+	h := NewResponseHeadersHandler(store, newMockKVStore())
 
 	body := `{"custom":{"X-Evil\r\nSet-Cookie":"sid=attacker"}}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/response-headers", strings.NewReader(body))
@@ -319,7 +319,7 @@ func TestResponseHeadersHandler_Update_HeaderNameInjection(t *testing.T) {
 func TestResponseHeadersHandler_Update_HeaderValueCRLF(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-	h := NewResponseHeadersHandler(store, newMockBoltStore())
+	h := NewResponseHeadersHandler(store, newMockKVStore())
 
 	body := `{"custom":{"X-Evil":"value\r\nSet-Cookie: sid=a"}}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/response-headers", strings.NewReader(body))
@@ -381,7 +381,7 @@ func TestDNSRecordHandler_Create_ValueTooLong(t *testing.T) {
 func TestLogRetentionHandler_Update_MaxSizeTooLarge(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-	h := NewLogRetentionHandler(store, newMockBoltStore())
+	h := NewLogRetentionHandler(store, newMockKVStore())
 
 	body := `{"max_size_mb":10241,"max_files":5,"driver":"json-file"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader(body))
@@ -397,7 +397,7 @@ func TestLogRetentionHandler_Update_MaxSizeTooLarge(t *testing.T) {
 func TestLogRetentionHandler_Update_UnknownDriver(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-	h := NewLogRetentionHandler(store, newMockBoltStore())
+	h := NewLogRetentionHandler(store, newMockKVStore())
 
 	body := `{"max_size_mb":50,"max_files":5,"driver":"splunk"}`
 	req := httptest.NewRequest("PUT", "/api/v1/apps/app-1/log-retention", strings.NewReader(body))
@@ -413,7 +413,7 @@ func TestLogRetentionHandler_Update_UnknownDriver(t *testing.T) {
 func TestErrorPageHandler_Update_PageTooLarge(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app-1", TenantID: "t1", Name: "test"})
-	h := NewErrorPageHandler(store, newMockBoltStore())
+	h := NewErrorPageHandler(store, newMockKVStore())
 
 	// 1 MB + 1 byte.
 	body := `{"page_502":"` + strings.Repeat("a", (1<<20)+1) + `"}`

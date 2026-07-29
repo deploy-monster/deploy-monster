@@ -16,20 +16,20 @@ import (
 // compaction, ClaimsFromContext/ContextWithClaims) without relying on
 // integration infrastructure.
 
-// fakeBolt is a minimal in-memory stand-in for core.BoltStorer shaped to
+// fakeKV is a minimal in-memory stand-in for core.KVStorer shaped to
 // the exact interface the revocation helpers require. TTL is ignored
 // because the tests don't wait on it; if they needed to, the fake would
 // schedule a real delete.
-type fakeBolt struct {
+type fakeKV struct {
 	mu   sync.Mutex
 	data map[string]map[string][]byte // bucket → key → (opaque)
 }
 
-func newFakeBolt() *fakeBolt {
-	return &fakeBolt{data: map[string]map[string][]byte{}}
+func newFakeKV() *fakeKV {
+	return &fakeKV{data: map[string]map[string][]byte{}}
 }
 
-func (f *fakeBolt) Set(bucket, key string, _ any, _ int64) error {
+func (f *fakeKV) Set(bucket, key string, _ any, _ int64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.data[bucket] == nil {
@@ -40,7 +40,7 @@ func (f *fakeBolt) Set(bucket, key string, _ any, _ int64) error {
 	return nil
 }
 
-func (f *fakeBolt) Get(bucket, key string, _ any) error {
+func (f *fakeKV) Get(bucket, key string, _ any) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if _, ok := f.data[bucket][key]; ok {
@@ -154,35 +154,35 @@ func TestJWTService_PurgeExpiredPreviousKeys_AllExpired(t *testing.T) {
 
 func TestJWTService_RevokeAndCheck(t *testing.T) {
 	j := MustNewJWTService("primary-key-32-bytes-long-abcdefg")
-	bolt := newFakeBolt()
+	kv := newFakeKV()
 
 	// IsAccessTokenRevoked on an empty store returns false.
-	if j.IsAccessTokenRevoked(bolt, "jti-1") {
+	if j.IsAccessTokenRevoked(kv, "jti-1") {
 		t.Error("expected !revoked on empty store")
 	}
 
 	// Nil storer returns false — the documented fail-open behavior for
-	// deployments that haven't wired up a revocation bolt.
+	// deployments that haven't wired up a revocation kv.
 	if j.IsAccessTokenRevoked(nil, "jti-1") {
 		t.Error("expected !revoked with nil storer (fail-open contract)")
 	}
 
 	// Revoke with a future expiry so the TTL branch persists.
 	future := time.Now().Add(10 * time.Minute)
-	if err := j.RevokeAccessToken(bolt, "jti-1", "u1", future); err != nil {
+	if err := j.RevokeAccessToken(kv, "jti-1", "u1", future); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
-	if !j.IsAccessTokenRevoked(bolt, "jti-1") {
+	if !j.IsAccessTokenRevoked(kv, "jti-1") {
 		t.Error("expected revoked=true after RevokeAccessToken")
 	}
 
 	// Revoking an already-expired token is a silent no-op — pins the
 	// "remaining <= 0" branch that the coverage profile showed unhit.
 	past := time.Now().Add(-10 * time.Minute)
-	if err := j.RevokeAccessToken(bolt, "jti-2", "u1", past); err != nil {
+	if err := j.RevokeAccessToken(kv, "jti-2", "u1", past); err != nil {
 		t.Errorf("expected nil err for expired-token revoke, got %v", err)
 	}
-	if j.IsAccessTokenRevoked(bolt, "jti-2") {
+	if j.IsAccessTokenRevoked(kv, "jti-2") {
 		t.Error("expected expired-token revoke to be a no-op")
 	}
 }

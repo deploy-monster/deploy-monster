@@ -22,12 +22,12 @@ type gitTokenVault interface {
 // GitSourceHandler manages Git provider connections.
 type GitSourceHandler struct {
 	services *core.Services
-	bolt     core.BoltStorer
+	kv     core.KVStorer
 	vault    gitTokenVault
 }
 
-func NewGitSourceHandler(services *core.Services, bolt core.BoltStorer, vault gitTokenVault) *GitSourceHandler {
-	return &GitSourceHandler{services: services, bolt: bolt, vault: vault}
+func NewGitSourceHandler(services *core.Services, kv core.KVStorer, vault gitTokenVault) *GitSourceHandler {
+	return &GitSourceHandler{services: services, kv: kv, vault: vault}
 }
 
 type gitProviderConnectionRecord struct {
@@ -61,7 +61,7 @@ type connectGitProviderRequest struct {
 // ListProviders handles GET /api/v1/git/providers
 func (h *GitSourceHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 	connected := map[string]gitProviderConnectionRecord{}
-	if claims := auth.ClaimsFromContext(r.Context()); claims != nil && h.bolt != nil {
+	if claims := auth.ClaimsFromContext(r.Context()); claims != nil && h.kv != nil {
 		records, err := h.listConnections(claims.TenantID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to list git providers")
@@ -107,7 +107,7 @@ func (h *GitSourceHandler) Connect(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	if h.bolt == nil || h.vault == nil {
+	if h.kv == nil || h.vault == nil {
 		writeError(w, http.StatusServiceUnavailable, "git provider storage is unavailable")
 		return
 	}
@@ -159,7 +159,7 @@ func (h *GitSourceHandler) Connect(w http.ResponseWriter, r *http.Request) {
 		record.RepoCount = existing.RepoCount
 	}
 
-	if err := h.bolt.Set(gitProviderConnectionsBucket, gitProviderKey(claims.TenantID, providerType), record, 0); err != nil {
+	if err := h.kv.Set(gitProviderConnectionsBucket, gitProviderKey(claims.TenantID, providerType), record, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to store git provider")
 		return
 	}
@@ -181,7 +181,7 @@ func (h *GitSourceHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	if h.bolt == nil {
+	if h.kv == nil {
 		writeError(w, http.StatusServiceUnavailable, "git provider storage is unavailable")
 		return
 	}
@@ -192,7 +192,7 @@ func (h *GitSourceHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.bolt.Delete(gitProviderConnectionsBucket, gitProviderKey(claims.TenantID, id)); err != nil {
+	if err := h.kv.Delete(gitProviderConnectionsBucket, gitProviderKey(claims.TenantID, id)); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to disconnect git provider")
 		return
 	}
@@ -272,18 +272,18 @@ func (h *GitSourceHandler) providerForRequest(r *http.Request, providerType stri
 
 func (h *GitSourceHandler) getConnection(tenantID, providerType string) (gitProviderConnectionRecord, error) {
 	var record gitProviderConnectionRecord
-	if h.bolt == nil {
+	if h.kv == nil {
 		return record, core.ErrNotFound
 	}
-	err := h.bolt.Get(gitProviderConnectionsBucket, gitProviderKey(tenantID, providerType), &record)
+	err := h.kv.Get(gitProviderConnectionsBucket, gitProviderKey(tenantID, providerType), &record)
 	return record, err
 }
 
 func (h *GitSourceHandler) listConnections(tenantID string) ([]gitProviderConnectionRecord, error) {
-	if h.bolt == nil {
+	if h.kv == nil {
 		return nil, nil
 	}
-	keys, err := h.bolt.List(gitProviderConnectionsBucket)
+	keys, err := h.kv.List(gitProviderConnectionsBucket)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,7 @@ func (h *GitSourceHandler) listConnections(tenantID string) ([]gitProviderConnec
 			continue
 		}
 		var record gitProviderConnectionRecord
-		if err := h.bolt.Get(gitProviderConnectionsBucket, key, &record); err == nil {
+		if err := h.kv.Get(gitProviderConnectionsBucket, key, &record); err == nil {
 			records = append(records, record)
 		}
 	}

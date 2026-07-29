@@ -11,7 +11,7 @@ import (
 // ─── List Announcements ─────────────────────────────────────────────────────
 
 func TestAnnouncements_List_Empty(t *testing.T) {
-	handler := NewAnnouncementHandler(newMockBoltStore())
+	handler := NewAnnouncementHandler(newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/announcements", nil)
 	rr := httptest.NewRecorder()
@@ -38,7 +38,7 @@ func TestAnnouncements_List_Empty(t *testing.T) {
 }
 
 func TestAnnouncements_List_AfterCreate(t *testing.T) {
-	handler := NewAnnouncementHandler(newMockBoltStore())
+	handler := NewAnnouncementHandler(newMockKVStore())
 
 	// Create an announcement first.
 	body, _ := json.Marshal(Announcement{
@@ -84,7 +84,7 @@ func TestAnnouncements_List_AfterCreate(t *testing.T) {
 // ─── Create Announcement ────────────────────────────────────────────────────
 
 func TestAnnouncements_Create_Success(t *testing.T) {
-	handler := NewAnnouncementHandler(newMockBoltStore())
+	handler := NewAnnouncementHandler(newMockKVStore())
 
 	body, _ := json.Marshal(Announcement{
 		Title: "New Feature",
@@ -119,7 +119,7 @@ func TestAnnouncements_Create_Success(t *testing.T) {
 }
 
 func TestAnnouncements_Create_InvalidJSON(t *testing.T) {
-	handler := NewAnnouncementHandler(newMockBoltStore())
+	handler := NewAnnouncementHandler(newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/announcements", bytes.NewReader([]byte("{")))
 	req = withClaims(req, "user1", "tenant1", "role_super_admin", "admin@test.com")
@@ -136,7 +136,7 @@ func TestAnnouncements_Create_InvalidJSON(t *testing.T) {
 // ─── Dismiss Announcement ───────────────────────────────────────────────────
 
 func TestAnnouncements_Dismiss_Success(t *testing.T) {
-	handler := NewAnnouncementHandler(newMockBoltStore())
+	handler := NewAnnouncementHandler(newMockKVStore())
 
 	// Create one first.
 	body, _ := json.Marshal(Announcement{Title: "To Dismiss", Type: "info"})
@@ -172,7 +172,7 @@ func TestAnnouncements_Dismiss_Success(t *testing.T) {
 }
 
 func TestAnnouncements_Dismiss_NonexistentID(t *testing.T) {
-	handler := NewAnnouncementHandler(newMockBoltStore())
+	handler := NewAnnouncementHandler(newMockKVStore())
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/announcements/nonexistent", nil)
 	req.SetPathValue("id", "nonexistent")

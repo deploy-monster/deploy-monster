@@ -11,11 +11,11 @@ import (
 type StorageHandler struct {
 	store   core.Store
 	runtime core.ContainerRuntime
-	bolt    core.BoltStorer
+	kv    core.KVStorer
 }
 
-func NewStorageHandler(store core.Store, runtime core.ContainerRuntime, bolt core.BoltStorer) *StorageHandler {
-	return &StorageHandler{store: store, runtime: runtime, bolt: bolt}
+func NewStorageHandler(store core.Store, runtime core.ContainerRuntime, kv core.KVStorer) *StorageHandler {
+	return &StorageHandler{store: store, runtime: runtime, kv: kv}
 }
 
 // Usage handles GET /api/v1/storage/usage
@@ -54,12 +54,12 @@ func (h *StorageHandler) Usage(w http.ResponseWriter, r *http.Request) {
 	// a denormalised cache so it can't drift after a manual file delete.
 	var backupCount int
 	var backupTotalMB int64
-	if h.bolt != nil {
+	if h.kv != nil {
 		var backupStats struct {
 			Count   int   `json:"count"`
 			TotalMB int64 `json:"total_mb"`
 		}
-		if h.bolt.Get("metrics_ring", "backup_stats:"+claims.TenantID, &backupStats) == nil {
+		if h.kv.Get("metrics_ring", "backup_stats:"+claims.TenantID, &backupStats) == nil {
 			backupCount = backupStats.Count
 			backupTotalMB = backupStats.TotalMB
 		}

@@ -1161,10 +1161,10 @@ func (m *mockContainerRuntime) VolumeList(_ context.Context) ([]core.VolumeInfo,
 	return nil, nil
 }
 
-// ─── Mock Bolt Storer ────────────────────────────────────────────────────────
+// ─── Mock KV Storer ────────────────────────────────────────────────────────
 
-// mockBoltStore implements core.BoltStorer for testing.
-type mockBoltStore struct {
+// mockKVStore implements core.KVStorer for testing.
+type mockKVStore struct {
 	mu   sync.Mutex
 	data map[string]map[string][]byte // bucket -> key -> json bytes
 	// Error overrides — if non-nil the corresponding method returns this error.
@@ -1173,13 +1173,13 @@ type mockBoltStore struct {
 	errDelete error
 }
 
-func newMockBoltStore() *mockBoltStore {
-	return &mockBoltStore{data: make(map[string]map[string][]byte)}
+func newMockKVStore() *mockKVStore {
+	return &mockKVStore{data: make(map[string]map[string][]byte)}
 }
 
-func seedActiveDeployFreeze(bolt *mockBoltStore, tenantID string) error {
+func seedActiveDeployFreeze(kv *mockKVStore, tenantID string) error {
 	now := time.Now()
-	return bolt.Set("deploy_freeze", tenantID, freezeWindowList{Windows: []FreezeWindow{{
+	return kv.Set("deploy_freeze", tenantID, freezeWindowList{Windows: []FreezeWindow{{
 		ID:       "freeze-1",
 		Reason:   "maintenance",
 		StartsAt: now.Add(-time.Hour),
@@ -1188,7 +1188,7 @@ func seedActiveDeployFreeze(bolt *mockBoltStore, tenantID string) error {
 	}}}, 0)
 }
 
-func (m *mockBoltStore) Set(bucket, key string, value any, _ int64) error {
+func (m *mockKVStore) Set(bucket, key string, value any, _ int64) error {
 	if m.errSet != nil {
 		return m.errSet
 	}
@@ -1202,7 +1202,7 @@ func (m *mockBoltStore) Set(bucket, key string, value any, _ int64) error {
 	return nil
 }
 
-func (m *mockBoltStore) BatchSet(items []core.BoltBatchItem) error {
+func (m *mockKVStore) BatchSet(items []core.KVBatchItem) error {
 	for _, item := range items {
 		if err := m.Set(item.Bucket, item.Key, item.Value, item.TTL); err != nil {
 			return err
@@ -1211,7 +1211,7 @@ func (m *mockBoltStore) BatchSet(items []core.BoltBatchItem) error {
 	return nil
 }
 
-func (m *mockBoltStore) Mutate(bucket, key string, dest any, _ int64, mutate func(exists bool) error) error {
+func (m *mockKVStore) Mutate(bucket, key string, dest any, _ int64, mutate func(exists bool) error) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1244,7 +1244,7 @@ func (m *mockBoltStore) Mutate(bucket, key string, dest any, _ int64, mutate fun
 	return nil
 }
 
-func (m *mockBoltStore) Get(bucket, key string, dest any) error {
+func (m *mockKVStore) Get(bucket, key string, dest any) error {
 	if m.errGet != nil {
 		return m.errGet
 	}
@@ -1261,7 +1261,7 @@ func (m *mockBoltStore) Get(bucket, key string, dest any) error {
 	return json.Unmarshal(raw, dest)
 }
 
-func (m *mockBoltStore) Delete(bucket, key string) error {
+func (m *mockKVStore) Delete(bucket, key string) error {
 	if m.errDelete != nil {
 		return m.errDelete
 	}
@@ -1273,7 +1273,7 @@ func (m *mockBoltStore) Delete(bucket, key string) error {
 	return nil
 }
 
-func (m *mockBoltStore) List(bucket string) ([]string, error) {
+func (m *mockKVStore) List(bucket string) ([]string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	bkt, ok := m.data[bucket]
@@ -1287,9 +1287,9 @@ func (m *mockBoltStore) List(bucket string) ([]string, error) {
 	return keys, nil
 }
 
-func (m *mockBoltStore) Close() error { return nil }
+func (m *mockKVStore) Close() error { return nil }
 
-func (m *mockBoltStore) GetAPIKeyByPrefix(_ context.Context, prefix string) (*models.APIKey, error) {
+func (m *mockKVStore) GetAPIKeyByPrefix(_ context.Context, prefix string) (*models.APIKey, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	bkt, ok := m.data["api_keys"]
@@ -1308,7 +1308,7 @@ func (m *mockBoltStore) GetAPIKeyByPrefix(_ context.Context, prefix string) (*mo
 	return nil, fmt.Errorf("api key not found")
 }
 
-func (m *mockBoltStore) GetWebhookSecret(webhookID string) (string, error) {
+func (m *mockKVStore) GetWebhookSecret(webhookID string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	bkt, ok := m.data["webhooks"]

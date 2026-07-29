@@ -36,54 +36,54 @@ func generateTestToken(userID, tenantID, roleID, email string) string {
 	return pair.AccessToken
 }
 
-// mockBoltStore implements core.BoltStorer for testing
-type mockBoltStore struct {
+// mockKVStore implements core.KVStorer for testing
+type mockKVStore struct {
 	apiKeys map[string]*models.APIKey
 }
 
-func newMockBoltStore() *mockBoltStore {
-	return &mockBoltStore{
+func newMockKVStore() *mockKVStore {
+	return &mockKVStore{
 		apiKeys: make(map[string]*models.APIKey),
 	}
 }
 
-func (m *mockBoltStore) Set(bucket, key string, value any, ttlSeconds int64) error {
+func (m *mockKVStore) Set(bucket, key string, value any, ttlSeconds int64) error {
 	return nil
 }
 
-func (m *mockBoltStore) BatchSet(_ []core.BoltBatchItem) error {
+func (m *mockKVStore) BatchSet(_ []core.KVBatchItem) error {
 	return nil
 }
 
-func (m *mockBoltStore) Get(bucket, key string, dest any) error {
+func (m *mockKVStore) Get(bucket, key string, dest any) error {
 	return nil
 }
 
-func (m *mockBoltStore) Delete(bucket, key string) error {
+func (m *mockKVStore) Delete(bucket, key string) error {
 	return nil
 }
 
-func (m *mockBoltStore) List(bucket string) ([]string, error) {
+func (m *mockKVStore) List(bucket string) ([]string, error) {
 	return nil, nil
 }
 
-func (m *mockBoltStore) Close() error {
+func (m *mockKVStore) Close() error {
 	return nil
 }
 
-func (m *mockBoltStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*models.APIKey, error) {
+func (m *mockKVStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*models.APIKey, error) {
 	if key, ok := m.apiKeys[prefix]; ok {
 		return key, nil
 	}
 	return nil, ErrAPIKeyNotFound
 }
 
-func (m *mockBoltStore) GetWebhookSecret(webhookID string) (string, error) {
+func (m *mockKVStore) GetWebhookSecret(webhookID string) (string, error) {
 	return "", nil
 }
 
-// Ensure mockBoltStore implements core.BoltStorer
-var _ core.BoltStorer = (*mockBoltStore)(nil)
+// Ensure mockKVStore implements core.KVStorer
+var _ core.KVStorer = (*mockKVStore)(nil)
 
 // Test error for mock
 var ErrAPIKeyNotFound = errors.New("api key not found")
@@ -247,7 +247,7 @@ func TestRequireAuth_EmptyCookieFallsThrough(t *testing.T) {
 
 func TestRequireAuth_ValidAPIKey(t *testing.T) {
 	jwtSvc := testJWT()
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 	// Add a test API key to the mock store
 	// SECURITY FIX (CRYPTO-001): Generate bcrypt hash for the test key
 	testKey := "dm_test_api_key_12345"
@@ -255,7 +255,7 @@ func TestRequireAuth_ValidAPIKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to hash test API key: %v", err)
 	}
-	bolt.apiKeys[testKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
+	kv.apiKeys[testKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-key-user",
 		TenantID:  "api-key-tenant",
@@ -264,7 +264,7 @@ func TestRequireAuth_ValidAPIKey(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, kv, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := auth.ClaimsFromContext(r.Context())
 		if claims == nil {
 			t.Fatal("expected claims in context for API key auth")
@@ -334,10 +334,10 @@ func TestRequireAuth_ExpiredToken(t *testing.T) {
 
 func TestRequireAuth_ExpiredAPIKey(t *testing.T) {
 	jwtSvc := testJWT()
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 	expiredTime := time.Now().Add(-1 * time.Hour)
 	expiredKey := "dm_test_expired_auth_key"
-	bolt.apiKeys[expiredKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
+	kv.apiKeys[expiredKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-user",
 		TenantID:  "api-tenant",
@@ -346,7 +346,7 @@ func TestRequireAuth_ExpiredAPIKey(t *testing.T) {
 		ExpiresAt: &expiredTime,
 	}
 
-	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, kv, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with expired API key")
 	}))
 
@@ -364,7 +364,7 @@ func TestRequireAuth_APIKeyNilBolt(t *testing.T) {
 	jwtSvc := testJWT()
 
 	handler := RequireAuth(jwtSvc, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("handler should not be reached with nil bolt")
+		t.Fatal("handler should not be reached with nil kv")
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
@@ -373,15 +373,15 @@ func TestRequireAuth_APIKeyNilBolt(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 with nil bolt, got %d", rr.Code)
+		t.Errorf("expected 401 with nil kv, got %d", rr.Code)
 	}
 }
 
 func TestRequireAuth_APIKeyNotFoundInStore(t *testing.T) {
 	jwtSvc := testJWT()
-	bolt := newMockBoltStore() // Empty store
+	kv := newMockKVStore() // Empty store
 
-	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, kv, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with unknown key")
 	}))
 
@@ -397,9 +397,9 @@ func TestRequireAuth_APIKeyNotFoundInStore(t *testing.T) {
 
 func TestRequireAuth_APIKeyMismatch(t *testing.T) {
 	jwtSvc := testJWT()
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 	wrongKey := "dm_test_wrong_hash_value"
-	bolt.apiKeys[wrongKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
+	kv.apiKeys[wrongKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-user",
 		TenantID:  "api-tenant",
@@ -408,7 +408,7 @@ func TestRequireAuth_APIKeyMismatch(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, kv, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with wrong key")
 	}))
 
@@ -424,9 +424,9 @@ func TestRequireAuth_APIKeyMismatch(t *testing.T) {
 
 func TestRequireAuth_APIKeyTooShort(t *testing.T) {
 	jwtSvc := testJWT()
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 
-	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, kv, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be reached with short key")
 	}))
 
@@ -442,7 +442,7 @@ func TestRequireAuth_APIKeyTooShort(t *testing.T) {
 
 func TestRequireAuth_APIKeyNotExpired(t *testing.T) {
 	jwtSvc := testJWT()
-	bolt := newMockBoltStore()
+	kv := newMockKVStore()
 	futureTime := time.Now().Add(24 * time.Hour)
 	// SECURITY FIX (CRYPTO-001): Generate bcrypt hash for the test key
 	testKey := "dm_test_not_expired_key"
@@ -450,7 +450,7 @@ func TestRequireAuth_APIKeyNotExpired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to hash test API key: %v", err)
 	}
-	bolt.apiKeys[testKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
+	kv.apiKeys[testKey[:auth.APIKeyPrefixLength]] = &models.APIKey{
 		ID:        "key-1",
 		UserID:    "api-user",
 		TenantID:  "api-tenant",
@@ -460,7 +460,7 @@ func TestRequireAuth_APIKeyNotExpired(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	handler := RequireAuth(jwtSvc, bolt, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequireAuth(jwtSvc, kv, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := auth.ClaimsFromContext(r.Context())
 		if claims == nil {
 			t.Fatal("expected claims in context")

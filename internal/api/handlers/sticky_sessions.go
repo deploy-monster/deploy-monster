@@ -15,11 +15,11 @@ var validCookieName = regexp.MustCompile(`^[!#$%&'*+\-.^_` + "`" + `|~0-9A-Za-z]
 // StickySessionHandler configures session affinity for load-balanced apps.
 type StickySessionHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewStickySessionHandler(store core.Store, bolt core.BoltStorer) *StickySessionHandler {
-	return &StickySessionHandler{store: store, bolt: bolt}
+func NewStickySessionHandler(store core.Store, kv core.KVStorer) *StickySessionHandler {
+	return &StickySessionHandler{store: store, kv: kv}
 }
 
 // StickySessionConfig holds cookie-based session affinity settings.
@@ -48,7 +48,7 @@ func (h *StickySessionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cfg StickySessionConfig
-	if err := h.bolt.Get("sticky_sessions", app.ID, &cfg); err != nil {
+	if err := h.kv.Get("sticky_sessions", app.ID, &cfg); err != nil {
 		writeJSON(w, http.StatusOK, defaultStickyConfig())
 		return
 	}
@@ -100,7 +100,7 @@ func (h *StickySessionHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.bolt.Set("sticky_sessions", appID, cfg, 0); err != nil {
+	if err := h.kv.Set("sticky_sessions", appID, cfg, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save sticky session config")
 		return
 	}

@@ -57,8 +57,8 @@ func (m *Module) Init(ctx context.Context, c *core.Core) error {
 	m.totp = NewTOTPService(m.store)
 
 	// Wire the KV store for TOTP anti-replay (last accepted time-step per user).
-	if c.DB != nil && c.DB.Bolt != nil {
-		m.totp.SetReplayStore(c.DB.Bolt)
+	if c.DB != nil && c.DB.KV != nil {
+		m.totp.SetReplayStore(c.DB.KV)
 	}
 
 	// Set the secrets vault on TOTP service if available

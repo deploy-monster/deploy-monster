@@ -98,12 +98,12 @@ func TestComposeDeploy_AutoGeneratesName(t *testing.T) {
 func TestComposeDeploy_BlockedDuringFreezeWindow(t *testing.T) {
 	store := newMockStore()
 	events := testCore().Events
-	bolt := newMockBoltStore()
-	if err := seedActiveDeployFreeze(bolt, "tenant1"); err != nil {
+	kv := newMockKVStore()
+	if err := seedActiveDeployFreeze(kv, "tenant1"); err != nil {
 		t.Fatalf("seed freeze: %v", err)
 	}
 	handler := NewComposeHandler(context.Background(), store, nil, events)
-	handler.SetDeployFreezeStore(bolt)
+	handler.SetDeployFreezeStore(kv)
 
 	body, _ := json.Marshal(map[string]string{
 		"name": "my-stack",

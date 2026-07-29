@@ -13,11 +13,11 @@ import (
 type WebhookTestDeliveryHandler struct {
 	store  core.Store
 	events *core.EventBus
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 }
 
-func NewWebhookTestDeliveryHandler(store core.Store, events *core.EventBus, bolt core.BoltStorer) *WebhookTestDeliveryHandler {
-	return &WebhookTestDeliveryHandler{store: store, events: events, bolt: bolt}
+func NewWebhookTestDeliveryHandler(store core.Store, events *core.EventBus, kv core.KVStorer) *WebhookTestDeliveryHandler {
+	return &WebhookTestDeliveryHandler{store: store, events: events, kv: kv}
 }
 
 // webhookTestLog records test delivery results.
@@ -69,7 +69,7 @@ func (h *WebhookTestDeliveryHandler) TestDeliver(w http.ResponseWriter, r *http.
 		Timestamp: time.Now().Format(time.RFC3339),
 		PayloadID: deliveryID,
 	}
-	if err := h.bolt.Set("webhook_test_logs", deliveryID, log, 86400); err != nil {
+	if err := h.kv.Set("webhook_test_logs", deliveryID, log, 86400); err != nil {
 		slog.Error("failed to persist webhook test log", "delivery_id", deliveryID, "error", err)
 	}
 

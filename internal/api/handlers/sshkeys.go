@@ -14,11 +14,11 @@ import (
 // SSHKeyHandler manages SSH keys for server access.
 type SSHKeyHandler struct {
 	store core.Store
-	bolt  core.BoltStorer
+	kv  core.KVStorer
 }
 
-func NewSSHKeyHandler(store core.Store, bolt core.BoltStorer) *SSHKeyHandler {
-	return &SSHKeyHandler{store: store, bolt: bolt}
+func NewSSHKeyHandler(store core.Store, kv core.KVStorer) *SSHKeyHandler {
+	return &SSHKeyHandler{store: store, kv: kv}
 }
 
 // SSHKeyInfo represents an SSH key.
@@ -88,7 +88,7 @@ func (h *SSHKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
 
 	// Store key metadata in KV storage (private key is only returned once)
 	var list sshKeyList
-	_ = h.bolt.Get("ssh_keys", claims.UserID, &list)
+	_ = h.kv.Get("ssh_keys", claims.UserID, &list)
 
 	if len(list.Keys) >= 50 {
 		writeError(w, http.StatusConflict, "SSH key limit reached (50)")
@@ -96,7 +96,7 @@ func (h *SSHKeyHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	}
 	list.Keys = append(list.Keys, info)
 
-	if err := h.bolt.Set("ssh_keys", claims.UserID, list, 0); err != nil {
+	if err := h.kv.Set("ssh_keys", claims.UserID, list, 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to store SSH key")
 		return
 	}
@@ -119,7 +119,7 @@ func (h *SSHKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var list sshKeyList
-	if err := h.bolt.Get("ssh_keys", claims.UserID, &list); err != nil {
+	if err := h.kv.Get("ssh_keys", claims.UserID, &list); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "total": 0})
 		return
 	}

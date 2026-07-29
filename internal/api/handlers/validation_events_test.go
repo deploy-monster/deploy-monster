@@ -87,7 +87,7 @@ func TestProjectCreate_EmitsEvent(t *testing.T) {
 func TestRedirectCreate_SourceTooLong(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test"})
-	h := NewRedirectHandler(store, newMockBoltStore())
+	h := NewRedirectHandler(store, newMockKVStore())
 
 	longSource := "/" + strings.Repeat("a", 2048)
 	body, _ := json.Marshal(map[string]string{"source": longSource, "destination": "/new"})
@@ -109,7 +109,7 @@ func TestRedirectCreate_SourceTooLong(t *testing.T) {
 func TestBasicAuthUpdate_RealmTooLong(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test"})
-	h := NewBasicAuthHandler(store, newMockBoltStore())
+	h := NewBasicAuthHandler(store, newMockKVStore())
 
 	longRealm := strings.Repeat("r", 101)
 	body, _ := json.Marshal(map[string]any{
@@ -133,7 +133,7 @@ func TestBasicAuthUpdate_RealmTooLong(t *testing.T) {
 func TestBasicAuthUpdate_TooManyUsers(t *testing.T) {
 	store := newMockStore()
 	store.addApp(&core.Application{ID: "app1", TenantID: "t1", Name: "test"})
-	h := NewBasicAuthHandler(store, newMockBoltStore())
+	h := NewBasicAuthHandler(store, newMockKVStore())
 
 	users := make(map[string]string)
 	for i := 0; i < 51; i++ {

@@ -14,11 +14,11 @@ const webhookSecretsBucket = "webhooks"
 type WebhookRotateHandler struct {
 	store  core.Store
 	events *core.EventBus
-	bolt   core.BoltStorer
+	kv   core.KVStorer
 }
 
-func NewWebhookRotateHandler(store core.Store, events *core.EventBus, bolt core.BoltStorer) *WebhookRotateHandler {
-	return &WebhookRotateHandler{store: store, events: events, bolt: bolt}
+func NewWebhookRotateHandler(store core.Store, events *core.EventBus, kv core.KVStorer) *WebhookRotateHandler {
+	return &WebhookRotateHandler{store: store, events: events, kv: kv}
 }
 
 type webhookSecretRecord struct {
@@ -55,12 +55,12 @@ func (h *WebhookRotateHandler) Rotate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebhookRotateHandler) persistSecret(app *core.Application, secret string) error {
-	if h.bolt == nil {
+	if h.kv == nil {
 		return errors.New("webhook secret store not configured")
 	}
 
 	var rec webhookSecretRecord
-	if err := h.bolt.Get(webhookSecretsBucket, app.ID, &rec); err != nil && !errors.Is(err, core.ErrKVNotFound) {
+	if err := h.kv.Get(webhookSecretsBucket, app.ID, &rec); err != nil && !errors.Is(err, core.ErrKVNotFound) {
 		return err
 	}
 
@@ -74,5 +74,5 @@ func (h *WebhookRotateHandler) persistSecret(app *core.Application, secret strin
 	rec.Status = "active"
 	rec.UpdatedAt = now
 
-	return h.bolt.Set(webhookSecretsBucket, app.ID, rec, 0)
+	return h.kv.Set(webhookSecretsBucket, app.ID, rec, 0)
 }

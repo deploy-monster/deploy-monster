@@ -11,10 +11,10 @@ import (
 	"github.com/deploy-monster/deploy-monster/internal/db/models"
 )
 
-// BoltStore is the legacy name for DeployMonster's KV store. It is backed by
+// KVStore is the legacy name for DeployMonster's KV store. It is backed by
 // SQLite. The name is kept to avoid churn in the large handler surface that
-// consumes core.BoltStorer.
-type BoltStore struct {
+// consumes core.KVStorer.
+type KVStore struct {
 	db      *sql.DB
 	closeDB bool
 }
@@ -49,7 +49,7 @@ var defaultKVBuckets = []string{
 }
 
 // NewSQLiteKVStore opens a standalone SQLite-backed KV store.
-func NewSQLiteKVStore(path string) (*BoltStore, error) {
+func NewSQLiteKVStore(path string) (*KVStore, error) {
 	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on&_synchronous=NORMAL", path)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -57,7 +57,7 @@ func NewSQLiteKVStore(path string) (*BoltStore, error) {
 	}
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
-	store := &BoltStore{db: db, closeDB: true}
+	store := &KVStore{db: db, closeDB: true}
 	if err := store.initSchema(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -66,17 +66,17 @@ func NewSQLiteKVStore(path string) (*BoltStore, error) {
 }
 
 // NewSQLiteKVStoreFromDB uses an existing SQLite connection for KV storage.
-func NewSQLiteKVStoreFromDB(db *sql.DB) (*BoltStore, error) {
-	store := &BoltStore{db: db}
+func NewSQLiteKVStoreFromDB(db *sql.DB) (*KVStore, error) {
+	store := &KVStore{db: db}
 	if err := store.initSchema(); err != nil {
 		return nil, err
 	}
 	return store, nil
 }
 
-// NewBoltStore is retained as a compatibility constructor. It returns a
+// NewKVStore is retained as a compatibility constructor. It returns a
 // SQLite-backed KV store.
-func NewBoltStore(path string) (*BoltStore, error) {
+func NewKVStore(path string) (*KVStore, error) {
 	return NewSQLiteKVStore(path)
 }
 
@@ -85,7 +85,7 @@ type kvEntry struct {
 	ExpiresAt int64           `json:"e"`
 }
 
-func (b *BoltStore) initSchema() error {
+func (b *KVStore) initSchema() error {
 	if b == nil || b.db == nil {
 		return fmt.Errorf("sqlite kv: nil database")
 	}
@@ -117,7 +117,7 @@ func (b *BoltStore) initSchema() error {
 }
 
 // Set stores a value in the given bucket with an optional TTL in seconds.
-func (b *BoltStore) Set(bucket, key string, value any, ttlSeconds int64) error {
+func (b *KVStore) Set(bucket, key string, value any, ttlSeconds int64) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("marshal value: %w", err)
@@ -154,7 +154,7 @@ func (b *BoltStore) Set(bucket, key string, value any, ttlSeconds int64) error {
 }
 
 // BatchSet writes multiple key-value pairs in one SQLite transaction.
-func (b *BoltStore) BatchSet(items []core.BoltBatchItem) error {
+func (b *KVStore) BatchSet(items []core.KVBatchItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -208,7 +208,7 @@ func (b *BoltStore) BatchSet(items []core.BoltBatchItem) error {
 }
 
 // Mutate loads, modifies, and writes a single key inside one SQLite transaction.
-func (b *BoltStore) Mutate(bucket, key string, dest any, ttlSeconds int64, mutate func(exists bool) error) error {
+func (b *KVStore) Mutate(bucket, key string, dest any, ttlSeconds int64, mutate func(exists bool) error) error {
 	if mutate == nil {
 		return fmt.Errorf("mutate callback is required")
 	}
@@ -268,7 +268,7 @@ func (b *BoltStore) Mutate(bucket, key string, dest any, ttlSeconds int64, mutat
 }
 
 // Get retrieves a value from the given bucket and unmarshals it into dest.
-func (b *BoltStore) Get(bucket, key string, dest any) error {
+func (b *KVStore) Get(bucket, key string, dest any) error {
 	var data []byte
 	var expiresAt int64
 	err := b.db.QueryRow(`SELECT data, expires_at FROM kv_store WHERE bucket = ? AND key = ?`, bucket, key).Scan(&data, &expiresAt)
@@ -288,7 +288,7 @@ func (b *BoltStore) Get(bucket, key string, dest any) error {
 }
 
 // Delete removes a key from the given bucket.
-func (b *BoltStore) Delete(bucket, key string) error {
+func (b *KVStore) Delete(bucket, key string) error {
 	exists, err := b.bucketExists(bucket)
 	if err != nil {
 		return err
@@ -303,7 +303,7 @@ func (b *BoltStore) Delete(bucket, key string) error {
 }
 
 // List returns all non-expired keys in the given bucket.
-func (b *BoltStore) List(bucket string) ([]string, error) {
+func (b *KVStore) List(bucket string) ([]string, error) {
 	rows, err := b.db.Query(`SELECT key, data FROM kv_store WHERE bucket = ? AND (expires_at = 0 OR expires_at > ?)`, bucket, time.Now().Unix())
 	if err != nil {
 		return nil, fmt.Errorf("sqlite kv list %s: %w", bucket, err)
@@ -337,7 +337,7 @@ func (b *BoltStore) List(bucket string) ([]string, error) {
 	return keys, nil
 }
 
-func (b *BoltStore) bucketExists(bucket string) (bool, error) {
+func (b *KVStore) bucketExists(bucket string) (bool, error) {
 	var one int
 	err := b.db.QueryRow(`SELECT 1 FROM kv_buckets WHERE name = ?`, bucket).Scan(&one)
 	if err == sql.ErrNoRows {
@@ -351,7 +351,7 @@ func (b *BoltStore) bucketExists(bucket string) (bool, error) {
 
 // Close closes the standalone SQLite KV database. Stores created from the main
 // SQLite connection are closed by SQLiteDB.
-func (b *BoltStore) Close() error {
+func (b *KVStore) Close() error {
 	if b == nil || b.db == nil || !b.closeDB {
 		return nil
 	}
@@ -359,7 +359,7 @@ func (b *BoltStore) Close() error {
 }
 
 // GetAPIKeyByPrefix retrieves an API key by its stored key prefix.
-func (b *BoltStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*models.APIKey, error) {
+func (b *KVStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (*models.APIKey, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -454,7 +454,7 @@ func decodeAPIKeyRecord(raw []byte) (*models.APIKey, error) {
 }
 
 // GetWebhookSecret retrieves the webhook secret hash for signature verification.
-func (b *BoltStore) GetWebhookSecret(webhookID string) (string, error) {
+func (b *KVStore) GetWebhookSecret(webhookID string) (string, error) {
 	var raw []byte
 	err := b.db.QueryRow(`SELECT data FROM kv_store WHERE bucket = ? AND key = ?`, "webhooks", webhookID).Scan(&raw)
 	if err == sql.ErrNoRows {
