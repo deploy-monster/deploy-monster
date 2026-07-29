@@ -538,14 +538,20 @@ func TestDeliveryTracker_Concurrent(t *testing.T) {
 	dt := NewDeliveryTracker(kv, events)
 	dt.Start()
 
-	// Emit events concurrently
+	// Emit events concurrently — wait for all goroutines before draining
+	// so the race detector doesn't flag the test goroutine finishing while
+	// emit goroutines are still accessing the EventBus.
+	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
-		go func() {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
 			events.EmitWithTenant(context.Background(), core.EventOutboundSent, "webhook", "t1", "u1", core.NotificationEventData{
-				Recipient: fmt.Sprintf("https://example%d.com/hook", i),
+				Recipient: fmt.Sprintf("https://example%d.com/hook", n),
 			})
-		}()
+		}(i)
 	}
+	wg.Wait()
 
 	events.Drain()
 }
