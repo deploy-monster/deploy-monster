@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
 )
@@ -21,6 +23,47 @@ func (s *SQLiteDB) CreateInvite(ctx context.Context, invite *core.Invitation) er
 		)
 		return err
 	})
+}
+
+// GetInviteByTokenHash returns the invitation carrying tokenHash, or
+// core.ErrNotFound when no pending-or-accepted invitation matches.
+func (s *SQLiteDB) GetInviteByTokenHash(ctx context.Context, tokenHash string) (*core.Invitation, error) {
+	inv := &core.Invitation{}
+	err := s.QueryRowContext(ctx,
+		`SELECT id, tenant_id, email, role_id, COALESCE(invited_by,''), token_hash,
+		        expires_at, accepted_at, status, created_at
+		 FROM invitations WHERE token_hash = ? LIMIT 1`, tokenHash,
+	).Scan(&inv.ID, &inv.TenantID, &inv.Email, &inv.RoleID,
+		&inv.InvitedBy, &inv.TokenHash, &inv.ExpiresAt, &inv.AcceptedAt,
+		&inv.Status, &inv.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, core.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return inv, nil
+}
+
+// AcceptInvite atomically transitions a pending invitation to accepted.
+// It fails with core.ErrInvalidToken when the invitation is not pending
+// (already used, or concurrently redeemed by another request).
+func (s *SQLiteDB) AcceptInvite(ctx context.Context, id string) error {
+	res, err := s.ExecContext(ctx,
+		`UPDATE invitations SET status = 'accepted', accepted_at = ? WHERE id = ? AND status = 'pending'`,
+		time.Now().UTC(), id,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return core.ErrInvalidToken
+	}
+	return nil
 }
 
 // ListInvitesByTenant returns all invitations for a tenant.

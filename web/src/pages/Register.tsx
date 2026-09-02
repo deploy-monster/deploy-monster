@@ -16,6 +16,7 @@ import {
   Mail,
   Lock,
   User,
+  KeyRound,
   Eye,
   EyeOff,
 } from 'lucide-react';
@@ -96,6 +97,7 @@ export function Register() {
   const register = useAuthStore((s) => s.register);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -122,7 +124,7 @@ export function Register() {
 
     setLoading(true);
     try {
-      await register(email, password, name);
+      await register(email, password, name, inviteCode.trim() || undefined);
       navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -286,6 +288,25 @@ export function Register() {
                       className="pl-10"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="invite-code">Invite code</Label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="invite-code"
+                      type="text"
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value)}
+                      placeholder="Required when registration is invite-only"
+                      autoComplete="off"
+                      className="pl-10"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    If you received an invitation, enter the code from it.
+                  </p>
                 </div>
 
                 <div className="space-y-2">

@@ -138,6 +138,13 @@ func (r *Router) registerRoutes() {
 	registerRL := middleware.NewAuthRateLimiter(r.core.DB.KV, 120, time.Minute, "register")
 	refreshRL := middleware.NewAuthRateLimiter(r.core.DB.KV, 5, time.Minute, "refresh")
 	authH := handlers.NewAuthHandler(r.authMod, r.store, r.core.DB.KV)
+	// Register is gated on the hot-reloadable registration mode; the
+	// handler reads it per request so admin changes take effect immediately.
+	authH.SetRegistrationMode(func() string {
+		r.core.ConfigRLock()
+		defer r.core.ConfigRUnlock()
+		return r.core.Config.Registration.Mode
+	})
 	r.mux.HandleFunc("POST /api/v1/auth/login", loginRL.Wrap(authH.Login))
 	r.mux.HandleFunc("POST /api/v1/auth/register", registerRL.Wrap(authH.Register))
 	r.mux.HandleFunc("POST /api/v1/auth/refresh", refreshRL.Wrap(authH.Refresh))

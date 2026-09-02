@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"os"
@@ -1566,6 +1567,42 @@ func (p *PostgresDB) CreateInvite(ctx context.Context, invite *core.Invitation) 
 		invite.InvitedBy, invite.TokenHash, invite.ExpiresAt, invite.Status,
 	)
 	return err
+}
+
+func (p *PostgresDB) GetInviteByTokenHash(ctx context.Context, tokenHash string) (*core.Invitation, error) {
+	inv := &core.Invitation{}
+	err := p.db.QueryRowContext(ctx,
+		`SELECT id, tenant_id, email, role_id, COALESCE(invited_by,''), token_hash,
+		        expires_at, accepted_at, status, created_at
+		 FROM invitations WHERE token_hash = $1 LIMIT 1`, tokenHash,
+	).Scan(&inv.ID, &inv.TenantID, &inv.Email, &inv.RoleID,
+		&inv.InvitedBy, &inv.TokenHash, &inv.ExpiresAt, &inv.AcceptedAt,
+		&inv.Status, &inv.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, core.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return inv, nil
+}
+
+func (p *PostgresDB) AcceptInvite(ctx context.Context, id string) error {
+	res, err := p.db.ExecContext(ctx,
+		`UPDATE invitations SET status = 'accepted', accepted_at = $1 WHERE id = $2 AND status = 'pending'`,
+		time.Now().UTC(), id,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return core.ErrInvalidToken
+	}
+	return nil
 }
 
 func (p *PostgresDB) ListInvitesByTenant(ctx context.Context, tenantID string) ([]core.Invitation, error) {

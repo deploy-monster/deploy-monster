@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/deploy-monster/deploy-monster/internal/core"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // ─── Create Invite ───────────────────────────────────────────────────────────
@@ -51,11 +50,19 @@ func TestInviteCreate_Success(t *testing.T) {
 		t.Errorf("expected role_id 'role_member', got %v", resp["role_id"])
 	}
 
-	// Token is no longer returned in response (security: sent via email instead)
-	// But token_hash is still returned for verification
+	// The plaintext token is the one-time invite code returned to the
+	// inviter. It must be present and must hash to the stored token_hash —
+	// that is what makes it redeemable at /auth/register.
+	token, ok := resp["token"].(string)
+	if !ok || token == "" {
+		t.Error("expected non-empty token in response")
+	}
 	tokenHash, ok := resp["token_hash"].(string)
 	if !ok || tokenHash == "" {
 		t.Error("expected non-empty token_hash in response")
+	}
+	if token != "" && tokenHash != "" && hashToken(token) != tokenHash {
+		t.Errorf("token does not hash to token_hash: got %q want %q", hashToken(token), tokenHash)
 	}
 
 	if _, ok := resp["expires_at"]; !ok {
@@ -323,13 +330,13 @@ func TestHashToken_Deterministic(t *testing.T) {
 	h1 := hashToken(token)
 	h2 := hashToken(token)
 
-	// bcrypt is non-deterministic due to salt, so hashes differ between calls
-	// but both hashes must verify against the original token.
-	if err := bcrypt.CompareHashAndPassword([]byte(h1), []byte(token)); err != nil {
-		t.Errorf("bcrypt verify failed for hash h1: %v", err)
+	// SHA-256 is deterministic — the same code always produces the same
+	// digest, which is what makes GetInviteByTokenHash lookups possible.
+	if h1 != h2 {
+		t.Errorf("expected deterministic hash, got %q and %q", h1, h2)
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(h2), []byte(token)); err != nil {
-		t.Errorf("bcrypt verify failed for hash h2: %v", err)
+	if len(h1) != 64 {
+		t.Errorf("expected 64 hex chars (sha256), got %d", len(h1))
 	}
 }
 
@@ -339,9 +346,5 @@ func TestHashToken_DifferentInputs(t *testing.T) {
 
 	if h1 == h2 {
 		t.Error("expected different hashes for different tokens")
-	}
-	// bcrypt hashes have a specific format starting with $2
-	if len(h1) < 50 || h1[:4] != "$2a$" {
-		t.Errorf("expected bcrypt hash format, got length %d and prefix %q", len(h1), h1[:4])
 	}
 }

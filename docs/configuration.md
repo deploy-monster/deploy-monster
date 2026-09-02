@@ -42,7 +42,7 @@ All environment variables use the `MONSTER_` prefix.
 | `MONSTER_AGENT_KEY_FILE` | `swarm.tls_key_file` / Agent env | _(empty)_ | Agent mTLS client private key file |
 | `MONSTER_AGENT_CA_FILE` | `swarm.tls_ca_cert_file` / Agent env | _(empty)_ | CA file used by the agent to verify the master certificate |
 | `MONSTER_ACME_EMAIL` | `acme.email` | _(empty)_ | Email for Let's Encrypt certificate registration |
-| `MONSTER_REGISTRATION_MODE` | `registration.mode` | `open` | User registration mode (see below) |
+| `MONSTER_REGISTRATION_MODE` | `registration.mode` | `invite_only` | User registration mode: `open`, `invite_only`, `approval`, `disabled` — `open` requires explicit opt-in (see below) |
 | `MONSTER_LOG_LEVEL` | `server.log_level` | `info` | Log level (debug, info, warn, error) |
 | `MONSTER_LOG_FORMAT` | `server.log_format` | `text` | Log format: `text` (human-readable) or `json` (structured) |
 | `MONSTER_CLOUDFLARE_TOKEN` | `dns.cloudflare_token` | _(empty)_ | Cloudflare API token |
@@ -233,7 +233,7 @@ process before leaving the deployment confirmation screen.
 
 ```yaml
 registration:
-  mode: "open"               # Registration mode (validated)
+  mode: "invite_only"          # open, invite_only, approval, disabled
 ```
 
 **Valid registration modes:**

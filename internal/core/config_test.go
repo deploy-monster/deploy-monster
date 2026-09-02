@@ -1,6 +1,8 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -26,8 +28,8 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.Ingress.HTTPSPort != 443 {
 		t.Errorf("default HTTPS port = %d, want 443", cfg.Ingress.HTTPSPort)
 	}
-	if cfg.Registration.Mode != "open" {
-		t.Errorf("default registration = %q, want open", cfg.Registration.Mode)
+	if cfg.Registration.Mode != "invite_only" {
+		t.Errorf("default registration = %q, want invite_only", cfg.Registration.Mode)
 	}
 	if cfg.Limits.MaxConcurrentBuilds != 5 {
 		t.Errorf("default concurrent builds = %d, want 5", cfg.Limits.MaxConcurrentBuilds)
@@ -299,5 +301,41 @@ func TestApplyDefaults(t *testing.T) {
 	}
 	if cfg.Backup.RetentionDays != 30 {
 		t.Errorf("backup retention = %d, want 30", cfg.Backup.RetentionDays)
+	}
+}
+
+func TestLoadConfig_RegistrationMode_ExplicitOptIn(t *testing.T) {
+	// Explicit opt-in via monster.yaml keeps "open".
+	dir := t.TempDir()
+	path := filepath.Join(dir, "monster.yaml")
+	if err := os.WriteFile(path, []byte("registration:\n  mode: open\n"), 0o600); err != nil {
+		t.Fatalf("write monster.yaml: %v", err)
+	}
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.Registration.Mode != "open" {
+		t.Errorf("yaml opt-in: mode = %q, want open", cfg.Registration.Mode)
+	}
+
+	// Explicit opt-in via MONSTER_REGISTRATION_MODE keeps "open".
+	t.Setenv("MONSTER_REGISTRATION_MODE", "open")
+	cfg, err = LoadConfig("")
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.Registration.Mode != "open" {
+		t.Errorf("env opt-in: mode = %q, want open", cfg.Registration.Mode)
+	}
+}
+
+func TestLoadConfig_RegistrationMode_InviteOnlyDefault(t *testing.T) {
+	cfg, err := LoadConfig("")
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.Registration.Mode != "invite_only" {
+		t.Errorf("default registration = %q, want invite_only", cfg.Registration.Mode)
 	}
 }

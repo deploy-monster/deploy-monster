@@ -271,6 +271,8 @@ func (m *mockPermStore) GetSecretByScopeAndName(_ context.Context, _, _ string) 
 func (m *mockPermStore) GetLatestSecretVersion(_ context.Context, _ string) (*core.SecretVersion, error) {
 	return nil, nil
 }
+func (m *mockPermStore) GetInviteByTokenHash(_ context.Context, _ string) (*core.Invitation, error) { return nil, core.ErrNotFound }
+func (m *mockPermStore) AcceptInvite(_ context.Context, _ string) error { return nil }
 func (m *mockPermStore) CreateInvite(_ context.Context, _ *core.Invitation) error { return nil }
 func (m *mockPermStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Invitation, error) {
 	return nil, nil

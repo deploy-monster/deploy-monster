@@ -9,7 +9,6 @@ import (
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // InviteHandler handles team invitation endpoints.
@@ -105,10 +104,15 @@ func (h *InviteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		},
 	))
 
+	// The plaintext token is the one-time invite code the inviter must
+	// share with the invitee — it is the only value that can be redeemed
+	// at /auth/register (invite_code). token_hash is returned as well for
+	// verification but cannot be used to redeem.
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id":         invite.ID,
 		"email":      req.Email,
 		"role_id":    req.RoleID,
+		"token":      token,
 		"token_hash": tokenHash,
 		"expires_at": expiresAt,
 	})
@@ -154,17 +158,13 @@ func (h *InviteHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-const inviteTokenBcryptCost = 10 // Lower than password hashing since tokens are high-entropy
-
 func hashToken(token string) string {
-	// Use bcrypt for adaptive hashing (not plain SHA-256).
-	// Tokens are 32 bytes of crypto/rand entropy, so rainbow tables are impractical
-	// but bcrypt adds defense-in-depth if the DB is compromised.
-	hash, err := bcrypt.GenerateFromPassword([]byte(token), inviteTokenBcryptCost)
-	if err != nil {
-		// Fallback to SHA-256 if bcrypt fails (should never happen)
-		h := sha256.Sum256([]byte(token))
-		return hex.EncodeToString(h[:])
-	}
-	return string(hash)
+	// SHA-256, deliberately NOT bcrypt: the invite code is 32 bytes of
+	// crypto/rand entropy (256 bits), so a dictionary attack is infeasible
+	// and adaptive hashing buys nothing. A deterministic digest is required
+	// because redemption looks the invitation up by hash
+	// (GetInviteByTokenHash → WHERE token_hash = ?); bcrypt's random salt
+	// would make that lookup impossible.
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }

@@ -16,7 +16,7 @@ interface AuthState {
   isLoading: boolean;
 
   login: (email: string, password: string, totpCode?: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (email: string, password: string, name: string, inviteCode?: string) => Promise<void>;
   logout: () => void;
   initialize: () => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
@@ -66,9 +66,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  register: async (email, password, name) => {
+  register: async (email, password, name, inviteCode) => {
     try {
-      await authAPI.register({ email, password, name });
+      await authAPI.register({ email, password, name, invite_code: inviteCode || undefined });
       // Use /auth/me to get verified user info instead of decoding JWT client-side
       const resp = await api.get<MeResponse>('/auth/me');
       if (resp?.user?.id) {

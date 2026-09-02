@@ -49,6 +49,9 @@ func TestFullAPILifecycle(t *testing.T) {
 	authMod := newTestAuthServices(t, "test-secret-key-for-integration-tests-32b")
 
 	cfg, _ := core.LoadConfig("")
+	// The lifecycle test exercises self-service registration; opt in to
+	// open mode explicitly (the default is invite_only).
+	cfg.Registration.Mode = "open"
 	c := &core.Core{
 		Config:   cfg,
 		Store:    sqlite,

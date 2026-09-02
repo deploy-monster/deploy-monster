@@ -12123,6 +12123,7 @@ func TestFinal_Auth_Register_CreateTenantError(t *testing.T) {
 	store.errCreateTenantWithDefaults = fmt.Errorf("tenant creation failed")
 	authMod := testAuthModule(store)
 	h := NewAuthHandler(authMod, store, nil)
+	h.SetRegistrationMode(func() string { return "open" })
 
 	body := `{"email":"new@test.com","password":"Password123!","name":"New User"}`
 	req := httptest.NewRequest("POST", "/api/v1/auth/register", strings.NewReader(body))
@@ -12143,6 +12144,7 @@ func TestFinal_Auth_Register_CreateUserError(t *testing.T) {
 	store.errCreateUserWithMembership = fmt.Errorf("user creation failed")
 	authMod := testAuthModule(store)
 	h := NewAuthHandler(authMod, store, nil)
+	h.SetRegistrationMode(func() string { return "open" })
 
 	body := `{"email":"new@test.com","password":"Password123!","name":"New User"}`
 	req := httptest.NewRequest("POST", "/api/v1/auth/register", strings.NewReader(body))

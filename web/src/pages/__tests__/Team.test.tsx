@@ -32,6 +32,7 @@ vi.mock('@/hooks', async () => {
 
 const inviteMock = vi.fn();
 const removeMemberMock = vi.fn();
+const clipboardWriteMock = vi.fn();
 vi.mock('@/api/team', () => ({
   teamAPI: {
     invite: (data: unknown) => inviteMock(data),
@@ -84,6 +85,11 @@ describe('Team page', () => {
     removeMemberMock.mockReset().mockResolvedValue(undefined);
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
+    clipboardWriteMock.mockReset().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteMock },
+    });
   });
 
   it('renders the hero header and Invite Member CTA', () => {
@@ -170,6 +176,46 @@ describe('Team page', () => {
     );
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Invite sent'));
     await waitFor(() => expect(refetchMembersMock).toHaveBeenCalled());
+  });
+
+  it('shows the one-time invite code with a copy button after sending an invite', async () => {
+    setApi('/team/members', [fakeMember()]);
+    setApi('/team/audit-log', []);
+    inviteMock.mockResolvedValue({
+      id: 'inv-1',
+      email: 'new@example.com',
+      role_id: 'role_operator',
+      token: 'invite-code-abc123',
+      token_hash: 'hash-abc123',
+      expires_at: '2026-08-20T00:00:00Z',
+    });
+    renderTeam();
+
+    fireEvent.click(screen.getByRole('button', { name: /invite member/i }));
+    fireEvent.change(screen.getByLabelText(/email address/i), {
+      target: { value: 'new@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText(/^role$/i), {
+      target: { value: 'role_operator' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
+
+    // The dialog switches to the one-time code display instead of the form.
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /invite code/i })).toBeInTheDocument()
+    );
+    expect(screen.getByDisplayValue('invite-code-abc123')).toBeInTheDocument();
+
+    // Copy button writes the code to the clipboard.
+    fireEvent.click(screen.getByRole('button', { name: /copy invite code/i }));
+    await waitFor(() => expect(clipboardWriteMock).toHaveBeenCalledWith('invite-code-abc123'));
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Invite code copied to clipboard'));
+
+    // Done closes the dialog.
+    fireEvent.click(screen.getByRole('button', { name: /^done$/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: /invite code/i })).not.toBeInTheDocument()
+    );
   });
 
   it('keeps Send Invite disabled until an email is entered', () => {

@@ -66,7 +66,10 @@ swarm:
   # tls_ca_cert_file: ""
 
 registration:
-  mode: open                    # open, invite_only, approval, disabled
+  mode: invite_only             # open, invite_only, approval, disabled
+  # NOTE: "open" lets anyone who can reach the API create an account on a
+  # platform that controls the Docker socket. It requires explicit opt-in —
+  # the default is invite_only.
 
 secrets:
   # encryption_key: ""          # Defaults to server.secret_key

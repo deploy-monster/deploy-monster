@@ -43,11 +43,12 @@ describe('Register page', () => {
     registerMock.mockReset();
   });
 
-  it('renders name, email, password and confirm password inputs', () => {
+  it('renders name, email, invite code, password and confirm password inputs', () => {
     renderRegister();
 
     expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/invite code/i)).toBeInTheDocument();
     expect(getPasswordInput()).toBeInTheDocument();
     expect(getConfirmInput()).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
@@ -68,15 +69,43 @@ describe('Register page', () => {
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     await waitFor(() => {
-      // Register store takes (email, password, name) — order matters.
+      // Register store takes (email, password, name, inviteCode?) — order matters.
       expect(registerMock).toHaveBeenCalledWith(
         'ada@example.com',
         'Valid-Pass-12',
-        'Ada Lovelace'
+        'Ada Lovelace',
+        undefined
       );
     });
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith('/');
+    });
+  });
+
+  it('passes an entered invite code through to register', async () => {
+    registerMock.mockResolvedValue(undefined);
+    renderRegister();
+
+    fireEvent.change(screen.getByLabelText(/name/i), {
+      target: { value: 'Ada Lovelace' },
+    });
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'ada@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText(/invite code/i), {
+      target: { value: 'invite-abc-123' },
+    });
+    fireEvent.change(getPasswordInput(), { target: { value: 'Valid-Pass-12' } });
+    fireEvent.change(getConfirmInput(), { target: { value: 'Valid-Pass-12' } });
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }));
+
+    await waitFor(() => {
+      expect(registerMock).toHaveBeenCalledWith(
+        'ada@example.com',
+        'Valid-Pass-12',
+        'Ada Lovelace',
+        'invite-abc-123'
+      );
     });
   });
 

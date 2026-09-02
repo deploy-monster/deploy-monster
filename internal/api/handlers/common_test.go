@@ -174,6 +174,8 @@ type mockStore struct {
 	errCreateInvite             error
 	errListInvitesByTenant      error
 	errListAllTenants           error
+	errGetInviteByTokenHash     error
+	errAcceptInvite             error
 	errListMigrations           error
 
 	// Capture calls for assertions.
@@ -870,6 +872,43 @@ func (m *mockStore) GetLatestSecretVersion(_ context.Context, _ string) (*core.S
 
 // ─── InviteStore implementation ──────────────────────────────────────────────
 
+func (m *mockStore) GetInviteByTokenHash(_ context.Context, tokenHash string) (*core.Invitation, error) {
+	if m.errGetInviteByTokenHash != nil {
+		return nil, m.errGetInviteByTokenHash
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, invites := range m.invitations {
+		for i := range invites {
+			if invites[i].TokenHash == tokenHash {
+				inv := invites[i]
+				return &inv, nil
+			}
+		}
+	}
+	return nil, core.ErrNotFound
+}
+
+func (m *mockStore) AcceptInvite(_ context.Context, id string) error {
+	if m.errAcceptInvite != nil {
+		return m.errAcceptInvite
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for tenantID, invites := range m.invitations {
+		for i := range invites {
+			if invites[i].ID == id {
+				if invites[i].Status != "pending" {
+					return core.ErrInvalidToken
+				}
+				m.invitations[tenantID][i].Status = "accepted"
+				return nil
+			}
+		}
+	}
+	return core.ErrNotFound
+}
+
 func (m *mockStore) CreateInvite(_ context.Context, invite *core.Invitation) error {
 	if m.errCreateInvite != nil {
 		return m.errCreateInvite
@@ -927,7 +966,9 @@ func (m *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { retu
 func (m *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error { return nil }
+func (m *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
+	return nil
+}
 
 func (m *mockStore) ListMigrations(_ context.Context) ([]core.MigrationStatus, error) {
 	if m.errListMigrations != nil {

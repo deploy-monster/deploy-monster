@@ -17,6 +17,7 @@ interface RegisterRequest {
   email: string;
   password: string;
   name: string;
+  invite_code?: string;
 }
 
 export const authAPI = {

@@ -24,9 +24,13 @@ const (
 type AuthHandler struct {
 	authMod       AuthServices
 	store         core.Store
-	kv          core.KVStorer
+	kv            core.KVStorer
 	totpValidator func(userID, code string) bool // TOTP validator function
 	logger        *slog.Logger
+	// registrationMode returns the current registration mode. Invoked
+	// per request so hot-reload/admin changes are observed. When nil,
+	// Register fails closed (invite_only).
+	registrationMode func() string
 }
 
 // AuthServices is the narrow auth surface used by API handlers.
@@ -113,7 +117,7 @@ func NewAuthHandler(authMod AuthServices, store core.Store, kv core.KVStorer) *A
 	h := &AuthHandler{
 		authMod: authMod,
 		store:   store,
-		kv:    kv,
+		kv:      kv,
 		// Default to package-level slog so the handler always has a
 		// usable logger even if the caller never invokes SetLogger.
 		logger: slog.Default(),
@@ -123,6 +127,14 @@ func NewAuthHandler(authMod AuthServices, store core.Store, kv core.KVStorer) *A
 		h.totpValidator = authMod.TOTP().Validate
 	}
 	return h
+}
+
+// SetRegistrationMode configures the gate for POST /api/v1/auth/register.
+// get is invoked per request and must return one of open, invite_only,
+// approval, disabled. When nil, Register fails closed (invite_only) so an
+// unconfigured handler never opens registration by accident.
+func (h *AuthHandler) SetRegistrationMode(get func() string) {
+	h.registrationMode = get
 }
 
 // SetLogger overrides the logger used for auth-flow telemetry. Tests
@@ -163,9 +175,10 @@ type loginRequest struct {
 }
 
 type registerRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	Name       string `json:"name"`
+	InviteCode string `json:"invite_code,omitempty"` // Required when registration mode is invite_only
 }
 
 type refreshRequest struct {
@@ -269,6 +282,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Register handles POST /api/v1/auth/register
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	// Registration-mode gate. Fails closed by default (invite_only) so an
+	// unconfigured handler can never open registration by accident.
+	mode := "invite_only"
+	if h.registrationMode != nil {
+		mode = h.registrationMode()
+	}
+	if mode == "disabled" {
+		writeError(w, http.StatusForbidden, "registration is disabled")
+		return
+	}
+
 	var req registerRequest
 	if !decodeJSONInto(w, r, &req) {
 		return
@@ -312,6 +336,36 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	name := req.Name
+	if name == "" {
+		name = req.Email
+	}
+
+	// Determine the tenant and role the new user joins.
+	var tenantID, roleID string
+	switch mode {
+	case "open", "approval":
+		// Self-service registration creates a fresh tenant owned by the user.
+		// (approval moderation is not yet enforced — same behavior as open)
+		t, err := h.store.CreateTenantWithDefaults(r.Context(), name+"'s Team", registrationTenantSlug(name))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		tenantID, roleID = t, "role_owner"
+	default: // invite_only and any unrecognized value: require a valid invite code
+		if req.InviteCode == "" {
+			writeError(w, http.StatusForbidden, "registration is by invitation only")
+			return
+		}
+		inv, err := h.redeemInvite(r.Context(), req.InviteCode, req.Email)
+		if err != nil {
+			writeError(w, http.StatusForbidden, err.Error())
+			return
+		}
+		tenantID, roleID = inv.TenantID, inv.RoleID
+	}
+
 	// Hash password
 	hash, err := internalAuth.HashPassword(req.Password)
 	if err != nil {
@@ -319,26 +373,14 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create tenant + user
-	name := req.Name
-	if name == "" {
-		name = req.Email
-	}
-
-	tenantID, err := h.store.CreateTenantWithDefaults(r.Context(), name+"'s Team", registrationTenantSlug(name))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-
-	userID, err := h.store.CreateUserWithMembership(r.Context(), req.Email, hash, name, "active", tenantID, "role_owner")
+	userID, err := h.store.CreateUserWithMembership(r.Context(), req.Email, hash, name, "active", tenantID, roleID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
 	// Generate token pair
-	tokens, err := h.authMod.JWT().GenerateTokenPair(userID, tenantID, "role_owner", req.Email)
+	tokens, err := h.authMod.JWT().GenerateTokenPair(userID, tenantID, roleID, req.Email)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "token generation failed")
 		return
@@ -347,6 +389,38 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	setTokenCookies(w, r, tokens)
 	middleware.SetCSRFCookie(w, r)
 	writeJSON(w, http.StatusCreated, tokens)
+}
+
+// redeemInvite validates an invite code against the invitation store and
+// atomically marks the invitation accepted. It returns the invitation whose
+// tenant/role the new account should join, or an error safe to return to
+// the client. The atomic AcceptInvite guard means a code can never be used
+// twice, even under concurrent redemption attempts.
+func (h *AuthHandler) redeemInvite(ctx context.Context, code, email string) (*core.Invitation, error) {
+	tokenHash := hashToken(code)
+	inv, err := h.store.GetInviteByTokenHash(ctx, tokenHash)
+	if errors.Is(err, core.ErrNotFound) {
+		return nil, errors.New("invalid or expired invite code")
+	}
+	if err != nil {
+		return nil, errors.New("could not verify invite code")
+	}
+	if inv.Status != "pending" {
+		return nil, errors.New("invite code has already been used")
+	}
+	if time.Now().After(inv.ExpiresAt) {
+		return nil, errors.New("invite code has expired")
+	}
+	// Invitations are bound to a specific email at creation time.
+	if inv.Email != "" && !strings.EqualFold(inv.Email, email) {
+		return nil, errors.New("invite code does not match this email")
+	}
+	if err := h.store.AcceptInvite(ctx, inv.ID); err != nil {
+		// Lost a race (concurrent redemption) or already used between
+		// lookup and accept.
+		return nil, errors.New("invite code has already been used")
+	}
+	return inv, nil
 }
 
 // Refresh handles POST /api/v1/auth/refresh

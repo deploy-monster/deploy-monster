@@ -78,8 +78,8 @@ func (m *mockSecretStore) GetTenant(_ context.Context, _ string) (*core.Tenant, 
 func (m *mockSecretStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, error) {
 	return nil, core.ErrNotFound
 }
-func (m *mockSecretStore) UpdateTenant(_ context.Context, _ *core.Tenant) error { return nil }
-func (m *mockSecretStore) DeleteTenant(_ context.Context, _ string, _ string) error       { return nil }
+func (m *mockSecretStore) UpdateTenant(_ context.Context, _ *core.Tenant) error     { return nil }
+func (m *mockSecretStore) DeleteTenant(_ context.Context, _ string, _ string) error { return nil }
 func (m *mockSecretStore) CreateTenantWithDefaults(_ context.Context, _, _ string) (string, error) {
 	return "", nil
 }
@@ -112,7 +112,7 @@ func (m *mockSecretStore) ListAppsByProject(_ context.Context, _ string, _ strin
 	return nil, nil
 }
 func (m *mockSecretStore) UpdateAppStatus(_ context.Context, _, _, _ string) error { return nil }
-func (m *mockSecretStore) DeleteApp(_ context.Context, _ string, _ string) error          { return nil }
+func (m *mockSecretStore) DeleteApp(_ context.Context, _ string, _ string) error   { return nil }
 func (m *mockSecretStore) GetAppByName(_ context.Context, _, _ string) (*core.Application, error) {
 	return nil, core.ErrNotFound
 }
@@ -143,10 +143,12 @@ func (m *mockSecretStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Do
 func (m *mockSecretStore) ListDomainsByApp(_ context.Context, _ string, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (m *mockSecretStore) DeleteDomain(_ context.Context, _ string, _ string) error              { return nil }
-func (m *mockSecretStore) DeleteDomainsByApp(_ context.Context, _ string, _ string) (int, error) { return 0, nil }
-func (m *mockSecretStore) ListAllDomains(_ context.Context) ([]core.Domain, error)     { return nil, nil }
-func (m *mockSecretStore) CreateProject(_ context.Context, _ *core.Project) error      { return nil }
+func (m *mockSecretStore) DeleteDomain(_ context.Context, _ string, _ string) error { return nil }
+func (m *mockSecretStore) DeleteDomainsByApp(_ context.Context, _ string, _ string) (int, error) {
+	return 0, nil
+}
+func (m *mockSecretStore) ListAllDomains(_ context.Context) ([]core.Domain, error) { return nil, nil }
+func (m *mockSecretStore) CreateProject(_ context.Context, _ *core.Project) error  { return nil }
 func (m *mockSecretStore) GetProject(_ context.Context, _ string) (*core.Project, error) {
 	return nil, core.ErrNotFound
 }
@@ -164,6 +166,10 @@ func (m *mockSecretStore) CreateAuditLog(_ context.Context, _ *core.AuditEntry) 
 func (m *mockSecretStore) ListAuditLogs(_ context.Context, _ string, _, _ int) ([]core.AuditEntry, int, error) {
 	return nil, 0, nil
 }
+func (m *mockSecretStore) GetInviteByTokenHash(_ context.Context, _ string) (*core.Invitation, error) {
+	return nil, core.ErrNotFound
+}
+func (m *mockSecretStore) AcceptInvite(_ context.Context, _ string) error           { return nil }
 func (m *mockSecretStore) CreateInvite(_ context.Context, _ *core.Invitation) error { return nil }
 func (m *mockSecretStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Invitation, error) {
 	return nil, nil

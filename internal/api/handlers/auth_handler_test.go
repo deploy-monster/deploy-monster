@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/deploy-monster/deploy-monster/internal/auth"
 	"github.com/deploy-monster/deploy-monster/internal/core"
@@ -184,6 +185,7 @@ func TestRegister_Success(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "new@example.com",
@@ -215,6 +217,7 @@ func TestRegister_DefaultsNameToEmail(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "noname@example.com",
@@ -239,6 +242,7 @@ func TestRegister_AllowsDuplicateDisplayNames(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	handler := NewAuthHandler(testAuthModule(store), store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 	for _, email := range []string{"same-name-1@example.com", "same-name-2@example.com"} {
 		body, _ := json.Marshal(registerRequest{
 			Email:    email,
@@ -260,6 +264,7 @@ func TestRegister_InvalidJSON(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader([]byte("{{{")))
 	rr := httptest.NewRecorder()
@@ -275,6 +280,7 @@ func TestRegister_MissingFields(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	tests := []struct {
 		name string
@@ -304,6 +310,7 @@ func TestRegister_WeakPassword(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	tests := []struct {
 		name     string
@@ -337,6 +344,7 @@ func TestRegister_DuplicateEmail(t *testing.T) {
 
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	body, _ := json.Marshal(registerRequest{Email: "taken@example.com", Password: "StrongPass1!", Name: "Dup"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
@@ -356,6 +364,7 @@ func TestRegister_TenantCreationError(t *testing.T) {
 
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1!"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
@@ -374,6 +383,7 @@ func TestRegister_UserCreationError(t *testing.T) {
 
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1!"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
@@ -392,6 +402,7 @@ func TestRegister_PasswordTooLong(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "user@example.com",
@@ -411,6 +422,7 @@ func TestRegister_NameTooLong(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "user@example.com",
@@ -431,6 +443,7 @@ func TestRegister_EmailTooLong(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    strings.Repeat("a", 250) + "@b.com", // > 254
@@ -450,6 +463,7 @@ func TestRegister_InvalidEmailFormat(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "not-an-email",
@@ -469,6 +483,7 @@ func TestRegister_MultipleValidationErrors(t *testing.T) {
 	store := newMockStore()
 	authMod := testAuthModule(store)
 	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
 
 	body, _ := json.Marshal(registerRequest{
 		Email:    "",
@@ -1066,5 +1081,268 @@ func assertErrorMessage(t *testing.T, rr *httptest.ResponseRecorder, expected st
 	msg, _ := errObj["message"].(string)
 	if msg != expected {
 		t.Errorf("expected error %q, got %q", expected, msg)
+	}
+}
+
+func TestRegister_DisabledModeRejected(t *testing.T) {
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "disabled" })
+
+	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1!"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "registration is disabled")
+}
+
+func TestRegister_InviteOnlyModeRejected(t *testing.T) {
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "invite_only" })
+
+	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1!"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "registration is by invitation only")
+}
+
+func TestRegister_NilModeFailsClosed(t *testing.T) {
+	// An unconfigured handler must never open registration by accident.
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+
+	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1!"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 (fail-closed), got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "registration is by invitation only")
+}
+
+// ─── Invite-code redemption (invite_only mode) ───────────────────────────────
+
+// seedInvitation records a pending invitation directly in the mock store,
+// keyed by tenant (the same shape CreateInvite uses).
+func seedInvitation(store *mockStore, tenantID string, inv core.Invitation) {
+	store.invitations[tenantID] = append(store.invitations[tenantID], inv)
+}
+
+func newInviteOnlyHandler(t *testing.T) (*AuthHandler, *mockStore) {
+	t.Helper()
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "invite_only" })
+	return handler, store
+}
+
+func TestRegister_InviteOnly_ValidCode_JoinsInviteTenant(t *testing.T) {
+	handler, store := newInviteOnlyHandler(t)
+	code := "invite-code-abc123"
+	seedInvitation(store, "tenant-inv", core.Invitation{
+		ID:        "inv-1",
+		TenantID:  "tenant-inv",
+		Email:     "invitee@example.com",
+		RoleID:    "role_member",
+		TokenHash: hashToken(code),
+		ExpiresAt: time.Now().Add(time.Hour),
+		Status:    "pending",
+	})
+
+	body, _ := json.Marshal(registerRequest{
+		Email:      "invitee@example.com",
+		Password:   "StrongPass1!",
+		Name:       "Invitee",
+		InviteCode: code,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	// The user joined the invitation's tenant with the invitation's role.
+	u, ok := store.usersByEmail["invitee@example.com"]
+	if !ok {
+		t.Fatal("expected user to be created")
+	}
+	m := store.memberships[u.ID]
+	if m == nil || m.TenantID != "tenant-inv" || m.RoleID != "role_member" {
+		t.Fatalf("expected membership tenant-inv/role_member, got %+v", m)
+	}
+	// The invitation was atomically accepted.
+	invites := store.invitations["tenant-inv"]
+	if len(invites) != 1 || invites[0].Status != "accepted" {
+		t.Fatalf("expected invitation accepted, got %+v", invites)
+	}
+}
+
+func TestRegister_InviteOnly_NoCode(t *testing.T) {
+	handler, _ := newInviteOnlyHandler(t)
+
+	body, _ := json.Marshal(registerRequest{Email: "new@example.com", Password: "StrongPass1!"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "registration is by invitation only")
+}
+
+func TestRegister_InviteOnly_InvalidCode(t *testing.T) {
+	handler, _ := newInviteOnlyHandler(t)
+
+	body, _ := json.Marshal(registerRequest{
+		Email:      "new@example.com",
+		Password:   "StrongPass1!",
+		InviteCode: "wrong-code",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invalid or expired invite code")
+}
+
+func TestRegister_InviteOnly_ExpiredCode(t *testing.T) {
+	handler, store := newInviteOnlyHandler(t)
+	code := "invite-code-expired"
+	seedInvitation(store, "tenant-inv", core.Invitation{
+		ID:        "inv-exp",
+		TenantID:  "tenant-inv",
+		Email:     "late@example.com",
+		RoleID:    "role_member",
+		TokenHash: hashToken(code),
+		ExpiresAt: time.Now().Add(-time.Hour),
+		Status:    "pending",
+	})
+
+	body, _ := json.Marshal(registerRequest{
+		Email:      "late@example.com",
+		Password:   "StrongPass1!",
+		InviteCode: code,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invite code has expired")
+}
+
+func TestRegister_InviteOnly_AlreadyUsedCode(t *testing.T) {
+	handler, store := newInviteOnlyHandler(t)
+	code := "invite-code-used"
+	seedInvitation(store, "tenant-inv", core.Invitation{
+		ID:        "inv-used",
+		TenantID:  "tenant-inv",
+		Email:     "used@example.com",
+		RoleID:    "role_member",
+		TokenHash: hashToken(code),
+		ExpiresAt: time.Now().Add(time.Hour),
+		Status:    "accepted",
+	})
+
+	body, _ := json.Marshal(registerRequest{
+		Email:      "used@example.com",
+		Password:   "StrongPass1!",
+		InviteCode: code,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invite code has already been used")
+}
+
+func TestRegister_InviteOnly_EmailMismatch(t *testing.T) {
+	handler, store := newInviteOnlyHandler(t)
+	code := "invite-code-email"
+	seedInvitation(store, "tenant-inv", core.Invitation{
+		ID:        "inv-email",
+		TenantID:  "tenant-inv",
+		Email:     "intended@example.com",
+		RoleID:    "role_member",
+		TokenHash: hashToken(code),
+		ExpiresAt: time.Now().Add(time.Hour),
+		Status:    "pending",
+	})
+
+	// Registration with a different email than the invitation is bound to.
+	body, _ := json.Marshal(registerRequest{
+		Email:      "other@example.com",
+		Password:   "StrongPass1!",
+		InviteCode: code,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
+	}
+	assertErrorMessage(t, rr, "invite code does not match this email")
+	// The invitation was not consumed by the failed attempt.
+	if got := store.invitations["tenant-inv"][0].Status; got != "pending" {
+		t.Fatalf("expected invitation still pending, got %q", got)
+	}
+}
+
+func TestRegister_OpenMode_IgnoresInviteCode(t *testing.T) {
+	// In open mode an invite code is optional and ignored — the user gets a
+	// fresh tenant as before.
+	store := newMockStore()
+	authMod := testAuthModule(store)
+	handler := NewAuthHandler(authMod, store, nil)
+	handler.SetRegistrationMode(func() string { return "open" })
+
+	body, _ := json.Marshal(registerRequest{
+		Email:      "open@example.com",
+		Password:   "StrongPass1!",
+		InviteCode: "any-code-ignored",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
 	}
 }

@@ -179,6 +179,10 @@ func (s *auditMockStore) GetSecretByScopeAndName(_ context.Context, _, _ string)
 func (s *auditMockStore) GetLatestSecretVersion(_ context.Context, _ string) (*core.SecretVersion, error) {
 	return nil, core.ErrNotFound
 }
+func (s *auditMockStore) GetInviteByTokenHash(_ context.Context, _ string) (*core.Invitation, error) {
+	return nil, core.ErrNotFound
+}
+func (s *auditMockStore) AcceptInvite(_ context.Context, _ string) error { return nil }
 func (s *auditMockStore) CreateInvite(_ context.Context, invite *core.Invitation) error {
 	if invite.ID == "" {
 		invite.ID = core.GenerateID()

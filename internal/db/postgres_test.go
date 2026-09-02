@@ -2383,3 +2383,63 @@ func TestPostgresDB_ListAllTenants_Empty(t *testing.T) {
 		t.Fatalf("expected empty, got total=%d len=%d", total, len(tenants))
 	}
 }
+
+// ─── Invite redemption (Postgres) ────────────────────────────────────────────
+
+func TestPostgresDB_GetInviteByTokenHash(t *testing.T) {
+	pg, mock := newMockPostgres(t)
+	now := time.Now().UTC()
+	rows := sqlmock.NewRows([]string{
+		"id", "tenant_id", "email", "role_id", "invited_by", "token_hash",
+		"expires_at", "accepted_at", "status", "created_at",
+	}).AddRow("inv-1", "tenant-redemption", "invitee@example.com", "role_member",
+		"user-1", "abc123hash", now.Add(time.Hour), nil, "pending", now)
+	mock.ExpectQuery("SELECT id, tenant_id, email, role_id, COALESCE\\(invited_by,''\\), token_hash").
+		WithArgs("abc123hash").
+		WillReturnRows(rows)
+
+	inv, err := pg.GetInviteByTokenHash(context.Background(), "abc123hash")
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if inv.ID != "inv-1" || inv.Email != "invitee@example.com" || inv.Status != "pending" {
+		t.Fatalf("unexpected invite: %+v", inv)
+	}
+	if inv.AcceptedAt != nil {
+		t.Fatalf("expected nil AcceptedAt, got %+v", inv.AcceptedAt)
+	}
+}
+
+func TestPostgresDB_GetInviteByTokenHash_NotFound(t *testing.T) {
+	pg, mock := newMockPostgres(t)
+	mock.ExpectQuery("SELECT id, tenant_id, email, role_id, COALESCE\\(invited_by,''\\), token_hash").
+		WithArgs("no-such-hash").
+		WillReturnError(sql.ErrNoRows)
+
+	_, err := pg.GetInviteByTokenHash(context.Background(), "no-such-hash")
+	if !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("expected core.ErrNotFound, got %v", err)
+	}
+}
+
+func TestPostgresDB_AcceptInvite(t *testing.T) {
+	pg, mock := newMockPostgres(t)
+	mock.ExpectExec("UPDATE invitations SET status = 'accepted'").
+		WithArgs(sqlmock.AnyArg(), "inv-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := pg.AcceptInvite(context.Background(), "inv-1"); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestPostgresDB_AcceptInvite_NotPending(t *testing.T) {
+	pg, mock := newMockPostgres(t)
+	mock.ExpectExec("UPDATE invitations SET status = 'accepted'").
+		WithArgs(sqlmock.AnyArg(), "inv-1").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	if err := pg.AcceptInvite(context.Background(), "inv-1"); !errors.Is(err, core.ErrInvalidToken) {
+		t.Fatalf("expected core.ErrInvalidToken, got %v", err)
+	}
+}

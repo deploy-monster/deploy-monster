@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -824,5 +825,91 @@ func TestSQLite_GetLatestSecretVersion_NotFound(t *testing.T) {
 	_, err := db.GetLatestSecretVersion(ctx, "nonexistent-secret-id")
 	if err == nil {
 		t.Fatal("expected error for non-existent secret versions")
+	}
+}
+
+// ─── Invite redemption store tests ───────────────────────────────────────────
+
+func TestSQLite_GetInviteByTokenHash(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	inv := &core.Invitation{
+		TenantID:  "tenant-redemption",
+		Email:     "invitee@example.com",
+		RoleID:    "role_member",
+		TokenHash: "abc123hash",
+		ExpiresAt: time.Now().Add(time.Hour),
+		Status:    "pending",
+	}
+	if err := db.CreateInvite(ctx, inv); err != nil {
+		t.Fatalf("CreateInvite: %v", err)
+	}
+
+	got, err := db.GetInviteByTokenHash(ctx, "abc123hash")
+	if err != nil {
+		t.Fatalf("GetInviteByTokenHash: %v", err)
+	}
+	if got.ID != inv.ID || got.Email != "invitee@example.com" || got.TenantID != "tenant-redemption" {
+		t.Fatalf("unexpected invite: %+v", got)
+	}
+	if got.Status != "pending" || got.AcceptedAt != nil {
+		t.Fatalf("expected pending invite with nil AcceptedAt, got %+v", got)
+	}
+}
+
+func TestSQLite_GetInviteByTokenHash_NotFound(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	_, err := db.GetInviteByTokenHash(ctx, "no-such-hash")
+	if !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("expected core.ErrNotFound, got %v", err)
+	}
+}
+
+func TestSQLite_AcceptInvite(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	inv := &core.Invitation{
+		TenantID:  "tenant-redemption",
+		Email:     "invitee@example.com",
+		RoleID:    "role_member",
+		TokenHash: "abc123hash",
+		ExpiresAt: time.Now().Add(time.Hour),
+		Status:    "pending",
+	}
+	if err := db.CreateInvite(ctx, inv); err != nil {
+		t.Fatalf("CreateInvite: %v", err)
+	}
+
+	if err := db.AcceptInvite(ctx, inv.ID); err != nil {
+		t.Fatalf("AcceptInvite (first): %v", err)
+	}
+
+	got, err := db.GetInviteByTokenHash(ctx, "abc123hash")
+	if err != nil {
+		t.Fatalf("GetInviteByTokenHash: %v", err)
+	}
+	if got.Status != "accepted" {
+		t.Fatalf("expected status accepted, got %q", got.Status)
+	}
+	if got.AcceptedAt == nil {
+		t.Fatal("expected AcceptedAt to be set after acceptance")
+	}
+
+	// A second acceptance must fail — the invitation is no longer pending.
+	if err := db.AcceptInvite(ctx, inv.ID); !errors.Is(err, core.ErrInvalidToken) {
+		t.Fatalf("expected core.ErrInvalidToken on second accept, got %v", err)
+	}
+}
+
+func TestSQLite_AcceptInvite_UnknownID(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	if err := db.AcceptInvite(ctx, "no-such-id"); !errors.Is(err, core.ErrInvalidToken) {
+		t.Fatalf("expected core.ErrInvalidToken for unknown invite, got %v", err)
 	}
 }

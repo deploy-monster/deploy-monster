@@ -531,7 +531,9 @@ func applyDefaults(cfg *Config) {
 	cfg.Backup.Encryption = true
 	cfg.Marketplace.Enabled = true
 	cfg.Marketplace.TemplatesDir = "marketplace/templates"
-	cfg.Registration.Mode = "open"
+	// Registration defaults to invite-only. "open" is reachable only by
+	// explicit opt-in in monster.yaml or MONSTER_REGISTRATION_MODE.
+	cfg.Registration.Mode = "invite_only"
 	cfg.Limits.MaxAppsPerTenant = 100
 	cfg.Limits.MaxBuildMinutes = 30
 	cfg.Limits.MaxConcurrentBuilds = 5

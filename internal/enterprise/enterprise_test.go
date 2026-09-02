@@ -41,8 +41,8 @@ func (s *mockStore) GetTenant(_ context.Context, _ string) (*core.Tenant, error)
 func (s *mockStore) GetTenantBySlug(_ context.Context, _ string) (*core.Tenant, error) {
 	return nil, nil
 }
-func (s *mockStore) UpdateTenant(_ context.Context, _ *core.Tenant) error { return nil }
-func (s *mockStore) DeleteTenant(_ context.Context, _ string, _ string) error       { return nil }
+func (s *mockStore) UpdateTenant(_ context.Context, _ *core.Tenant) error     { return nil }
+func (s *mockStore) DeleteTenant(_ context.Context, _ string, _ string) error { return nil }
 
 func (s *mockStore) CreateUser(_ context.Context, user *core.User) error {
 	s.users[user.ID] = user
@@ -97,7 +97,7 @@ func (s *mockStore) ListAppsByProject(_ context.Context, _ string, _ string) ([]
 	return nil, nil
 }
 func (s *mockStore) UpdateAppStatus(_ context.Context, _, _, _ string) error { return nil }
-func (s *mockStore) DeleteApp(_ context.Context, _ string, _ string) error          { return nil }
+func (s *mockStore) DeleteApp(_ context.Context, _ string, _ string) error   { return nil }
 
 func (s *mockStore) CreateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
 func (s *mockStore) UpdateDeployment(_ context.Context, _ *core.Deployment) error { return nil }
@@ -139,8 +139,10 @@ func (s *mockStore) GetDomainByFQDN(_ context.Context, _ string) (*core.Domain, 
 func (s *mockStore) ListDomainsByApp(_ context.Context, _ string, _ string) ([]core.Domain, error) {
 	return nil, nil
 }
-func (s *mockStore) DeleteDomain(_ context.Context, _ string, _ string) error              { return nil }
-func (s *mockStore) DeleteDomainsByApp(_ context.Context, _ string, _ string) (int, error) { return 0, nil }
+func (s *mockStore) DeleteDomain(_ context.Context, _ string, _ string) error { return nil }
+func (s *mockStore) DeleteDomainsByApp(_ context.Context, _ string, _ string) (int, error) {
+	return 0, nil
+}
 func (s *mockStore) ListAllDomains(_ context.Context) ([]core.Domain, error) {
 	return nil, nil
 }
@@ -195,6 +197,10 @@ func (s *mockStore) GetSecretByScopeAndName(_ context.Context, _, _ string) (*co
 func (s *mockStore) GetLatestSecretVersion(_ context.Context, _ string) (*core.SecretVersion, error) {
 	return nil, core.ErrNotFound
 }
+func (s *mockStore) GetInviteByTokenHash(_ context.Context, _ string) (*core.Invitation, error) {
+	return nil, core.ErrNotFound
+}
+func (s *mockStore) AcceptInvite(_ context.Context, _ string) error           { return nil }
 func (s *mockStore) CreateInvite(_ context.Context, _ *core.Invitation) error { return nil }
 func (s *mockStore) ListInvitesByTenant(_ context.Context, _ string) ([]core.Invitation, error) {
 	return nil, nil
@@ -210,7 +216,9 @@ func (s *mockStore) CreateBackup(_ context.Context, _ *core.Backup) error { retu
 func (s *mockStore) ListBackupsByTenant(_ context.Context, _ string, _, _ int) ([]core.Backup, int, error) {
 	return nil, 0, nil
 }
-func (s *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error { return nil }
+func (s *mockStore) UpdateBackupStatus(_ context.Context, _, _ string, _ int64, _ string) error {
+	return nil
+}
 
 func (s *mockStore) Close() error                 { return nil }
 func (s *mockStore) Ping(_ context.Context) error { return nil }

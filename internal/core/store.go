@@ -174,6 +174,13 @@ type SecretStore interface {
 // InviteStore manages team invitations.
 type InviteStore interface {
 	CreateInvite(ctx context.Context, invite *Invitation) error
+	// GetInviteByTokenHash returns the invitation whose token hash matches,
+	// or core.ErrNotFound when no invitation carries that hash.
+	GetInviteByTokenHash(ctx context.Context, tokenHash string) (*Invitation, error)
+	// AcceptInvite atomically marks a pending invitation as accepted.
+	// It fails (core.ErrInvalidToken) when the invitation is not pending —
+	// already used, or concurrently redeemed by another request.
+	AcceptInvite(ctx context.Context, id string) error
 	ListInvitesByTenant(ctx context.Context, tenantID string) ([]Invitation, error)
 	ListAllTenants(ctx context.Context, limit, offset int) ([]Tenant, int, error)
 }

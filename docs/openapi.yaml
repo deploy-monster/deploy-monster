@@ -258,15 +258,26 @@ paths:
                   minLength: 8
                 name:
                   type: string
-      responses:
-        "201":
-          description: Account created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TokenPair"
-        "409":
-          description: Email already registered
+                invite_code:
+                  type: string
+                  description: >-
+                    Required when the server's registration mode is
+                    invite_only. The code is bound to the email it was
+                    created for; redemption joins the inviter's tenant with
+                    the role granted on the invitation.
+    responses:
+      "201":
+        description: Account created
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenPair"
+      "403":
+        description: >-
+          Registration is disabled, invitation-only without a valid code,
+          or the code is expired/used/bound to a different email
+      "409":
+        description: Email already registered
 
   /api/v1/auth/refresh:
     post:
@@ -1346,6 +1357,34 @@ paths:
       responses:
         "201":
           description: Invite sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, email, role_id, token, expires_at]
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+                    format: email
+                  role_id:
+                    type: string
+                  token:
+                    type: string
+                    description: >-
+                      The one-time invite code. Share it with the invitee —
+                      they enter it as invite_code on /api/v1/auth/register
+                      when the server runs in invite_only mode. Returned only
+                      here, at creation.
+                  token_hash:
+                    type: string
+                    description: >-
+                      SHA-256 digest of the invite code. Returned for
+                      verification only; it cannot be used to redeem.
+                  expires_at:
+                    type: string
+                    format: date-time
 
   /api/v1/team/audit-log:
     get:

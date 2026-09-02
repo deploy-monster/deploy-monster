@@ -12,8 +12,10 @@ import {
   LogOut,
   UserCog,
   Key,
+  Copy,
+  Check,
 } from 'lucide-react';
-import { teamAPI, type TeamMember, type AuditEntry } from '@/api/team';
+import { teamAPI, type TeamMember, type AuditEntry, type InviteResponse } from '@/api/team';
 import { useApi } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -155,17 +157,43 @@ export function Team() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('role_developer');
+  const [inviteResult, setInviteResult] = useState<InviteResponse | null>(null);
+  const [inviteCodeCopied, setInviteCodeCopied] = useState(false);
+
+  const closeInviteDialog = () => {
+    setInviteResult(null);
+    setInviteCodeCopied(false);
+    setDialogOpen(false);
+  };
 
   const handleInvite = async () => {
     if (!inviteEmail) return;
     try {
-      await teamAPI.invite({ email: inviteEmail, role_id: inviteRole });
-      toast.success('Invite sent');
+      const res = await teamAPI.invite({ email: inviteEmail, role_id: inviteRole });
       setInviteEmail('');
-      setDialogOpen(false);
       refetchMembers();
+      if (res?.token) {
+        // The plaintext code is only returned once — keep the dialog open
+        // and show it so the inviter can copy and share it.
+        setInviteResult(res);
+      } else {
+        toast.success('Invite sent');
+        closeInviteDialog();
+      }
     } catch {
       toast.error('Failed to send invite');
+    }
+  };
+
+  const handleCopyInviteCode = async () => {
+    if (!inviteResult?.token) return;
+    try {
+      await navigator.clipboard.writeText(inviteResult.token);
+      setInviteCodeCopied(true);
+      setTimeout(() => setInviteCodeCopied(false), 2000);
+      toast.success('Invite code copied to clipboard');
+    } catch {
+      toast.error('Failed to copy invite code');
     }
   };
 
@@ -210,53 +238,98 @@ export function Team() {
       </div>
 
       {/* Invite Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => {
+        setDialogOpen(open);
+        if (!open) {
+          setInviteResult(null);
+          setInviteCodeCopied(false);
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               <div className="flex items-center justify-center rounded-xl size-9 bg-primary">
-                <Mail className="size-4 text-primary-foreground" />
+                {inviteResult ? <Key className="size-4 text-primary-foreground" /> : <Mail className="size-4 text-primary-foreground" />}
               </div>
-              Invite Team Member
+              {inviteResult ? 'Invite Code' : 'Invite Team Member'}
             </DialogTitle>
             <DialogDescription>
-              Send an invitation email to add a new member to your team.
+              {inviteResult
+                ? 'This code is shown only once — copy it now and share it with your invitee.'
+                : 'Send an invitation email to add a new member to your team.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="invite-email">Email Address</Label>
-              <Input
-                id="invite-email"
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="colleague@company.com"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="invite-role">Role</Label>
-              <Select
-                id="invite-role"
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
-              >
-                <option value="role_admin">Admin</option>
-                <option value="role_developer">Developer</option>
-                <option value="role_operator">Operator</option>
-                <option value="role_viewer">Viewer</option>
-              </Select>
+          {inviteResult ? (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border bg-muted/40 p-4">
+                <Label htmlFor="invite-code">Invite Code</Label>
+                <p className="text-[11px] text-muted-foreground mt-1 mb-2">
+                  Entered on the registration form by the invitee. Cannot be recovered after this dialog closes.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="invite-code"
+                    readOnly
+                    value={inviteResult.token}
+                    className="font-mono"
+                    aria-label="Invite code"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyInviteCode}
+                    aria-label="Copy invite code"
+                  >
+                    {inviteCodeCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                  </Button>
+                </div>
+              </div>
               <p className="text-[11px] text-muted-foreground">
-                Admins have full access. Developers can deploy and manage apps. Viewers are read-only.
+                Invite expires in 7 days and can be used once.
               </p>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-email">Email Address</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="colleague@company.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-role">Role</Label>
+                <Select
+                  id="invite-role"
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                >
+                  <option value="role_admin">Admin</option>
+                  <option value="role_developer">Developer</option>
+                  <option value="role_operator">Operator</option>
+                  <option value="role_viewer">Viewer</option>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Admins have full access. Developers can deploy and manage apps. Viewers are read-only.
+                </p>
+              </div>
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleInvite} disabled={!inviteEmail}>
-              <Mail className="size-4" />
-              Send Invite
-            </Button>
+            {inviteResult ? (
+              <Button onClick={closeInviteDialog}>Done</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleInvite} disabled={!inviteEmail}>
+                  <Mail className="size-4" />
+                  Send Invite
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
